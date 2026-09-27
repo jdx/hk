@@ -1,5 +1,5 @@
 use super::text_files::{
-    for_each_in_order, read_rest_to_string, read_text_probe, regular_file_len,
+    fix_in_order, for_each_in_order, read_rest_to_string, read_text_probe, regular_file_len,
 };
 use crate::Result;
 use std::fs;
@@ -27,12 +27,7 @@ impl EndOfFileFixer {
     pub async fn run(&self) -> Result<()> {
         if self.fix {
             // Fix mode always succeeds.
-            return for_each_in_order(&self.files, fixed_content, |path, fixed| {
-                if let Some(fixed) = fixed? {
-                    fs::write(path, fixed)?;
-                }
-                Ok(())
-            });
+            return fix_in_order(&self.files, fixed_content);
         }
 
         let report = |path: &Path| -> Result<Option<String>> {
@@ -44,13 +39,17 @@ impl EndOfFileFixer {
         };
         let mut out = io::BufWriter::new(io::stdout().lock());
         let mut found_issues = false;
-        let reported = for_each_in_order(&self.files, report, |_, report| {
-            if let Some(report) = report? {
-                out.write_all(report.as_bytes())?;
-                found_issues = true;
-            }
-            Ok(())
-        });
+        let reported = for_each_in_order(
+            &self.files,
+            |path| report(path),
+            |_, report| {
+                if let Some(report) = report? {
+                    out.write_all(report.as_bytes())?;
+                    found_issues = true;
+                }
+                Ok(())
+            },
+        );
         out.flush()?;
         reported?;
 
@@ -67,9 +66,14 @@ impl EndOfFileFixer {
 /// with the bytes read from its start so far. Returns `None` for files that
 /// aren't text and files that already end properly, including empty files.
 fn open_if_improper(path: &Path) -> Result<Option<(fs::File, Vec<u8>)>> {
-    let Some(len) = regular_file_len(path) else {
-        return Ok(None);
-    };
+    match regular_file_len(path) {
+        Some(len) => open_if_improper_of_len(path, len),
+        None => Ok(None),
+    }
+}
+
+/// [`open_if_improper`] for a regular file of `len` bytes.
+fn open_if_improper_of_len(path: &Path, len: u64) -> Result<Option<(fs::File, Vec<u8>)>> {
     if len == 0 {
         return Ok(None); // Empty files are text and already "correct"
     }
@@ -104,23 +108,24 @@ fn normalize_ending(content: &str) -> String {
 }
 
 /// The file's content, if it is a text file that doesn't end properly.
-fn improper_content(path: &Path) -> Result<Option<String>> {
-    match open_if_improper(path)? {
+fn improper_content(opened: Option<(fs::File, Vec<u8>)>) -> Result<Option<String>> {
+    match opened {
         Some((mut file, head)) => read_rest_to_string(&mut file, head).map(Some),
         None => Ok(None),
     }
 }
 
-/// The file's content ending with exactly one newline, or `None` if it
-/// already does or isn't a text file.
-fn fixed_content(path: &Path) -> Result<Option<String>> {
-    Ok(improper_content(path)?.map(|content| normalize_ending(&content)))
+/// The content of a regular file of `len` bytes ending with exactly one
+/// newline, or `None` if it already does or isn't a text file.
+fn fixed_content(path: &Path, len: u64) -> Result<Option<String>> {
+    let content = improper_content(open_if_improper_of_len(path, len)?)?;
+    Ok(content.map(|content| normalize_ending(&content)))
 }
 
 /// Generate a unified diff showing the fix
 /// Returns None if file already has proper ending
 fn generate_diff(path: &Path) -> Result<Option<String>> {
-    let Some(original) = improper_content(path)? else {
+    let Some(original) = improper_content(open_if_improper(path)?)? else {
         return Ok(None);
     };
     let fixed = normalize_ending(&original);
@@ -144,7 +149,10 @@ fn has_proper_ending(path: &Path) -> Result<bool> {
 /// Fix a file to end with exactly one newline
 #[cfg(test)]
 fn fix_end_of_file(path: &Path) -> Result<()> {
-    if let Some(fixed) = fixed_content(path)? {
+    let Some(len) = regular_file_len(path) else {
+        return Ok(());
+    };
+    if let Some(fixed) = fixed_content(path, len)? {
         fs::write(path, fixed)?;
     }
     Ok(())

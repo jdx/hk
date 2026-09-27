@@ -7,7 +7,7 @@
 //! failure stops the run at the same file as a sequential loop would.
 
 use crate::Result;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -26,8 +26,79 @@ const RESULTS_AHEAD: usize = 256;
 /// The size of `path` if it is a regular file, following symlinks. Missing
 /// paths, directories, and special files are not text files and are skipped.
 pub(super) fn regular_file_len(path: &Path) -> Option<u64> {
+    regular_file(path).map(|file| file.len)
+}
+
+/// Identifies the file a path resolves to, so the same file listed under
+/// several paths (repeated, through a symlink, or as a hard link) is noticed.
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct FileId(#[cfg(unix)] (u64, u64), #[cfg(not(unix))] PathBuf);
+
+/// A regular file, following symlinks.
+struct RegularFile {
+    len: u64,
+    id: FileId,
+}
+
+fn regular_file(path: &Path) -> Option<RegularFile> {
     let metadata = fs::metadata(path).ok()?;
-    metadata.is_file().then_some(metadata.len())
+    if !metadata.is_file() {
+        return None;
+    }
+    #[cfg(unix)]
+    let id = {
+        use std::os::unix::fs::MetadataExt;
+        FileId((metadata.dev(), metadata.ino()))
+    };
+    #[cfg(not(unix))]
+    let id = FileId(fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()));
+    Some(RegularFile {
+        len: metadata.len(),
+        id,
+    })
+}
+
+/// Fix every file with `fix`, which gets the file's size and returns its
+/// fixed content if it changes. Files are read in parallel and written in
+/// file order, stopping at the first error, as in a sequential loop.
+///
+/// A file listed more than once, under the same path or another one that
+/// resolves to it, is only fixed where it first appears. A sequential loop
+/// found it already fixed at its later entries, and reading it there could
+/// race with the write of its first entry.
+pub(super) fn fix_in_order<F>(files: &[PathBuf], fix: F) -> Result<()>
+where
+    F: Fn(&Path, u64) -> Result<Option<String>> + Sync,
+{
+    let mut regular = Vec::with_capacity(files.len());
+    for_each_in_order(
+        files,
+        |path| regular_file(path),
+        |_, file| {
+            regular.push(file);
+            Ok(())
+        },
+    )?;
+    let mut seen = HashSet::new();
+    // The size of each file to fix; `None` for files to leave alone.
+    let lens: Vec<Option<u64>> = regular
+        .into_iter()
+        .map(|file| file.and_then(|file| seen.insert(file.id).then_some(file.len)))
+        .collect();
+    let jobs: Vec<(&PathBuf, Option<u64>)> = files.iter().zip(lens).collect();
+    for_each_in_order(
+        &jobs,
+        |(path, len)| match len {
+            Some(len) => fix(path, *len),
+            None => Ok(None),
+        },
+        |(path, _), fixed| {
+            if let Some(fixed) = fixed? {
+                fs::write(path, fixed)?;
+            }
+            Ok(())
+        },
+    )
 }
 
 /// Read the bytes that decide whether a file of `len` bytes is text: the first
@@ -55,17 +126,18 @@ pub(super) fn read_rest_to_string(file: &mut File, mut bytes: Vec<u8>) -> Result
     })
 }
 
-/// Run `f` on every file across the available CPUs and hand each result to
-/// `emit` on the calling thread, in file order, so output and writes happen
+/// Run `f` on every item across the available CPUs and hand each result to
+/// `emit` on the calling thread, in order, so output and writes happen
 /// exactly as in a sequential loop. Workers stay at most [`RESULTS_AHEAD`]
-/// files ahead of `emit`, which bounds how many results are held at once.
+/// items ahead of `emit`, which bounds how many results are held at once.
 /// The first error from `emit` stops the run and is returned; no later
 /// result reaches `emit`.
-pub(super) fn for_each_in_order<T, F, E>(files: &[PathBuf], f: F, mut emit: E) -> Result<()>
+pub(super) fn for_each_in_order<I, T, F, E>(files: &[I], f: F, mut emit: E) -> Result<()>
 where
+    I: Sync,
     T: Send,
-    F: Fn(&Path) -> T + Sync,
-    E: FnMut(&Path, T) -> Result<()>,
+    F: Fn(&I) -> T + Sync,
+    E: FnMut(&I, T) -> Result<()>,
 {
     let threads = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -159,11 +231,15 @@ mod tests {
     fn emits_every_result_in_file_order() {
         let files = files(5000);
         let mut seen = Vec::new();
-        for_each_in_order(&files, index, |path, i| {
-            assert_eq!(index(path), i);
-            seen.push(i);
-            Ok(())
-        })
+        for_each_in_order(
+            &files,
+            |path| index(path),
+            |path, i| {
+                assert_eq!(index(path), i);
+                seen.push(i);
+                Ok(())
+            },
+        )
         .unwrap();
         assert_eq!(seen, (0..5000).collect::<Vec<_>>());
     }
@@ -172,14 +248,53 @@ mod tests {
     fn stops_at_the_first_error() {
         let files = files(5000);
         let mut seen = Vec::new();
-        let result = for_each_in_order(&files, index, |_, i| {
-            if i == 700 {
-                eyre::bail!("failed at {i}");
-            }
-            seen.push(i);
-            Ok(())
-        });
+        let result = for_each_in_order(
+            &files,
+            |path| index(path),
+            |_, i| {
+                if i == 700 {
+                    eyre::bail!("failed at {i}");
+                }
+                seen.push(i);
+                Ok(())
+            },
+        );
         assert_eq!(result.unwrap_err().to_string(), "failed at 700");
         assert_eq!(seen, (0..700).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn fixes_a_file_listed_more_than_once_only_where_it_first_appears() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut files = Vec::new();
+        for i in 0..1000 {
+            let path = dir.path().join(format!("{i}.txt"));
+            fs::write(&path, "x").unwrap();
+            files.push(path);
+        }
+        let first = files[10].clone();
+        let hard_link = dir.path().join("hard.txt");
+        fs::hard_link(&first, &hard_link).unwrap();
+        files.insert(20, first.clone());
+        files.insert(30, hard_link.clone());
+        #[cfg(unix)]
+        {
+            let symlink = dir.path().join("link.txt");
+            std::os::unix::fs::symlink(&first, &symlink).unwrap();
+            files.insert(40, symlink);
+        }
+        files.push(first.clone());
+
+        let fixed = Mutex::new(Vec::new());
+        fix_in_order(&files, |path, _| {
+            fixed.lock().unwrap().push(path.to_path_buf());
+            Ok(Some("y".to_string()))
+        })
+        .unwrap();
+        let fixed = fixed.into_inner().unwrap();
+        assert_eq!(fixed.len(), 1000);
+        assert_eq!(fixed.iter().filter(|path| **path == first).count(), 1);
+        assert!(!fixed.contains(&hard_link));
+        assert_eq!(fs::read_to_string(&first).unwrap(), "y");
     }
 }

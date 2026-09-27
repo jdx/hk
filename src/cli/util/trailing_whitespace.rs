@@ -1,5 +1,5 @@
 use super::text_files::{
-    for_each_in_order, read_rest_to_string, read_text_probe, regular_file_len,
+    fix_in_order, for_each_in_order, read_rest_to_string, read_text_probe, regular_file_len,
 };
 use crate::Result;
 use std::fs;
@@ -27,12 +27,7 @@ impl TrailingWhitespace {
     pub async fn run(&self) -> Result<()> {
         if self.fix {
             // Fix mode always succeeds.
-            return for_each_in_order(&self.files, fixed_content, |path, fixed| {
-                if let Some(fixed) = fixed? {
-                    fs::write(path, fixed)?;
-                }
-                Ok(())
-            });
+            return fix_in_order(&self.files, fixed_content);
         }
 
         let report = |path: &Path| -> Result<Option<String>> {
@@ -44,13 +39,17 @@ impl TrailingWhitespace {
         };
         let mut out = io::BufWriter::new(io::stdout().lock());
         let mut found_issues = false;
-        let reported = for_each_in_order(&self.files, report, |_, report| {
-            if let Some(report) = report? {
-                out.write_all(report.as_bytes())?;
-                found_issues = true;
-            }
-            Ok(())
-        });
+        let reported = for_each_in_order(
+            &self.files,
+            |path| report(path),
+            |_, report| {
+                if let Some(report) = report? {
+                    out.write_all(report.as_bytes())?;
+                    found_issues = true;
+                }
+                Ok(())
+            },
+        );
         out.flush()?;
         reported?;
 
@@ -65,9 +64,15 @@ impl TrailingWhitespace {
 
 /// Read a file's content, or `None` for a file that isn't text.
 fn read_text(path: &Path) -> Result<Option<String>> {
-    let Some(len) = regular_file_len(path) else {
-        return Ok(None);
-    };
+    match regular_file_len(path) {
+        Some(len) => read_text_of_len(path, len),
+        None => Ok(None),
+    }
+}
+
+/// Read the content of a regular file of `len` bytes, or `None` if it isn't
+/// text.
+fn read_text_of_len(path: &Path, len: u64) -> Result<Option<String>> {
     let mut file = fs::File::open(path)?;
     let head = if len == 0 {
         Vec::new() // Empty files are text
@@ -106,10 +111,10 @@ fn strip_trailing_whitespace(original: &str) -> String {
         + if original.ends_with('\n') { "\n" } else { "" }
 }
 
-/// The file's content without trailing whitespace, or `None` if it has none
-/// or isn't a text file.
-fn fixed_content(path: &Path) -> Result<Option<String>> {
-    let Some(original) = read_text(path)? else {
+/// The content of a regular file of `len` bytes without trailing
+/// whitespace, or `None` if it has none or isn't a text file.
+fn fixed_content(path: &Path, len: u64) -> Result<Option<String>> {
+    let Some(original) = read_text_of_len(path, len)? else {
         return Ok(None);
     };
     let fixed = strip_trailing_whitespace(&original);
@@ -142,7 +147,10 @@ fn generate_diff(path: &Path) -> Result<Option<String>> {
 /// Fix trailing whitespace in a file, returns true if file was modified
 #[cfg(test)]
 fn fix_trailing_whitespace(path: &Path) -> Result<bool> {
-    let Some(fixed) = fixed_content(path)? else {
+    let Some(len) = regular_file_len(path) else {
+        return Ok(false);
+    };
+    let Some(fixed) = fixed_content(path, len)? else {
         return Ok(false);
     };
     fs::write(path, &fixed)?;
