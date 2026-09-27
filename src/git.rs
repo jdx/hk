@@ -105,6 +105,74 @@ where
     Ok(output.stdout)
 }
 
+/// Runs git and splits its NUL-separated output into paths, setting names
+/// that are not valid UTF-8, which hk cannot handle as paths, aside as bytes.
+fn git_read_paths<I, S>(args: I) -> Result<(Vec<PathBuf>, Vec<Vec<u8>>)>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let mut paths = Vec::new();
+    let mut unnamed = Vec::new();
+    for name in git_read_bytes(args)?.split(|&b| b == 0) {
+        if name.is_empty() {
+            continue;
+        }
+        match std::str::from_utf8(name) {
+            Ok(path) => paths.push(PathBuf::from(path)),
+            Err(_) => unnamed.push(name.to_vec()),
+        }
+    }
+    Ok((paths, unnamed))
+}
+
+/// Restores the stashed worktree state of a path that is not valid UTF-8: its
+/// untracked or modified contents, or its deletion.
+#[cfg(unix)]
+fn restore_stashed_path(stash_ref: &str, name: &[u8]) -> Result<()> {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let name = OsStr::from_bytes(name);
+    let has_path = |rev: &str| {
+        let mut object = OsString::from(format!("{rev}:"));
+        object.push(name);
+        git_cmd_silent([OsString::from("cat-file"), "-e".into(), object])
+            .run()
+            .is_ok()
+    };
+    // The untracked files of a stash are in its third parent
+    let untracked = format!("{stash_ref}^3");
+    let source = if *env::HK_STASH_UNTRACKED && has_path(&untracked) {
+        untracked
+    } else if has_path(stash_ref) {
+        stash_ref.to_string()
+    } else {
+        // Deleted from the worktree, which stashing brought back
+        let path = std::path::Path::new(name);
+        if std::fs::symlink_metadata(path).is_ok() {
+            std::fs::remove_file(path)?;
+        }
+        return Ok(());
+    };
+    let mut pathspec = OsString::from(":(literal)");
+    pathspec.push(name);
+    // Writes the worktree only, with the stashed file mode
+    git_cmd([
+        OsString::from("restore"),
+        format!("--source={source}").into(),
+        "--worktree".into(),
+        "--".into(),
+        pathspec,
+    ])
+    .run()?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restore_stashed_path(_stash_ref: &str, _name: &[u8]) -> Result<()> {
+    Err(eyre!("cannot restore a path that is not valid UTF-8"))
+}
+
 fn git_read_raw<I, S>(args: I) -> Result<String>
 where
     I: IntoIterator<Item = S>,
@@ -483,13 +551,14 @@ impl Git {
             args.push("--renames");
         }
         let output = git_read_bytes(args).wrap_err("failed to get git status")?;
-        let mut skipped = Vec::new();
+        let mut skipped = SkippedPaths::default();
         let entries = parse_porcelain_status(&output, &mut skipped)?;
-        let status = if self.repo.is_some() {
+        let mut status = if self.repo.is_some() {
             GitStatus::from_entries_libgit2(entries, &mut skipped)
         } else {
             GitStatus::from_entries(entries)
         };
+        status.set_skipped(&skipped);
         warn_skipped_paths(&skipped);
         Ok(status)
     }
@@ -702,6 +771,10 @@ impl Git {
                 unstaged_modified_files,
                 unstaged_deleted_files,
                 unstaged_renamed_files,
+                // libgit2 skips paths that are not valid UTF-8 without saying
+                // so, but these are queries for paths hk already knows
+                skipped_unstaged: false,
+                skipped_untracked: false,
             })
         } else {
             let mut args = vec![
@@ -723,8 +796,10 @@ impl Git {
                 .stdout_capture()
                 .run()?
                 .stdout;
-            let mut skipped = Vec::new();
-            let status = GitStatus::from_entries(parse_porcelain_status(&output, &mut skipped)?);
+            let mut skipped = SkippedPaths::default();
+            let mut status =
+                GitStatus::from_entries(parse_porcelain_status(&output, &mut skipped)?);
+            status.set_skipped(&skipped);
             warn_skipped_paths(&skipped);
             Ok(status)
         }
@@ -771,30 +846,16 @@ impl Git {
                 "--no-ext-diff".into(),
                 "--ignore-submodules".into(),
             ];
-            let out = git_read(args).unwrap_or_default();
-            for name in out.split('\0') {
-                if name.is_empty() {
-                    continue;
-                }
-                let p = PathBuf::from(name);
-                if p.exists() {
-                    files_to_stash.insert(p);
-                }
-            }
+            // Paths that are not valid UTF-8 are left out of the status, which
+            // records that they need stashing
+            let (paths, _) = git_read_paths(args).unwrap_or_default();
+            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
         }
         // 2) git ls-files -m (modified in worktree)
         {
             let args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
-            let out = git_read(args).unwrap_or_default();
-            for name in out.split('\0') {
-                if name.is_empty() {
-                    continue;
-                }
-                let p = PathBuf::from(name);
-                if p.exists() {
-                    files_to_stash.insert(p);
-                }
-            }
+            let (paths, _) = git_read_paths(args).unwrap_or_default();
+            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
         }
         // 3) Parse porcelain to catch nuanced mixed states.
         // We only look at worktree-side markers (M/T/R), so untracked entries
@@ -813,15 +874,13 @@ impl Git {
                 untracked_arg.into(),
                 "-z".into(),
             ];
-            let out = git_read(args).unwrap_or_default();
-            for entry in out.split('\0').filter(|s| !s.is_empty()) {
-                let mut chars = entry.chars();
-                let _x = chars.next().unwrap_or_default();
-                let y = chars.next().unwrap_or_default();
-                let path = chars.skip(1).collect::<String>();
-                if y == 'M' || y == 'T' || y == 'R' {
-                    // worktree side has changes
-                    let p = PathBuf::from(&path);
+            let out = git_read_bytes(args).unwrap_or_default();
+            for entry in out.split(|&b| b == 0).filter(|s| s.len() > 3) {
+                // worktree side has changes
+                if matches!(entry[1], b'M' | b'T' | b'R')
+                    && let Ok(path) = std::str::from_utf8(&entry[3..])
+                {
+                    let p = PathBuf::from(path);
                     if p.exists() {
                         files_to_stash.insert(p);
                     }
@@ -838,12 +897,16 @@ impl Git {
                 files_to_stash.insert(p.clone());
             }
         }
+        // The status left out paths that are not valid UTF-8, which hk cannot
+        // name in a pathspec, so stash the whole worktree to set them aside
+        let stash_everything =
+            status.skipped_unstaged || (*env::HK_STASH_UNTRACKED && status.skipped_untracked);
         let files_count = files_to_stash.len();
         job.prop("files", &files_count);
         // TODO: if any intent_to_add files exist, run `git rm --cached -- <file>...` then `git add --intent-to-add -- <file>...` when unstashing
         // let intent_to_add = self.intent_to_add_files()?;
         // see https://github.com/pre-commit/pre-commit/blob/main/pre_commit/staged_files_only.py
-        if files_to_stash.is_empty() {
+        if files_to_stash.is_empty() && !stash_everything {
             job.prop("message", "No unstaged changes to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
@@ -857,7 +920,7 @@ impl Git {
         job.prop("message", "Running git stash");
         job.update();
         let subset_vec: Vec<PathBuf> = files_to_stash.iter().cloned().collect();
-        let subset_opt: Option<&[PathBuf]> = if subset_vec.is_empty() {
+        let subset_opt: Option<&[PathBuf]> = if subset_vec.is_empty() || stash_everything {
             None
         } else {
             Some(&subset_vec[..])
@@ -1094,14 +1157,27 @@ impl Git {
                     "stash@{0}".to_string()
                 };
 
+                // Track whether any file restoration failed so we can preserve the stash
+                let mut restoration_failed = false;
+
                 // List paths from our stash entry
                 // When HK_STASH_UNTRACKED=true, we need to include untracked files in the show output
-                let mut cmd = git_cmd(["stash", "show", "--name-only", "-z"]);
+                let mut args: Vec<OsString> = vec![
+                    "stash".into(),
+                    "show".into(),
+                    "--name-only".into(),
+                    "-z".into(),
+                ];
                 if *env::HK_STASH_UNTRACKED {
-                    cmd = cmd.arg("--include-untracked");
+                    args.push("--include-untracked".into());
                 }
-                cmd = cmd.arg(&stash_ref);
-                let show = cmd.read().unwrap_or_default();
+                args.push(OsString::from(&stash_ref));
+                // Paths that are not valid UTF-8 are restored separately below
+                let (show, unnamed_paths) = git_read_paths(args).unwrap_or_else(|err| {
+                    warn!("failed to list the stashed files: {err:?}");
+                    restoration_failed = true;
+                    Default::default()
+                });
                 // Paths that are staged as deletions in the current index. These must NOT be
                 // restored to the worktree by the unstash loop for tracked files — the user
                 // intentionally deleted them and the commit should preserve that deletion.
@@ -1109,17 +1185,13 @@ impl Git {
                 // file (e.g., `git rm --cached`); the loop below preserves untracked restoration
                 // by applying this skip only AFTER the is_untracked branch.
                 let staged_deleted_set: std::collections::HashSet<PathBuf> =
-                    git_cmd(["diff", "--cached", "--name-only", "--diff-filter=D", "-z"])
-                        .read()
+                    git_read_paths(["diff", "--cached", "--name-only", "--diff-filter=D", "-z"])
+                        .map(|(paths, _)| paths)
                         .unwrap_or_default()
-                        .split('\0')
-                        .filter(|s| !s.is_empty())
-                        .map(PathBuf::from)
+                        .into_iter()
                         .collect();
                 let stash_paths: Vec<PathBuf> = show
-                    .split('\0')
-                    .filter(|s| !s.is_empty())
-                    .map(PathBuf::from)
+                    .into_iter()
                     .filter(|p| {
                         self.stashed_paths
                             .as_ref()
@@ -1170,12 +1242,10 @@ impl Git {
                     std::collections::HashMap::new();
                 // Determine the set of paths with staged changes (index differs from HEAD)
                 let staged_changed_set: std::collections::HashSet<PathBuf> =
-                    git_cmd(["diff", "--name-only", "--cached", "-z"])
-                        .read()
+                    git_read_paths(["diff", "--name-only", "--cached", "-z"])
+                        .map(|(paths, _)| paths)
                         .unwrap_or_default()
-                        .split('\0')
-                        .filter(|s| !s.is_empty())
-                        .map(PathBuf::from)
+                        .into_iter()
                         .collect();
                 if !stash_paths.is_empty() {
                     let mut args: Vec<OsString> =
@@ -1209,8 +1279,6 @@ impl Git {
                 // the merge logic when no fixer output exists for the path.
                 const LARGE_STASH_FILE_BYTES: usize = 1_000_000; // 1 MiB
 
-                // Track whether any file restoration failed so we can preserve the stash
-                let mut restoration_failed = false;
                 let patch_hint = self
                     .last_patch_path()
                     .map(|p| format!("; stashed edits are backed up at {}", p.display()))
@@ -1631,6 +1699,17 @@ impl Git {
                         );
                     }
                 }
+                // hk gave no step the paths that are not valid UTF-8, so restore
+                // their stashed state as it is
+                for name in &unnamed_paths {
+                    if let Err(err) = restore_stashed_path(&stash_ref, name) {
+                        warn!(
+                            "failed to restore {:?} from stash: {err:?}",
+                            String::from_utf8_lossy(name)
+                        );
+                        restoration_failed = true;
+                    }
+                }
                 // Only drop the stash if all file restorations succeeded
                 if restoration_failed {
                     error!(
@@ -1875,11 +1954,34 @@ pub(crate) struct GitStatus {
     pub unstaged_modified_files: BTreeSet<PathBuf>,
     pub unstaged_deleted_files: BTreeSet<PathBuf>,
     pub unstaged_renamed_files: BTreeSet<PathBuf>,
+    /// Whether the status left out a path with changes in the worktree because
+    /// it is not valid UTF-8, so that the lists above miss unstaged changes
+    #[serde(skip)]
+    pub skipped_unstaged: bool,
+    /// Whether the status left out an untracked path because it is not valid
+    /// UTF-8
+    #[serde(skip)]
+    pub skipped_untracked: bool,
 }
 
 impl GitStatus {
+    /// Whether the worktree has changes that stashing would set aside,
+    /// including untracked files when `include_untracked` is set.
+    pub fn has_unstaged_changes(&self, include_untracked: bool) -> bool {
+        !self.unstaged_files.is_empty()
+            || self.skipped_unstaged
+            || (include_untracked && (!self.untracked_files.is_empty() || self.skipped_untracked))
+    }
+
+    fn set_skipped(&mut self, skipped: &SkippedPaths) {
+        self.skipped_unstaged |= skipped.unstaged;
+        self.skipped_untracked |= skipped.untracked;
+    }
+
     /// Adds the entries of a status of other paths.
     fn extend(&mut self, other: GitStatus) {
+        self.skipped_unstaged |= other.skipped_unstaged;
+        self.skipped_untracked |= other.skipped_untracked;
         self.unstaged_files.extend(other.unstaged_files);
         self.staged_files.extend(other.staged_files);
         self.untracked_files.extend(other.untracked_files);
@@ -1968,7 +2070,7 @@ impl GitStatus {
     ///
     /// Adds original paths it leaves out because they are not valid UTF-8 to
     /// `skipped`.
-    fn from_entries_libgit2(entries: Vec<StatusEntry>, skipped: &mut Vec<String>) -> Self {
+    fn from_entries_libgit2(entries: Vec<StatusEntry>, skipped: &mut SkippedPaths) -> Self {
         let mut status = Self::default();
         for entry in entries {
             let path = entry.path;
@@ -2072,9 +2174,21 @@ struct StatusEntry {
     orig_path: Option<Vec<u8>>,
 }
 
+/// Paths a status read left out because they are not valid UTF-8, which hk
+/// cannot pass on to steps and templates.
+#[derive(Debug, Default)]
+struct SkippedPaths {
+    /// The paths, shown lossily
+    names: Vec<String>,
+    /// Whether any of them has changes in the worktree
+    unstaged: bool,
+    /// Whether any of them is untracked
+    untracked: bool,
+}
+
 /// Parses `git status --porcelain=v2 -z`, leaving out entries whose path is
-/// not valid UTF-8 and adding those paths to `skipped`.
-fn parse_porcelain_status(output: &[u8], skipped: &mut Vec<String>) -> Result<Vec<StatusEntry>> {
+/// not valid UTF-8 and recording them in `skipped`.
+fn parse_porcelain_status(output: &[u8], skipped: &mut SkippedPaths) -> Result<Vec<StatusEntry>> {
     let malformed = |line: &[u8]| {
         eyre!(
             "unexpected git status entry: {}",
@@ -2115,6 +2229,9 @@ fn parse_porcelain_status(output: &[u8], skipped: &mut Vec<String>) -> Result<Ve
             None
         };
         let Some(path) = utf8_path(fields[field_count], skipped) else {
+            // Stashing must still set the skipped file's changes aside
+            skipped.unstaged |= !matches!(worktree, b' ' | b'?');
+            skipped.untracked |= worktree == b'?';
             continue;
         };
         entries.push(StatusEntry {
@@ -2131,13 +2248,14 @@ fn parse_porcelain_status(output: &[u8], skipped: &mut Vec<String>) -> Result<Ve
 }
 
 /// A path from git's status output, or `None` after adding it to `skipped`
-/// when it is not valid UTF-8: hk cannot pass such a path on to steps and
-/// templates.
-fn utf8_path(bytes: &[u8], skipped: &mut Vec<String>) -> Option<PathBuf> {
+/// when it is not valid UTF-8.
+fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
     match std::str::from_utf8(bytes) {
         Ok(path) => Some(PathBuf::from(path)),
         Err(_) => {
-            skipped.push(String::from_utf8_lossy(bytes).into_owned());
+            skipped
+                .names
+                .push(String::from_utf8_lossy(bytes).into_owned());
             None
         }
     }
@@ -2145,11 +2263,11 @@ fn utf8_path(bytes: &[u8], skipped: &mut Vec<String>) -> Option<PathBuf> {
 
 /// Warns that a status read left out `skipped`, so that files hk does not
 /// check are not left out silently.
-fn warn_skipped_paths(skipped: &[String]) {
-    if !skipped.is_empty() {
+fn warn_skipped_paths(skipped: &SkippedPaths) {
+    if !skipped.names.is_empty() {
         warn!(
             "skipped {} because hk cannot handle paths that are not valid UTF-8",
-            skipped.iter().map(|p| format!("{p:?}")).join(", ")
+            skipped.names.iter().map(|p| format!("{p:?}")).join(", ")
         );
     }
 }
@@ -2214,17 +2332,17 @@ mod tests {
 
     /// Entries of `output`, none of which may be skipped.
     fn parse(output: &[u8]) -> Vec<StatusEntry> {
-        let mut skipped = Vec::new();
+        let mut skipped = SkippedPaths::default();
         let entries = parse_porcelain_status(output, &mut skipped).unwrap();
-        assert!(skipped.is_empty(), "{skipped:?}");
+        assert!(skipped.names.is_empty(), "{skipped:?}");
         entries
     }
 
     /// The libgit2 classification of `entries`, none of which may be skipped.
     fn libgit2(entries: Vec<StatusEntry>) -> GitStatus {
-        let mut skipped = Vec::new();
+        let mut skipped = SkippedPaths::default();
         let status = GitStatus::from_entries_libgit2(entries, &mut skipped);
-        assert!(skipped.is_empty(), "{skipped:?}");
+        assert!(skipped.names.is_empty(), "{skipped:?}");
         status
     }
 
@@ -2335,19 +2453,43 @@ mod tests {
             format!("1 A. N... 000000 100644 100644 {a} {a} {d}/ok.txt\0").as_bytes(),
         ]
         .concat();
-        let mut skipped = Vec::new();
+        let mut skipped = SkippedPaths::default();
         let entries = parse_porcelain_status(&output, &mut skipped).unwrap();
         assert_eq!(
-            skipped,
+            skipped.names,
             [
                 format!("{d}/bad\u{fffd}.txt"),
                 "bad\u{fffd}.txt".to_string(),
                 format!("{d}/bad\u{fffd}.txt"),
             ]
         );
-        let status = GitStatus::from_entries(entries);
+        // Only the untracked one needs stashing: the others are staged
+        assert!(!skipped.unstaged);
+        assert!(skipped.untracked);
+        let mut status = GitStatus::from_entries(entries);
+        status.set_skipped(&skipped);
         assert_eq!(status.staged_files, paths(dir.path(), &["ok.txt"]));
         assert!(status.untracked_files.is_empty());
+        assert!(status.unstaged_files.is_empty());
+        // A skipped untracked file counts as a change to stash only with
+        // untracked files
+        assert!(status.has_unstaged_changes(true));
+        assert!(!status.has_unstaged_changes(false));
+
+        // A skipped file changed in the worktree always counts
+        let mut skipped = SkippedPaths::default();
+        let modified = format!("1 .M N... 100644 100644 100644 {a} {a} {d}/bad");
+        let modified = [modified.as_bytes(), b"\xfc.txt\0"].concat();
+        assert!(
+            parse_porcelain_status(&modified, &mut skipped)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(skipped.unstaged);
+        assert!(!skipped.untracked);
+        let mut status = GitStatus::default();
+        status.set_skipped(&skipped);
+        assert!(status.has_unstaged_changes(false));
     }
 
     #[test]
@@ -2372,16 +2514,16 @@ mod tests {
         // The libgit2 classification lists the source of a worktree rename
         // as deleted, so it skips one that is not valid UTF-8 and keeps the
         // destination
-        let mut skipped = Vec::new();
+        let mut skipped = SkippedPaths::default();
         let status = GitStatus::from_entries_libgit2(parse(&worktree), &mut skipped);
-        assert_eq!(skipped, ["old\u{fffd}.txt"]);
+        assert_eq!(skipped.names, ["old\u{fffd}.txt"]);
         assert!(status.unstaged_deleted_files.is_empty());
         assert_eq!(status.staged_added_files, paths(dir.path(), &["new.txt"]));
     }
 
     #[test]
     fn test_porcelain_status_rejects_malformed_entries() {
-        let parse = |output: &[u8]| parse_porcelain_status(output, &mut Vec::new());
+        let parse = |output: &[u8]| parse_porcelain_status(output, &mut SkippedPaths::default());
         assert!(parse(b"3 what\0").is_err());
         assert!(parse(b"1 M. N... 100644\0").is_err());
         let a = "a".repeat(40);
