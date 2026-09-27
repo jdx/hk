@@ -137,7 +137,20 @@ impl Step {
                 listed.insert(path);
             }
         }
-        match_listed_files(original_files, listed.into_iter().map(Path::new))
+        // The command ran in the step's `dir`, so a relative path names a file
+        // there when one exists. Only that file matches: a root-level file of
+        // the same name is a different file.
+        let listed: Vec<PathBuf> = listed
+            .into_iter()
+            .map(|path| {
+                let path = Path::new(path);
+                dir.filter(|_| path.is_relative())
+                    .map(|dir| Path::new(dir).join(path))
+                    .filter(|in_dir| in_dir.symlink_metadata().is_ok())
+                    .unwrap_or_else(|| path.to_path_buf())
+            })
+            .collect();
+        match_listed_files(original_files, listed.iter().map(PathBuf::as_path))
     }
 }
 
@@ -256,7 +269,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("old.txt"), "x\n").unwrap();
         let step = Step::default();
-        let job_file = PathBuf::from("old.txt");
+        let job_file = dir.path().join("old.txt");
         let diff = "--- a/old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
         let (files, extras) = step.filter_files_from_check_diff(
             std::slice::from_ref(&job_file),
@@ -265,6 +278,26 @@ mod tests {
         );
         assert_eq!(files, vec![job_file]);
         assert!(extras.is_empty());
+    }
+
+    #[test]
+    fn check_diff_paths_are_read_in_the_steps_dir() {
+        // The command ran in `pkg`, so `a/x` names `pkg/x`, not a root `x`.
+        let root = tempfile::tempdir().unwrap();
+        let pkg = root.path().join("pkg");
+        std::fs::create_dir(&pkg).unwrap();
+        std::fs::write(pkg.join("x"), "x\n").unwrap();
+        std::fs::write(root.path().join("x"), "x\n").unwrap();
+        let in_pkg = pkg.join("x");
+        let at_root = root.path().join("x");
+        let step = Step::default();
+        let diff = "--- a/x\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+        let (files, _) = step.filter_files_from_check_diff(
+            &[at_root.clone(), in_pkg.clone()],
+            diff,
+            pkg.to_str(),
+        );
+        assert_eq!(files, vec![in_pkg]);
     }
 
     fn diff_naming(paths: &[&Path]) -> String {
