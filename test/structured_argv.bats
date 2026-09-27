@@ -124,6 +124,10 @@ hooks {
             ["black"] = (Builtins.black) {
                 prefix = List("mise", "x", "--")
             }
+            // Every go_lines command is argv, so nothing is left out.
+            ["go_lines"] = (Builtins.go_lines) {
+                prefix = List("mise", "x", "--")
+            }
         }
     }
 }
