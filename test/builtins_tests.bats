@@ -196,6 +196,34 @@ PKL
 }
 
 # bats test_tags=git-backend-independent
+@test "rumdl fixes apply the check_diff patch instead of rerunning the tool" {
+    # The fixers are replaced by commands that would leave a marker, so the
+    # expected output can only come from applying check_diff's patch. The
+    # file needs lines deleted, which rumdl 0.1.0 wrote corrupt hunks for.
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["rumdl_format"] = (Builtins.rumdl_format) {
+        fix { command = "for f in {{ files }}; do echo fixer-ran > \"\$f\"; done" }
+      }
+    }
+  }
+}
+PKL
+    printf '# Hello\n\n\n\nParagraph\n\n\nMore\n' > a.md
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk fix --all
+    assert_success
+    run cat a.md
+    assert_output $'# Hello\n\nParagraph\n\nMore'
+}
+
+# bats test_tags=git-backend-independent
 @test "kubeconform extra_excludes adds to the default excludes" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
