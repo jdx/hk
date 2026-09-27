@@ -103,6 +103,20 @@ impl Step {
                 }
             }
         }
+        // A step that runs its fixer instead of applying its diff still checks
+        // first when the hook stages fixes: in a typical commit the check
+        // passes, which skips both the fixer and staging. This needs a
+        // `check_diff` command for this platform; a platform-specific script
+        // can be empty.
+        if ctx.hook_ctx.should_stage
+            && matches!(ctx.hook_ctx.run_type, RunType::Fix)
+            && !self.applies_check_diff()
+            && matches!(self.check_first_cmd(), Some(CheckFirstCmd::Diff(_)))
+        {
+            for job in &mut jobs {
+                job.check_first = true;
+            }
+        }
         // Apply ARG_MAX-safe auto-batching now that the full tera context is
         // available — only split jobs whose rendered run command would actually
         // exceed the limit.
@@ -234,8 +248,11 @@ impl Step {
 
                                 // Try to apply diff directly when check_diff is defined and we're in Fix mode
                                 // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
+                                // A step with `apply_check_diff = false` runs its fixer on the
+                                // files the diff names instead.
                                 if matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
                                     && prev_run_type == RunType::Fix
+                                    && step.applies_check_diff()
                                 {
                                     // Apply where the check_diff command ran.
                                     let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;

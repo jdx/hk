@@ -872,6 +872,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "usage-rs",
+ "winapi-util",
  "xx",
  "zip",
 ]
