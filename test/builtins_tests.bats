@@ -1,5 +1,9 @@
 #!/usr/bin/env bats
 
+# A hung test fails with its output instead of stalling the whole run until
+# CI's timeout. "builtins tests run", the slowest, takes about two minutes.
+BATS_TEST_TIMEOUT=${BATS_TEST_TIMEOUT:-420}
+
 setup() {
     load 'test_helper/common_setup'
     _common_setup
