@@ -1,4 +1,9 @@
-use crate::{hook::HookContext, step::Step, step_depends::StepDepends, ui::style};
+use crate::{
+    hook::HookContext,
+    step::{SharedBatchJobs, Step},
+    step_depends::StepDepends,
+    ui::style,
+};
 use clx::progress::{ProgressJob, ProgressStatus};
 use indexmap::IndexSet;
 use itertools::Itertools;
@@ -12,6 +17,8 @@ pub struct StepContext {
     pub step: Arc<Step>,
     pub hook_ctx: Arc<HookContext>,
     pub depends: Arc<StepDepends>,
+    /// Batch counts shared by the batched steps of this step's group.
+    pub batch_jobs: Arc<SharedBatchJobs>,
     pub progress: Arc<ProgressJob>,
     pub files_added: Arc<Mutex<IndexSet<PathBuf>>>,
     pub jobs_total: Mutex<usize>,

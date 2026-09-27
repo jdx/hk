@@ -195,34 +195,6 @@ impl Step {
     ///
     /// The filtered list of files that match all criteria
     pub fn filter_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
-        let mut files = self.select_files(files)?;
-
-        // Filter out binary files unless allow_binary is true
-        if !self.allow_binary {
-            files.retain(|f| {
-                // Keep file if we can't determine if it's binary (might be deleted/renamed)
-                // or if it's definitely not binary
-                is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
-            });
-        }
-
-        // Filter out symbolic links unless allow_symlinks is true
-        if !self.allow_symlinks {
-            files.retain(|f| {
-                // Keep file if we can't determine if it's a symlink (might be deleted/renamed)
-                // or if it's definitely not a symlink
-                is_symlink_file(f)
-                    .map(|is_symlink| !is_symlink)
-                    .unwrap_or(true)
-            });
-        }
-
-        Ok(files)
-    }
-
-    /// Steps 1-3 of [`Step::filter_files`]: the files the step selects by
-    /// path, before it reads them to leave out binary files and symlinks.
-    pub(crate) fn select_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
         let mut files = files.to_vec();
         if let Some(dir) = self.dir_prefix() {
             files.retain(|f| f.starts_with(dir));
@@ -252,6 +224,27 @@ impl Step {
                     .collect();
             files.retain(|f| !excluded.contains(f));
         }
+
+        // Filter out binary files unless allow_binary is true
+        if !self.allow_binary {
+            files.retain(|f| {
+                // Keep file if we can't determine if it's binary (might be deleted/renamed)
+                // or if it's definitely not binary
+                is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
+            });
+        }
+
+        // Filter out symbolic links unless allow_symlinks is true
+        if !self.allow_symlinks {
+            files.retain(|f| {
+                // Keep file if we can't determine if it's a symlink (might be deleted/renamed)
+                // or if it's definitely not a symlink
+                is_symlink_file(f)
+                    .map(|is_symlink| !is_symlink)
+                    .unwrap_or(true)
+            });
+        }
+
         Ok(files)
     }
 

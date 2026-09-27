@@ -94,3 +94,88 @@ EOF
     run sort ../batches
     assert_output "$(printf 'md 10\nmd 10\nmd 10\nmd 10\ntxt 10\ntxt 10\ntxt 10\ntxt 10')"
 }
+
+@test "a batched step skipped for a missing required variable takes no share" {
+    export HK_JOBS=4
+    unset HK_TEST_UNSET_VAR
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["txt"] {
+                glob = "*.txt"
+                batch = true
+                check = "echo txt \$(echo {{ files }} | wc -w) >> ../batches"
+            }
+            ["md"] {
+                glob = "*.md"
+                batch = true
+                required = List("HK_TEST_UNSET_VAR")
+                check = "echo md \$(echo {{ files }} | wc -w) >> ../batches"
+            }
+        }
+    }
+}
+EOF
+    run hk check --all
+    assert_success
+    run sort ../batches
+    assert_output "$(printf 'txt 10\ntxt 10\ntxt 10\ntxt 10')"
+}
+
+@test "a batched step whose files are all binary takes no share" {
+    export HK_JOBS=4
+    for i in $(seq 40); do printf 'a\0b' > "f$i.md"; done
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["txt"] {
+                glob = "*.txt"
+                batch = true
+                check = "echo txt \$(echo {{ files }} | wc -w) >> ../batches"
+            }
+            ["md"] {
+                glob = "*.md"
+                batch = true
+                check = "echo md \$(echo {{ files }} | wc -w) >> ../batches"
+            }
+        }
+    }
+}
+EOF
+    run hk check --all
+    assert_success
+    run sort ../batches
+    assert_output "$(printf 'txt 10\ntxt 10\ntxt 10\ntxt 10')"
+}
+
+@test "each step group shares the jobs only among its own steps" {
+    export HK_JOBS=4
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["txt"] {
+                glob = "*.txt"
+                batch = true
+                check = "echo txt \$(echo {{ files }} | wc -w) >> ../batches"
+            }
+            ["md"] {
+                glob = "*.md"
+                batch = true
+                exclusive = true
+                check = "echo md \$(echo {{ files }} | wc -w) >> ../batches"
+            }
+        }
+    }
+}
+EOF
+    run hk check --all
+    assert_success
+    run sort ../batches
+    assert_output "$(printf 'md 10\nmd 10\nmd 10\nmd 10\ntxt 10\ntxt 10\ntxt 10\ntxt 10')"
+}

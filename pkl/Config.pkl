@@ -576,10 +576,12 @@ open class Step {
   /// cost each time.
   ///
   /// Batched steps that run at the same time share `--jobs` rather than each splitting its files
-  /// into `--jobs` batches. Each step gets an equal share of the jobs, or a share in proportion to
-  /// its number of files if that is larger. For example, with 8 jobs, prettier on 900 files and
-  /// eslint on 300 make 6 and 4 batches instead of 8 each. A step that is the only batched one with
-  /// files, or that has `depends` or a `condition`, gets every job.
+  /// into `--jobs` batches. Each step first gets an equal share of the jobs, and the jobs left over
+  /// go to the steps with the most files. For example, with 8 jobs, prettier on 900 files and
+  /// eslint on 300 make 4 batches each, and prettier, eslint and jq on 900, 100 and 100 files make
+  /// 4, 2 and 2. Together they never make more batches than `--jobs`, unless there are more such
+  /// steps than jobs, when each still runs once. A step that is the only batched one with files,
+  /// or that has `depends` or a `condition`, gets every job.
   ///
   /// ```pkl
   /// local linters = new Mapping {
