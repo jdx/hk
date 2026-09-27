@@ -77,9 +77,9 @@ jobs:
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
-          version: 1.14.0
+          version: 1.18.0
           cache-generation: ci-v2
       - name: Build
         id: build
@@ -173,9 +173,9 @@ jobs:
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
-          version: 1.14.0
+          version: 1.18.0
           cache-generation: ci-v2
       - name: Build
         id: build
@@ -270,9 +270,9 @@ jobs:
         run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
-          version: 1.14.0
+          version: 1.18.0
           cache-generation: ci-v2
       - name: Build
         id: build
