@@ -7966,7 +7966,7 @@
           },
           "sarif-diff": {
             "full_cmd": ["util", "sarif-diff"],
-            "usage": "util sarif-diff <-- COMMAND>…",
+            "usage": "util sarif-diff [--findings-exit-code <CODE>] <-- COMMAND>…",
             "subcommands": {},
             "args": [
               {
@@ -7981,6 +7981,24 @@
               }
             ],
             "flags": [
+              {
+                "name": "findings-exit-code",
+                "usage": "--findings-exit-code <CODE>",
+                "help": "An exit code COMMAND uses for \"found problems\" rather than for failing (repeatable; default 1)",
+                "help_first_line": "An exit code COMMAND uses for \"found problems\" rather than for failing (repeatable; default 1)",
+                "short": [],
+                "long": ["findings-exit-code"],
+                "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "CODE",
+                  "usage": "<CODE>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
               {
                 "name": "help",
                 "usage": "-h --help",
@@ -7999,7 +8017,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command",
-            "help_long": "Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command\n\nRuns COMMAND, reads the SARIF log it prints on stdout, and applies the fixes its results carry to the files they name, printing a unified diff of the changes. Exits 0 when there are no results, and 1 after printing the patch when every result has a fix.\n\nIf any result has no fix, a fix can't be applied, or COMMAND fails without reporting results, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest.\n\nExample: `hk util sarif-diff -- pinact run --check --format sarif a.yml`",
+            "help_long": "Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command\n\nRuns COMMAND, reads the SARIF log it prints on stdout, and applies the fixes its results carry to the files they name, printing a unified diff of the changes. Exits 0 when there are no results, and 1 after printing the patch when every result has a fix.\n\nIf any result has no fix, a fix can't be applied, or COMMAND fails, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest. COMMAND fails when it exits with anything but 0 or a findings exit code, which is 1 unless `--findings-exit-code` says otherwise.\n\nExample: `hk util sarif-diff -- pinact run --check --format sarif a.yml`",
             "name": "sarif-diff",
             "aliases": [],
             "hidden_aliases": [],

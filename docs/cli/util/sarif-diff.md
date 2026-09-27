@@ -7,13 +7,13 @@ description: "Arguments and options for hk util sarif-diff."
 
 # `hk util sarif-diff`
 
-- **Usage:** `hk util sarif-diff <-- COMMAND>…`
+- **Usage:** `hk util sarif-diff [--findings-exit-code <CODE>] <-- COMMAND>…`
 
 Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command
 
 Runs COMMAND, reads the SARIF log it prints on stdout, and applies the fixes its results carry to the files they name, printing a unified diff of the changes. Exits 0 when there are no results, and 1 after printing the patch when every result has a fix.
 
-If any result has no fix, a fix can't be applied, or COMMAND fails without reporting results, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest.
+If any result has no fix, a fix can't be applied, or COMMAND fails, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest. COMMAND fails when it exits with anything but 0 or a findings exit code, which is 1 unless `--findings-exit-code` says otherwise.
 
 Example: `hk util sarif-diff -- pinact run --check --format sarif a.yml`
 
@@ -23,6 +23,7 @@ Example: `hk util sarif-diff -- pinact run --check --format sarif a.yml`
 
 ## Flags
 
+- **`--findings-exit-code <CODE>`** — An exit code COMMAND uses for "found problems" rather than for failing (repeatable; default 1)
 - **`-h --help`** — Print help
 
 <!-- hk documentation examples -->

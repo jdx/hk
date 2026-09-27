@@ -12,14 +12,20 @@ use std::process::{Command, Stdio};
 /// the changes. Exits 0 when there are no results, and 1 after printing the
 /// patch when every result has a fix.
 ///
-/// If any result has no fix, a fix can't be applied, or COMMAND fails without
-/// reporting results, no patch is printed: the results or errors are shown and
-/// hk runs the step's fixer instead, so an unfixable finding is never hidden
-/// behind a patch that fixed the rest.
+/// If any result has no fix, a fix can't be applied, or COMMAND fails, no patch
+/// is printed: the results or errors are shown and hk runs the step's fixer
+/// instead, so an unfixable finding is never hidden behind a patch that fixed
+/// the rest. COMMAND fails when it exits with anything but 0 or a findings
+/// exit code, which is 1 unless `--findings-exit-code` says otherwise.
 ///
 /// Example: `hk util sarif-diff -- pinact run --check --format sarif a.yml`
 #[derive(Debug, usage_rs::Args)]
 pub struct SarifDiff {
+    /// An exit code COMMAND uses for "found problems" rather than for failing
+    /// (repeatable; default 1)
+    #[usage(long, var, value_name = "CODE")]
+    pub findings_exit_code: Vec<i32>,
+
     /// The tool, printing a SARIF log on stdout
     #[usage(arg, required, double_dash = "required")]
     pub command: Vec<String>,
@@ -53,6 +59,19 @@ impl SarifDiff {
             std::process::exit(status);
         };
 
+        // Linters usually exit 1 for findings and 2 or more when they fail. A
+        // tool that failed may have reported only some findings, so its fixes
+        // mustn't be applied as if they were all.
+        let findings_codes = if self.findings_exit_code.is_empty() {
+            &[1][..]
+        } else {
+            &self.findings_exit_code[..]
+        };
+        if let Some(code) = output.status.code().filter(|c| *c != 0)
+            && !findings_codes.contains(&code)
+        {
+            fail(&format!("{program} failed with exit code {code}"));
+        }
         let log: Value = match serde_json::from_slice(&output.stdout) {
             Ok(log) => log,
             Err(err) => fail(&format!("{program} did not print a SARIF log: {err}")),
@@ -94,15 +113,26 @@ fn collect_edits(log: &Value) -> std::result::Result<IndexMap<PathBuf, Vec<Edit>
     let mut problems = Vec::new();
     for run in array(&log["runs"]) {
         let utf16 = run["columnKind"].as_str() != Some("unicodeCodePoints");
+        let bases = &run["originalUriBaseIds"];
         for result in array(&run["results"]) {
             // A result may offer alternative fixes; the first is applied.
             let Some(fix) = array(&result["fixes"]).first() else {
                 problems.push(describe(result, "has no fix"));
                 continue;
             };
-            for change in array(&fix["artifactChanges"]) {
-                let Some(path) = artifact_path(&change["artifactLocation"]) else {
-                    problems.push(describe(result, "names no file"));
+            let changes = array(&fix["artifactChanges"]);
+            // A fix that changes nothing leaves its finding in place.
+            if changes.is_empty()
+                || changes
+                    .iter()
+                    .any(|change| array(&change["replacements"]).is_empty())
+            {
+                problems.push(describe(result, "has an empty fix"));
+                continue;
+            }
+            for change in changes {
+                let Some(path) = artifact_path(&change["artifactLocation"], bases) else {
+                    problems.push(describe(result, "names a file hk can't locate"));
                     continue;
                 };
                 for replacement in array(&change["replacements"]) {
@@ -158,14 +188,37 @@ fn describe(result: &Value, problem: &str) -> String {
     format!("{file}:{line}: {message} ({problem})")
 }
 
-/// The local path an `artifactLocation` names: a `file:` URI, or a path
-/// relative to the working directory.
-fn artifact_path(location: &Value) -> Option<PathBuf> {
+/// The local path an `artifactLocation` names: a `file:` URI, or a relative
+/// URI resolved against its `uriBaseId` from the run's `originalUriBaseIds`,
+/// or else against the working directory. `None` for a base that can't be
+/// resolved, rather than guessing at a file.
+fn artifact_path(location: &Value, bases: &Value) -> Option<PathBuf> {
+    resolve_uri(location, bases, 0)
+}
+
+fn resolve_uri(location: &Value, bases: &Value, depth: usize) -> Option<PathBuf> {
     let uri = location["uri"].as_str()?;
     if uri.starts_with("file:") {
         return url::Url::parse(uri).ok()?.to_file_path().ok();
     }
-    Some(PathBuf::from(percent_decode(uri)))
+    let relative = PathBuf::from(percent_decode(uri));
+    match location["uriBaseId"].as_str() {
+        None => Some(relative),
+        // Bases can refer to other bases; a cycle is not resolvable.
+        Some(_) if depth > 8 => None,
+        Some(id) => {
+            let base = &bases[id];
+            if base.is_null() {
+                return None;
+            }
+            // A base with no `uri` is one the tool leaves for the reader to
+            // supply, typically the directory it ran in.
+            if base["uri"].is_null() {
+                return Some(relative);
+            }
+            Some(resolve_uri(base, bases, depth + 1)?.join(relative))
+        }
+    }
 }
 
 /// Decode `%XX` escapes in a relative URI reference.
@@ -376,14 +429,62 @@ mod tests {
 
     #[test]
     fn relative_and_file_uris_resolve_to_paths() {
+        let none = serde_json::json!({});
         assert_eq!(
-            artifact_path(&serde_json::json!({"uri": ".github/workflows/a%20b.yml"})),
+            artifact_path(
+                &serde_json::json!({"uri": ".github/workflows/a%20b.yml"}),
+                &none
+            ),
             Some(PathBuf::from(".github/workflows/a b.yml"))
         );
         #[cfg(unix)]
         assert_eq!(
-            artifact_path(&serde_json::json!({"uri": "file:///repo/a.yml"})),
+            artifact_path(&serde_json::json!({"uri": "file:///repo/a.yml"}), &none),
             Some(PathBuf::from("/repo/a.yml"))
+        );
+    }
+
+    #[test]
+    fn uri_base_ids_resolve_through_the_run() {
+        let bases = serde_json::json!({
+            "ROOT": {"uri": "file:///repo/"},
+            "SRC": {"uri": "src/", "uriBaseId": "ROOT"},
+            "CWD": {},
+        });
+        #[cfg(unix)]
+        assert_eq!(
+            artifact_path(
+                &serde_json::json!({"uri": "a.rs", "uriBaseId": "SRC"}),
+                &bases
+            ),
+            Some(PathBuf::from("/repo/src/a.rs"))
+        );
+        assert_eq!(
+            artifact_path(
+                &serde_json::json!({"uri": "a.rs", "uriBaseId": "CWD"}),
+                &bases
+            ),
+            Some(PathBuf::from("a.rs"))
+        );
+        assert_eq!(
+            artifact_path(
+                &serde_json::json!({"uri": "a.rs", "uriBaseId": "MISSING"}),
+                &bases
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn an_empty_fix_is_a_problem() {
+        let log = serde_json::json!({"runs": [{"results": [{
+            "message": {"text": "bad"},
+            "locations": [{"physicalLocation": {"artifactLocation": {"uri": "a.yml"}, "region": {"startLine": 2}}}],
+            "fixes": [{"artifactChanges": [{"artifactLocation": {"uri": "a.yml"}, "replacements": []}]}]
+        }]}]});
+        assert_eq!(
+            collect_edits(&log).unwrap_err(),
+            vec!["a.yml:2: bad (has an empty fix)".to_string()]
         );
     }
 }
