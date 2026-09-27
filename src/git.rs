@@ -139,6 +139,9 @@ fn path_from_raw(name: &[u8]) -> PathBuf {
     }
 }
 
+/// A tree entry: its mode and object name.
+type TreeEntry = (u32, String);
+
 /// The worktree changes a stash set aside.
 #[derive(Debug, Default)]
 struct StashedChanges {
@@ -153,25 +156,43 @@ struct StashedChanges {
     unnamed_untracked: BTreeSet<PathBuf>,
     /// The modes of the tracked ones among `unnamed`, as in `modes`
     unnamed_modes: std::collections::BTreeMap<PathBuf, (u32, u32)>,
+    /// What the stash has at each of these paths, except deleted ones
+    stashed: std::collections::HashMap<PathBuf, TreeEntry>,
+}
+
+/// How restoring a stash treats the paths it set aside.
+#[derive(Debug, Default)]
+struct RestorePlan {
+    /// Paths that already match the stash, which restoring leaves alone
+    unchanged: std::collections::HashSet<PathBuf>,
+    /// Paths where restoring would destroy what a step did, with why
+    conflicts: std::collections::BTreeMap<PathBuf, String>,
+}
+
+impl RestorePlan {
+    /// Whether restoring leaves `path` alone.
+    fn skips(&self, path: &std::path::Path) -> bool {
+        self.unchanged.contains(path) || self.conflicts.contains_key(path)
+    }
 }
 
 impl StashedChanges {
-    /// Why restoring the stash would destroy something a step did, for each
-    /// path where it would.
+    /// Decides which paths restoring the stash can write.
     ///
     /// Stashing leaves the worktree as the stashed index (`^2`) with no
     /// untracked files, so a step touched a path exactly when the worktree
-    /// differs from that index there. Restoring the stash over a path a step
-    /// did not touch is safe, whatever the stash has there. A regular file
-    /// that a step changed and that the stash also has as a regular file is
-    /// merged with the stashed edits. Any other path a step touched, or a
-    /// parent directory of one, conflicts with the stash.
-    fn restore_conflicts(
+    /// differs from that index there. A path that already matches the stash
+    /// is left alone, whoever made it so. Otherwise, restoring the stash over
+    /// a path no step touched is safe, whatever the stash has there, and a
+    /// regular file that a step changed and that the stash also has as a
+    /// regular file is merged with the stashed edits. Any other path a step
+    /// touched, or whose parent a step replaced, conflicts with the stash.
+    fn restore_plan(
         &self,
         stash_ref: &str,
         skip: &std::collections::HashSet<PathBuf>,
-    ) -> Result<Vec<String>> {
-        let index = IndexTree::read(&format!("{stash_ref}^2"))?;
+    ) -> Result<RestorePlan> {
+        let index = read_tree(&format!("{stash_ref}^2"))?;
         // Each path to restore, with its index and worktree modes when it is
         // tracked, and whether a changed regular file can be merged
         type ToRestore<'a> = (&'a PathBuf, Option<(u32, u32)>, bool);
@@ -205,30 +226,38 @@ impl StashedChanges {
             parents.reverse();
             parents
         };
-        let untouched = index.worktree_matcher(
+        let worktree = WorktreeMatcher::new(
             paths
                 .iter()
                 .flat_map(|(path, _, _)| parents(path).into_iter().chain([(*path).clone()])),
+            |path| [index.get(path), self.stashed.get(path)],
         )?;
 
-        let mut conflicts = Vec::new();
+        let mut plan = RestorePlan::default();
         'paths: for (path, modes, mergeable) in paths {
             for parent in parents(path) {
                 let Ok(metadata) = std::fs::symlink_metadata(&parent) else {
                     // Neither it nor anything under it exists
                     break;
                 };
-                // A directory a step created only receives restored files
-                let created_dir = index.get(&parent).is_none() && metadata.is_dir();
-                if !created_dir && !untouched(&parent) {
-                    conflicts.push(format!(
-                        "a step changed {}, where the stash has a directory",
-                        display_path(&parent)
-                    ));
+                // Restoring writes into a real directory, and replaces what
+                // stashing put back
+                if !metadata.is_dir() && !worktree.matches(&parent, index.get(&parent)) {
+                    plan.conflicts.insert(
+                        path.clone(),
+                        format!(
+                            "a step changed {}, where the stash has a directory",
+                            display_path(&parent)
+                        ),
+                    );
                     continue 'paths;
                 }
             }
-            if untouched(path) {
+            if worktree.matches(path, self.stashed.get(path)) {
+                plan.unchanged.insert(path.clone());
+                continue;
+            }
+            if worktree.matches(path, index.get(path)) {
                 continue;
             }
             let is_regular = |mode: u32| matches!(mode, 0o100644 | 0o100755);
@@ -238,126 +267,127 @@ impl StashedChanges {
                 })
                 && std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file());
             if !merged {
-                conflicts.push(format!(
-                    "a step changed {}, which the stash also changed",
-                    display_path(path)
-                ));
+                plan.conflicts.insert(
+                    path.clone(),
+                    format!(
+                        "a step changed {}, which the stash also changed",
+                        display_path(path)
+                    ),
+                );
             }
         }
-        Ok(conflicts)
+        Ok(plan)
     }
 }
 
-/// The entries of an index tree, with their modes and object names.
-struct IndexTree {
-    entries: std::collections::HashMap<PathBuf, (u32, String)>,
+/// The entries of `tree` and all its subtrees.
+fn read_tree(tree: &str) -> Result<std::collections::HashMap<PathBuf, TreeEntry>> {
+    let unexpected = || eyre!("unexpected git ls-tree output for {tree}");
+    let mut entries = std::collections::HashMap::new();
+    for record in git_read_bytes(["ls-tree", "-r", "-t", "-z", "--full-tree", tree])?
+        .split(|&b| b == 0)
+        .filter(|r| !r.is_empty())
+    {
+        // `<mode> SP <type> SP <object> TAB <path>`
+        let tab = record
+            .iter()
+            .position(|&b| b == b'\t')
+            .ok_or_else(unexpected)?;
+        let header = std::str::from_utf8(&record[..tab]).map_err(|_| unexpected())?;
+        let mut fields = header.split(' ');
+        let mode = fields
+            .next()
+            .and_then(|m| u32::from_str_radix(m, 8).ok())
+            .ok_or_else(unexpected)?;
+        let object = fields.nth(1).ok_or_else(unexpected)?.to_string();
+        entries.insert(path_from_raw(&record[tab + 1..]), (mode, object));
+    }
+    Ok(entries)
 }
 
-impl IndexTree {
-    fn read(tree: &str) -> Result<Self> {
-        let unexpected = || eyre!("unexpected git ls-tree output for {tree}");
-        let mut entries = std::collections::HashMap::new();
-        for record in git_read_bytes(["ls-tree", "-r", "-t", "-z", "--full-tree", tree])?
-            .split(|&b| b == 0)
-            .filter(|r| !r.is_empty())
-        {
-            // `<mode> SP <type> SP <object> TAB <path>`
-            let tab = record
-                .iter()
-                .position(|&b| b == b'\t')
-                .ok_or_else(unexpected)?;
-            let header = std::str::from_utf8(&record[..tab]).map_err(|_| unexpected())?;
-            let mut fields = header.split(' ');
-            let mode = fields
-                .next()
-                .and_then(|m| u32::from_str_radix(m, 8).ok())
-                .ok_or_else(unexpected)?;
-            let object = fields.nth(1).ok_or_else(unexpected)?.to_string();
-            entries.insert(path_from_raw(&record[tab + 1..]), (mode, object));
-        }
-        Ok(Self { entries })
-    }
+/// Compares worktree paths with tree entries, having hashed the regular files
+/// that may be compared with a regular file entry.
+struct WorktreeMatcher {
+    hashes: std::collections::HashMap<PathBuf, String>,
+}
 
-    fn get(&self, path: &std::path::Path) -> Option<&(u32, String)> {
-        self.entries.get(path)
-    }
-
-    /// A check of whether the worktree still matches this index at a path:
-    /// the same kind of entry, mode and contents, or no entry where the index
-    /// has none. It hashes the regular files among `paths` up front.
-    fn worktree_matcher(
-        &self,
+impl WorktreeMatcher {
+    /// Hashes the regular files among `paths` that one of `entries` of the
+    /// path has as a regular file.
+    fn new<'a>(
         paths: impl IntoIterator<Item = PathBuf>,
-    ) -> Result<impl Fn(&std::path::Path) -> bool + '_> {
+        entries: impl Fn(&std::path::Path) -> [Option<&'a TreeEntry>; 2],
+    ) -> Result<Self> {
         let regular: BTreeSet<PathBuf> = paths
             .into_iter()
             .filter(|path| {
-                self.get(path)
-                    .is_some_and(|(mode, _)| matches!(mode, 0o100644 | 0o100755))
+                entries(path)
+                    .iter()
+                    .flatten()
+                    .any(|(mode, _)| matches!(mode, 0o100644 | 0o100755))
                     && std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file())
             })
             .collect();
-        let hashes = hash_worktree_files(&regular)?;
-        Ok(move |path: &std::path::Path| {
-            let metadata = std::fs::symlink_metadata(path);
-            match (self.get(path), metadata) {
-                (None, Err(_)) => true,
-                (None, Ok(_)) | (Some(_), Err(_)) => false,
-                (Some((mode, object)), Ok(metadata)) => match *mode {
-                    0o040000 => metadata.is_dir(),
-                    0o120000 => {
-                        metadata.file_type().is_symlink() && symlink_target_matches(path, object)
-                    }
-                    0o100644 | 0o100755 => {
-                        metadata.is_file()
-                            && executable_matches(&metadata, *mode)
-                            && hashes.get(path) == Some(object)
-                    }
-                    // Submodules are not stashed
-                    _ => true,
-                },
-            }
+        Ok(Self {
+            hashes: hash_worktree_files(&regular)?,
         })
+    }
+
+    /// Whether the worktree has `entry` at `path`: the same kind of entry,
+    /// mode and contents, or nothing where `entry` is `None`.
+    fn matches(&self, path: &std::path::Path, entry: Option<&TreeEntry>) -> bool {
+        let metadata = std::fs::symlink_metadata(path);
+        match (entry, metadata) {
+            (None, Err(_)) => true,
+            (None, Ok(_)) | (Some(_), Err(_)) => false,
+            (Some((mode, object)), Ok(metadata)) => match *mode {
+                0o040000 => metadata.is_dir(),
+                0o120000 => {
+                    metadata.file_type().is_symlink() && symlink_target_matches(path, object)
+                }
+                0o100644 | 0o100755 => {
+                    metadata.is_file()
+                        && executable_matches(&metadata, *mode)
+                        && self.hashes.get(path) == Some(object)
+                }
+                // Submodules are not stashed
+                _ => true,
+            },
+        }
     }
 }
 
-/// Git's object names for the worktree files at `paths`, with the same
-/// filters as `git add`.
+/// Git's object names for the worktree files at `paths`, which `git add`
+/// would store: `git hash-object` applies the same filters, chosen by path.
 fn hash_worktree_files(
     paths: &BTreeSet<PathBuf>,
 ) -> Result<std::collections::HashMap<PathBuf, String>> {
+    // Paths go on the command line, which takes any name, in chunks that
+    // stay well under the command-line limit (32 KiB on Windows)
+    const MAX_ARG_BYTES: usize = 16 * 1024;
     let mut hashes = std::collections::HashMap::new();
-    // `--stdin-paths` takes one path per line
-    let (batch, single): (Vec<&PathBuf>, Vec<&PathBuf>) = paths
-        .iter()
-        .partition(|p| !p.as_os_str().as_encoded_bytes().contains(&b'\n'));
-    if !batch.is_empty() {
-        let mut input = Vec::new();
-        for path in &batch {
-            input.extend_from_slice(path.as_os_str().as_encoded_bytes());
-            input.push(b'\n');
+    let mut chunks: Vec<Vec<&PathBuf>> = vec![vec![]];
+    let mut chunk_bytes = 0;
+    for path in paths {
+        let len = path.as_os_str().len() + 1;
+        if chunk_bytes + len > MAX_ARG_BYTES && !chunks.last().unwrap().is_empty() {
+            chunks.push(vec![]);
+            chunk_bytes = 0;
         }
-        let output = xx::process::cmd("git", ["hash-object", "--stdin-paths"])
-            .stdin_bytes(input)
-            .stdout_capture()
-            .run()?
-            .stdout;
-        let objects = String::from_utf8(output)?;
-        let objects = objects.lines().collect_vec();
-        if objects.len() != batch.len() {
+        chunk_bytes += len;
+        chunks.last_mut().unwrap().push(path);
+    }
+    for chunk in chunks.into_iter().filter(|c| !c.is_empty()) {
+        let mut args = vec![OsString::from("hash-object"), "--".into()];
+        args.extend(chunk.iter().map(|p| p.as_os_str().to_owned()));
+        let output = String::from_utf8(git_read_bytes(args)?)?;
+        let objects = output.lines().collect_vec();
+        if objects.len() != chunk.len() {
             return Err(eyre!("unexpected git hash-object output"));
         }
-        for (path, object) in batch.into_iter().zip(objects) {
+        for (path, object) in chunk.into_iter().zip(objects) {
             hashes.insert(path.clone(), object.to_string());
         }
-    }
-    for path in single {
-        let output = git_read_bytes([
-            OsString::from("hash-object"),
-            "--".into(),
-            path.as_os_str().to_owned(),
-        ])?;
-        hashes.insert(path.clone(), String::from_utf8(output)?.trim().to_string());
     }
     Ok(hashes)
 }
@@ -407,28 +437,26 @@ fn stashed_changes(stash_ref: &str) -> Result<StashedChanges> {
         if header.is_empty() {
             continue;
         }
-        let path = fields.next().ok_or_else(unexpected)?;
+        let name = fields.next().ok_or_else(unexpected)?;
         // `:<index mode> <worktree mode> <index object> <worktree object> <status>`
         let header = std::str::from_utf8(header).map_err(|_| unexpected())?;
-        let mut modes = header
-            .trim_start_matches(':')
-            .split(' ')
-            .take(2)
-            .map(|m| u32::from_str_radix(m, 8).map_err(|_| unexpected()));
-        let old_mode = modes.next().ok_or_else(unexpected)??;
-        let new_mode = modes.next().ok_or_else(unexpected)??;
-        match std::str::from_utf8(path) {
-            Ok(path) => {
-                changes
-                    .modes
-                    .insert(PathBuf::from(path), (old_mode, new_mode));
-            }
-            Err(_) => {
-                changes
-                    .unnamed_modes
-                    .insert(path_from_raw(path), (old_mode, new_mode));
-                changes.unnamed.push(path.to_vec());
-            }
+        let header = header.trim_start_matches(':').split(' ').collect_vec();
+        let [old_mode, new_mode, _, new_object, ..] = header[..] else {
+            return Err(unexpected());
+        };
+        let old_mode = u32::from_str_radix(old_mode, 8).map_err(|_| unexpected())?;
+        let new_mode = u32::from_str_radix(new_mode, 8).map_err(|_| unexpected())?;
+        let path = path_from_raw(name);
+        if new_mode != 0 {
+            changes
+                .stashed
+                .insert(path.clone(), (new_mode, new_object.to_string()));
+        }
+        if std::str::from_utf8(name).is_ok() {
+            changes.modes.insert(path, (old_mode, new_mode));
+        } else {
+            changes.unnamed_modes.insert(path, (old_mode, new_mode));
+            changes.unnamed.push(name.to_vec());
         }
     }
     let untracked = format!("{stash_ref}^3");
@@ -436,11 +464,19 @@ fn stashed_changes(stash_ref: &str) -> Result<StashedChanges> {
         .read()
         .is_ok()
     {
-        let (paths, unnamed) = git_read_paths(["ls-tree", "-r", "-z", "--name-only", &untracked])?;
-        changes.untracked.extend(paths);
-        for name in unnamed {
-            changes.unnamed_untracked.insert(path_from_raw(&name));
-            changes.unnamed.push(name);
+        for (path, entry) in read_tree(&untracked)? {
+            if entry.0 == 0o040000 {
+                continue;
+            }
+            if path.to_str().is_some() {
+                changes.untracked.insert(path.clone());
+            } else {
+                changes
+                    .unnamed
+                    .push(path.as_os_str().as_encoded_bytes().to_vec());
+                changes.unnamed_untracked.insert(path.clone());
+            }
+            changes.stashed.insert(path, entry);
         }
     }
     Ok(changes)
@@ -1580,31 +1616,40 @@ impl Git {
                         .unwrap_or_default()
                         .into_iter()
                         .collect();
-                // Restore nothing if that would destroy what a step did; the
-                // stash is kept instead
-                let conflicts = changes
-                    .restore_conflicts(&stash_ref, &staged_deleted_set)
-                    .unwrap_or_else(|err| {
-                        vec![format!(
-                            "failed to compare the worktree with the stash: {err:?}"
-                        )]
-                    });
-                for conflict in &conflicts {
-                    warn!("not restoring the stash: {conflict}");
-                }
-                let restore = conflicts.is_empty();
-                restoration_failed |= !restore;
-                let unnamed_paths: &[Vec<u8>] = if restore { unnamed_paths } else { &[] };
-                let stash_paths: Vec<PathBuf> = if restore {
-                    changes
-                        .modes
-                        .keys()
-                        .chain(changes.untracked.iter())
-                        .cloned()
-                        .collect()
-                } else {
-                    vec![]
+                // Leave alone the paths that already match the stash, and the
+                // ones where restoring would destroy what a step did, which
+                // keep the stash. If hk cannot tell, it restores nothing.
+                let plan = match changes.restore_plan(&stash_ref, &staged_deleted_set) {
+                    Ok(plan) => Some(plan),
+                    Err(err) => {
+                        warn!(
+                            "not restoring the stash: failed to compare the worktree with it: {err:?}"
+                        );
+                        restoration_failed = true;
+                        None
+                    }
                 };
+                let conflicts = plan
+                    .as_ref()
+                    .map(|plan| plan.conflicts.clone())
+                    .unwrap_or_default();
+                for conflict in conflicts.values() {
+                    warn!("not restoring from the stash: {conflict}");
+                }
+                restoration_failed |= !conflicts.is_empty();
+                let restores =
+                    |path: &std::path::Path| plan.as_ref().is_some_and(|plan| !plan.skips(path));
+                let unnamed_paths: Vec<&Vec<u8>> = unnamed_paths
+                    .iter()
+                    .filter(|name| restores(&path_from_raw(name)))
+                    .collect();
+                let stash_paths: Vec<PathBuf> = changes
+                    .modes
+                    .keys()
+                    .chain(changes.untracked.iter())
+                    .filter(|path| restores(path))
+                    .cloned()
+                    .collect();
                 // Paths restored to exactly their stashed state, which are
                 // checked before the stash is dropped
                 let mut snapshot_paths: BTreeSet<PathBuf> = BTreeSet::new();
@@ -2146,7 +2191,7 @@ impl Git {
                 }
                 // Before dropping the stash, check that every path restored to
                 // its stashed state matches it
-                if !restoration_failed {
+                if plan.is_some() {
                     match unrestored_paths(&stash_ref, &changes, &snapshot_paths) {
                         Ok(unrestored) if unrestored.is_empty() => {}
                         Ok(unrestored) => {
@@ -2163,7 +2208,30 @@ impl Git {
                     }
                 }
                 // Only drop the stash if all file restorations succeeded
-                if restoration_failed {
+                if restoration_failed && !conflicts.is_empty() {
+                    let restore_command = |path: &PathBuf| {
+                        let source = match changes.entry(path) {
+                            StashedEntry::Untracked => format!("{stash_ref}^3"),
+                            _ => stash_ref.clone(),
+                        };
+                        format!(
+                            "git restore --source='{source}' -- '{}'",
+                            display_path(path)
+                        )
+                    };
+                    error!(
+                        "Did not restore {} from the stash, because a step changed {} too. Stash has been preserved at '{stash_ref}'.",
+                        conflicts.keys().map(display_path).join(", "),
+                        if conflicts.len() == 1 { "it" } else { "them" }
+                    );
+                    error!(
+                        "hk restored the other stashed changes, so `git stash pop` or `git stash apply` would apply those twice. Compare with `git stash show -p --include-untracked {stash_ref}`, take a path's stashed version with {}, then run `git stash drop {stash_ref}`.",
+                        conflicts.keys().map(restore_command).join(" or ")
+                    );
+                    return Err(eyre!(
+                        "Stash restoration failed - stash preserved at {stash_ref}"
+                    ));
+                } else if restoration_failed {
                     error!(
                         "Failed to restore some files from stash. Stash has been preserved at '{stash_ref}'."
                     );

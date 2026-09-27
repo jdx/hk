@@ -145,6 +145,94 @@ EOF
     done
 }
 
+@test "stash restore accepts a step repeating a stashed deletion" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { check = "rm -f d.txt" } }
+  }
+}
+EOF
+    git add hk.pkl
+    git commit -qm config
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        rm d.txt
+        echo untracked > w.txt
+        before=$(snapshot)
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        assert_success
+        assert_equal "$(snapshot)" "$before"
+        assert_equal "$(git stash list)" ""
+        reset_repo
+    done
+}
+
+@test "stash restores the other paths when one conflicts with a step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { check = "echo step > u.txt" } }
+  }
+}
+EOF
+    git add hk.pkl
+    git commit -qm config
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        echo mine > u.txt
+        echo other > w.txt
+        rm d.txt
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        assert_failure
+        assert_output --partial "Did not restore u.txt from the stash"
+        assert_output --partial "git restore --source='stash@{0}^3' -- 'u.txt'"
+        # The step's file is kept, and every other stashed change is back
+        run cat u.txt
+        assert_output step
+        run cat w.txt
+        assert_output other
+        assert_file_not_exists d.txt
+        # The stash still has the conflicting file, which the hint restores
+        git restore --source='stash@{0}^3' -- u.txt
+        run cat u.txt
+        assert_output mine
+
+        git stash drop -q
+        reset_repo
+    done
+}
+
+@test "stash restores a file whose name starts with a double quote" {
+    if ! touch '"probe' 2>/dev/null; then
+        skip "filesystem rejects double quotes in names"
+    fi
+    rm -f '"probe'
+    echo base > '"quoted.txt'
+    git add '"quoted.txt'
+    git commit -qm quoted
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        echo unstaged >> '"quoted.txt'
+        before=$(snapshot)
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        assert_success
+        assert_equal "$(snapshot)" "$before"
+        assert_equal "$(git stash list)" ""
+        reset_repo
+    done
+}
+
 @test "a stash of untracked files restores unstaged deletions" {
     for libgit2 in 1 0; do
         echo staged >> a.txt
