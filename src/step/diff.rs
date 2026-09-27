@@ -9,7 +9,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::types::Step;
-use super::{diff_lines, normalize_diff_paths, split_line_ending};
+use super::{diff_lines, normalize_diff_paths, split_line_ending, uses_git_prefixes};
 
 /// Rewrite absolute paths in diff headers to be relative to `base`.
 ///
@@ -89,25 +89,8 @@ impl Step {
         let base = base.canonicalize().unwrap_or(base);
         let diff_content = relativize_diff_paths(&diff_content, &base);
 
-        // Detect if this diff uses a/ and b/ prefixes (git-style)
-        // Use -p1 to strip prefixes if present, -p0 otherwise
-        let mut has_a_prefix = false;
-        let mut has_b_prefix = false;
-        for line in diff_lines(&diff_content)
-            .into_iter()
-            .filter(|(_, in_hunk)| !in_hunk)
-            .map(|(line, _)| line)
-        {
-            if line.starts_with("--- a/") {
-                has_a_prefix = true;
-            } else if line.starts_with("+++ b/") {
-                has_b_prefix = true;
-            }
-            if has_a_prefix && has_b_prefix {
-                break;
-            }
-        }
-        let strip_level = if has_a_prefix && has_b_prefix {
+        // Git-style `a/` and `b/` prefixes need -p1, other paths -p0.
+        let strip_level = if uses_git_prefixes(&diff_content) {
             "-p1"
         } else {
             "-p0"

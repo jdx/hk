@@ -167,12 +167,18 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
     let git_pairs: Vec<usize> = headers
         .iter()
         .copied()
-        .filter(|&at| out[at].starts_with("--- a/") && out[at + 1].starts_with("+++ b/"))
+        .filter(|&at| is_git_pair(&out[at][4..], &out[at + 1][4..]))
         .collect();
     if !git_pairs.is_empty() && git_pairs.len() < headers.len() {
         for at in git_pairs {
-            out[at].replace_range(4..6, "");
-            out[at + 1].replace_range(4..6, "");
+            // A created or deleted file has `/dev/null` on one side, which
+            // keeps its path.
+            if out[at][4..].starts_with("a/") {
+                out[at].replace_range(4..6, "");
+            }
+            if out[at + 1][4..].starts_with("b/") {
+                out[at + 1].replace_range(4..6, "");
+            }
         }
     }
     let mut result = out.concat();
@@ -180,6 +186,47 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         result.push('\n');
     }
     result
+}
+
+/// The `---` and `+++` sides of each file header pair outside hunk bodies,
+/// without the markers or line terminators.
+pub(crate) fn header_pairs(diff: &str) -> Vec<(&str, &str)> {
+    let lines = diff_lines(diff);
+    let mut pairs = Vec::new();
+    for (i, &(line, in_hunk)) in lines.iter().enumerate() {
+        if !in_hunk
+            && let Some(old) = split_line_ending(line).0.strip_prefix("--- ")
+            && let Some(&(next, false)) = lines.get(i + 1)
+            && let Some(new) = split_line_ending(next).0.strip_prefix("+++ ")
+        {
+            pairs.push((old, new));
+        }
+    }
+    pairs
+}
+
+/// A header side's path, without any tab-separated timestamp.
+pub(crate) fn header_path(side: &str) -> &str {
+    side.split_once('\t').map_or(side, |(path, _)| path).trim()
+}
+
+/// Whether a header pair uses git's `a/` and `b/` prefixes. A created or
+/// deleted file has `/dev/null` on one side.
+pub(crate) fn is_git_pair(old: &str, new: &str) -> bool {
+    let (old, new) = (header_path(old), header_path(new));
+    let old_prefixed = old.starts_with("a/");
+    let new_prefixed = new.starts_with("b/");
+    (old_prefixed || old == "/dev/null")
+        && (new_prefixed || new == "/dev/null")
+        && (old_prefixed || new_prefixed)
+}
+
+/// Whether `git apply` must strip git's `a/` and `b/` prefixes (`-p1`) from
+/// a diff's paths. [`normalize_diff_paths`] makes every pair agree.
+pub(crate) fn uses_git_prefixes(diff: &str) -> bool {
+    header_pairs(diff)
+        .into_iter()
+        .any(|(old, new)| is_git_pair(old, new))
 }
 
 /// The header paths with a tool's side labels removed, or `None` if the pair
@@ -357,6 +404,23 @@ mod normalize_diff_paths_tests {
         assert_eq!(
             normalize_diff_paths(diff),
             "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n--- a/go.mod\n+++ b/go.mod\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+    }
+
+    #[test]
+    fn keeps_git_prefixes_when_a_patch_creates_or_deletes_files() {
+        let diff = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n--- /dev/null\n+++ b/new\n@@ -0,0 +1 @@\n+n\n--- a/old\n+++ /dev/null\n@@ -1 +0,0 @@\n-o\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+        assert!(super::uses_git_prefixes(diff));
+    }
+
+    #[test]
+    fn strips_created_file_prefixes_along_with_the_rest() {
+        let diff =
+            "--- /dev/null\n+++ b/new\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- /dev/null\n+++ new\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n"
         );
     }
 
