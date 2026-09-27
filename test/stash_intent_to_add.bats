@@ -303,3 +303,41 @@ PKL
 @test "stash sets aside a lone empty intent-to-add file with the git CLI" {
     assert_lone_empty_intent_to_add_set_aside 0
 }
+
+assert_non_utf8_intent_to_add_set_aside() {
+    local use_libgit2="$1"
+    # Some filesystems, such as APFS, reject names that are not valid UTF-8
+    if ! touch $'probe\xff' 2>/dev/null; then
+        skip "filesystem rejects names that are not valid UTF-8"
+    fi
+    rm -f $'probe\xff'
+    write_config git
+    commit_initial_files
+    printf 'first\r\n\0last' > $'bad\xffname'
+    git add -N $'bad\xffname'
+    cp $'bad\xffname' "$TEST_TEMP_DIR/bad.orig"
+    printf 'staged v2\n' > staged.txt
+    git add staged.txt
+
+    run env HK_LIBGIT2="$use_libgit2" hk run pre-commit
+    assert_success
+    run cat "$SEEN/files"
+    assert_output "staged.txt"
+    run cat "$SEEN/worktree"
+    refute_output --partial "bad"
+    cmp $'bad\xffname' "$TEST_TEMP_DIR/bad.orig"
+    run git diff -z --name-only --diff-filter=A
+    assert_output $'bad\xffname'
+    run git diff --cached --name-only
+    assert_output "staged.txt"
+    run git stash list
+    assert_output ""
+}
+
+@test "stash sets aside an intent-to-add file whose name is not UTF-8 with libgit2" {
+    assert_non_utf8_intent_to_add_set_aside 1
+}
+
+@test "stash sets aside an intent-to-add file whose name is not UTF-8 with the git CLI" {
+    assert_non_utf8_intent_to_add_set_aside 0
+}
