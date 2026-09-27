@@ -85,6 +85,9 @@ impl Step {
             ctx.hook_ctx.run_type,
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
             &ctx.hook_ctx.skip_steps,
+            self.batch
+                .then(|| ctx.hook_ctx.batch_jobs(&self.name))
+                .flatten(),
         )?;
         // When this hook stages fixes with the default `stage`, a step that can
         // list or diff the files it would change checks first if any of its

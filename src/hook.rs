@@ -10,7 +10,7 @@ use std::{
     fmt,
     path::{Component, Path, PathBuf},
     sync::{
-        Arc, Mutex as StdMutex,
+        Arc, Mutex as StdMutex, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
     time::Instant,
@@ -30,7 +30,10 @@ use crate::{
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
     stage_queue::StageQueue,
-    step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
+    step::{
+        CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition,
+        shared_batch_jobs,
+    },
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -358,6 +361,11 @@ pub struct HookContext {
     pub tctx: crate::tera::Context,
     pub run_type: RunType,
     semaphore: Arc<Semaphore>,
+    /// How many batches each batched step may split its files into, for the
+    /// steps that share `--jobs` with the other batched steps of their group.
+    /// Worked out when the first batched step starts, so other steps don't
+    /// wait for it.
+    batch_jobs: OnceLock<IndexMap<String, usize>>,
     pub failed: CancellationToken,
     pub hk_progress: Option<Arc<ProgressJob>>,
     pub step_contexts: std::sync::Mutex<IndexMap<String, Arc<StepContext>>>,
@@ -441,6 +449,7 @@ impl HookContext {
             step_contexts: StdMutex::new(Default::default()),
             files_in_contention: StdMutex::new(Default::default()),
             semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
+            batch_jobs: OnceLock::new(),
             failed: CancellationToken::new(),
             expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
@@ -464,6 +473,31 @@ impl HookContext {
 
     pub fn files(&self) -> Vec<PathBuf> {
         self.file_locks.files()
+    }
+
+    /// How many batches `step` may split its files into, when it shares
+    /// `--jobs` with other batched steps.
+    pub fn batch_jobs(&self, step: &str) -> Option<usize> {
+        self.batch_jobs
+            .get_or_init(|| {
+                let files = self.files();
+                let mut batch_jobs = IndexMap::new();
+                for group in &self.groups {
+                    match shared_batch_jobs(
+                        group.steps.values(),
+                        &files,
+                        self.run_type,
+                        &self.skip_steps,
+                    ) {
+                        Ok(jobs) => batch_jobs.extend(jobs),
+                        // The step reports the error when it filters its files.
+                        Err(err) => debug!("not sharing jobs between batched steps: {err:#}"),
+                    }
+                }
+                batch_jobs
+            })
+            .get(step)
+            .copied()
     }
 
     pub fn add_files(&self, added_paths: &[PathBuf], created_paths: &[PathBuf]) {

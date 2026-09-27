@@ -575,6 +575,12 @@ open class Step {
   /// each, so a handful of files doesn't start one process per file and pay the tool's startup
   /// cost each time.
   ///
+  /// Batched steps that run at the same time share `--jobs` rather than each splitting its files
+  /// into `--jobs` batches. Each step gets an equal share of the jobs, or a share in proportion to
+  /// its number of files if that is larger. For example, with 8 jobs, prettier on 900 files and
+  /// eslint on 300 make 6 and 4 batches instead of 8 each. A step that is the only batched one with
+  /// files, or that has `depends` or a `condition`, gets every job.
+  ///
   /// ```pkl
   /// local linters = new Mapping {
   ///     ["eslint"] {
