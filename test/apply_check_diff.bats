@@ -158,8 +158,7 @@ EOF
     echo "hello" > test.txt
     run hk fix test.txt
     assert_success
-    assert_output --partial "fmt: check_diff printed a patch that \`git apply\` rejected, so the fixer ran instead"
-    assert_output --partial "error: patch failed: test.txt:1 (and 1 more line; run with HK_LOG=debug to see it)"
+    assert_output --partial "fmt: check_diff printed a patch that doesn't apply, so the fixer ran instead: test.txt: error applying hunk #1"
 
     run cat test.txt
     assert_output "FIXED"

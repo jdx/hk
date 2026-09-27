@@ -277,14 +277,18 @@ impl Step {
                                         if job.diffs_under_read_locks() {
                                             // Other steps read these files while the patch was computed.
                                             // Lock just the files it names for writing, and apply it only
-                                            // if no step wrote them meanwhile. A patch that also names
-                                            // files outside the job is computed again under write
-                                            // locks, as it always was, since those had no read lock.
-                                            let named = job.files.clone();
+                                            // if no step wrote any of the job's files meanwhile: the
+                                            // patch may be derived from files it doesn't name, as
+                                            // `go mod tidy -diff` derives go.mod from the .go files.
+                                            // A patch that also names files outside the job is
+                                            // computed again under write locks, as it always was,
+                                            // since those had no read lock.
                                             let locks = &ctx.hook_ctx.file_locks;
-                                            let before = locks.write_counts(&named);
+                                            let before = locks.write_counts(&original_job_files);
                                             job.relock_for_write(&ctx).await?;
-                                            if names_other_files || locks.write_counts(&named) != before {
+                                            if names_other_files
+                                                || locks.write_counts(&original_job_files) != before
+                                            {
                                                 debug!("{step}: files written meanwhile, diffing again");
                                                 // Diff the job's files again, not just the ones the
                                                 // patch named: a tool may derive its patch from all
@@ -319,10 +323,10 @@ impl Step {
                                                 // Diff application failed - fall through to run fixer
                                                 debug!("{step}: diff application failed, falling back to fixer");
                                             }
-                                            Err(err) => {
-                                                // Unexpected error - fall through to run fixer
-                                                warn!("{step}: unexpected error applying diff: {err}");
-                                            }
+                                            // Applying failed and the files couldn't all be
+                                            // put back, so the fixer would start from damaged
+                                            // files: stop instead.
+                                            Err(err) => return Err(err),
                                         }
                                     }
                                 }

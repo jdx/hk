@@ -339,6 +339,16 @@ const SIDE_DIRECTORIES: &[(&str, &str)] = &[
 /// under a known pair of side directories, or `None` for any other pair.
 /// Tab-separated timestamps are kept.
 fn relabel_sides(old: &str, new: &str) -> Option<(String, String)> {
+    relabel_sides_with(old, new, |dir| std::path::Path::new(dir).is_dir())
+}
+
+/// [`relabel_sides`], with `is_dir` telling whether a top-level directory
+/// exists in the working directory.
+fn relabel_sides_with(
+    old: &str,
+    new: &str,
+    is_dir: impl Fn(&str) -> bool,
+) -> Option<(String, String)> {
     let (old_path, old_tail) = old
         .split_once('\t')
         .map_or((old, None), |(p, t)| (p, Some(t)));
@@ -351,6 +361,10 @@ fn relabel_sides(old: &str, new: &str) -> Option<(String, String)> {
         return None;
     }
     if old_rest.is_empty() || old_rest != new_rest || old_rest.starts_with('/') {
+        return None;
+    }
+    // A side under a directory that exists names real files, not a label.
+    if is_dir(old_dir) || is_dir(new_dir) {
         return None;
     }
     let with_tail = |path: String, tail: Option<&str>| match tail {
@@ -421,6 +435,19 @@ mod normalize_diff_paths_tests {
             normalize_diff_paths(diff),
             "--- a/tf/main.tf\t2025-01-01\n+++ b/tf/main.tf\t2025-01-02\n@@ -1 +1 @@\n-a\n+b\n"
         );
+    }
+
+    #[test]
+    fn leaves_real_directories_alone() {
+        use super::relabel_sides_with;
+        let (old, new) = ("old/tf/main.tf", "new/tf/main.tf");
+        assert_eq!(
+            relabel_sides_with(old, new, |_| false),
+            Some(("a/tf/main.tf".to_string(), "b/tf/main.tf".to_string()))
+        );
+        // A real `old/` or `new/` directory means these name real files.
+        assert_eq!(relabel_sides_with(old, new, |dir| dir == "old"), None);
+        assert_eq!(relabel_sides_with(old, new, |dir| dir == "new"), None);
     }
 
     #[test]
