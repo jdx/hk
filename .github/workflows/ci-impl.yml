@@ -67,9 +67,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
     timeout-minutes: 10
     steps:
@@ -212,13 +212,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Mount Bats mise tools on the Namespace cache volume
-        if: inputs.trusted
-        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
-        with:
-          path: ~/.local/share/mise/installs
-      - name: Restore Bats mise tools on GitHub-hosted runners
-        if: "!inputs.trusted"
+      - name: Restore Bats mise tools
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
