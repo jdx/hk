@@ -140,9 +140,54 @@ impl Step {
             Ok(true)
         } else {
             let stderr_output = String::from_utf8_lossy(&output.stderr);
-            debug!("{}: git apply failed: {}", self.name, stderr_output);
+            // Output that is no patch at all is how some commands hand a file
+            // to the fixer, such as shellcheck's note that nothing is
+            // auto-fixable. A patch that doesn't apply is a broken `check_diff`
+            // that makes every fix run the tool twice, so say so.
+            if looks_like_patch(&diff_content) {
+                warn!(
+                    "{}: check_diff printed a patch that `git apply` rejected, so the fixer ran instead: {}",
+                    self.name,
+                    stderr_output.trim()
+                );
+            } else {
+                debug!("{}: git apply failed: {}", self.name, stderr_output);
+            }
             Ok(false)
         }
+    }
+}
+
+/// Whether `diff` contains a unified diff file header: a `--- ` line directly
+/// followed by a `+++ ` line.
+fn looks_like_patch(diff: &str) -> bool {
+    let mut lines = diff.lines().peekable();
+    while let Some(line) = lines.next() {
+        if line.starts_with("--- ") && lines.peek().is_some_and(|next| next.starts_with("+++ ")) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod looks_like_patch_tests {
+    use super::looks_like_patch;
+
+    #[test]
+    fn finds_a_file_header() {
+        assert!(looks_like_patch(
+            "note\n--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-a\n+b\n"
+        ));
+    }
+
+    #[test]
+    fn ignores_output_without_one() {
+        assert!(!looks_like_patch(
+            "Issues were detected, but none were auto-fixable. Use another format to see them.\n"
+        ));
+        assert!(!looks_like_patch("Diff in a.lua:\n1 |-print \"foo\"\n"));
+        assert!(!looks_like_patch("--- only a separator\ntext\n"));
     }
 }
 
