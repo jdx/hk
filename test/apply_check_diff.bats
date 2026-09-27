@@ -414,6 +414,46 @@ EOF
     assert_output --partial 'o   n   e  \r  \n   t   w   o  \r  \n'
 }
 
+@test "check_diff leaves hunk lines that look like file headers alone" {
+    # The file changes from "-- current/foo" to "++ tidy/foo", so the hunk's
+    # removed and added lines read "--- current/foo" and "+++ tidy/foo".
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf -- '--- a/%s\n+++ b/%s\n@@ -1,2 +1,2 @@\n--- current/foo\n+++ tidy/foo\n x\n' "$1" "$1"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    printf -- '-- current/foo\nx\n' > test.txt
+    run hk fix test.txt
+    assert_success
+
+    run cat test.txt
+    assert_output $'++ tidy/foo\nx'
+}
+
 @test "check_diff handles diffs with .orig suffix on --- line" {
     # Go tools like gofmt output diffs with .orig suffix on the --- line
     # e.g., "--- file.go.orig" instead of "--- file.go"

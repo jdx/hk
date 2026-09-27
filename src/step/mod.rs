@@ -77,81 +77,145 @@ pub(crate) fn split_line_ending(line: &str) -> (&str, &str) {
     (content, &line[content.len()..])
 }
 
+/// The lines of a unified diff, keeping their terminators, each paired with
+/// whether it is in a hunk body.
+///
+/// A hunk's length comes from its `@@ -a,b +c,d @@` header. Inside one, a line
+/// starting with `--- ` or `+++ ` is removed or added content (such as a
+/// removed `-- x`), not a file header, so nothing that looks for headers may
+/// treat it as one.
+pub(crate) fn diff_lines(diff: &str) -> Vec<(&str, bool)> {
+    let mut lines = Vec::new();
+    let (mut old_left, mut new_left) = (0usize, 0usize);
+    for line in diff.split_inclusive('\n') {
+        if old_left > 0 || new_left > 0 {
+            match line.as_bytes().first() {
+                Some(b'-') => old_left = old_left.saturating_sub(1),
+                Some(b'+') => new_left = new_left.saturating_sub(1),
+                Some(b'\\') => {}
+                // Context, including an empty line some tools write for a
+                // blank context line.
+                _ => {
+                    old_left = old_left.saturating_sub(1);
+                    new_left = new_left.saturating_sub(1);
+                }
+            }
+            lines.push((line, true));
+            continue;
+        }
+        if let Some((old, new)) = hunk_lengths(split_line_ending(line).0) {
+            (old_left, new_left) = (old, new);
+        }
+        lines.push((line, false));
+    }
+    lines
+}
+
+/// The old and new line counts of a `@@ -a[,b] +c[,d] @@` hunk header.
+fn hunk_lengths(line: &str) -> Option<(usize, usize)> {
+    let rest = line.strip_prefix("@@ -")?;
+    let (old, rest) = rest.split_once(" +")?;
+    let (new, _) = rest.split_once(" @@")?;
+    let count = |range: &str| match range.split_once(',') {
+        Some((_, count)) => count.parse().ok(),
+        None => range.parse::<usize>().ok().map(|_| 1),
+    };
+    Some((count(old)?, count(new)?))
+}
+
 /// Normalize tool-specific quirks in unified diff headers so a diff can be
 /// attributed to files and handed to `git apply`.
 ///
 /// - gofmt writes `--- file.go.orig` against a plain `+++ file.go`.
 /// - `go fix -diff` labels both sides: `--- file.go (old)` / `+++ file.go (new)`.
 /// - isort labels them `--- file.py:before` / `+++ file.py:after`.
-/// - Some tools prefix each side with its own directory name instead of git's
-///   `a/` and `b/`, such as `--- current/go.mod` / `+++ tidy/go.mod` from
-///   `go mod tidy -diff`. When the two sides differ only in their first path
-///   component, it is rewritten to `a/` and `b/`, which hk strips.
+/// - `go mod tidy -diff` puts each side under a directory named for it,
+///   `--- current/go.mod` / `+++ tidy/go.mod`, and `terraform fmt -diff` uses
+///   `old/` and `new/`. These are rewritten to git's `a/` and `b/`.
 ///
 /// The labelled forms are only rewritten when both sides carry their label,
-/// so a file genuinely named `foo (old)` is left alone. Lines other than headers
-/// are kept byte for byte, including carriage returns.
+/// so a file genuinely named `foo (old)` is left alone. Only file headers are
+/// rewritten; hunk bodies are kept byte for byte, including carriage returns.
+/// If some header pairs use git's `a/` and `b/` and others don't, the prefixes
+/// are removed, so one strip level applies to the whole patch.
 pub(crate) fn normalize_diff_paths(diff: &str) -> String {
-    let mut result = String::with_capacity(diff.len() + 1);
-    let mut lines = diff.split_inclusive('\n').peekable();
-    while let Some(line) = lines.next() {
+    let lines = diff_lines(diff);
+    let mut out: Vec<String> = Vec::with_capacity(lines.len());
+    // The index in `out` of each header pair's `---` line.
+    let mut headers = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        let (line, in_hunk) = lines[i];
         let (content, ending) = split_line_ending(line);
-        if let Some(after_prefix) = content.strip_prefix("--- ")
-            && let Some(next) = lines.peek()
+        if !in_hunk
+            && let Some(after_prefix) = content.strip_prefix("--- ")
+            && let Some(&(next, false)) = lines.get(i + 1)
             && let (next_content, next_ending) = split_line_ending(next)
             && let Some(next_path) = next_content.strip_prefix("+++ ")
         {
-            // `go fix -diff`: both sides labelled.
-            if let Some(old_path) = after_prefix.strip_suffix(" (old)")
-                && let Some(new_path) = next_path.strip_suffix(" (new)")
-            {
-                result.push_str(&format!(
-                    "--- {old_path}{ending}+++ {new_path}{next_ending}"
-                ));
-                lines.next();
-                continue;
-            }
-            // isort: `path:before` and `path:after`, before any timestamp.
-            if let Some((old_path, new_path)) = strip_side_labels(after_prefix, next_path) {
-                result.push_str(&format!(
-                    "--- {old_path}{ending}+++ {new_path}{next_ending}"
-                ));
-                lines.next();
-                continue;
-            }
-            // Each side under its own top-level directory name.
-            if let Some((old_path, new_path)) = relabel_sides(after_prefix, next_path) {
-                result.push_str(&format!(
-                    "--- {old_path}{ending}+++ {new_path}{next_ending}"
-                ));
-                lines.next();
-                continue;
-            }
-            // gofmt: ".orig" on the "---" line only.
-            if !next_path.contains(".orig") {
-                // Extract path portion (before any tab-separated timestamp)
-                let (path, rest) = after_prefix.split_once('\t').unwrap_or((after_prefix, ""));
-                if let Some(stripped) = path.strip_suffix(".orig") {
-                    if rest.is_empty() {
-                        result.push_str(&format!("--- {stripped}{ending}"));
-                    } else {
-                        result.push_str(&format!("--- {stripped}\t{rest}{ending}"));
-                    }
-                    continue;
-                }
-            }
+            let (old_path, new_path) = strip_labels(after_prefix, next_path)
+                .unwrap_or_else(|| (after_prefix.to_string(), next_path.to_string()));
+            headers.push(out.len());
+            out.push(format!("--- {old_path}{ending}"));
+            out.push(format!("+++ {new_path}{next_ending}"));
+            i += 2;
+            continue;
         }
-        result.push_str(line);
+        out.push(line.to_string());
+        i += 1;
     }
+    let git_pairs: Vec<usize> = headers
+        .iter()
+        .copied()
+        .filter(|&at| out[at].starts_with("--- a/") && out[at + 1].starts_with("+++ b/"))
+        .collect();
+    if !git_pairs.is_empty() && git_pairs.len() < headers.len() {
+        for at in git_pairs {
+            out[at].replace_range(4..6, "");
+            out[at + 1].replace_range(4..6, "");
+        }
+    }
+    let mut result = out.concat();
     if !result.ends_with('\n') {
         result.push('\n');
     }
     result
 }
 
+/// The header paths with a tool's side labels removed, or `None` if the pair
+/// carries none that hk knows.
+fn strip_labels(old: &str, new: &str) -> Option<(String, String)> {
+    // `go fix -diff`: both sides labelled.
+    if let Some(old_path) = old.strip_suffix(" (old)")
+        && let Some(new_path) = new.strip_suffix(" (new)")
+    {
+        return Some((old_path.to_string(), new_path.to_string()));
+    }
+    // isort: `path:before` and `path:after`, before any timestamp.
+    if let Some(pair) = strip_side_suffixes(old, new) {
+        return Some(pair);
+    }
+    if let Some(pair) = relabel_sides(old, new) {
+        return Some(pair);
+    }
+    // gofmt: ".orig" on the "---" line only.
+    if !new.contains(".orig") {
+        let (path, rest) = old.split_once('\t').unwrap_or((old, ""));
+        if let Some(stripped) = path.strip_suffix(".orig") {
+            let old = if rest.is_empty() {
+                stripped.to_string()
+            } else {
+                format!("{stripped}\t{rest}")
+            };
+            return Some((old, new.to_string()));
+        }
+    }
+    None
+}
+
 /// Header paths without isort's `:before`/`:after` labels, or `None` unless
 /// both sides carry theirs. Tab-separated timestamps are kept.
-fn strip_side_labels(old: &str, new: &str) -> Option<(String, String)> {
+fn strip_side_suffixes(old: &str, new: &str) -> Option<(String, String)> {
     let strip = |side: &str, label: &str| -> Option<String> {
         let (path, tail) = side
             .split_once('\t')
@@ -165,9 +229,19 @@ fn strip_side_labels(old: &str, new: &str) -> Option<(String, String)> {
     Some((strip(old, ":before")?, strip(new, ":after")?))
 }
 
+/// Directory names that tools put each side of a diff under, instead of git's
+/// `a/` and `b/`. Only these are relabelled: a diff between two real files
+/// such as `docs/x` and `site/x` names both paths and must keep them.
+const SIDE_DIRECTORIES: &[(&str, &str)] = &[
+    // `go mod tidy -diff`
+    ("current", "tidy"),
+    // `terraform fmt -diff`, `tofu fmt -diff`
+    ("old", "new"),
+];
+
 /// `a/<path>` and `b/<path>` for header paths `<old>/<path>` and `<new>/<path>`
-/// whose first components differ, or `None` for any other pair. Git's own
-/// `a/`/`b/` pair comes back unchanged. Tab-separated timestamps are kept.
+/// under a known pair of side directories, or `None` for any other pair.
+/// Tab-separated timestamps are kept.
 fn relabel_sides(old: &str, new: &str) -> Option<(String, String)> {
     let (old_path, old_tail) = old
         .split_once('\t')
@@ -177,7 +251,7 @@ fn relabel_sides(old: &str, new: &str) -> Option<(String, String)> {
         .map_or((new, None), |(p, t)| (p, Some(t)));
     let (old_dir, old_rest) = old_path.split_once('/')?;
     let (new_dir, new_rest) = new_path.split_once('/')?;
-    if old_dir.is_empty() || new_dir.is_empty() || old_dir == new_dir {
+    if !SIDE_DIRECTORIES.contains(&(old_dir, new_dir)) {
         return None;
     }
     if old_rest.is_empty() || old_rest != new_rest || old_rest.starts_with('/') {
@@ -263,6 +337,36 @@ mod normalize_diff_paths_tests {
     fn leaves_different_files_alone() {
         let diff = "--- old/a.go\n+++ new/b.go\n@@ -1 +1 @@\n-a\n+b\n";
         assert_eq!(normalize_diff_paths(diff), diff);
+        // Two real directories: only known side labels are relabelled.
+        let diff = "--- docs/x.md\n+++ site/x.md\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+    }
+
+    #[test]
+    fn leaves_hunk_lines_that_look_like_headers_alone() {
+        // The file changes from "-- current/foo" to "++ tidy/foo".
+        let diff = "--- a/f.txt\n+++ b/f.txt\n@@ -1,2 +1,2 @@\n--- current/foo\n+++ tidy/foo\n x\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+        let diff = "--- a/f.txt\n+++ b/f.txt\n@@ -1 +1 @@\n--- m.go (old)\n+++ m.go (new)\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+    }
+
+    #[test]
+    fn rewrites_headers_after_a_hunk_ends() {
+        let diff = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n--- current/go.mod\n+++ tidy/go.mod\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n--- a/go.mod\n+++ b/go.mod\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+    }
+
+    #[test]
+    fn gives_every_header_pair_one_strip_level() {
+        let diff = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- x\n+++ x\n@@ -1 +1 @@\n-a\n+b\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n"
+        );
     }
 
     #[test]

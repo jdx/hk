@@ -11,8 +11,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use xx::file::display_path;
 
-use super::normalize_diff_paths;
 use super::types::Step;
+use super::{diff_lines, normalize_diff_paths};
 
 /// Attempt to canonicalize a path, falling back to the original if it fails.
 ///
@@ -119,7 +119,14 @@ impl Step {
         // First pass: detect if this diff uses a/ and b/ prefixes (git-style)
         let mut has_a_prefix = false;
         let mut has_b_prefix = false;
-        for line in stdout.lines() {
+        // Hunk bodies can hold lines that look like headers, such as a removed
+        // `-- x`, so only lines outside them are read.
+        let headers: Vec<&str> = diff_lines(&stdout)
+            .into_iter()
+            .filter(|(_, in_hunk)| !in_hunk)
+            .map(|(line, _)| line.trim_end_matches(['\n', '\r']))
+            .collect();
+        for &line in &headers {
             if line.starts_with("--- a/") {
                 has_a_prefix = true;
             } else if line.starts_with("+++ b/") {
@@ -132,7 +139,7 @@ impl Step {
         let should_strip_prefixes = has_a_prefix && has_b_prefix;
 
         // Second pass: extract file paths
-        for line in stdout.lines() {
+        for &line in &headers {
             if line.starts_with("--- ") {
                 if let Some(path_str) = line.strip_prefix("--- ") {
                     // Strip timestamp if present (tab-separated: "--- file.py	2025-01-01 12:00:00")
