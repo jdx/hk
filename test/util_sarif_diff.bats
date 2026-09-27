@@ -93,3 +93,22 @@ EOF
     run cat a.txt
     assert_output $'one\nTWO'
 }
+
+@test "util sarif-diff prints no patch when the tool fails, even with fixable results" {
+    printf 'one\ntwo\n' > a.txt
+    fake_tool "{\"runs\":[{\"results\":[$(fix_line a.txt 2 TWO)]}]}" 2
+
+    run --separate-stderr hk util sarif-diff -- ./tool.sh
+    assert_failure 2
+    refute_output
+    [[ "$stderr" == *"failed with exit code 2"* ]]
+}
+
+@test "util sarif-diff --findings-exit-code accepts a tool's own findings code" {
+    printf 'one\ntwo\n' > a.txt
+    fake_tool "{\"runs\":[{\"results\":[$(fix_line a.txt 2 TWO)]}]}" 3
+
+    run --separate-stderr hk util sarif-diff --findings-exit-code 3 -- ./tool.sh
+    assert_failure 1
+    assert_output --partial "+TWO"
+}

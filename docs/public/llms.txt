@@ -80,6 +80,7 @@
 - [util no-commit-to-branch](https://hk.jdx.dev/cli/util/no-commit-to-branch.html): Prevent commits to specific branches
 - [util python-check-ast](https://hk.jdx.dev/cli/util/python-check-ast.html): Check Python files for valid syntax
 - [util python-debug-statements](https://hk.jdx.dev/cli/util/python-debug-statements.html): Detect Python debug statements
+- [util sarif-diff](https://hk.jdx.dev/cli/util/sarif-diff.html): Print a patch from the fixes in a tool's SARIF report, for a check_diff command
 - [util trailing-whitespace](https://hk.jdx.dev/cli/util/trailing-whitespace.html): Check for and optionally fix trailing whitespace
 - [validate](https://hk.jdx.dev/cli/validate.html): Validate the config file
 - [version](https://hk.jdx.dev/cli/version.html): Print the version of hk
