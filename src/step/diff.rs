@@ -197,6 +197,9 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
     }
     let mut written: Vec<&PathBuf> = Vec::with_capacity(files.len());
     for (path, contents) in &files {
+        // Listed before writing: a write that fails after truncating the file
+        // is rolled back too.
+        written.push(path);
         if let Err(err) = write_contents(&base.join(path), contents.as_deref()) {
             // Put back what was already written, so the fixer starts from the
             // files as they were.
@@ -210,7 +213,6 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
             }
             return Err(format!("{}: {err}", path.display()));
         }
-        written.push(path);
     }
     Ok(files.len())
 }
