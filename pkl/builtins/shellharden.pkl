@@ -23,7 +23,17 @@ shellharden = new Config.Step {
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv =
-        List("hk", "util", "format-diff", "{{files}}", "--", "shellharden", "--transform", "{}")
+        List(
+          "hk",
+          "util",
+          "format-diff",
+          "--no-stdin",
+          "{{files}}",
+          "--",
+          "shellharden",
+          "--transform",
+          "{}",
+        )
     }
     effect = "read"
   }
