@@ -54,6 +54,17 @@ where
     xx::process::cmd("git", args).on_stderr_line(|_line| {})
 }
 
+/// Whether the index has an entry added with `git add --intent-to-add`, or
+/// cannot be read, in which case hk should not trust libgit2 with it.
+fn index_has_intent_to_add(repo: &git2::Repository) -> bool {
+    repo.index().map_or(true, |index| {
+        index.iter().any(|entry| {
+            git2::IndexEntryExtendedFlag::from_bits_truncate(entry.flags_extended)
+                .is_intent_to_add()
+        })
+    })
+}
+
 fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
     const LOCK_RETRY_DELAYS: [Duration; 5] = [
         Duration::from_millis(25),
@@ -1363,10 +1374,14 @@ impl Git {
                 files_to_stash.insert(p.clone());
             }
         }
-        // The status left out paths that are not valid UTF-8, which hk cannot
-        // name in a pathspec, so stash the whole worktree to set them aside
-        let stash_everything =
-            status.skipped_unstaged || (*env::HK_STASH_UNTRACKED && status.skipped_untracked);
+        // Stash the whole worktree when a pathspec cannot name everything that
+        // needs stashing: the status left out paths that are not valid UTF-8,
+        // or there are untracked files. A stash limited to tracked paths keeps
+        // only the untracked files those paths match, and naming untracked
+        // files makes `git stash push` fail after it has stashed them.
+        let stash_everything = status.skipped_unstaged
+            || (*env::HK_STASH_UNTRACKED
+                && (status.skipped_untracked || !status.untracked_files.is_empty()));
         let files_count = files_to_stash.len();
         job.prop("files", &files_count);
         // TODO: if any intent_to_add files exist, run `git rm --cached -- <file>...` then `git add --intent-to-add -- <file>...` when unstashing
@@ -1497,7 +1512,15 @@ impl Git {
                 }
                 Ok(Some(StashType::Git))
             } else {
-                match repo.stash_save(&sig, "hk", Some(flags)) {
+                // libgit2 stashes an intent-to-add entry and then leaves it in
+                // the index as a staged empty file, so leave that to git, which
+                // refuses to stash one without changing anything
+                let saved = if index_has_intent_to_add(repo) {
+                    Err(git2::Error::from_str("the index has intent-to-add entries"))
+                } else {
+                    repo.stash_save(&sig, "hk", Some(flags))
+                };
+                match saved {
                     Ok(_) => {
                         // Record the stash commit we just created and save patch backup
                         if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read()
