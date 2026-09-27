@@ -1,7 +1,8 @@
 [build.env]
-# build.rs reads this to reject a build with no generated pkl sources. Cross
-# otherwise filters it out and the guard never reaches build.rs.
-passthrough = ["HK_REQUIRE_EMBEDDED_PKL"]
+# build.rs reads these: HK_REQUIRE_EMBEDDED_PKL to reject a build with no
+# generated pkl sources, HK_NO_PIE to link the release executable non-PIE.
+# Cross otherwise filters them out and they never reach build.rs.
+passthrough = ["HK_REQUIRE_EMBEDDED_PKL", "HK_NO_PIE"]
 
 [target.x86_64-unknown-linux-gnu]
 # Keep the release artifact compatible with older glibc distributions while
@@ -12,9 +13,9 @@ image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5"
 # scripts/pgo-bolt.bash sets profile-generate/profile-use and emit-relocs
 # through RUSTFLAGS. Cross otherwise filters the variable at the container
 # boundary and silently produces an uninstrumented build.
-# HK_REQUIRE_EMBEDDED_PKL is repeated from [build.env] in case a target list
-# replaces the build one rather than extending it.
-passthrough = ["RUSTFLAGS", "HK_REQUIRE_EMBEDDED_PKL"]
+# HK_REQUIRE_EMBEDDED_PKL and HK_NO_PIE are repeated from [build.env] in case
+# a target list replaces the build one rather than extending it.
+passthrough = ["RUSTFLAGS", "HK_REQUIRE_EMBEDDED_PKL", "HK_NO_PIE"]
 
 [target.x86_64-unknown-linux-musl.env]
 # The musl build is PGO-trained too (without BOLT), so RUSTFLAGS must reach
