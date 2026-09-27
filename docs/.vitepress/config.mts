@@ -137,7 +137,7 @@ export default defineConfig({
     ["meta", { property: "og:image:height", content: "630" }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ["meta", { name: "twitter:site", content: "@jdxcode" }],
-    ["link", { rel: "icon", href: "/favicon.ico", sizes: "any" }],
+    ["link", { rel: "icon", href: "/favicon.ico", sizes: "16x16 32x32 48x48" }],
     [
       "link",
       {
@@ -147,6 +147,9 @@ export default defineConfig({
         href: "/favicon-32x32.png",
       },
     ],
+    // Last, and the only scalable one, so browsers that read SVG favicons
+    // pick it: it follows the browser's light or dark theme.
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
     [
       "link",
       {
