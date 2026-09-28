@@ -892,6 +892,33 @@ mod apply_patch_tests {
         assert_eq!(read(&dir, "theirs.txt"), "not ours\n");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn applies_patches_for_names_with_tabs_and_literal_quotes() {
+        use crate::step::Step;
+        let dir = dir_with(&[
+            ("x\ty", "a\n"),
+            ("plain.txt", "c\n"),
+            ("\"q\"", "e\n"),
+            ("q", "keep\n"),
+        ]);
+        let step = Step::default();
+        // git-quoted with prefixes, mixed with an unprefixed pair.
+        let mixed = "--- \"a/x\\ty\"\n+++ \"b/x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n\
+                     --- plain.txt\n+++ plain.txt\n@@ -1 +1 @@\n-c\n+d\n";
+        assert!(step.apply_diff_output(mixed, dir.path().to_str()).unwrap());
+        assert_eq!(read(&dir, "x\ty"), "b\n");
+        assert_eq!(read(&dir, "plain.txt"), "d\n");
+        // A literal `"q"` from a tool that doesn't quote isn't read as `q`.
+        let literal = "--- \"q\"\n+++ \"q\"\n@@ -1 +1 @@\n-e\n+f\n";
+        assert!(
+            step.apply_diff_output(literal, dir.path().to_str())
+                .unwrap()
+        );
+        assert_eq!(read(&dir, "\"q\""), "f\n");
+        assert_eq!(read(&dir, "q"), "keep\n");
+    }
+
     #[test]
     fn output_without_a_patch_is_an_error() {
         let dir = dir_with(&[]);

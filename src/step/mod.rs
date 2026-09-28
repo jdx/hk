@@ -155,6 +155,7 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         {
             let (old_path, new_path) = strip_labels(after_prefix, next_path)
                 .unwrap_or_else(|| (after_prefix.to_string(), next_path.to_string()));
+            let (old_path, new_path) = (quote_literal(&old_path), quote_literal(&new_path));
             headers.push(out.len());
             out.push(format!("--- {old_path}{ending}"));
             out.push(format!("+++ {new_path}{next_ending}"));
@@ -178,11 +179,14 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         for at in git_pairs {
             // A created or deleted file has `/dev/null` on one side, which
             // keeps its path.
-            if out[at][4..].starts_with("a/") {
-                out[at].replace_range(4..6, "");
-            }
-            if out[at + 1][4..].starts_with("b/") {
-                out[at + 1].replace_range(4..6, "");
+            // A quoted path keeps its quote: `"a/x\ty"` becomes `"x\ty"`.
+            for (index, prefix) in [(at, "a/"), (at + 1, "b/")] {
+                let line = &mut out[index];
+                if line[4..].starts_with(prefix) {
+                    line.replace_range(4..6, "");
+                } else if line[4..].starts_with(&format!("\"{prefix}")) {
+                    line.replace_range(5..7, "");
+                }
             }
         }
     }
@@ -191,6 +195,26 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         result.push('\n');
     }
     result
+}
+
+/// A header side for a file whose name starts with a literal `"`, rewritten
+/// the way git would quote it. git quotes a name only to escape something in
+/// it, so a side git quoted always has a backslash; one without is a literal
+/// name from a tool that doesn't quote. Quoting it lets hk and the patch
+/// parser both read the `"` as part of the name.
+fn quote_literal(side: &str) -> String {
+    let (path, tail) = side
+        .split_once('\t')
+        .map_or((side, None), |(p, t)| (p, Some(t)));
+    let path = path.trim_end();
+    if !path.starts_with('"') || path.contains('\\') {
+        return side.to_string();
+    }
+    let quoted = crate::diff::quote_path(path);
+    match tail {
+        Some(tail) => format!("{quoted}\t{tail}"),
+        None => quoted.into_owned(),
+    }
 }
 
 /// The `---` and `+++` sides of each file header pair outside hunk bodies,
@@ -446,6 +470,30 @@ mod normalize_diff_paths_tests {
         assert_eq!(
             normalize_diff_paths(diff),
             "--- a/tf/main.tf\t2025-01-01\n+++ b/tf/main.tf\t2025-01-02\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+    }
+
+    #[test]
+    fn quotes_a_literal_quote_in_a_file_name() {
+        let diff = "--- \"foo\"\n+++ \"foo\"\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- \"\\\"foo\\\"\"\n+++ \"\\\"foo\\\"\"\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+        assert_eq!(super::header_path("\"\\\"foo\\\"\""), "\"foo\"");
+        // A side git quoted has an escape and stays as it is.
+        let quoted = "--- \"a/x\\ty\"\n+++ \"b/x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(quoted), quoted);
+    }
+
+    #[test]
+    fn drops_prefixes_inside_quotes_in_a_mixed_patch() {
+        let diff = "--- \"a/x\\ty\"\n+++ \"b/x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n\
+                    --- plain.txt\n+++ plain.txt\n@@ -1 +1 @@\n-c\n+d\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- \"x\\ty\"\n+++ \"x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n\
+             --- plain.txt\n+++ plain.txt\n@@ -1 +1 @@\n-c\n+d\n"
         );
     }
 
