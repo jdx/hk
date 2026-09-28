@@ -82,7 +82,7 @@ onMounted(async () => {
           :controls="!hydrated || started"
           playsinline
           preload="none"
-          aria-label="hk showreel, about a minute long: what hk does when you run git commit. Steps from hk.pkl run in parallel, fixes are staged while your unstaged work is kept, and a commit that cannot be fixed is blocked. Chapters are listed below."
+          aria-label="hk showreel, about a minute long: what hk does when you run git commit. The fixers from hk.pkl run in parallel, even on the same file, with file locks keeping them from colliding, fixes are staged while your unstaged work is kept, and a commit that cannot be fixed is blocked. Chapters are listed below."
           @play="started = true"
         >
           <!-- Generated from the reel's sections; see showreel/timeline.ts. -->

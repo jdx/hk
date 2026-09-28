@@ -173,7 +173,7 @@ const LIST: Omit<Handoff, "from" | "to" | "t">[] = [
   {
     id: "lanes|restore",
     meet: "hold",
-    note: "The finished Gantt (drawFinalGantt: every fix bar, padlocks open, a ✔ per lane) and the closed tray. No playhead, chips or detail.",
+    note: "The finished Gantt (drawFinalGantt: every read and write bar, padlocks open, a ✔ per lane) and the closed tray. No playhead, chips or detail.",
     lit: null,
     draw(ctx, env) {
       bg(ctx, env);
@@ -184,7 +184,7 @@ const LIST: Omit<Handoff, "from" | "to" | "t">[] = [
   {
     id: "restore|catch",
     meet: "hold",
-    note: "The main line at pan 0 with its labels: the f92f487 parent and the glowing ada2ca4 head, feat: hoist the sails.",
+    note: "The main line at pan 0 with its labels: the 136d59a parent and the glowing 6697300 head, feat: hoist the sails.",
     lit: null,
     draw(ctx, env) {
       bg(ctx, env);

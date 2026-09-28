@@ -36,8 +36,11 @@ export const BEATS = {
   hold: 11.75,
 } as const;
 
-/** When the inset shows each of blocked's frames 0–13, holding each until the next (storyboard §6.7 table). */
-export const FRAME_BEATS = [1, 1.25, 1.5, 1.75, 2, 2.125, 2.25, 2.375, 2.5, 2.625, 2.75, 3, 3.125, 3.25] as const;
+/**
+ * When the inset shows each of blocked's frames 0–14, holding each until the
+ * next (storyboard §6.7 table): frame 11, `✗ shellcheck`, on the stop.
+ */
+export const FRAME_BEATS = [1, 1.25, 1.5, 1.75, 2, 2.125, 2.25, 2.375, 2.5, 2.625, 2.75, 3, 3.125, 3.25, 3.375] as const;
 
 /**
  * The swing, degrees, positive clockwise about the anchor above the frame,

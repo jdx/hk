@@ -175,7 +175,7 @@ export function termLayout(p: Pane, n: number, scroll?: number): TermLayout {
 
 /**
  * The header hk draws above a run (src/hook.rs start_hk_progress, clx's
- * flex progress bar), `cols` wide: `hk 2.2.0 by @jdx – pre-commit – fix`,
+ * flex progress bar), `cols` wide: `hk 2.3.1 by @jdx – pre-commit – fix`,
  * then a bar that fills the rest of the line and `cur/total`. The bar is
  * empty at 0, full at `total`, and otherwise `round(cells·cur/total)` cells
  * with `>` at the head, as clx rounds it.

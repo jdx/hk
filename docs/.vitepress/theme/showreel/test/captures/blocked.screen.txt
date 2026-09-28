@@ -1,5 +1,5 @@
 ----- final -----
-hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+hk 2.3.1 by @jdx – pre-commit – fix  [=====================================] 4/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ✗ shellcheck  – ERROR

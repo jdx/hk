@@ -1,0 +1,23 @@
+ruff-format: waiting for ruff
+$ prettier --write README.md src/app.ts
+$ shfmt -d --apply-ignore scripts/deploy.sh
+$ ruff check --force-exclude --diff --exit-non-zero-on-fix src/main.py && ruff check --force-exclude src/main.py
+$ shellcheck --format=diff scripts/deploy.sh
+failed to get read locks, waiting
+failed to get read locks, waiting
+shfmt: failed check step first: check list or diff failed
+failed to get write locks, waiting
+shellcheck: check_diff succeeded (exit 0), stdout len=0, stderr len=0
+shfmt: applied diff to 1 file(s)
+failed to get read locks, waiting
+ruff: failed check step first: check list or diff failed
+ruff: applied diff to 1 file(s)
+failed to get write locks, waiting
+$ ruff check --force-exclude src/main.py
+$ ruff format --quiet --force-exclude --diff src/main.py
+ruff-format: failed check step first: check list or diff failed
+ruff-format: applied diff to 1 file(s)
+$ hk util end-of-file-fixer --diff README.md scripts/deploy.sh src/app.ts src/main.py
+$ hk util trailing-whitespace --diff README.md scripts/deploy.sh src/app.ts src/main.py
+trailing-whitespace: check_diff succeeded (exit 0), stdout len=0, stderr len=0
+newlines: check_diff succeeded (exit 0), stdout len=0, stderr len=0

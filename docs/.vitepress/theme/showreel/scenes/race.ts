@@ -14,7 +14,7 @@
 //   rising on b8 and the note "Timed only when the files are right."
 //   landing after the claim (race-timing.ts);
 // - none (F0: no facts, or no claim): no figure at all. The whip brings in
-//   hk's own terminal running `hk check --all` (checkAll frames 0–16, every
+//   hk's own terminal running `hk check --all` (checkAll frames 0–17, every
 //   row of each), pointing at the benchmarks page under it, and the
 //   capsules grow in from the axis as it fades, hk's last. Its only digits
 //   are hk's output.
@@ -67,7 +67,7 @@ export function captions(f: ReelFacts | null): Caption[] {
  * the page fits under it, above the captions' band.
  */
 export const F0_PANE: Pane = { ...PANE_FULL, anchor: "top", y: 102, h: 562, lineH: 38, baseline0: 188, rows: 13 };
-/** checkAll frame 0 lands on b1, and each next one 0.375 beats later: frame 16 on b7. */
+/** checkAll frame 0 lands on b1, and each next one 0.375 beats later: frame 16, 7/7, on b7, and the held frame 17 on b7.375. */
 export const F0_FIRST = b(1);
 export const F0_EACH = b(0.375);
 /** The pointer to the page: right-aligned under the pane, above the captions' band, rising on b8. */
@@ -84,8 +84,8 @@ export const F0_OUT = [b(14.5), b(15)] as const;
  */
 export const F0_GROW = [b(14.9375), b(14.75), b(14.6875), b(14.625)] as const;
 export const F0_GROW_DUR = b(0.75);
-/** The run completes (frame 15, 7/7): a light runs along the header's bar. */
-const F0_DONE = F0_FIRST + 15 * F0_EACH;
+/** The run completes (the first frame at 7/7): a light runs along the header's bar. */
+const F0_DONE = F0_FIRST + checkAll.findIndex((rows) => rows[0].endsWith("7/7")) * F0_EACH;
 
 /** The checkAll frame on screen at `lt`. */
 export const f0Frame = (lt: number): number => clamp(Math.floor((lt - F0_FIRST) / F0_EACH + 1e-9), 0, checkAll.length - 1);

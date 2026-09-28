@@ -1,0 +1,15 @@
+--- src/main.py
++++ src/main.py
+@@ -1,8 +1,11 @@
+ import os
+-def main()->None:
+-    print( 'ahoy' )
+
+-def hoist(sail:str)->str:
++
++def main() -> None:
++    print("ahoy")
++
++
++def hoist(sail: str) -> str:
+     return f"hoisting {sail}"

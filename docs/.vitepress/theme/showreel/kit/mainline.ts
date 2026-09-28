@@ -1,7 +1,7 @@
 // K6: the main branch (storyboard §4 K6), used by restore and catch: a line
 // with the parent commit and the commit the reel makes, `feat: hoist the
-// sails`, hashes from canon80 (the capture pins its commit dates, so they
-// come out the same every time). `restore` lands the head dot on it; `catch`
+// sails`, hashes from the capture's log (kit/screens.ts HASH; the capture
+// pins its commit dates, so they come out the same every time). `restore` lands the head dot on it; `catch`
 // pans it left to make room for a commit that never lands.
 
 import { PALETTE } from "../bible";
@@ -9,6 +9,7 @@ import { rgba } from "../color";
 import { glow } from "../fx";
 import { clamp, lerp } from "../math";
 import { drawText, font, MONO } from "../type";
+import { HASH } from "./screens";
 
 export const MAIN = {
   y: 600,
@@ -17,8 +18,8 @@ export const MAIN = {
   width: 3,
   dotR: 14,
   label: { text: "main", x: 160, y: 572 },
-  parent: { hash: "f92f487", x: 1000, hashY: 660 },
-  head: { hash: "ada2ca4", x: 1400, hashY: 560, message: "feat: hoist the sails", messageY: 508, glow: 40 },
+  parent: { hash: HASH.parent, x: 1000, hashY: 660 },
+  head: { hash: HASH.head, x: 1400, hashY: 560, message: "feat: hoist the sails", messageY: 508, glow: 40 },
 } as const;
 
 export type DotKind = "parent" | "head" | "slot";
@@ -73,8 +74,8 @@ export interface MainOptions {
 }
 
 /**
- * The main line at y 600 with its two commits: the `main` label, `f92f487`
- * below its dot, and `ada2ca4` above the glowing head with its message
+ * The main line at y 600 with its two commits: the `main` label, the parent's
+ * hash below its dot, and the head's above the glowing head with its message
  * above that. With no options, the restore|catch handoff.
  */
 export function drawMain(ctx: CanvasRenderingContext2D, o: MainOptions = {}): void {

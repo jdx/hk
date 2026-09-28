@@ -1,6 +1,6 @@
 // A commit hk can't fix (storyboard §6.7), the poster's section. The main
 // line pans left to make room for the next commit's empty slot, and a small
-// terminal replays hk's real blocked run (canon80 `blocked`, frames 0–13)
+// terminal replays hk's real blocked run (kit/screens.ts `blocked`, frames 0–14)
 // while a commit card for scripts/deploy.sh rides in along the line and
 // brakes. On b3 shellcheck fails: the card's edge goes red, it grows a
 // badge and shellcheck's own caret line. hk's hook whips down, snags the
@@ -93,7 +93,7 @@ const GLINT = b(BEATS.glint);
 const CHIP = b(BEATS.chip);
 const HOLD = b(BEATS.hold);
 
-/** blocked frames 0–13, each shown from its beat until the next (storyboard §6.7 table). */
+/** blocked frames 0–14, each shown from its beat until the next (FRAME_BEATS). */
 const FRAME_AT = FRAME_BEATS.map(b);
 /** The `✗ shellcheck` row, from frame 11. */
 const FAIL_ROW = 3;
@@ -307,7 +307,7 @@ const LABEL_TO = MAIN.head.x + PAN - (advance(LABEL_SIZE) * MAIN.label.text.leng
 
 /**
  * The `main` label's left edge: at the line's start on b0 (restore|catch),
- * gliding with the pan to sit centred over ada2ca4 by b1, where the parent
+ * gliding with the pan to sit centred over the head by b1, where the parent
  * would otherwise come to rest right under it. The branch still names the
  * head: the commit never lands.
  */
@@ -410,14 +410,16 @@ function drawPanTrails(ctx: CanvasRenderingContext2D, lt: number, alpha: number)
 }
 
 /**
- * The inset: kit/term's INSET (x 120–880 from y 110) cut down to the 7 rows
- * a blocked frame fills at most, its bottom edge at y 390 rather than 430,
- * 27 px under the last baseline as the first sits 37 px under its top. The
- * card's loop, sized to take the hook (catch-rig LOOP_R), tops out at y 405
- * as the card rides in beneath the pane: it clears the edge by 15 px rather
- * than crossing it.
+ * The inset: kit/term's INSET (x 120–880 from y 110) with its bottom edge at
+ * y 390 rather than 430, holding the 9 rows a blocked frame fills at most
+ * (frame 3: four steps reading scripts/deploy.sh at once, three with their
+ * commands) in 24 px on a 28 px pitch, the size of everywhere's panels. The
+ * last baseline sits 23 px over the bottom as the first sits 33 px under the
+ * top. The card's loop, sized to take the hook (catch-rig LOOP_R), tops out
+ * at y 405 as the card rides in beneath the pane: it clears the edge by
+ * 15 px rather than crossing it.
  */
-export const PANE: Pane = { ...INSET, h: 280, rows: 7 };
+export const PANE: Pane = { ...INSET, h: 280, rows: 9, size: 24, lineH: 28, baseline0: INSET.y + 33 };
 
 /**
  * The inset's fade, and where it stands: it rises a little as it comes, and
@@ -481,8 +483,8 @@ function drawInset(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): vo
     ctx.restore();
   }
   // hk redraws its screen in place: a row whose text changed crossfades over
-  // a 64th, the old text going as the new comes (no frame scrolls: 7 rows at
-  // most in a pane of 8).
+  // a 64th, the old text going as the new comes (no frame scrolls: 9 rows at
+  // most, in a pane of 9).
   const k = progress(at, at + BEAT / 16, lt);
   const text = { ...pane, window: false };
   if (k < 1 && prev.length) {

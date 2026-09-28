@@ -15,7 +15,7 @@
 //    zips into the worktree copy glyph by glyph, its teeth meshing: hk's
 //    three-way merge of base, fixer output and worktree.
 // 3. Committed. The split closes onto the staged side, which goes into the
-//    terminal as the commit: `[main ada2ca4] feat: hoist the sails` prints,
+//    terminal as the commit: `[main 6697300] feat: hoist the sails` prints,
 //    lifts off as a cyan dot and shoots along `main`, landing on the bell.
 //    The commit is hk's cyan throughout, never logo cyan (storyboard §3).
 //
@@ -30,10 +30,10 @@ import { mix, rgba } from "../color";
 import { glow, ring, roundedRect } from "../fx";
 import { bg, drawHandoff } from "../handoff";
 import { type CardRect, cardLayout, drawCard, drawMono, MAIN_PY_FIXED, MAIN_PY_TODO, monoWidth } from "../kit/card";
-import { barSpan, drawBar, drawDone, drawLanes, LANE_FILES, LANES, SCHEDULE } from "../kit/lanes";
+import { drawDone, drawLanes, drawScheduleBar, LANE_FILES, LANES, SCHEDULE } from "../kit/lanes";
 import { drawCommitDot, drawMain, MAIN } from "../kit/mainline";
 import { bump, jolt, land, type Pt } from "../kit/motion";
-import { commit } from "../kit/screens";
+import { COMMIT_FRAME, commit, HASH } from "../kit/screens";
 import { drawTerm, type Pane, STRIP, termLayout, termLit } from "../kit/term";
 import { drawTray, TRAY } from "../kit/tray";
 import { clamp, cubicBezier, inOutCubic, lerp, outCubic, progress, smoothstep, swiftIn, swiftInOut, swiftOut, TAU } from "../math";
@@ -119,7 +119,7 @@ export const T_COMMITTED = b(5.75);
 /** `main` draws on, left to right, with the parent commit on it (the score's line whoosh). */
 export const T_LINE0 = b(5.5);
 export const T_LINE1 = b(6.5);
-/** `[main ada2ca4]` lifts off as a dot… */
+/** `[main 6697300]` lifts off as a dot… */
 export const T_LIFT = b(6);
 const T_SHOOT0 = b(6.25);
 /** …and lands at x 1400 on the beat: the reel's second bell. */
@@ -290,11 +290,12 @@ function drawRetract(ctx: CanvasRenderingContext2D, lt: number): void {
     ctx.restore();
   }
   drawLanes(ctx, { labels: 0, tracks: 0, locks: [1 - headLockOut(lt), 1 - out, 1 - out, 1 - out] });
+  // The kit's own bars, as the lanes|restore handoff draws them: each
+  // phase in its colour, cut back by the edge.
   for (const s of SCHEDULE) {
     const x1 = Math.min(s.x1 + push, E);
     if (x1 - s.x0 < 1) continue;
-    const { y0, y1 } = barSpan(s.lanes[0], s.lanes[1]);
-    drawBar(ctx, { x0: s.x0, x1, y0, y1 }, "fix", { label: s.step, fullWidth: s.x1 - s.x0, rotate: s.lanes[1] - s.lanes[0] >= 2 });
+    drawScheduleBar(ctx, s, x1);
   }
   // The ✔ at each lane's end swells, then rides the edge in and fades.
   const swell = 1 + 0.18 * bump(lt, T_CHARGE, T_RETRACT0 + b(0.125));
@@ -423,7 +424,7 @@ function stagedAt(lt: number): Placed | null {
   p.y += CLOSE_DROP * c;
   const k = progress(T_SLIDE1, T_COMMITTED, lt);
   if (k > 0) {
-    // Into the terminal: up behind its window, toward the `[main ada2ca4]` it becomes.
+    // Into the terminal: up behind its window, toward the `[main 6697300]` it becomes.
     // Shrinking early, so it is small by the time it reaches the window, and never shows above it.
     const s = lerp(1, 0.28, outCubic(k));
     const m = inOutCubic(k);
@@ -700,10 +701,12 @@ function drawTodoStrip(ctx: CanvasRenderingContext2D, lt: number): void {
 
 // Stage 3: the commit.
 
-/** The strip's lines: commit frame 22, of which it shows the bottom two as it scrolls. */
-const STRIP_LINES = commit[22];
-/** Row 0 after the commit prints: `[main ada2ca4]`'s 14 cells, where the dot lifts off. */
-const HASH_COLS = "[main ada2ca4]".length;
+/** The strip's lines: the commit's last frame, of which it shows the bottom two as it scrolls. */
+const STRIP_LINES = commit[COMMIT_FRAME.made];
+/** Row 0 after the commit prints: `[main 6697300]`, git's line for the commit it made. */
+const COMMIT_LINE = `[main ${HASH.head}]`;
+/** Its 14 cells, where the dot lifts off. */
+const HASH_COLS = COMMIT_LINE.length;
 const STRIP_REST = termLayout(STRIP, STRIP_LINES.length, 10);
 const COMMIT_TEXT: Pt = { x: STRIP_REST.col(HASH_COLS / 2), y: STRIP_REST.baseline(10) - 0.33 * STRIP.size };
 
@@ -714,9 +717,9 @@ interface StripState {
 }
 
 /**
- * The terminal strip: drops in from above showing frame 19's last two rows
- * (`✔ newlines`, `✔ stash – Restoring unstaged changes (manual)`), lands,
- * scrolls two rows as the commit prints (frame 22), then fades.
+ * The terminal strip: drops in from above showing the restored frame's last
+ * two rows (`✔ newlines`, `✔ stash – Restoring unstaged changes (manual)`),
+ * lands, scrolls two rows as the commit prints (the last frame), then fades.
  */
 function stripAt(lt: number): StripState | null {
   if (lt < T_CLOSE || lt >= T_STRIP_OUT1) return null;
@@ -789,13 +792,13 @@ function pathAt(d: number): Pt {
 const shootEase = (p: number): number => (p * p * (3 - p)) / 2;
 const dotAt = (lt: number): Pt => pathAt(PATH_LEN * shootEase(progress(T_SHOOT0, T_LAND, lt)));
 
-/** `[main ada2ca4]` glowing cyan over the terminal's own text, then drawn together into a dot in the gutter to its left, rising a little. */
+/** `[main 6697300]` glowing cyan over the terminal's own text, then drawn together into a dot in the gutter to its left, rising a little. */
 function drawLift(ctx: CanvasRenderingContext2D, lt: number): void {
   if (lt < T_LIFT || lt >= T_SHOOT0) return;
   const p = progress(T_LIFT, T_SHOOT0, lt);
   const heat = progress(0, 0.35, p);
   const pull = swiftIn(progress(0.3, 1, p));
-  const text = "[main ada2ca4]";
+  const text = COMMIT_LINE;
   const size = STRIP.size;
   const adv = 0.6 * size;
   const y = STRIP_REST.baseline(10);
@@ -924,7 +927,7 @@ function drawMainStage(ctx: CanvasRenderingContext2D, lt: number): void {
     drawCommitDot(ctx, HEAD.x, "head");
     ctx.restore();
   }
-  // The labels: `ada2ca4` and its message rise over the head, `main` slides in, the parent's hash drops in under it.
+  // The labels: the head's hash and its message rise over the head, `main` slides in, the parent's hash drops in under it.
   const mono = font(40, 400, MONO);
   const rise = (from: number, to: number) => {
     const a = progress(from, to, lt);
