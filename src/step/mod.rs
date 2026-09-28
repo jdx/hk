@@ -155,6 +155,7 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         {
             let (old_path, new_path) = strip_labels(after_prefix, next_path)
                 .unwrap_or_else(|| (after_prefix.to_string(), next_path.to_string()));
+            let (old_path, new_path) = (quote_literal(&old_path), quote_literal(&new_path));
             headers.push(out.len());
             out.push(format!("--- {old_path}{ending}"));
             out.push(format!("+++ {new_path}{next_ending}"));
@@ -178,11 +179,14 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         for at in git_pairs {
             // A created or deleted file has `/dev/null` on one side, which
             // keeps its path.
-            if out[at][4..].starts_with("a/") {
-                out[at].replace_range(4..6, "");
-            }
-            if out[at + 1][4..].starts_with("b/") {
-                out[at + 1].replace_range(4..6, "");
+            // A quoted path keeps its quote: `"a/x\ty"` becomes `"x\ty"`.
+            for (index, prefix) in [(at, "a/"), (at + 1, "b/")] {
+                let line = &mut out[index];
+                if line[4..].starts_with(prefix) {
+                    line.replace_range(4..6, "");
+                } else if line[4..].starts_with(&format!("\"{prefix}")) {
+                    line.replace_range(5..7, "");
+                }
             }
         }
     }
@@ -191,6 +195,26 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         result.push('\n');
     }
     result
+}
+
+/// A header side for a file whose name starts with a literal `"`, rewritten
+/// the way git would quote it. git quotes a name only to escape something in
+/// it, so a side git quoted always has a backslash; one without is a literal
+/// name from a tool that doesn't quote. Quoting it lets hk and the patch
+/// parser both read the `"` as part of the name.
+fn quote_literal(side: &str) -> String {
+    let (path, tail) = side
+        .split_once('\t')
+        .map_or((side, None), |(p, t)| (p, Some(t)));
+    let path = path.trim_end();
+    if !path.starts_with('"') || path.contains('\\') {
+        return side.to_string();
+    }
+    let quoted = crate::diff::quote_path(path);
+    match tail {
+        Some(tail) => format!("{quoted}\t{tail}"),
+        None => quoted.into_owned(),
+    }
 }
 
 /// The `---` and `+++` sides of each file header pair outside hunk bodies,
@@ -210,15 +234,27 @@ pub(crate) fn header_pairs(diff: &str) -> Vec<(&str, &str)> {
     pairs
 }
 
-/// A header side's path, without any tab-separated timestamp.
-pub(crate) fn header_path(side: &str) -> &str {
-    side.split_once('\t').map_or(side, |(path, _)| path).trim()
+/// A header side's path, without any tab-separated timestamp. A side git
+/// quoted, such as `"a/foo\tbar.txt"`, is unquoted, so a tab in the name
+/// isn't taken for the start of a timestamp.
+pub(crate) fn header_path(side: &str) -> std::borrow::Cow<'_, str> {
+    if let Some((path, _)) = crate::diff::unquote_path(side.trim_start()) {
+        return path.into();
+    }
+    side.split_once('\t')
+        .map_or(side, |(path, _)| path)
+        .trim()
+        .into()
 }
 
 /// Whether a header pair uses git's `a/` and `b/` prefixes. A created or
 /// deleted file has `/dev/null` on one side.
 pub(crate) fn is_git_pair(old: &str, new: &str) -> bool {
-    let (old, new) = (header_path(old), header_path(new));
+    is_git_path_pair(&header_path(old), &header_path(new))
+}
+
+/// [`is_git_pair`] for paths already read from their header sides.
+fn is_git_path_pair(old: &str, new: &str) -> bool {
     let old_prefixed = old.starts_with("a/");
     let new_prefixed = new.starts_with("b/");
     (old_prefixed || old == "/dev/null")
@@ -262,15 +298,15 @@ pub(crate) fn strips_git_prefixes(diff: &str, base: &std::path::Path) -> bool {
 /// patch that also has an unprefixed pair is not, since stripping a
 /// component would move that pair's path too.
 pub(crate) fn creations_use_git_prefixes(diff: &str, base: &std::path::Path) -> bool {
-    let pairs: Vec<(&str, &str)> = header_pairs(diff)
+    let pairs: Vec<_> = header_pairs(diff)
         .into_iter()
         .map(|(old, new)| (header_path(old), header_path(new)))
         .collect();
     !pairs.is_empty()
-        && pairs.iter().all(|&(old, new)| is_git_pair(old, new))
-        && pairs.iter().all(|&(old, new)| {
+        && pairs.iter().all(|(old, new)| is_git_path_pair(old, new))
+        && pairs.iter().all(|(old, new)| {
             if let Some(rest) = old.strip_prefix("a/") {
-                !base.join(old).exists() && base.join(rest).exists()
+                !base.join(old.as_ref()).exists() && base.join(rest).exists()
             } else {
                 // `is_git_pair` means the other side is `/dev/null`.
                 new.strip_prefix("b/").is_some() && !base.join("b").is_dir()
@@ -434,6 +470,30 @@ mod normalize_diff_paths_tests {
         assert_eq!(
             normalize_diff_paths(diff),
             "--- a/tf/main.tf\t2025-01-01\n+++ b/tf/main.tf\t2025-01-02\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+    }
+
+    #[test]
+    fn quotes_a_literal_quote_in_a_file_name() {
+        let diff = "--- \"foo\"\n+++ \"foo\"\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- \"\\\"foo\\\"\"\n+++ \"\\\"foo\\\"\"\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+        assert_eq!(super::header_path("\"\\\"foo\\\"\""), "\"foo\"");
+        // A side git quoted has an escape and stays as it is.
+        let quoted = "--- \"a/x\\ty\"\n+++ \"b/x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(quoted), quoted);
+    }
+
+    #[test]
+    fn drops_prefixes_inside_quotes_in_a_mixed_patch() {
+        let diff = "--- \"a/x\\ty\"\n+++ \"b/x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n\
+                    --- plain.txt\n+++ plain.txt\n@@ -1 +1 @@\n-c\n+d\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- \"x\\ty\"\n+++ \"x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n\
+             --- plain.txt\n+++ plain.txt\n@@ -1 +1 @@\n-c\n+d\n"
         );
     }
 
