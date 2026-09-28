@@ -433,6 +433,8 @@ jobs:
           ./e2e-win/run.ps1 -TestName "*{{files}} template*"
           # Regression test for discussion #1220 (structured argv npm shims)
           ./e2e-win/run.ps1 -TestName "*structured argv resolves*"
+          # Regression tests for issue #1534 (stash CRLF restoration)
+          ./e2e-win/run.ps1 -TestName "*stash line endings*"
   final:
     permissions: {}
     needs:
