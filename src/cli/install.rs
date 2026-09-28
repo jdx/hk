@@ -434,13 +434,50 @@ pub(crate) fn lock_local_config() -> Result<File> {
     };
     #[cfg(not(unix))]
     let config = OsString::from(String::from_utf8(output.stdout)?.trim_end());
+    #[cfg(unix)]
+    let config_mode = {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(Path::new(&config))?.permissions().mode() & 0o666
+    };
     let mut lock_path = config;
     lock_path.push(".hk-install.lock");
-    let lock = OpenOptions::new()
-        .create(true)
+    let lock_path = Path::new(&lock_path);
+    let lock = match OpenOptions::new()
+        .create_new(true)
         .write(true)
-        .truncate(false)
-        .open(lock_path)?;
+        .open(lock_path)
+    {
+        Ok(lock) => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                // Match the repository config rather than the process
+                // umask, which may otherwise block another member of a
+                // group-shared repository from opening the lock.
+                lock.set_permissions(std::fs::Permissions::from_mode(config_mode))?;
+            }
+            lock
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Another process may see a new file before its creator has
+            // applied shared-repository permissions.
+            let mut attempts = 0;
+            loop {
+                match OpenOptions::new().write(true).open(lock_path) {
+                    Ok(lock) => break lock,
+                    Err(error)
+                        if error.kind() == std::io::ErrorKind::PermissionDenied
+                            && attempts < 10 =>
+                    {
+                        attempts += 1;
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(error) => return Err(error.into()),
+                }
+            }
+        }
+        Err(error) => return Err(error.into()),
+    };
     lock.lock()?;
     Ok(lock)
 }

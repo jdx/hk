@@ -18,12 +18,20 @@ teardown() {
 amends "$PKL_PATH/Config.pkl"
 hooks { ["pre-commit"] { steps { ["noop"] { check = "true" } } } }
 EOF
+    git add hk.pkl
+    git commit -m 'add hk config'
+    git worktree add -b concurrent-install "$TEST_TEMP_DIR/linked"
 
-    # Exercise both first installation and replacement of existing entries.
+    # Both worktrees update the same local Git config. Exercise first
+    # installation and replacement of existing entries.
     for round in 1 2; do
         pids=()
         for i in 1 2 3 4 5 6 7 8; do
-            hk install --mise >"$TEST_TEMP_DIR/install-$round-$i.log" 2>&1 &
+            if [ $((i % 2)) -eq 0 ]; then
+                (cd "$TEST_TEMP_DIR/linked" && hk install --mise) >"$TEST_TEMP_DIR/install-$round-$i.log" 2>&1 &
+            else
+                hk install --mise >"$TEST_TEMP_DIR/install-$round-$i.log" 2>&1 &
+            fi
             pids+=("$!")
         done
         for pid in "${pids[@]}"; do
@@ -38,4 +46,23 @@ EOF
         assert_success
         assert_output pre-commit
     done
+}
+
+@test "lock file follows group-shared repository config permissions" {
+    if ! git version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=54))}'; then
+        skip "git 2.54+ required for config-based hooks"
+    fi
+
+    cd "$TEST_TEMP_DIR/src"
+    git init --shared=group shared
+    cd shared
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+hooks { ["pre-commit"] { steps { ["noop"] { check = "true" } } } }
+EOF
+
+    umask 0022
+    hk install --mise
+    lock_path="$(git rev-parse --git-path config).hk-install.lock"
+    [ "$(ls -ld "$lock_path" | awk '{print substr($1,6,1)}')" = w ]
 }
