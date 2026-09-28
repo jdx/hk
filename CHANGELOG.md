@@ -1,5 +1,56 @@
 # Changelog
 
+## [2.4.0](https://github.com/jdx/hk/compare/v2.3.1..v2.4.0) - 2026-09-28
+
+### 🚀 Features
+
+- **(builtins)** apply pinact's fixes as a patch with new hk util sarif-diff by [@jdx](https://github.com/jdx) in [#1515](https://github.com/jdx/hk/pull/1515)
+- **(builtins)** give seven formatters a check_diff with new hk util format-diff by [@jdx](https://github.com/jdx) in [#1514](https://github.com/jdx/hk/pull/1514)
+- **(builtins)** add check_diff to ruff, oxfmt, shellharden, and go_lines by [@jdx](https://github.com/jdx) in [#1516](https://github.com/jdx/hk/pull/1516)
+- **(step)** warn when a check_diff patch doesn't apply by [@jdx](https://github.com/jdx) in [#1517](https://github.com/jdx/hk/pull/1517)
+- **(step)** apply check_diff patches in hk instead of running git apply by [@jdx](https://github.com/jdx) in [#1520](https://github.com/jdx/hk/pull/1520)
+- **(test)** add "diff" step tests that require check_diff patches to apply by [@jdx](https://github.com/jdx) in [#1518](https://github.com/jdx/hk/pull/1518)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** run selene and zizmor once in fix mode by [@jdx](https://github.com/jdx) in [#1511](https://github.com/jdx/hk/pull/1511)
+- **(builtins)** let go_lines take an argv prefix by [@jdx](https://github.com/jdx) in [#1523](https://github.com/jdx/hk/pull/1523)
+- **(install)** make concurrent local installs reliable by [@jdx](https://github.com/jdx) in [#1533](https://github.com/jdx/hk/pull/1533)
+- **(step)** apply go mod tidy and isort diffs and keep carriage returns in patches by [@jdx](https://github.com/jdx) in [#1513](https://github.com/jdx/hk/pull/1513)
+- **(step)** stop finished check_diff jobs leaving a spinner on screen by [@jdx](https://github.com/jdx) in [#1530](https://github.com/jdx/hk/pull/1530)
+- **(step)** stage files created by check_diff patches by [@jdx](https://github.com/jdx) in [#1524](https://github.com/jdx/hk/pull/1524)
+
+### 📚 Documentation
+
+- refresh competitor benchmark for v2.3.0 by [@jdx](https://github.com/jdx) in [#1498](https://github.com/jdx/hk/pull/1498)
+- refresh competitor benchmark for v2.3.1 by [@jdx](https://github.com/jdx) in [#1509](https://github.com/jdx/hk/pull/1509)
+- make the docs site favicon transparent and theme-aware by [@jdx](https://github.com/jdx) in [#1510](https://github.com/jdx/hk/pull/1510)
+- show fixers sharing files under read locks in the showreel by [@jdx](https://github.com/jdx) in [#1532](https://github.com/jdx/hk/pull/1532)
+
+### ⚡ Performance
+
+- **(builtins)** apply trailing_whitespace and newlines diffs instead of rerunning them by [@jdx](https://github.com/jdx) in [#1528](https://github.com/jdx/hk/pull/1528)
+- **(fix)** run read-only check_diff steps in parallel with steps that read the same files by [@jdx](https://github.com/jdx) in [#1519](https://github.com/jdx/hk/pull/1519)
+
+### 🧪 Testing
+
+- **(builtins)** test rumdl builtins against rumdl 0.2.77 by [@jdx](https://github.com/jdx) in [#1512](https://github.com/jdx/hk/pull/1512)
+
+### 🔍 Other Changes
+
+- **(benchmark)** stop refresh pushes failing when main changes a workflow by [@jdx](https://github.com/jdx) in [#1508](https://github.com/jdx/hk/pull/1508)
+- **(benchmark)** add unused imports so ruff check has defects to fix by [@jdx](https://github.com/jdx) in [#1529](https://github.com/jdx/hk/pull/1529)
+- allow more time for hosted macOS Bats tests by [@jdx](https://github.com/jdx) in [4eae400](https://github.com/jdx/hk/commit/4eae4006f2705c336e779bf37fa913807cdcad78)
+- cache mise tools across CI jobs by [@jdx](https://github.com/jdx) in [#1526](https://github.com/jdx/hk/pull/1526)
+- restore Bats mise tools on every runner by [@jdx](https://github.com/jdx) in [#1527](https://github.com/jdx/hk/pull/1527)
+
+### 📦️ Dependency Updates
+
+- update jdx/packslip action to v1.4.0 by [@jdx](https://github.com/jdx) in [#1507](https://github.com/jdx/hk/pull/1507)
+- update rust crate ensembler to v1.1.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1497](https://github.com/jdx/hk/pull/1497)
+- update rust crate ensembler to v1.1.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1521](https://github.com/jdx/hk/pull/1521)
+- bump mbx to 1.19.0 by [@jdx](https://github.com/jdx) in [#1525](https://github.com/jdx/hk/pull/1525)
+
 ## [2.3.1](https://github.com/jdx/hk/compare/v2.3.0..v2.3.1) - 2026-09-27
 
 ### 🐛 Bug Fixes
@@ -33,6 +84,7 @@
 
 - **(builtins)** give the jq and yq batch test enough jobs for two batches per step by [@jdx](https://github.com/jdx) in [#1500](https://github.com/jdx/hk/pull/1500)
 - **(builtins)** run jq builtin tests against the pinned jq 1.8.1 by [@jdx](https://github.com/jdx) in [#1499](https://github.com/jdx/hk/pull/1499)
+- run backend-independent builtin tests only in the nolibgit2 suite by [@jdx](https://github.com/jdx) in [#1505](https://github.com/jdx/hk/pull/1505)
 
 ### 🛡️ Security
 
