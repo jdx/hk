@@ -21,9 +21,12 @@ whitespace() {
     printf '%s' "$(cat "$1")" >"$1"
 }
 
+# The unused import is for ruff check, which removes it; black and ruff format
+# leave it alone, so ruff's fix is the only one that changes that line.
 for f in $(pick '*.py'); do
     sed -i -e 's/sorted(result, key=lambda r: r.value)/sorted( result,key=lambda r:r.value )/' \
-        -e 's/batch_size: int = 100/batch_size:int=100/' "$f"
+        -e 's/batch_size: int = 100/batch_size:int=100/' \
+        -e 's/^from dataclasses import dataclass$/&\nimport os/' "$f"
     whitespace "$f"
 done
 

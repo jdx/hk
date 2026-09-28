@@ -20,7 +20,7 @@ Every tool produces the expected files in every timed sample. Each chart states 
 
 The generated repository contains about 6,000 files: 4,000 Python, 500 JavaScript and TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown. Each configuration runs ten fixers: black, ruff format, ruff check, Prettier, ESLint, jq, yq, shfmt, trailing whitespace, and final newline. It also runs two type checkers, mypy and tsc, which change no files. mypy checks the Python files it is given. tsc checks the whole TypeScript project whenever a TypeScript file is selected, as it would in a real repository.
 
-The generator creates two commits: `clean`, the result of running the fixers sequentially, and `dirty`, with formatting defects in a quarter of the files. Each defective file needs both a language fixer and a whitespace fixer, so the workload exercises overlapping writes.
+The generator creates two commits: `clean`, the result of running the fixers sequentially, and `dirty`, with defects in a quarter of the files: formatting for every file type, plus an unused import in each Python file that only ruff check removes. Each defective file needs a language fixer and a whitespace fixer, and a Python file needs black and ruff check as well, so the workload exercises overlapping writes.
 
 | Scenario | Starting state | Measured work |
 | --- | --- | --- |

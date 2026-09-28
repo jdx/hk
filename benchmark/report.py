@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent
 # Bump when results from an older configuration should stop rendering: the docs
 # page and benchmark-refresh.yml accept only this schema, and the refresh
 # re-measures when the published results.json has another.
-SCHEMA = 3
+SCHEMA = 4
 
 # Benchmarks in tak.toml that guard the run but aren't shown as scenarios.
 SANITY = {"check-detects"}
