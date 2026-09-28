@@ -66,3 +66,20 @@ EOF
     lock_path="$(git rev-parse --git-path config).hk-install.lock"
     [ "$(ls -ld "$lock_path" | awk '{print substr($1,6,1)}')" = w ]
 }
+
+@test "lock remains writable when Git config is read-only" {
+    if ! git version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=54))}'; then
+        skip "git 2.54+ required for config-based hooks"
+    fi
+
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+hooks { ["pre-commit"] { steps { ["noop"] { check = "true" } } } }
+EOF
+    chmod a-w "$(git rev-parse --git-path config)"
+
+    hk install --mise
+    lock_path="$(git rev-parse --git-path config).hk-install.lock"
+    [ "$(ls -ld "$lock_path" | awk '{print substr($1,3,1)}')" = w ]
+    hk install --mise
+}

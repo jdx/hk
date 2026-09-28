@@ -437,7 +437,7 @@ pub(crate) fn lock_local_config() -> Result<File> {
     #[cfg(unix)]
     let config_mode = {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::metadata(Path::new(&config))?.permissions().mode() & 0o666
+        (std::fs::metadata(Path::new(&config))?.permissions().mode() & 0o666) | 0o200
     };
     let mut lock_path = config;
     lock_path.push(".hk-install.lock");
@@ -451,9 +451,10 @@ pub(crate) fn lock_local_config() -> Result<File> {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                // Match the repository config rather than the process
-                // umask, which may otherwise block another member of a
-                // group-shared repository from opening the lock.
+                // Preserve the config's shared permissions despite the
+                // process umask. Keep owner write access even if the config
+                // itself is read-only: Git can replace such a config, and
+                // subsequent installs still need to open this lock.
                 lock.set_permissions(std::fs::Permissions::from_mode(config_mode))?;
             }
             lock
