@@ -30,9 +30,20 @@ run_with_closed_reader() {
     echo "${PIPESTATUS[0]}"
 }
 
-@test "hk exits like SIGPIPE when stdout's reader has gone" {
-    for args in "--version" "--help" "usage" "completion bash" \
+@test "generated CLI output ignores a closed stdout reader" {
+    for args in "--version" "--help" \
         "__complete_word__ --shell bash --line hk\ c --bash-word c"; do
+        rm -f reader_closed
+        # shellcheck disable=SC2086
+        run run_with_closed_reader 1 $args
+        assert_output "0"
+        run cat other.txt
+        refute_output --partial "panicked"
+    done
+}
+
+@test "hk output exits like SIGPIPE when stdout's reader has gone" {
+    for args in "usage" "completion bash"; do
         rm -f reader_closed
         # shellcheck disable=SC2086
         run run_with_closed_reader 1 $args
@@ -42,7 +53,7 @@ run_with_closed_reader() {
     done
 }
 
-@test "hk exits like SIGPIPE when stderr's reader has gone" {
+@test "generated CLI errors keep their status when stderr's reader has gone" {
     run run_with_closed_reader 2 --no-such-flag
-    assert_output "141"
+    assert_output "2"
 }
