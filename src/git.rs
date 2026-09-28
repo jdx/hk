@@ -2295,7 +2295,8 @@ impl Git {
                         // Limit membership lookup to this path, and only do it
                         // when text merging actually needs the input.
                         let entry = git_read_bytes([
-                            OsString::from("ls-tree"),
+                            OsString::from("--literal-pathspecs"),
+                            "ls-tree".into(),
                             "-z".into(),
                             "--full-tree".into(),
                             tree.into(),
@@ -2320,10 +2321,12 @@ impl Git {
                         let index = read_tree_text(&format!("{stash_ref}^2"))?;
                         let fixer = if should_stage {
                             if step_changed {
-                                String::from_utf8(std::fs::read(&path)?).ok()
+                                Some(String::from_utf8(std::fs::read(&path)?)?)
                             } else {
                                 match fixer_map.get(&path) {
-                                    Some((_, object)) => read_text(object)?,
+                                    Some((_, object)) => Some(String::from_utf8(
+                                        read_worktree_blob(std::ffi::OsStr::new(object), &path)?,
+                                    )?),
                                     None => None,
                                 }
                             }

@@ -227,3 +227,73 @@ PKL
         assert_equal "$(git stash list)" ""
     done
 }
+
+@test "git stash keeps binary fixer output and text recovery data" {
+    cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps {
+      ["fixer"] {
+        glob = "file.dat"
+        fix = "cp binary.dat file.dat"
+      }
+    }
+  }
+}
+PKL
+    printf '\000\377\n' > binary.dat
+    printf 'base\n' > file.dat
+    git add .
+    git commit -m init
+    printf 'staged\n' > file.dat
+    git add file.dat
+    printf 'unstaged\n' > file.dat
+
+    run hk run pre-commit
+    assert_failure
+    cmp file.dat binary.dat
+    git show :file.dat > "$TEST_TEMP_DIR/index"
+    cmp "$TEST_TEMP_DIR/index" binary.dat
+    assert_equal "$(git show 'stash@{0}:file.dat')" unstaged
+}
+
+@test "git stash merge reads colon-prefixed paths literally" {
+    cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["fixer"] { check = "sh fix.sh" }
+    }
+  }
+}
+PKL
+    cat > fix.sh <<'SH'
+printf 'fixed\nmiddle\nlast\n' > :file.txt
+git --literal-pathspecs add -- :file.txt
+SH
+    # A pathspec interpretation of :file.txt would choose the decoy blob.
+    printf 'decoy\n' > file.txt
+    printf 'base\nmiddle\nlast\n' > :file.txt
+    git add .
+    git commit -m init
+    printf 'staged\nmiddle\nlast\n' > :file.txt
+    git --literal-pathspecs add -- :file.txt
+    printf 'staged\nmiddle\nunstaged\n' > :file.txt
+
+    # Include an untracked file to exercise full-tree stashing.
+    printf 'untracked\n' > extra.txt
+    HK_STASH_UNTRACKED=true hk run pre-commit
+
+    printf 'fixed\nmiddle\nunstaged\n' > "$TEST_TEMP_DIR/expected"
+    cmp :file.txt "$TEST_TEMP_DIR/expected"
+    assert_equal "$(cat file.txt)" decoy
+    printf 'fixed\nmiddle\nlast\n' > "$TEST_TEMP_DIR/expected-index"
+    git show ::file.txt > "$TEST_TEMP_DIR/index"
+    cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/expected-index"
+    assert_equal "$(git stash list)" ""
+}
