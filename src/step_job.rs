@@ -96,7 +96,13 @@ impl StepJob {
         };
         self.diff_needs_write_locks = true;
         let semaphore = locks.into_semaphore();
-        self.status_start(ctx, Some(semaphore)).await
+        // The command that printed the patch has finished, and its progress
+        // row with it. Applying the patch runs no command, so the row stays
+        // finished: marking it running again would leave its spinner and
+        // command on screen once the step is done. Diffing again runs the
+        // command anew, with a fresh row.
+        self.take_locks(ctx, Some(semaphore)).await?;
+        Ok(())
     }
 
     pub fn with_workspace_indicator(mut self, workspace_indicator: PathBuf) -> Self {
@@ -184,12 +190,30 @@ impl StepJob {
     pub async fn status_start(
         &mut self,
         ctx: &StepContext,
-        mut semaphore: Option<OwnedSemaphorePermit>,
+        semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
+        if !self.take_locks(ctx, semaphore).await? {
+            return Ok(());
+        }
+        ctx.status_started();
+        if let Some(progress) = &mut self.progress {
+            progress.set_status(ProgressStatus::Running);
+        }
+        Ok(())
+    }
+
+    /// Take this job's file locks and a job slot, as [`Self::status_start`]
+    /// does, without marking the job or its progress running. Returns false
+    /// if the job already holds them.
+    async fn take_locks(
+        &mut self,
+        ctx: &StepContext,
+        mut semaphore: Option<OwnedSemaphorePermit>,
+    ) -> Result<bool> {
         match &self.status {
             StepJobStatus::Pending => {}
             StepJobStatus::Started(_) => {
-                return Ok(());
+                return Ok(false);
             }
             _ => unreachable!("invalid status: {:?}", self.status),
         }
@@ -207,11 +231,7 @@ impl StepJob {
             None => ctx.hook_ctx.semaphore().await,
         };
         self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore));
-        ctx.status_started();
-        if let Some(progress) = &mut self.progress {
-            progress.set_status(ProgressStatus::Running);
-        }
-        Ok(())
+        Ok(true)
     }
 
     pub fn status_finished(&mut self) -> Result<()> {

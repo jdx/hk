@@ -973,6 +973,83 @@ EOF
     assert_output "count=2"
 }
 
+# Runs a command under a pty, where hk draws its progress in place, and fails
+# if the last frame hk drew still shows a job running: a step's command line
+# and its spinner left on screen once the step is done. CLX_TRACE_LOG records
+# each frame's job tree. Needs util-linux script(1); BSD script takes other
+# arguments.
+assert_no_job_left_running_in_pty() {
+    if ! script --version 2>/dev/null | grep -q util-linux; then
+        skip "needs util-linux script(1) for a pty"
+    fi
+    local frames="$BATS_TEST_TMPDIR/frames.jsonl"
+    rm -f "$frames"
+    # hk draws in place only for an attended terminal outside CI.
+    env -u CI -u GITHUB_ACTION TERM=xterm-256color CLX_TRACE_LOG="$frames" \
+        script -q -e -c "$*" /dev/null >/dev/null
+    assert_file_not_empty "$frames"
+    run tail -n 1 "$frames"
+    refute_output --partial '"status":"running"'
+}
+
+# A fix hook with one step whose read-only check_diff is $1, and whose fixer
+# writes "fixed" to a.txt.
+write_read_only_diff_config() {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = new CommandSpec { command = "$1 {{files}}"; effect = "read" }
+                fix = new CommandSpec { command = "./fixer.sh {{files}}"; effect = "write" }
+            }
+        }
+    }
+}
+EOF
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixed" > a.txt
+SCRIPT
+    chmod +x fixer.sh
+    echo "a" > a.txt
+}
+
+@test "a read-only check_diff whose patch applies leaves no job running on screen" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+if [ "$(cat a.txt)" = "a" ]; then
+    printf -- '--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-a\n+a2\n'
+    exit 1
+fi
+SCRIPT
+    chmod +x formatter.sh
+    write_read_only_diff_config ./formatter.sh
+
+    assert_no_job_left_running_in_pty hk fix a.txt
+    run cat a.txt
+    assert_output "a2"
+}
+
+@test "a read-only check_diff with nothing to apply leaves no job running on screen" {
+    # Like `shellcheck --format=diff` with only findings it can't fix: it
+    # fails without a patch, so hk runs the fixer.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+echo "Issues were detected, but none were auto-fixable." >&2
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+    write_read_only_diff_config ./formatter.sh
+
+    assert_no_job_left_running_in_pty hk fix a.txt
+    run cat a.txt
+    assert_output "fixed"
+}
+
 @test "check_diff-only step stages an applied patch" {
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash
