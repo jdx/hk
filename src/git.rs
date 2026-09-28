@@ -2026,11 +2026,6 @@ impl Git {
                     }
                 }
 
-                // Tree membership distinguishes absent merge inputs from failed
-                // checkout filters. A filter error must retain the stash.
-                let base_tree = read_tree(&format!("{stash_ref}^1"))?;
-                let index_tree = read_tree(&format!("{stash_ref}^2"))?;
-
                 // Avoid excessive memory usage on very large files by short-circuiting
                 // the merge logic when no fixer output exists for the path.
                 const LARGE_STASH_FILE_BYTES: usize = 1_000_000; // 1 MiB
@@ -2290,24 +2285,47 @@ impl Git {
                         None
                     }
                     .or_else(|| String::from_utf8(work_bytes).ok());
-                    let read_text = |entry: Option<&TreeEntry>| -> Result<Option<String>> {
-                        entry
-                            .map(|(_, oid)| {
-                                let bytes = read_worktree_blob(std::ffi::OsStr::new(oid), &path)?;
-                                Ok(String::from_utf8(bytes)?)
-                            })
-                            .transpose()
+                    let read_text = |object: &str| -> Result<Option<String>> {
+                        let bytes = read_worktree_blob(std::ffi::OsStr::new(object), &path)?;
+                        // Binary history is not a text merge input. A failed
+                        // filter, unlike non-text contents, is an error.
+                        Ok(String::from_utf8(bytes).ok())
                     };
-                    // All existing merge inputs must be readable. Only an
-                    // absent tree entry means there is no base or index.
+                    let read_tree_text = |tree: &str| -> Result<Option<String>> {
+                        // Limit membership lookup to this path, and only do it
+                        // when text merging actually needs the input.
+                        let entry = git_read_bytes([
+                            OsString::from("ls-tree"),
+                            "-z".into(),
+                            "--full-tree".into(),
+                            tree.into(),
+                            "--".into(),
+                            path.as_os_str().to_owned(),
+                        ])?;
+                        if entry.is_empty() {
+                            return Ok(None);
+                        }
+                        let header = entry.split(|&b| b == b'\t').next().unwrap();
+                        let fields = std::str::from_utf8(header)?.split(' ').collect_vec();
+                        match fields.as_slice() {
+                            [_, "blob", object] => read_text(object),
+                            [_, "tree" | "commit", _] => Ok(None),
+                            _ => Err(eyre!("unexpected git ls-tree output for {tree}")),
+                        }
+                    };
+                    // Existing inputs must be readable, even when their binary
+                    // contents cannot contribute to the text merge.
                     let inputs = (|| -> Result<_> {
-                        let base = read_text(base_tree.get(&path))?;
-                        let index = read_text(index_tree.get(&path))?;
+                        let base = read_tree_text(&format!("{stash_ref}^1"))?;
+                        let index = read_tree_text(&format!("{stash_ref}^2"))?;
                         let fixer = if should_stage {
                             if step_changed {
-                                Some(String::from_utf8(std::fs::read(&path)?)?)
+                                String::from_utf8(std::fs::read(&path)?).ok()
                             } else {
-                                read_text(fixer_map.get(&path))?
+                                match fixer_map.get(&path) {
+                                    Some((_, object)) => read_text(object)?,
+                                    None => None,
+                                }
                             }
                         } else {
                             fixer_worktree

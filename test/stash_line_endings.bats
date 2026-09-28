@@ -202,3 +202,28 @@ PKL
 @test "git stash retains worktree and stash when the fixer filter fails" {
     check_failed_merge_input fixed
 }
+
+@test "git stash restores text replacing binary history" {
+    printf '\000\377\n' > history.dat
+    printf 'one\n' > lf.txt
+    git add .
+    git commit -m init
+    # Cover a binary index as well as a text index with binary HEAD history.
+    for index_kind in binary text; do
+        if [ "$index_kind" = text ]; then
+            printf 'staged text\n' > history.dat
+            git add history.dat
+        fi
+        printf 'unstaged text\n' > history.dat
+        printf 'two\n' > lf.txt
+        git add lf.txt
+        git write-tree > "$TEST_TEMP_DIR/index"
+
+        hk run pre-commit
+
+        assert_equal "$(cat history.dat)" 'unstaged text'
+        git write-tree > "$TEST_TEMP_DIR/index-after"
+        cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/index-after"
+        assert_equal "$(git stash list)" ""
+    done
+}
