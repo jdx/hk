@@ -2,6 +2,7 @@ use crate::{Result, config::Config, env, git_util};
 use eyre::bail;
 use log::{info, warn};
 use std::ffi::{OsStr, OsString};
+use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::process::Command;
 
@@ -72,6 +73,7 @@ impl Install {
         }
 
         if !self.force_local && has_global_hk_hooks()? {
+            let _config_lock = lock_local_config()?;
             // The global install is the single source of truth; clean up any
             // stale local install so it doesn't double-fire alongside global.
             let removed = remove_local_shims()? + remove_local_config_entries()?;
@@ -95,6 +97,10 @@ impl Install {
         let config = Config::get()?;
         let events = hook_events(&config);
 
+        // Git locks each config write separately. Hold a separate lock across
+        // the entire removal and installation so concurrent hk processes
+        // cannot observe or overwrite each other's partial installs.
+        let _config_lock = lock_local_config()?;
         // Clean up any prior installation so modes don't accumulate.
         let removed = remove_local_shims()? + remove_local_config_entries()?;
 
@@ -403,6 +409,78 @@ fn write_config_hook(
 
 fn remove_local_config_entries() -> Result<usize> {
     remove_config_entries("--local")
+}
+
+pub(crate) fn lock_local_config() -> Result<File> {
+    // --git-path resolves the shared config for linked worktrees and also
+    // honors GIT_DIR, unlike constructing a path from the working tree.
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-path", "config"])
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "git rev-parse --git-path config failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    #[cfg(unix)]
+    let config = {
+        use std::os::unix::ffi::OsStringExt;
+        let mut path = output.stdout;
+        while matches!(path.last(), Some(b'\n' | b'\r')) {
+            path.pop();
+        }
+        OsString::from_vec(path)
+    };
+    #[cfg(not(unix))]
+    let config = OsString::from(String::from_utf8(output.stdout)?.trim_end());
+    #[cfg(unix)]
+    let config_mode = {
+        use std::os::unix::fs::PermissionsExt;
+        (std::fs::metadata(Path::new(&config))?.permissions().mode() & 0o666) | 0o200
+    };
+    let mut lock_path = config;
+    lock_path.push(".hk-install.lock");
+    let lock_path = Path::new(&lock_path);
+    let lock = match OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(lock_path)
+    {
+        Ok(lock) => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                // Preserve the config's shared permissions despite the
+                // process umask. Keep owner write access even if the config
+                // itself is read-only: Git can replace such a config, and
+                // subsequent installs still need to open this lock.
+                lock.set_permissions(std::fs::Permissions::from_mode(config_mode))?;
+            }
+            lock
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Another process may see a new file before its creator has
+            // applied shared-repository permissions.
+            let mut attempts = 0;
+            loop {
+                match OpenOptions::new().write(true).open(lock_path) {
+                    Ok(lock) => break lock,
+                    Err(error)
+                        if error.kind() == std::io::ErrorKind::PermissionDenied
+                            && attempts < 10 =>
+                    {
+                        attempts += 1;
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(error) => return Err(error.into()),
+                }
+            }
+        }
+        Err(error) => return Err(error.into()),
+    };
+    lock.lock()?;
+    Ok(lock)
 }
 
 pub(crate) fn remove_config_entries(scope: &str) -> Result<usize> {
