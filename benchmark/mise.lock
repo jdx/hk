@@ -192,19 +192,19 @@ specifiers = ["7.0.2"]
 version = "26.5.1"
 backend = "pipx:black"
 specifiers = ["26.5.1"]
-uv = { path = ".mise/locks/pipx-black/26.5.1", digest = "sha256:f87c74d11c73f8be4543a97cb15fe37deadb2f3c86b6a3e4cce0607d973a7753" }
+uv = { path = ".mise/locks/pipx-black/26.5.1", digest = "sha256:d7843533f3c15e602e49d4fa6e2747ba6809d2bdf3191c528e84f61809bf66ad" }
 
 [[tools."pipx:mypy"]]
 version = "2.3.1"
 backend = "pipx:mypy"
 specifiers = ["2.3.1"]
-uv = { path = ".mise/locks/pipx-mypy/2.3.1", digest = "sha256:f4ce1cc751c9207ed50f00dbcddbad66f22fd6ca20a3f4ed9cd14b0aa80c920d" }
+uv = { path = ".mise/locks/pipx-mypy/2.3.1", digest = "sha256:db9ef749a9c17e6ab552732f4540b954f593783ae410e412bc1b54893c673637" }
 
 [[tools."pipx:pre-commit-hooks"]]
 version = "6.0.0"
 backend = "pipx:pre-commit-hooks"
 specifiers = ["6.0.0"]
-uv = { path = ".mise/locks/pipx-pre-commit-hooks/6.0.0", digest = "sha256:7614254b44c7e5d513cdf36f5d9120b7ac241a51d430b712087f65b0ab8130e3" }
+uv = { path = ".mise/locks/pipx-pre-commit-hooks/6.0.0", digest = "sha256:3877397f74c77bd649e48b78b05ecff1d0f8a25a3d1231c1571ca993ede865fc" }
 
 [[tools.pre-commit]]
 version = "4.6.2"
