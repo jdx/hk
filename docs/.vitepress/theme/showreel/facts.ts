@@ -161,11 +161,11 @@ function race(key: RaceKey, scenarios: unknown[], subjects: Json): Race | null {
 
 /**
  * The results schemas the reel reads. Schema 3 added type checkers and the
- * small commit, schema 4 an unused import for ruff check to fix, and schema 5
- * prek's native configuration and safe priority groups. The fields read here
- * stayed the same, so the frozen runs in the tests remain readable.
+ * small commit, and schema 4 (benchmarks.data.ts's) an unused import for ruff
+ * check to fix, but both left every field read here as it was, so the frozen
+ * schema-2 runs the tests race stay readable.
  */
-const SCHEMAS: readonly number[] = [2, 3, 4, 5];
+const SCHEMAS: readonly number[] = [2, 3, 4];
 
 /**
  * The workload and the best race in a published run, or null for a run that

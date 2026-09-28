@@ -48,19 +48,6 @@ The workload's yq fixer also formats each tool's own YAML configuration, so
 `setup.sh` normalizes those files with `yq -P` before committing them into the
 fixture.
 
-`check-configs.py` compares prek's hooks with pre-commit's, including their
-commands, arguments, file filters and order. It permits different `priority`
-values and aliases, `require_serial` settings, native replacements for the
-two text fixers, and their `--check` mode in prek's manual stage. Missing hooks
-or a changed workload still fail setup.
-
-prek runs disjoint file types in the same priority group, preserves the Python
-and JavaScript fixer chains, and runs type checkers after all fixers. Black,
-Ruff and shfmt use one concurrent invocation per hook; mypy retains its
-single-invocation setting. The other hooks can use two concurrent batches,
-set explicitly in `tak.toml` rather than inherited from the host environment.
-The two text fixers use prek 0.5.4's native `--check` mode in the manual stage.
-
 ## Publishing
 
 `.github/workflows/benchmark-refresh.yml` runs the benchmark against the

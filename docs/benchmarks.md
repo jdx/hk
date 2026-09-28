@@ -46,9 +46,9 @@ Each configuration uses the tool's fastest setting that cannot cause overlapping
 | pre-commit | Hooks run sequentially; each hook's file batches run across CPUs. | Same configuration. |
 | prek | Disjoint file types share a `priority`; fixers that share files run in order, followed by mypy and tsc. | Read-only hooks share a `priority`, including native `--check` modes for the text fixers. |
 
-A shared prek `priority` does not coordinate writes. Its configuration therefore groups only fixers with disjoint file types: Black, Prettier, jq, yq and shfmt. Ruff format and Ruff check follow Black, ESLint follows Prettier, and the text fixers run after the language fixers. lefthook uses `parallel: true` only for read-only work. pre-commit has no mode for running hooks concurrently.
+Fixers with disjoint file types share a prek `priority`; fixers that share files use separate priorities. lefthook uses `parallel: true` only for read-only work. pre-commit has no mode for running hooks concurrently.
 
-hk uses its builtins, including their check-before-fix behavior and the `hk util` whitespace fixers. The other configurations invoke the language fixers directly. pre-commit and lefthook use the whitespace fixers from [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks); prek uses its bundled Rust replacements. prek uses a standalone `prek.toml`. Black and Ruff use `require_serial` as their upstream hooks do, shfmt also runs in one invocation, and the remaining batched hooks have a limit of two concurrent batches. This limit applies per hook; it does not disable concurrency between hooks or the tools' internal parallelism. See the complete [tool configurations](https://github.com/jdx/hk/tree/main/benchmark/subjects).
+hk uses its builtins, including their check-before-fix behavior and the `hk util` whitespace fixers. The other configurations invoke the language fixers directly. pre-commit and lefthook use the whitespace fixers from [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks); prek uses its bundled Rust replacements. See the complete [tool configurations](https://github.com/jdx/hk/tree/main/benchmark/subjects).
 
 ## Measurement method
 

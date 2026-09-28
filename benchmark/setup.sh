@@ -34,12 +34,6 @@ declare -A CONFIG=(
     [prek]=prek
 )
 
-# Compare commands and file selection while allowing prek's native builtins
-# and scheduling settings.
-python3 "$BENCH/check-configs.py" \
-    "$BENCH/subjects/pre-commit/.pre-commit-config.yaml" \
-    "$BENCH/subjects/prek/prek.toml"
-
 if [ -z "${HK_PKL:-}" ]; then
     HK_PKL="$REPO/pkl"
     [ -f "$HK_PKL/Builtins.pkl" ] || (cd "$REPO" && mise run pkl:gen >/dev/null)

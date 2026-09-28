@@ -32,7 +32,7 @@ export interface Scenario {
 }
 
 /** The results schema this page reads; report.py's SCHEMA. */
-export const SCHEMA = 5;
+export const SCHEMA = 4;
 
 export interface BenchmarkResults {
   schema: typeof SCHEMA;
