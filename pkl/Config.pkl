@@ -504,15 +504,30 @@ open class Step {
   /// ```
   check_list_files: (String | Script | Command | CommandSpec)?
 
-  /// A command that shows the diff of what would be changed.
-  /// This is an alternative to `check` that can provide more detailed information about what would be changed.
+  /// A command that prints a unified diff of what would be changed, without changing files,
+  /// and exits non-zero when there are changes.
   ///
-  /// When defined, hk will attempt to apply the diff output directly using `git apply`
-  /// instead of running the fix command. This is more efficient for tools that
-  /// produce standard unified diffs (black, ruff, shfmt, etc.).
+  /// When defined, fix mode runs this command first and applies its output with `git apply`
+  /// instead of running the fix command, and skips the fixer when it exits 0. The output must
+  /// be a patch `git apply` accepts, with `---`/`+++` headers naming each file, as printed by
+  /// `ruff format --diff`, `shfmt -d`, or `gofmt -d`. Output that only looks like a diff, such as
+  /// a line-numbered or side-by-side view, never applies: hk then runs the fixer on every file
+  /// after the check, so the tool runs twice. Put such a command in `check`, and build a patch
+  /// with `hk util format-diff` (a formatter that reads stdin) or `hk util sarif-diff` (a tool
+  /// that reports SARIF fixes). A `StepTest` with `run = "diff"` fails when the patch doesn't
+  /// apply.
   ///
   /// Falls back to running the fix command if patch application fails.
   check_diff: (String | Script | Command | CommandSpec)?
+
+  /// Default: `true`
+  ///
+  /// If false, fix mode runs `fix` instead of applying `check_diff` output, and `check_diff`
+  /// only serves check mode. In a hook that stages fixes, hk still runs `check_diff` first and
+  /// then runs `fix` on just the files the diff names, so a passing check skips both the fixer
+  /// and staging. Set this for a fixer that only rewrites files that need it and is cheaper to
+  /// run than producing and applying a patch. A step without `fix` always applies the diff.
+  apply_check_diff: Boolean = true
 
   /// Default: `false`
   ///
@@ -560,7 +575,9 @@ open class Step {
   /// Some steps check first whatever this is set to:
   /// - a step whose `check` and `fix` are the same command, as in steps migrated from
   ///   pre-commit: such a fixer exits 1 after fixing, and the second run is what lets it pass;
-  /// - a step with `check_diff` in fix mode, so it can apply the diff instead of running `fix`;
+  /// - a step with `check_diff` in fix mode, so it can apply the diff instead of running `fix`.
+  ///   With `apply_check_diff = false`, only in a hook that stages fixes, so a passing check
+  ///   skips both the fixer and staging;
   /// - a step with `check_diff` or `check_list_files` and `stage = "<JOB_FILES>"`, so only the
   ///   files it changed are fixed and staged. With the default `stage`, this happens only when one
   ///   of the step's files has unstaged changes that hk didn't stash, since otherwise staging
@@ -574,6 +591,14 @@ open class Step {
   /// Files are split evenly across `--jobs` batches, with at least `batch_min_files` files in
   /// each, so a handful of files doesn't start one process per file and pay the tool's startup
   /// cost each time.
+  ///
+  /// Batched steps that run at the same time share `--jobs` rather than each splitting its files
+  /// into `--jobs` batches. Each step first gets an equal share of the jobs, and the jobs left over
+  /// go to the steps with the most files. For example, with 8 jobs, prettier on 900 files and
+  /// eslint on 300 make 4 batches each, and prettier, eslint and jq on 900, 100 and 100 files make
+  /// 4, 2 and 2. Together they never make more batches than `--jobs`, unless there are more such
+  /// steps than jobs, when each still runs once. A step that is the only batched one with files,
+  /// or that has `depends` or a `condition`, gets every job.
   ///
   /// ```pkl
   /// local linters = new Mapping {
@@ -667,6 +692,10 @@ open class Step {
 
   /// If set, run commands with this prefix. Use a string for shell commands or
   /// a list of explicit arguments for structured commands.
+  ///
+  /// A `check_diff` or `check_list_files` that can't run with the prefix, such as
+  /// a builtin's shell script under a list prefix, is left out: hk runs `check`
+  /// and `fix` instead. A `check` or `fix` that can't run with it is an error.
   ///
   /// ```pkl
   /// local linters = new Mapping {
@@ -1058,8 +1087,15 @@ open class Step {
 }
 
 class StepTest {
-  /// What to run: "check" or "fix"
-  run: "check" | "fix" = "check"
+  /// What to run: "check", "fix", or "diff".
+  ///
+  /// A "diff" test runs `check_diff` and, if it exits non-zero, applies its output with
+  /// `git apply` as fix mode does. Unlike fix mode it never falls back to `fix`: output that
+  /// doesn't apply fails the test. After a patch applies, a step with `check_after_diff` reruns
+  /// `check`, whose exit code becomes the test's; otherwise the exit code is 0. `expect.files`
+  /// is compared after the patch is applied, so a "diff" test can expect the same files as the
+  /// matching "fix" test.
+  run: "check" | "fix" | "diff" = "check"
 
   /// Files to pass to the command (used to render {{ files }})
   files: (String | List<String>)?

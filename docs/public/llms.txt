@@ -76,17 +76,19 @@
 - [util fix-byte-order-marker](https://hk.jdx.dev/cli/util/fix-byte-order-marker.html): Remove UTF-8 byte order marker (BOM)
 - [util fix-smart-quotes](https://hk.jdx.dev/cli/util/fix-smart-quotes.html): Replace smart quotes with plain ASCII quotes
 - [util forbid-submodules](https://hk.jdx.dev/cli/util/forbid-submodules.html): Check that the repository contains no git submodules
+- [util format-diff](https://hk.jdx.dev/cli/util/format-diff.html): Print a patch of what a formatter would change, for a check_diff command
 - [util mixed-line-ending](https://hk.jdx.dev/cli/util/mixed-line-ending.html): Detect and fix mixed line endings
 - [util no-commit-to-branch](https://hk.jdx.dev/cli/util/no-commit-to-branch.html): Prevent commits to specific branches
 - [util python-check-ast](https://hk.jdx.dev/cli/util/python-check-ast.html): Check Python files for valid syntax
 - [util python-debug-statements](https://hk.jdx.dev/cli/util/python-debug-statements.html): Detect Python debug statements
+- [util sarif-diff](https://hk.jdx.dev/cli/util/sarif-diff.html): Print a patch from the fixes in a tool's SARIF report, for a check_diff command
 - [util trailing-whitespace](https://hk.jdx.dev/cli/util/trailing-whitespace.html): Check for and optionally fix trailing whitespace
 - [validate](https://hk.jdx.dev/cli/validate.html): Validate the config file
 - [version](https://hk.jdx.dev/cli/version.html): Print the version of hk
 
 ## Project
 
-- [Benchmarks](https://hk.jdx.dev/benchmarks.html): This benchmark compares hk, lefthook, pre-commit, and prek on three everyday tasks: fixing files, checking a repository, and running pre-commit hooks.
+- [Benchmarks](https://hk.jdx.dev/benchmarks.html): This benchmark compares hk, lefthook, pre-commit, and prek on everyday tasks: fixing files, checking a repository, and running pre-commit hooks on a large and a small commit.
 - [About hk](https://hk.jdx.dev/about.html): hk is a Git hook manager and project linting tool built by @jdx. It is written in Rust and released under the MIT license.
 - [Contributing](https://hk.jdx.dev/contributing.html): Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
 - [Sea shanty](https://hk.jdx.dev/shanty.html): A sea shanty celebrating the hk git hook manager

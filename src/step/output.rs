@@ -122,9 +122,13 @@ impl Step {
         let mut suggest_files = job.files.clone();
         if let (Some(run_cmd), Some(result)) = (run_cmd, cmd_result) {
             let (files, parser) = if Some(run_cmd) == self.check_diff.as_ref() {
-                let (files, _extras) =
-                    self.filter_files_from_check_diff(&job.files, &result.stdout);
-                (files, Some("check_diff"))
+                let dir = self
+                    .render_dir(&job.tctx(&ctx.hook_ctx.tctx))
+                    .ok()
+                    .flatten();
+                let parsed =
+                    self.filter_files_from_check_diff(&job.files, &result.stdout, dir.as_deref());
+                (parsed.files, Some("check_diff"))
             } else if Some(run_cmd) == self.check_list_files.as_ref() {
                 let dir = self
                     .render_dir(&job.tctx(&ctx.hook_ctx.tctx))

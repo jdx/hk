@@ -1,0 +1,81 @@
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[                                     ]\e[0m 0/7
+\e[34m⠋\e[0m files - Fetching git status
+\e[38;5;10m✔\e[0m files - Fetching staged files (4 files)
+\e[38;5;10m✔\e[0m stash – Stashed unstaged changes (1 file)
+\e[2m❯\e[0m prettier
+ \e[34m⠋\e[0m prettier --write README.md src/app.ts
+\e[2m❯\e[0m ruff
+ \e[34m⠋\e[0m ruff check --force-exclude --fix src/main.py
+\e[2m❯\e[0m shfmt
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[====>                                ]\e[0m 1/7
+\e[2m❯\e[0m shellcheck
+ \e[34m⠋\e[0m shellcheck --format=diff scripts/deploy.sh
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[==========>                          ]\e[0m 2/7
+\e[38;5;10m✔\e[0m ruff  – 1 file modified – src/main.py
+\e[2m❯\e[0m ruff-format
+ \e[34m⠋\e[0m ruff format --quiet --force-exclude --diff src/main.py
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[===============>                     ]\e[0m 3/7
+\e[38;5;10m✔\e[0m shellcheck
+\e[38;5;10m✔\e[0m shfmt  – 1 file modified – scripts/deploy.sh
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[====================>                ]\e[0m 4/7
+\e[38;5;10m✔\e[0m ruff-format  – 1 file modified – src/main.py
+ README.md 12ms
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[=========================>           ]\e[0m 5/7
+\e[2m❯\e[0m trailing-whitespace
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[===============================>     ]\e[0m 6/7
+\e[38;5;10m✔\e[0m trailing-whitespace
+\e[2m❯\e[0m newlines
+ \e[34m⠋\e[0m 4 files –  – hk util end-of-file-fixer --diff README.md …
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[=====================================]\e[0m 7/7
+\e[38;5;10m✔\e[0m newlines
+\e[38;5;10m✔\e[0m prettier  – 2 files modified – README.md, src/app.ts
+\e[38;5;10m✔\e[0m stash – Restoring unstaged changes (manual)
+[main ada2ca4] feat: hoist the sails
+ 3 files changed, 8 insertions(+), 1 deletion(-)
+\e[38;5;10m✔\e[0m files - Fetching staged files (1 file)
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[                                     ]\e[0m 0/4
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[========>                            ]\e[0m 1/4
+\e[38;5;10m✔\e[0m shfmt
+ \e[34m⠋\e[0m
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[==================>                  ]\e[0m 2/4
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[===========================>         ]\e[0m 3/4
+\e[31m✗\e[0m shellcheck
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – pre-commit\e[0m\e[2m – fix\e[0m  \e[2m[=====================================]\e[0m 4/4
+\e[31m✗\e[0m shellcheck  – \e[31mERROR\e[0m
+\e[1mshellcheck stderr:\e[0m
+In scripts/deploy.sh line 3:
+unused=1
+^----^ SC2034 (warning): unused appears unused. Verify use (or export if used externally).
+For more information:
+  https://www.shellcheck.net/wiki/SC2034 -- unused appears unused. Verify use...
+See /dev/shm/hk/.local/state/hk/output.log for full command output
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[                                                ]\e[0m 0/7
+\e[38;5;10m✔\e[0m files - Fetching all files in repo (5 files)
+ \e[34m⠋\e[0m prettier --check README.md src/app.ts
+ \e[34m⠋\e[0m ruff check --force-exclude src/main.py
+ \e[34m⠋\e[0m shellcheck scripts/deploy.sh
+ \e[34m⠋\e[0m hk util trailing-whitespace --diff README.md hk.pkl scripts/deploy.sh src/ap…
+ \e[34m⠋\e[0m hk util end-of-file-fixer --diff README.md hk.pkl scripts/deploy.sh src/app.…
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[======>                                         ]\e[0m 1/7
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[=============>                                  ]\e[0m 2/7
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[====================>                           ]\e[0m 3/7
+ All checks passed!
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[==========================>                     ]\e[0m 4/7
+\e[38;5;10m✔\e[0m ruff
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[=================================>              ]\e[0m 5/7
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[========================================>       ]\e[0m 6/7
+\e[38;5;10m✔\e[0m ruff-format
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – check\e[0m  \e[2m[================================================]\e[0m 7/7
+\e[38;5;10m✔\e[0m prettier
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[                                                  ]\e[0m 0/7
+\e[38;5;10m✔\e[0m files - Fetching modified files (4 files)
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[======>                                           ]\e[0m 1/7
+ \e[34m⠋\e[0m 1 file – (**/*.sh **/*.bash **/*.mksh **/*.bats **/*.zsh) OR (types: sh, bas…
+ \e[34m⠋\e[0m shfmt -d --apply-ignore scripts/deploy.sh
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[=============>                                    ]\e[0m 2/7
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[====================>                             ]\e[0m 3/7
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[============================>                     ]\e[0m 4/7
+ README.md 13ms
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[===================================>              ]\e[0m 5/7
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[==========================================>       ]\e[0m 6/7
+\e[35m\e[1mhk\e[0m \e[2m2.2.0\e[0m \e[2mby @jdx\e[0m\e[2m – fix\e[0m  \e[2m[==================================================]\e[0m 7/7

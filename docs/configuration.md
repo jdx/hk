@@ -14,8 +14,8 @@ For a first setup, use [getting started](/getting_started). For complete configu
 A configuration amends hk’s [Pkl schema](/pkl_introduction). For a shared set of linters, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.3.1/hk@2.3.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.3.1/hk@2.3.1#/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -225,6 +225,22 @@ This behavior is opt-in because it adds another process invocation and requires 
 
 For partial fixers, set `check_after_diff = true` alongside `check` and `check_diff`. After applying a nonempty diff in fix mode, hk reruns `check` on the original batch so non-fixable findings are not hidden by a successfully applied patch. Complete formatters can leave this disabled to retain the single-command fast path.
 
+A tool that reports fixes in a SARIF log can get a `check_diff` from `hk util sarif-diff`, which runs it and turns the fixes into a patch, as the `pinact` builtin does. If any result has no fix, it prints no patch, so hk runs `fix` and the unfixable finding is still reported:
+
+```pkl
+check_diff = "hk util sarif-diff -- pinact run --check --format sarif {{files}}"
+```
+
+A fixer that only rewrites files that need it, and runs faster than hk can capture and apply a patch, can set `apply_check_diff = false`. Fix mode then runs `fix` instead of applying the diff, and `check_diff` still shows the diff in check mode. In a hook that stages fixes, hk still runs `check_diff` first and passes `fix` only the files the diff names, so a passing check skips both the fixer and staging.
+
+A formatter that can read a file on stdin and print the formatted result doesn't need a diff mode of its own. `hk util format-diff` runs it once per file, in parallel, and prints the patch, as the `stylua`, `tombi_format`, `buildifier_format`, `terraform`, and `tofu` builtins do. `{}` stands for the file's path:
+
+```pkl
+check_diff = "hk util format-diff {{files}} -- stylua --stdin-filepath {} -"
+```
+
+If the formatter fails for any file, no patch is printed and hk runs `fix`, which reports the error. A formatter's stdin mode can ignore excludes in its configuration that it applies to files named on the command line, as yamlfmt's and taplo's do; their builtins ask the tool which files would change before formatting those.
+
 ### Customize a builtin
 
 ```pkl
@@ -379,7 +395,7 @@ Higher layers override lower ones for scalar settings. List settings such as `ex
 Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.3.1/hk@2.3.1#/Config.pkl"
 
 jobs = 4
 fail_fast = false

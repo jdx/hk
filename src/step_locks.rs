@@ -27,4 +27,9 @@ impl StepLocks {
     pub fn release_command_guard(&mut self) {
         self.command_guard.take();
     }
+
+    /// Release the file locks, keeping the job slot.
+    pub fn into_semaphore(self) -> OwnedSemaphorePermit {
+        self.semaphore
+    }
 }

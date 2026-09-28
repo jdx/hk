@@ -25,6 +25,8 @@ fix_smart_quotes = new Config.Step {
     ["check empty file"] = testMaker.checkPass("")
     ["fix file with smart quotes"] =
       testMaker.fixPass("\u{FF02}Hello, world!\u{FF02}", "\"Hello, world!\"")
+    ["diff file with smart quotes"] =
+      testMaker.diffPass("\u{FF02}Hello, world!\u{FF02}", "\"Hello, world!\"")
     ["fix file without smart quotes"] = testMaker.fixPass("\"Hello, world!\"", "\"Hello, world!\"")
     ["fix empty file"] = testMaker.fixPass("", "")
   }

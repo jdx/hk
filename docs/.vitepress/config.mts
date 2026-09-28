@@ -1,4 +1,5 @@
 import { socialCard, writeSocialCard } from "./social-images.mjs";
+import { showreelFiles } from "./showreel.data";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,6 +19,22 @@ const latestVersion = versionMatch?.[1] ?? "0.0.0";
 const siteUrl = "https://hk.jdx.dev";
 const siteDescription =
   "Fast, language-agnostic git hooks and project linting with parallel execution, automatic fixes, file locking, and shareable Pkl configuration.";
+
+// Link previews that play video (Discord, iMessage, Telegram) use the rendered
+// showreel through og:video; X ignores og:video and keeps the large image card.
+// Builds without a render leave the tags out.
+function showreelVideoTags(): [string, Record<string, string>][] {
+  const showreel = showreelFiles();
+  if (!showreel) return [];
+  const url = `${siteUrl}${showreel.src}`;
+  return [
+    ["meta", { property: "og:video", content: url }],
+    ["meta", { property: "og:video:secure_url", content: url }],
+    ["meta", { property: "og:video:type", content: "video/mp4" }],
+    ["meta", { property: "og:video:width", content: "1920" }],
+    ["meta", { property: "og:video:height", content: "1080" }],
+  ];
+}
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -113,13 +130,14 @@ export default defineConfig({
     ],
     // OpenGraph
     ["meta", { property: "og:site_name", content: "hk" }],
-    ["meta", { property: "og:type", content: "website" }],
+    // og:type is set per page in transformHead: with a rendered showreel, the
+    // homepage is a video.other.
     ["meta", { property: "og:locale", content: "en_US" }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ["meta", { name: "twitter:site", content: "@jdxcode" }],
-    ["link", { rel: "icon", href: "/favicon.ico", sizes: "any" }],
+    ["link", { rel: "icon", href: "/favicon.ico", sizes: "16x16 32x32 48x48" }],
     [
       "link",
       {
@@ -129,6 +147,9 @@ export default defineConfig({
         href: "/favicon-32x32.png",
       },
     ],
+    // Last, and the only scalable one, so browsers that read SVG favicons
+    // pick it: it follows the browser's light or dark theme.
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
     [
       "link",
       {
@@ -152,8 +173,18 @@ export default defineConfig({
     const url = `${siteUrl}/${pageData.relativePath}`
       .replace(/index\.md$/, "")
       .replace(/\.md$/, ".html");
+    const video =
+      pageData.relativePath === "index.md" ? showreelVideoTags() : [];
 
     return [
+      [
+        "meta",
+        {
+          property: "og:type",
+          content: video.length ? "video.other" : "website",
+        },
+      ],
+      ...video,
       ["link", { rel: "canonical", href: url }],
       ["meta", { property: "og:url", content: url }],
       ["meta", { property: "og:image", content: image }],

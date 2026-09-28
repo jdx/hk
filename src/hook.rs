@@ -29,6 +29,7 @@ use crate::{
     hook_options::HookOptions,
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
+    stage_queue::StageQueue,
     step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
@@ -352,7 +353,7 @@ type CommandEffectsByStep = IndexMap<String, Vec<(String, Option<CommandEffect>)
 
 pub struct HookContext {
     pub file_locks: FileRwLocks,
-    /// Commands share access; diff backup/apply/restore requires exclusive access
+    /// Commands and staging share access; patch apply/rollback requires exclusive access
     /// because a patch can touch paths outside its job's input-file locks.
     pub diff_lock: Arc<RwLock<()>>,
     pub git: Arc<Mutex<Git>>,
@@ -402,6 +403,8 @@ pub struct HookContext {
     /// that is, those hk didn't stash. Staging one of these after a fix would
     /// also stage the user's unstaged changes.
     pub initial_unstaged: StdMutex<BTreeSet<PathBuf>>,
+    /// Files steps have queued for staging under `git`; see `Step::stage_files`.
+    pub stage_queue: StageQueue,
 }
 
 impl HookContext {
@@ -459,6 +462,7 @@ impl HookContext {
             should_stage,
             initial_untracked,
             initial_unstaged: StdMutex::new(initial_unstaged),
+            stage_queue: StageQueue::default(),
         }
     }
 
@@ -727,7 +731,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
+        let git_status = repo.lock().await.status()?;
         let stash_method = self.resolve_stash_method_for_opts(&opts);
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
@@ -1070,7 +1074,7 @@ impl Hook {
         }
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
+        let git_status = repo.lock().await.status()?;
         let stash_method = self.resolve_stash_method_for_opts(&opts);
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
@@ -1260,7 +1264,7 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
-        let git_status = match repo.lock().await.status(None) {
+        let git_status = match repo.lock().await.status() {
             Ok(status) => status,
             Err(err) => {
                 crate::structured_output::emit_error_run(
@@ -1364,8 +1368,7 @@ impl Hook {
 
         if stash_method != StashMethod::None {
             // Only run stash logic if there are actually unstaged changes to stash
-            let has_unstaged_changes = !git_status.unstaged_files.is_empty()
-                || (*env::HK_STASH_UNTRACKED && !git_status.untracked_files.is_empty());
+            let has_unstaged_changes = git_status.has_unstaged_changes(*env::HK_STASH_UNTRACKED);
 
             if has_unstaged_changes {
                 // Capture exact staged index entries for files under consideration so we can
@@ -1386,6 +1389,9 @@ impl Hook {
                             .unwrap()
                             .retain(|p| !stashed.contains(p));
                     }
+                    // Intent-to-add files have no staged contents, and the
+                    // stash took their files out of the worktree.
+                    hook_ctx.file_locks.remove_files(r.stashed_intent_to_add());
                 }
             } else {
                 file_progress.prop("message", "No unstaged changes to stash");
@@ -1486,7 +1492,7 @@ impl Hook {
         }
         // Capture final git state when its log output or timing span is observable.
         if log::log_enabled!(log::Level::Debug) || crate::trace::enabled() {
-            match repo.lock().await.status(None) {
+            match repo.lock().await.status() {
                 Ok(s) => {
                     debug!(
                         "final git state: staged={} unstaged={}",
@@ -1800,7 +1806,8 @@ impl Hook {
 
         // Filter out directories (including symlinks to directories)
         // git ls-files includes symlinks, which may point to directories
-        files.retain(|f| {
+        let candidates = files.iter().collect::<Vec<_>>();
+        let keep = crate::par::map(&candidates, |f| {
             // First check if it's a symlink using symlink_metadata (doesn't follow links)
             if let Ok(symlink_meta) = std::fs::symlink_metadata(f) {
                 if symlink_meta.is_symlink() {
@@ -1822,6 +1829,9 @@ impl Hook {
                 true
             }
         });
+        // `BTreeSet::retain` visits files in the same ascending order.
+        let mut keep = keep.into_iter();
+        files.retain(|_| keep.next().unwrap_or(true));
 
         // Union excludes from Settings and CLI options
         let settings = crate::settings::Settings::get();

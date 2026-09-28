@@ -5,16 +5,12 @@
 //! than running the fixer, especially for tools that are slow to start.
 
 use crate::Result;
-use eyre::{Context, bail};
-use std::collections::{BTreeMap, BTreeSet};
-use std::ffi::OsString;
-use std::fs;
-use std::io::Write;
-use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Output};
+use diffy::patch_set::{FileOperation, ParseOptions, PatchKind, PatchSet};
+use indexmap::IndexMap;
+use std::path::{Path, PathBuf};
 
-use super::normalize_diff_paths;
 use super::types::Step;
+use super::{diff_lines, normalize_diff_paths, split_line_ending, strips_git_prefixes};
 
 /// Rewrite absolute paths in diff headers to be relative to `base`.
 ///
@@ -25,11 +21,17 @@ use super::types::Step;
 ///
 /// Paths outside `base` are left as they are; `git apply` will reject them and
 /// the caller falls back to running the fixer.
-fn relativize_diff_paths(diff: &str, base: &Path) -> String {
-    let mut out: Vec<String> = Vec::new();
-    for line in diff.lines() {
+pub(crate) fn relativize_diff_paths(diff: &str, base: &Path) -> String {
+    let mut out = String::with_capacity(diff.len() + 1);
+    // Keep each line's terminator: a changed line's `\r` must survive.
+    for (line, in_hunk) in diff_lines(diff) {
+        if in_hunk {
+            out.push_str(line);
+            continue;
+        }
+        let (content, ending) = split_line_ending(line);
         let rewritten = ["--- ", "+++ "].into_iter().find_map(|prefix| {
-            let rest = line.strip_prefix(prefix)?;
+            let rest = content.strip_prefix(prefix)?;
             // Keep any tab-separated timestamp attached to the path.
             let (path, tail) = match rest.split_once('\t') {
                 Some((p, t)) => (p, Some(t)),
@@ -37,351 +39,19 @@ fn relativize_diff_paths(diff: &str, base: &Path) -> String {
             };
             let rel = Path::new(path).strip_prefix(base).ok()?.to_str()?;
             Some(match tail {
-                Some(t) => format!("{prefix}{rel}\t{t}"),
-                None => format!("{prefix}{rel}"),
+                Some(t) => format!("{prefix}{rel}\t{t}{ending}"),
+                None => format!("{prefix}{rel}{ending}"),
             })
         });
-        out.push(rewritten.unwrap_or_else(|| line.to_string()));
-    }
-    out.join("\n") + "\n"
-}
-
-/// Keep the patch in a file so even a large diff cannot deadlock against git's
-/// stderr pipe, and a failed stdin write cannot leave git running during rollback.
-fn git_apply(
-    patch: &tempfile::NamedTempFile,
-    base: &Path,
-    args: &[&str],
-) -> std::io::Result<Output> {
-    Command::new("git")
-        .arg("apply")
-        .args(args)
-        .args(["--whitespace=nowarn", "-"])
-        .current_dir(base)
-        .stdin(patch.reopen()?)
-        .output()
-}
-
-/// `-z` preserves pathname bytes, including quoted/non-UTF-8 Git paths on Unix.
-fn git_path(bytes: &[u8]) -> Result<PathBuf> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::ffi::OsStringExt;
-        Ok(OsString::from_vec(bytes.to_vec()).into())
-    }
-    #[cfg(not(unix))]
-    {
-        Ok(OsString::from(std::str::from_utf8(bytes)?).into())
-    }
-}
-
-#[derive(Debug)]
-enum FileState {
-    Absent,
-    File(fs::Permissions),
-    Directory(fs::Permissions),
-    Symlink {
-        target: PathBuf,
-        #[cfg(windows)]
-        directory: bool,
-    },
-}
-
-struct DiffBackup {
-    dir: tempfile::TempDir,
-    root: PathBuf,
-    entries: BTreeMap<PathBuf, FileState>,
-    targets: BTreeSet<PathBuf>,
-}
-
-impl DiffBackup {
-    fn create(patch: &tempfile::NamedTempFile, base: &Path, strip: &str) -> Result<Self> {
-        let mut paths = BTreeSet::new();
-        let mut targets = BTreeSet::new();
-        // Let git parse names and strip levels. Reverse stats include the source
-        // of renames/copies; forward stats include their destination. A preflight
-        // rejects invalid patches, but cannot replace rollback for write errors.
-        for args in [
-            [strip, "--numstat", "-z", "--check"],
-            [strip, "--numstat", "-z", "--reverse"],
-        ] {
-            let output = git_apply(patch, base, &args)?;
-            if !output.status.success() {
-                bail!(
-                    "cannot determine diff targets: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                );
-            }
-            for record in output.stdout.split(|&b| b == 0).filter(|s| !s.is_empty()) {
-                let name = record
-                    .splitn(3, |&b| b == b'\t')
-                    .nth(2)
-                    .ok_or_else(|| eyre::eyre!("invalid diff stats"))?;
-                let mut path = PathBuf::new();
-                for component in git_path(name)?.components() {
-                    match component {
-                        Component::Normal(part) => path.push(part),
-                        Component::CurDir => {}
-                        _ => bail!("unsafe diff path"),
-                    }
-                }
-                targets.insert(path.clone());
-                // Git may remove empty parents on deletion, or create parents
-                // for new files. Capture those too, including file/dir changes.
-                for ancestor in path.ancestors().filter(|p| !p.as_os_str().is_empty()) {
-                    paths.insert(ancestor.to_path_buf());
-                }
-            }
-        }
-        let output = Command::new("git")
-            .args(["rev-parse", "--show-toplevel"])
-            .current_dir(base)
-            .output()?;
-        let root = if output.status.success() {
-            let name = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
-            #[cfg(windows)]
-            let name = name.strip_suffix(b"\r").unwrap_or(name);
-            git_path(name)?.canonicalize()?
-        } else {
-            base.to_path_buf()
-        };
-        let mut backup = Self {
-            dir: tempfile::Builder::new()
-                .prefix("hk-diff-backup-")
-                .tempdir()?,
-            root,
-            entries: BTreeMap::new(),
-            targets,
-        };
-        fs::create_dir(backup.dir.path().join("files"))?;
-        // Path ordering visits parents before children. Never follow an original
-        // symlink (or file) when capturing paths that a patch turns into children.
-        for path in paths {
-            let parent_is_directory = path
-                .parent()
-                .and_then(|parent| backup.entries.get(parent))
-                .is_none_or(|state| matches!(state, FileState::Directory(_)));
-            let state = if parent_is_directory {
-                backup.capture(&path)?
-            } else {
-                FileState::Absent
-            };
-            backup.entries.insert(path, state);
-        }
-        // Retain the complete recovery instructions if any restoration fails.
-        // Debug escaping keeps unusual path bytes unambiguous in this manifest.
-        fs::write(
-            backup.dir.path().join("manifest.txt"),
-            format!(
-                "Original paths relative to {:?}\nFile contents and symlink targets are in files/.\n{:#?}\n",
-                backup.root, backup.entries
-            ),
-        )?;
-        Ok(backup)
-    }
-
-    fn capture(&self, path: &Path) -> Result<FileState> {
-        let source = self.root.join(path);
-        let metadata = match fs::symlink_metadata(&source) {
-            Ok(metadata) => metadata,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(FileState::Absent),
-            Err(err) => return Err(err.into()),
-        };
-        let saved = self.dir.path().join("files").join(path);
-        fs::create_dir_all(saved.parent().unwrap())?;
-        if metadata.is_dir() {
-            fs::create_dir_all(saved)?;
-            Ok(FileState::Directory(metadata.permissions()))
-        } else if metadata.is_file() {
-            fs::copy(&source, &saved)
-                .wrap_err_with(|| format!("cannot back up {}", source.display()))?;
-            Ok(FileState::File(metadata.permissions()))
-        } else if metadata.file_type().is_symlink() {
-            let target = fs::read_link(&source)?;
-            // Save link text, not its referent. This also avoids requiring the
-            // ability to create symlinks merely to take a backup on Windows.
-            fs::write(saved, target.as_os_str().as_encoded_bytes())?;
-            Ok(FileState::Symlink {
-                target,
-                #[cfg(windows)]
-                directory: {
-                    use std::os::windows::fs::FileTypeExt;
-                    metadata.file_type().is_symlink_dir()
-                },
-            })
-        } else {
-            bail!("unsupported diff target: {}", source.display())
+        match rewritten {
+            Some(rewritten) => out.push_str(&rewritten),
+            None => out.push_str(line),
         }
     }
-
-    /// Check each parent without following links that a partial patch may have
-    /// introduced. Such parents must be restored before their children.
-    fn parents_are_directories(&self, path: &Path) -> Result<bool> {
-        let mut parent = self.root.clone();
-        for component in path.parent().unwrap().components() {
-            parent.push(component);
-            match fs::symlink_metadata(&parent) {
-                Ok(metadata) if metadata.is_dir() => {}
-                Ok(_) => return Ok(false),
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-                Err(err) => return Err(err.into()),
-            }
-        }
-        Ok(true)
+    if !out.ends_with('\n') {
+        out.push('\n');
     }
-
-    fn restore(self) -> Result<()> {
-        let mut errors = Vec::new();
-        let mut failed_removals = BTreeSet::new();
-        // Remove newly created children before parents, and clear type changes.
-        // Never recursively remove directories: unrelated files must survive.
-        for (path, state) in self.entries.iter().rev() {
-            if let Err(err) = self.remove_created(path, state) {
-                failed_removals.insert(path);
-                errors.push(format!("{}: {err:#}", self.root.join(path).display()));
-            }
-        }
-        for (path, state) in &self.entries {
-            if failed_removals.contains(path) {
-                continue;
-            }
-            if let Err(err) = self.restore_entry(path, state) {
-                errors.push(format!("{}: {err:#}", self.root.join(path).display()));
-            }
-        }
-        // Restore directory permissions last, after recreating their children.
-        for (path, state) in self.entries.iter().rev() {
-            if let FileState::Directory(permissions) = state {
-                if failed_removals.contains(path) {
-                    continue;
-                }
-                let result = (|| -> Result<()> {
-                    if !self.parents_are_directories(path)? {
-                        bail!("parent directory has not been restored");
-                    }
-                    let dest = self.root.join(path);
-                    let metadata = fs::symlink_metadata(&dest)?;
-                    if !metadata.is_dir() {
-                        bail!("directory has not been restored");
-                    }
-                    if metadata.permissions() != *permissions {
-                        fs::set_permissions(dest, permissions.clone())?;
-                    }
-                    Ok(())
-                })();
-                if let Err(err) = result {
-                    errors.push(format!("{}: {err:#}", self.root.join(path).display()));
-                }
-            }
-        }
-        if !errors.is_empty() {
-            let backup_dir = self.dir.keep();
-            bail!(
-                "failed to restore files after git apply; refusing to run fixer. Original files retained in {}:\n{}",
-                backup_dir.display(),
-                errors.join("\n")
-            );
-        }
-        Ok(())
-    }
-
-    fn remove_created(&self, path: &Path, state: &FileState) -> Result<()> {
-        if !self.parents_are_directories(path)? {
-            return Ok(());
-        }
-        let dest = self.root.join(path);
-        let metadata = match fs::symlink_metadata(&dest) {
-            Ok(metadata) => metadata,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-            Err(err) => return Err(err.into()),
-        };
-        let remove = match state {
-            FileState::Absent => true,
-            FileState::Directory(_) => !metadata.is_dir(),
-            _ => metadata.is_dir(),
-        };
-        if remove {
-            if metadata.is_dir() {
-                match fs::remove_dir(dest) {
-                    // Another job may have populated an incidental parent after
-                    // capture. Leave its files intact once our children are gone.
-                    Err(err)
-                        if err.kind() == std::io::ErrorKind::DirectoryNotEmpty
-                            && matches!(state, FileState::Absent)
-                            && !self.targets.contains(path) => {}
-                    result => result?,
-                }
-            } else {
-                remove_file_or_symlink(&dest)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn restore_entry(&self, path: &Path, state: &FileState) -> Result<()> {
-        if matches!(state, FileState::Absent) {
-            return Ok(());
-        }
-        if !self.parents_are_directories(path)? {
-            bail!("parent directory has not been restored");
-        }
-        let dest = self.root.join(path);
-        let parent = dest.parent().unwrap();
-        match state {
-            FileState::File(permissions) => {
-                let content = fs::read(self.dir.path().join("files").join(path))?;
-                if let Ok(metadata) = fs::symlink_metadata(&dest)
-                    && metadata.is_file()
-                    && metadata.permissions() == *permissions
-                    && fs::read(&dest).is_ok_and(|current| current == content)
-                {
-                    return Ok(());
-                }
-                // Prepare the complete original before replacing a surviving
-                // file or symlink, so a failed restore cannot truncate its data.
-                let mut restored = tempfile::NamedTempFile::new_in(parent)?;
-                restored.write_all(&content)?;
-                restored.as_file().set_permissions(permissions.clone())?;
-                restored.persist(&dest)?;
-            }
-            FileState::Directory(_) => match fs::symlink_metadata(&dest) {
-                Ok(metadata) if metadata.is_dir() => {}
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => fs::create_dir(&dest)?,
-                _ => bail!("cannot restore directory"),
-            },
-            FileState::Symlink { target, .. } => {
-                if fs::read_link(&dest).is_ok_and(|current| current == *target) {
-                    return Ok(());
-                }
-                let staging = tempfile::tempdir_in(parent)?;
-                let link = staging.path().join("link");
-                #[cfg(unix)]
-                std::os::unix::fs::symlink(target, &link)?;
-                #[cfg(windows)]
-                if let FileState::Symlink { directory, .. } = state {
-                    if *directory {
-                        std::os::windows::fs::symlink_dir(target, &link)?;
-                    } else {
-                        std::os::windows::fs::symlink_file(target, &link)?;
-                    }
-                }
-                fs::rename(link, dest)?;
-            }
-            FileState::Absent => {}
-        }
-        Ok(())
-    }
-}
-
-fn remove_file_or_symlink(path: &Path) -> std::io::Result<()> {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::FileTypeExt;
-        if fs::symlink_metadata(path)?.file_type().is_symlink_dir() {
-            return fs::remove_dir(path);
-        }
-    }
-    fs::remove_file(path)
+    out
 }
 
 impl Step {
@@ -405,8 +75,9 @@ impl Step {
     /// # Returns
     ///
     /// * `Ok(true)` - Diff was applied successfully
-    /// * `Ok(false)` - No changes remain from git apply; caller may run the fixer
-    /// * `Err(_)` - I/O or restoration failed; caller must stop
+    /// * `Ok(false)` - Diff application failed and changed nothing (caller should fall back to fixer)
+    /// * `Err(_)` - Writing failed and some files couldn't be restored, so the
+    ///   fixer must not run on them
     pub(crate) fn apply_diff_output(&self, stdout: &str, dir: Option<&str>) -> Result<bool> {
         if stdout.trim().is_empty() {
             debug!("{}: no diff content to apply", self.name);
@@ -420,63 +91,414 @@ impl Step {
         let base = base.canonicalize().unwrap_or(base);
         let diff_content = relativize_diff_paths(&diff_content, &base);
 
-        // Detect if this diff uses a/ and b/ prefixes (git-style)
-        // Use -p1 to strip prefixes if present, -p0 otherwise
-        let mut has_a_prefix = false;
-        let mut has_b_prefix = false;
-        for line in diff_content.lines() {
-            if line.starts_with("--- a/") {
-                has_a_prefix = true;
-            } else if line.starts_with("+++ b/") {
-                has_b_prefix = true;
-            }
-            if has_a_prefix && has_b_prefix {
-                break;
-            }
-        }
-        let strip_level = if has_a_prefix && has_b_prefix {
+        // Git-style `a/` and `b/` prefixes need -p1, other paths -p0.
+        let strip_level = if strips_git_prefixes(&diff_content, &base) {
             "-p1"
         } else {
             "-p0"
         };
 
-        let prepared = (|| -> Result<_> {
-            let mut patch = tempfile::NamedTempFile::new()?;
-            patch.write_all(diff_content.as_bytes())?;
-            let backup = DiffBackup::create(&patch, &base, strip_level)?;
-            Ok((patch, backup))
-        })();
-        let (patch, backup) = match prepared {
-            Ok(prepared) => prepared,
-            Err(err) => {
-                if err.downcast_ref::<std::io::Error>().is_some() {
-                    warn!("{}: cannot safely apply diff: {err:#}", self.name);
+        let strip = if strip_level == "-p1" { 1 } else { 0 };
+        match apply_patch(&diff_content, strip, &base) {
+            Ok(files) => {
+                debug!("{}: applied diff to {} file(s)", self.name, files);
+                Ok(true)
+            }
+            Err(PatchError::RollbackFailed(reason)) => eyre::bail!(
+                "{}: applying the check_diff patch failed and some files could not be restored; check them before running hk again: {reason}",
+                self.name
+            ),
+            Err(PatchError::Rejected(reason)) => {
+                // Output that is no patch at all is how some commands hand a
+                // file to the fixer, such as shellcheck's note that nothing is
+                // auto-fixable. A patch that doesn't apply is a broken
+                // `check_diff` that makes every fix run the tool twice, so say so.
+                if looks_like_patch(&diff_content) {
+                    warn!(
+                        "{}: check_diff printed a patch that doesn't apply, so the fixer ran instead: {reason}",
+                        self.name
+                    );
                 } else {
-                    debug!("{}: cannot safely apply diff: {err:#}", self.name);
+                    debug!("{}: check_diff output is not a patch: {reason}", self.name);
                 }
-                return Ok(false);
+                Ok(false)
+            }
+        }
+    }
+}
+
+/// Why a patch wasn't applied.
+#[derive(Debug, PartialEq)]
+enum PatchError {
+    /// Nothing was changed; the fixer can run.
+    Rejected(String),
+    /// A write failed and at least one file couldn't be put back.
+    RollbackFailed(String),
+}
+
+impl std::fmt::Display for PatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PatchError::Rejected(reason) | PatchError::RollbackFailed(reason) => {
+                f.write_str(reason)
+            }
+        }
+    }
+}
+
+impl From<String> for PatchError {
+    fn from(reason: String) -> Self {
+        PatchError::Rejected(reason)
+    }
+}
+
+/// Apply every file patch in `diff` to the files under `base`, stripping
+/// `strip` leading path components, and return how many files changed.
+///
+/// Every file's new contents are worked out before any is written, so a patch
+/// that doesn't apply changes nothing, as with `git apply`. Hunks may apply at
+/// an offset from the line they name, but their context must match exactly.
+fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usize, PatchError> {
+    // `ParseOptions::unidiff` doesn't read git's extended headers, so a mode
+    // change would be dropped silently, and a rename or copy with hunks would
+    // patch the old path as if it were modified in place. Binary changes have
+    // no hunks at all. Leave such patches to the fixer.
+    if let Some(header) = diff.lines().find_map(|line| {
+        [
+            "old mode ",
+            "new mode ",
+            "new file mode ",
+            "deleted file mode ",
+            "rename from ",
+            "rename to ",
+            "copy from ",
+            "copy to ",
+            "Binary files ",
+            "GIT binary patch",
+        ]
+        .into_iter()
+        .find(|header| line.starts_with(header))
+    }) {
+        return Err(format!(
+            "patches with `{}` headers are not supported",
+            header.trim_end()
+        )
+        .into());
+    }
+    // Each touched file's contents after the patches so far, or `None` once
+    // deleted. A file can appear in more than one file patch.
+    let mut files: IndexMap<PathBuf, Option<String>> = IndexMap::new();
+    // Each touched file's contents and permissions before the patch, or
+    // `None` if it didn't exist, to restore if a write fails.
+    type Original = (Option<String>, Option<std::fs::Permissions>);
+    let mut originals: IndexMap<PathBuf, Original> = IndexMap::new();
+    for file_patch in PatchSet::parse(diff, ParseOptions::unidiff()) {
+        let file_patch = file_patch.map_err(|err| err.to_string())?;
+        let PatchKind::Text(patch) = file_patch.patch() else {
+            return Err("binary patches are not supported".to_string().into());
+        };
+        let known = |path: &PathBuf| files.contains_key(path) || base.join(path).exists();
+        let (path, create, delete) = match file_patch.operation().strip_prefix(strip) {
+            // Some tools diff against a temporary file or a label, so use the
+            // side that names a file under `base`.
+            FileOperation::Modify { original, modified } => {
+                match checked_path(&original).ok().filter(known) {
+                    Some(original) => (original, false, false),
+                    None => (checked_path(&modified)?, false, false),
+                }
+            }
+            FileOperation::Create(path) => (checked_path(&path)?, true, false),
+            FileOperation::Delete(path) => (checked_path(&path)?, false, true),
+            _ => return Err("renames and copies are not supported".to_string().into()),
+        };
+        let display = path.display().to_string();
+        refuse_symlinks(base, &path)?;
+        refuse_hard_links(&base.join(&path))?;
+        let current = match files.get(&path) {
+            Some(current) => current.clone(),
+            None => {
+                let target = base.join(&path);
+                let current = read_existing(&target)?;
+                let permissions = std::fs::metadata(&target).map(|m| m.permissions());
+                originals.insert(path.clone(), (current.clone(), permissions.ok()));
+                current
             }
         };
+        if create && current.is_some() {
+            return Err(format!("{display}: the patch creates a file that exists").into());
+        }
+        if !create && current.is_none() {
+            return Err(format!("{display}: no such file").into());
+        }
+        let patched = diffy::apply(current.as_deref().unwrap_or_default(), patch)
+            .map_err(|err| format!("{display}: {err}"))?;
+        files.insert(path, (!delete).then_some(patched));
+    }
+    if files.is_empty() {
+        return Err("no file patches found".to_string().into());
+    }
+    let mut written: Vec<&PathBuf> = Vec::with_capacity(files.len());
+    // A deleted file is moved aside, not removed, until every write has
+    // succeeded, so a rollback moves the same file back with its owner, ACLs,
+    // and extended attributes.
+    let mut set_aside: Vec<(&PathBuf, PathBuf)> = Vec::new();
+    for (path, contents) in &files {
+        let target = base.join(path);
+        let result = match contents {
+            Some(contents) => {
+                // Listed before writing: a write that fails after truncating
+                // the file is rolled back too.
+                written.push(path);
+                write_contents(&target, Some(contents))
+            }
+            None => move_aside(&target).map(|aside| set_aside.push((path, aside))),
+        };
+        if let Err(err) = result {
+            // Put back what was already written, so the fixer starts from the
+            // files as they were.
+            let mut message = format!("{}: {err}", path.display());
+            let mut restored = true;
+            for (done, aside) in &set_aside {
+                if let Err(err) = restore_aside(aside, &base.join(done)) {
+                    message.push_str(&format!("; could not restore {}: {err}", done.display()));
+                    restored = false;
+                }
+            }
+            for done in written {
+                let attempted = files[done].as_deref();
+                if let Err(err) = roll_back(&base.join(done), &originals[done], attempted) {
+                    message.push_str(&format!("; could not restore {}: {err}", done.display()));
+                    restored = false;
+                }
+            }
+            return Err(if restored {
+                PatchError::Rejected(message)
+            } else {
+                PatchError::RollbackFailed(message)
+            });
+        }
+    }
+    for (path, aside) in &set_aside {
+        if let Err(err) = std::fs::remove_file(aside) {
+            warn!(
+                "{}: deleted by a check_diff patch, but its copy {} could not be removed: {err}",
+                path.display(),
+                aside.display()
+            );
+        }
+    }
+    Ok(files.len())
+}
 
-        let output = git_apply(&patch, &base, &[strip_level]);
-        if let Ok(output) = &output
-            && output.status.success()
-        {
-            debug!("{}: successfully applied diff", self.name);
-            return Ok(true);
+/// Rename `path` to a hidden name beside it, for a deletion that can be
+/// undone, and return the new name.
+fn move_aside(path: &Path) -> std::io::Result<PathBuf> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let dir = path.parent().unwrap_or(Path::new(""));
+    let mut n = 0;
+    let aside = loop {
+        let aside = dir.join(format!(".{name}.hk-deleted-{}-{n}", std::process::id()));
+        if std::fs::symlink_metadata(&aside).is_err() {
+            break aside;
         }
-        match output {
-            Ok(output) => debug!(
-                "{}: git apply failed: {}",
-                self.name,
-                String::from_utf8_lossy(&output.stderr)
+        n += 1;
+    };
+    std::fs::rename(path, &aside)?;
+    Ok(aside)
+}
+
+/// Move a file set aside by [`move_aside`] back to `path`, unless something
+/// else has been put at `path` since.
+///
+/// A hard link can't replace an existing file, so checking and restoring are
+/// one step and a file another process created there is never overwritten.
+/// Where hard links aren't supported, `path` is checked and then renamed to.
+fn restore_aside(aside: &Path, path: &Path) -> std::io::Result<()> {
+    let occupied = || {
+        std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!(
+                "another file is now at this path; the deleted file is kept at {}",
+                aside.display()
             ),
-            Err(err) => warn!("{}: git apply failed: {err}", self.name),
+        )
+    };
+    match std::fs::hard_link(aside, path) {
+        Ok(()) => std::fs::remove_file(aside),
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => Err(occupied()),
+        Err(_) if std::fs::symlink_metadata(path).is_ok() => Err(occupied()),
+        Err(_) => std::fs::rename(aside, path),
+    }
+}
+
+/// Put `path` back as it was before hk tried to write `attempted` to it.
+///
+/// Only undoes what hk may have done: a file that still has its original
+/// contents is left alone, and a file hk was creating is removed only if it
+/// holds a prefix of what hk wrote, so a file another process put there stays.
+fn roll_back(
+    path: &Path,
+    (contents, permissions): &(Option<String>, Option<std::fs::Permissions>),
+    attempted: Option<&str>,
+) -> std::io::Result<()> {
+    // A file hk can't read can't be checked, so its rollback fails rather
+    // than guessing that it is absent or unchanged.
+    let current = match std::fs::read(path) {
+        Ok(current) => Some(current),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+        Err(err) => return Err(err),
+    };
+    match contents {
+        Some(original) => {
+            if current.as_deref() == Some(original.as_bytes()) {
+                return Ok(());
+            }
+            write_contents(path, Some(original))?;
+            if let Some(permissions) = permissions {
+                std::fs::set_permissions(path, permissions.clone())?;
+            }
+            Ok(())
         }
-        // git apply can remove several files before failing to recreate one.
-        // Only permit fallback once every original has been restored.
-        backup.restore()?;
-        Ok(false)
+        None => match current {
+            Some(current) if attempted.is_some_and(|a| a.as_bytes().starts_with(&current)) => {
+                write_contents(path, None)
+            }
+            _ => Ok(()),
+        },
+    }
+}
+
+/// Write `contents` to `path`, creating its directory, or remove it for `None`.
+///
+/// An existing file is written in place, keeping its owner, permissions, ACLs,
+/// and extended attributes; a read-only one fails the write, and hk runs the
+/// fixer. A new file gets the usual permissions for the user's umask.
+fn write_contents(path: &Path, contents: Option<&str>) -> std::io::Result<()> {
+    match contents {
+        Some(contents) => {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(path, contents)
+        }
+        None => match std::fs::remove_file(path) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            result => result,
+        },
+    }
+}
+
+/// Refuse a file with other hard links, which may be outside the working
+/// directory: writing it in place would change them too.
+#[cfg(unix)]
+fn refuse_hard_links(path: &Path) -> std::result::Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_file() && meta.nlink() > 1 => {
+            Err(format!("{}: has other hard links", path.display()))
+        }
+        _ => Ok(()),
+    }
+}
+
+#[cfg(windows)]
+fn refuse_hard_links(path: &Path) -> std::result::Result<(), String> {
+    let links = std::fs::File::open(path)
+        .and_then(|file| winapi_util::file::information(&file))
+        .map(|info| info.number_of_links());
+    match links {
+        Ok(links) if links > 1 => Err(format!("{}: has other hard links", path.display())),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn refuse_hard_links(_path: &Path) -> std::result::Result<(), String> {
+    Ok(())
+}
+
+/// Refuse `path` if it or any directory leading to it under `base` is a
+/// symlink, which a write would follow out of the working directory.
+fn refuse_symlinks(base: &Path, path: &Path) -> std::result::Result<(), String> {
+    let mut prefix = PathBuf::new();
+    for component in path.components() {
+        prefix.push(component);
+        match std::fs::symlink_metadata(base.join(&prefix)) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(format!("{}: is a symlink", prefix.display()));
+            }
+            Ok(_) => {}
+            // Nothing below a missing directory exists yet.
+            Err(_) => break,
+        }
+    }
+    Ok(())
+}
+
+/// `path` if it stays under the directory the patch applies in.
+fn checked_path(path: &str) -> std::result::Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+    if path.as_os_str().is_empty()
+        || path.components().any(|c| {
+            !matches!(
+                c,
+                std::path::Component::Normal(_) | std::path::Component::CurDir
+            )
+        })
+    {
+        return Err(format!(
+            "{}: not a path under the working directory",
+            path.display()
+        ));
+    }
+    Ok(path)
+}
+
+/// The contents of `path`, or `None` if it doesn't exist.
+fn read_existing(path: &Path) -> std::result::Result<Option<String>, String> {
+    match std::fs::symlink_metadata(path) {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(format!("{}: {err}", path.display())),
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return Err(format!("{}: is a symlink", path.display()));
+        }
+        Ok(_) => {}
+    }
+    std::fs::read_to_string(path)
+        .map(Some)
+        .map_err(|err| format!("{}: {err}", path.display()))
+}
+
+/// Whether `diff` contains a unified diff file header: a `--- ` line directly
+/// followed by a `+++ ` line.
+fn looks_like_patch(diff: &str) -> bool {
+    let mut lines = diff.lines().peekable();
+    while let Some(line) = lines.next() {
+        if line.starts_with("--- ") && lines.peek().is_some_and(|next| next.starts_with("+++ ")) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod looks_like_patch_tests {
+    use super::looks_like_patch;
+
+    #[test]
+    fn finds_a_file_header() {
+        assert!(looks_like_patch(
+            "note\n--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-a\n+b\n"
+        ));
+    }
+
+    #[test]
+    fn ignores_output_without_one() {
+        assert!(!looks_like_patch(
+            "Issues were detected, but none were auto-fixable. Use another format to see them.\n"
+        ));
+        assert!(!looks_like_patch("Diff in a.lua:\n1 |-print \"foo\"\n"));
+        assert!(!looks_like_patch("--- only a separator\ntext\n"));
     }
 }
 
@@ -516,6 +538,15 @@ mod relativize_diff_paths_tests {
     }
 
     #[test]
+    fn keeps_carriage_returns() {
+        let diff = "--- /repo/f.txt\n+++ /repo/f.txt\n@@ -1 +1 @@\n-one\r\n+one\n";
+        assert_eq!(
+            relativize_diff_paths(diff, Path::new("/repo")),
+            "--- f.txt\n+++ f.txt\n@@ -1 +1 @@\n-one\r\n+one\n"
+        );
+    }
+
+    #[test]
     fn does_not_touch_diff_body_lines() {
         let diff = "--- /w/svc/a.go\n+++ /w/svc/a.go\n@@ -1 +1 @@\n---- not a header\n";
         assert_eq!(
@@ -526,318 +557,371 @@ mod relativize_diff_paths_tests {
 }
 
 #[cfg(test)]
-mod apply_diff_tests {
-    use super::*;
+mod apply_patch_tests {
+    use super::apply_patch;
+    use std::fs;
 
-    fn patch() -> tempfile::NamedTempFile {
-        let mut patch = tempfile::NamedTempFile::new().unwrap();
-        patch
-            .write_all(b"--- a/file.txt\n+++ b/file.txt\n@@ -1 +1 @@\n-before\n+after\n")
-            .unwrap();
-        patch
-    }
-
-    #[test]
-    fn backs_up_subdirectory_paths_relative_to_repository_root() {
+    fn dir_with(files: &[(&str, &str)]) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().canonicalize().unwrap();
-        assert!(
-            Command::new("git")
-                .args(["init", "-q"])
-                .current_dir(&root)
-                .status()
-                .unwrap()
-                .success()
-        );
-        let base = root.join("sub");
-        fs::create_dir(&base).unwrap();
-        fs::write(base.join("file.txt"), b"before\n").unwrap();
-        let patch = patch();
-        let backup = DiffBackup::create(&patch, &base, "-p1").unwrap();
-        assert!(git_apply(&patch, &base, &["-p1"]).unwrap().status.success());
-        // Git honors core.autocrlf; restoration must still recover the exact LF original.
-        assert!(matches!(
-            fs::read(base.join("file.txt")).unwrap().as_slice(),
-            b"after\n" | b"after\r\n"
-        ));
-        backup.restore().unwrap();
-        assert_eq!(fs::read(base.join("file.txt")).unwrap(), b"before\n");
-    }
-
-    #[test]
-    fn backs_up_the_target_git_selects_without_a_repository() {
-        let dir = tempfile::tempdir().unwrap();
-        let base = dir.path().canonicalize().unwrap();
-        fs::write(base.join("old.txt"), b"before\n").unwrap();
-        fs::write(base.join("new.txt"), b"before\n").unwrap();
-        let mut patch = tempfile::NamedTempFile::new().unwrap();
-        patch
-            .write_all(b"--- old.txt\n+++ new.txt\n@@ -1 +1 @@\n-before\n+after\n")
-            .unwrap();
-        let backup = DiffBackup::create(&patch, &base, "-p0").unwrap();
-        assert_eq!(
-            backup.entries.keys().cloned().collect::<Vec<_>>(),
-            vec![PathBuf::from("new.txt")]
-        );
-        assert!(git_apply(&patch, &base, &["-p0"]).unwrap().status.success());
-        // Git honors core.autocrlf even when applying outside a repository.
-        assert!(matches!(
-            fs::read(base.join("new.txt")).unwrap().as_slice(),
-            b"after\n" | b"after\r\n"
-        ));
-        backup.restore().unwrap();
-        assert_eq!(fs::read(base.join("old.txt")).unwrap(), b"before\n");
-        assert_eq!(fs::read(base.join("new.txt")).unwrap(), b"before\n");
-    }
-
-    #[derive(Debug, PartialEq)]
-    enum TreeEntry {
-        File(Vec<u8>, fs::Permissions),
-        Directory(fs::Permissions),
-        Symlink(PathBuf),
-    }
-
-    fn tree(root: &Path) -> BTreeMap<PathBuf, TreeEntry> {
-        fn visit(root: &Path, dir: &Path, entries: &mut BTreeMap<PathBuf, TreeEntry>) {
-            for entry in fs::read_dir(dir).unwrap() {
-                let path = entry.unwrap().path();
-                let metadata = fs::symlink_metadata(&path).unwrap();
-                let state = if metadata.is_dir() {
-                    visit(root, &path, entries);
-                    TreeEntry::Directory(metadata.permissions())
-                } else if metadata.file_type().is_symlink() {
-                    TreeEntry::Symlink(fs::read_link(&path).unwrap())
-                } else {
-                    TreeEntry::File(fs::read(&path).unwrap(), metadata.permissions())
-                };
-                entries.insert(path.strip_prefix(root).unwrap().to_path_buf(), state);
-            }
+        for (name, contents) in files {
+            fs::write(dir.path().join(name), contents).unwrap();
         }
-        let mut entries = BTreeMap::new();
-        visit(root, root, &mut entries);
-        entries
+        dir
     }
 
-    /// Compare successful application with upstream's git apply command, then
-    /// restore and compare the entire original tree (including absent paths).
-    fn assert_compatible_and_restorable(diff: &str, setup: impl Fn(&Path)) {
-        let expected_dir = tempfile::tempdir().unwrap();
-        let expected = expected_dir.path().canonicalize().unwrap();
-        let actual_dir = tempfile::tempdir().unwrap();
-        let actual = actual_dir.path().canonicalize().unwrap();
-        setup(&expected);
-        setup(&actual);
-        let original = tree(&actual);
-        let mut patch = tempfile::NamedTempFile::new().unwrap();
-        patch.write_all(diff.as_bytes()).unwrap();
-        let output = git_apply(&patch, &expected, &["-p0"]).unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let backup = DiffBackup::create(&patch, &actual, "-p0").unwrap();
-        assert!(
-            Step::default()
-                .apply_diff_output(diff, actual.to_str())
-                .unwrap()
-        );
-        assert_eq!(tree(&actual), tree(&expected));
-        backup.restore().unwrap();
-        assert_eq!(tree(&actual), original);
+    fn read(dir: &tempfile::TempDir, name: &str) -> String {
+        fs::read_to_string(dir.path().join(name)).unwrap()
     }
 
     #[test]
-    fn preserves_creation_deletion_rename_copy_and_directory_changes() {
-        for diff in [
-            "--- /dev/null\n+++ new/nested/file.txt\n@@ -0,0 +1 @@\n+new\n",
-            "--- old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-before\n",
-            "diff --git old.txt new/nested/file.txt\nsimilarity index 100%\nrename from old.txt\nrename to new/nested/file.txt\n",
-            "diff --git old.txt new/nested/file.txt\nsimilarity index 100%\ncopy from old.txt\ncopy to new/nested/file.txt\n",
-            "--- old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-before\n--- /dev/null\n+++ old.txt/child.txt\n@@ -0,0 +1 @@\n+new\n",
-            "--- nested/child.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-before\n--- /dev/null\n+++ nested\n@@ -0,0 +1 @@\n+new\n",
-            "diff --git old.txt new.txt\nsimilarity index 100%\nrename from old.txt\nrename to new.txt\ndiff --git other.txt old.txt\nsimilarity index 100%\nrename from other.txt\nrename to old.txt\n",
+    fn applies_every_file_and_keeps_carriage_returns() {
+        let dir = dir_with(&[("a.txt", "one  \r\ntwo\r\n"), ("b.txt", "x\n")]);
+        let diff = "--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n-one  \r\n+one\r\n two\r\n\
+                    --- a/b.txt\n+++ b/b.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert_eq!(apply_patch(diff, 1, dir.path()), Ok(2));
+        assert_eq!(read(&dir, "a.txt"), "one\r\ntwo\r\n");
+        assert_eq!(read(&dir, "b.txt"), "y\n");
+    }
+
+    #[test]
+    fn changes_nothing_when_any_hunk_fails() {
+        let dir = dir_with(&[("a.txt", "x\n"), ("b.txt", "p\n")]);
+        let diff = "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n\
+                    --- b.txt\n+++ b.txt\n@@ -1 +1 @@\n-nope\n+q\n";
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .to_string()
+                .contains("b.txt")
+        );
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+        assert_eq!(read(&dir, "b.txt"), "p\n");
+    }
+
+    #[test]
+    fn uses_the_side_that_names_an_existing_file() {
+        // buildifier's `-mode=diff` compares with a temporary file.
+        let dir = dir_with(&[("BUILD", "a\n")]);
+        let diff = "--- BUILD\n+++ tmp/buildifier-tmp-123\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(read(&dir, "BUILD"), "b\n");
+    }
+
+    #[test]
+    fn creates_and_deletes_files() {
+        let dir = dir_with(&[("old.txt", "bye\n")]);
+        let diff = "--- /dev/null\n+++ b/sub/new.txt\n@@ -0,0 +1 @@\n+hi\n\
+                    --- a/old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n";
+        assert_eq!(apply_patch(diff, 1, dir.path()), Ok(2));
+        assert_eq!(read(&dir, "sub/new.txt"), "hi\n");
+        assert!(!dir.path().join("old.txt").exists());
+    }
+
+    #[test]
+    fn refuses_paths_outside_the_directory() {
+        let dir = dir_with(&[]);
+        for path in ["../escape.txt", "/etc/escape.txt"] {
+            let diff = format!("--- {path}\n+++ {path}\n@@ -0,0 +1 @@\n+x\n");
+            assert!(apply_patch(&diff, 0, dir.path()).is_err(), "{path}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_writes_through_a_symlinked_directory() {
+        let outside = dir_with(&[("file.txt", "x\n")]);
+        let dir = dir_with(&[]);
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("linked")).unwrap();
+        let diff = "--- linked/file.txt\n+++ linked/file.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .to_string()
+                .contains("symlink")
+        );
+        assert_eq!(read(&outside, "file.txt"), "x\n");
+    }
+
+    #[test]
+    fn refuses_to_create_a_file_that_exists() {
+        let dir = dir_with(&[("a.txt", "keep\n")]);
+        let diff = "--- /dev/null\n+++ a.txt\n@@ -0,0 +1 @@\n+added\n";
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .to_string()
+                .contains("exists")
+        );
+        assert_eq!(read(&dir, "a.txt"), "keep\n");
+    }
+
+    #[test]
+    fn refuses_renames_copies_and_binary_changes() {
+        let dir = dir_with(&[("old.txt", "x\n")]);
+        for headers in [
+            "rename from old.txt\nrename to new.txt\n",
+            "copy from old.txt\ncopy to new.txt\n",
+            "Binary files a/old.txt and b/old.txt differ\n",
         ] {
-            assert_compatible_and_restorable(diff, |root| {
-                fs::write(root.join("old.txt"), b"before\n").unwrap();
-                fs::write(root.join("other.txt"), b"other\n").unwrap();
-                fs::create_dir(root.join("nested")).unwrap();
-                fs::write(root.join("nested/child.txt"), b"before\n").unwrap();
-                fs::write(root.join("untouched.txt"), b"keep\n").unwrap();
-            });
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn preserves_executable_mode_changes() {
-        use std::os::unix::fs::PermissionsExt;
-        assert_compatible_and_restorable(
-            "diff --git script.sh script.sh\nold mode 100644\nnew mode 100755\n",
-            |root| {
-                fs::write(root.join("script.sh"), b"#!/bin/sh\n").unwrap();
-                fs::set_permissions(root.join("script.sh"), fs::Permissions::from_mode(0o644))
-                    .unwrap();
-            },
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn preserves_symlink_changes_without_touching_referents() {
-        for diff in [
-            "diff --git link link\nnew file mode 120000\n--- /dev/null\n+++ link\n@@ -0,0 +1 @@\n+target\n\\ No newline at end of file\n",
-            "diff --git old-link old-link\ndeleted file mode 120000\n--- old-link\n+++ /dev/null\n@@ -1 +0,0 @@\n-target\n\\ No newline at end of file\n",
-            "diff --git old-link old-link\n--- old-link\n+++ old-link\n@@ -1 +1 @@\n-target\n\\ No newline at end of file\n+missing\n\\ No newline at end of file\n",
-            "diff --git old-link renamed-link\nsimilarity index 100%\nrename from old-link\nrename to renamed-link\n",
-            "diff --git old-link old-link\ndeleted file mode 120000\n--- old-link\n+++ /dev/null\n@@ -1 +0,0 @@\n-target\n\\ No newline at end of file\n--- /dev/null\n+++ old-link/child\n@@ -0,0 +1 @@\n+new\n",
-        ] {
-            assert_compatible_and_restorable(diff, |root| {
-                fs::write(root.join("target"), b"keep me\n").unwrap();
-                std::os::unix::fs::symlink("target", root.join("old-link")).unwrap();
-            });
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn preserves_git_quoted_names() {
-        let header = r#""tab\tname""#;
-        let diff = format!(
-            "diff --git {header} {header}\n--- {header}\n+++ {header}\n@@ -1 +1 @@\n-before\n+after\n"
-        );
-        assert_compatible_and_restorable(&diff, |root| {
-            fs::write(root.join("tab\tname"), b"before\n").unwrap();
-        });
-    }
-
-    // macOS filesystems reject invalid UTF-8 filenames before Git can use them.
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn preserves_non_utf8_names() {
-        use std::os::unix::ffi::OsStringExt;
-        let header = r#""invalid\377""#;
-        let diff = format!(
-            "diff --git {header} {header}\n--- {header}\n+++ {header}\n@@ -1 +1 @@\n-before\n+after\n"
-        );
-        assert_compatible_and_restorable(&diff, |root| {
-            fs::write(
-                root.join(OsString::from_vec(b"invalid\xff".to_vec())),
-                b"before\n",
-            )
-            .unwrap();
-        });
-    }
-
-    #[test]
-    fn preserves_binary_patches() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(
-            Command::new("git")
-                .args(["init", "-q"])
-                .current_dir(dir.path())
-                .status()
-                .unwrap()
-                .success()
-        );
-        fs::write(dir.path().join("data.bin"), b"\0before\xff").unwrap();
-        assert!(
-            Command::new("git")
-                .args(["add", "data.bin"])
-                .current_dir(dir.path())
-                .status()
-                .unwrap()
-                .success()
-        );
-        fs::write(dir.path().join("data.bin"), b"\0after\xff").unwrap();
-        let output = Command::new("git")
-            .args(["diff", "--binary", "--no-prefix"])
-            .current_dir(dir.path())
-            .output()
-            .unwrap();
-        assert!(output.status.success());
-        let diff = std::str::from_utf8(&output.stdout).unwrap();
-        assert!(diff.contains("GIT binary patch"));
-        assert_compatible_and_restorable(diff, |root| {
-            fs::write(root.join("data.bin"), b"\0before\xff").unwrap();
-        });
-    }
-
-    #[test]
-    fn restoration_preserves_other_jobs_files_in_new_parent_directories() {
-        let dir = tempfile::tempdir().unwrap();
-        let base = dir.path().canonicalize().unwrap();
-        let mut patch = tempfile::NamedTempFile::new().unwrap();
-        patch
-            .write_all(b"--- /dev/null\n+++ generated/nested/a.txt\n@@ -0,0 +1 @@\n+new\n")
-            .unwrap();
-        let backup = DiffBackup::create(&patch, &base, "-p0").unwrap();
-        let saved = backup.dir.path().to_path_buf();
-        assert!(git_apply(&patch, &base, &["-p0"]).unwrap().status.success());
-        // Deterministically model another job writing after our backup was taken.
-        fs::write(base.join("generated/nested/b.txt"), b"other job\n").unwrap();
-        backup.restore().unwrap();
-        assert!(!base.join("generated/nested/a.txt").exists());
-        assert_eq!(
-            fs::read(base.join("generated/nested/b.txt")).unwrap(),
-            b"other job\n"
-        );
-        assert!(!saved.exists());
-    }
-
-    #[test]
-    fn restoration_still_rejects_nonempty_directories_at_new_file_targets() {
-        let dir = tempfile::tempdir().unwrap();
-        let base = dir.path().canonicalize().unwrap();
-        let mut patch = tempfile::NamedTempFile::new().unwrap();
-        patch
-            .write_all(b"--- /dev/null\n+++ generated/a.txt\n@@ -0,0 +1 @@\n+new\n")
-            .unwrap();
-        let backup = DiffBackup::create(&patch, &base, "-p0").unwrap();
-        let saved = backup.dir.path().to_path_buf();
-        fs::create_dir_all(base.join("generated/a.txt")).unwrap();
-        fs::write(base.join("generated/a.txt/keep"), b"unrelated\n").unwrap();
-        let err = backup.restore().unwrap_err();
-        assert!(err.to_string().contains("refusing to run fixer"));
-        assert_eq!(
-            fs::read(base.join("generated/a.txt/keep")).unwrap(),
-            b"unrelated\n"
-        );
-        assert!(saved.exists());
-        fs::remove_dir_all(saved).unwrap();
-    }
-
-    #[test]
-    fn failed_restoration_keeps_backups_and_restores_remaining_files() {
-        let dir = tempfile::tempdir().unwrap();
-        let base = dir.path().canonicalize().unwrap();
-        let mut patch = patch();
-        patch
-            .write_all(b"--- a/other.txt\n+++ b/other.txt\n@@ -1 +1 @@\n-before\n+after\n")
-            .unwrap();
-        fs::write(base.join("file.txt"), b"before\n").unwrap();
-        fs::write(base.join("other.txt"), b"before\n").unwrap();
-        let backup = DiffBackup::create(&patch, &base, "-p1").unwrap();
-        let saved = backup.dir.path().to_path_buf();
-        fs::remove_file(base.join("file.txt")).unwrap();
-        fs::create_dir(base.join("file.txt")).unwrap();
-        fs::write(base.join("file.txt/unrelated"), b"keep me").unwrap();
-        fs::remove_file(base.join("other.txt")).unwrap();
-        let err = backup.restore().unwrap_err();
-        assert!(err.to_string().contains("refusing to run fixer"));
-        assert_eq!(err.to_string().matches("file.txt:").count(), 1);
-        assert!(err.to_string().contains(&saved.display().to_string()));
-        assert_eq!(fs::read(base.join("other.txt")).unwrap(), b"before\n");
-        assert_eq!(
-            fs::read(base.join("file.txt/unrelated")).unwrap(),
-            b"keep me"
-        );
-        for name in ["file.txt", "other.txt"] {
-            assert_eq!(
-                fs::read(saved.join("files").join(name)).unwrap(),
-                b"before\n"
+            let diff = format!(
+                "diff --git a/old.txt b/new.txt\n{headers}--- a/old.txt\n+++ b/new.txt\n@@ -1 +1 @@\n-x\n+y\n"
             );
+            assert!(apply_patch(&diff, 1, dir.path()).is_err(), "{headers}");
+            assert_eq!(read(&dir, "old.txt"), "x\n");
+            assert!(!dir.path().join("new.txt").exists());
         }
-        fs::remove_dir_all(saved).unwrap();
+    }
+
+    #[test]
+    fn refuses_mode_changes() {
+        let dir = dir_with(&[("a.sh", "x\n")]);
+        let diff = "diff --git a/a.sh b/a.sh\nold mode 100644\nnew mode 100755\n\
+                    --- a/a.sh\n+++ b/a.sh\n@@ -1 +1 @@\n-x\n+y\n";
+        assert!(
+            apply_patch(diff, 1, dir.path())
+                .unwrap_err()
+                .to_string()
+                .contains("mode")
+        );
+        assert_eq!(read(&dir, "a.sh"), "x\n");
+    }
+
+    #[test]
+    fn restores_written_files_when_a_later_write_fails() {
+        // `blocker` is a file, so `blocker/new.txt` can't be created.
+        let dir = dir_with(&[("a.txt", "x\n"), ("blocker", "")]);
+        let diff = "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n\
+                    --- /dev/null\n+++ blocker/new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restores_a_deleted_file_as_the_same_file() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = dir_with(&[("gone.txt", "x\n"), ("blocker", "")]);
+        let inode = fs::metadata(dir.path().join("gone.txt")).unwrap().ino();
+        let diff = "--- gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n\
+                    --- /dev/null\n+++ blocker/new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        // Moved back rather than recreated, so owner, ACLs, and extended
+        // attributes come back with it.
+        assert_eq!(
+            fs::metadata(dir.path().join("gone.txt")).unwrap().ino(),
+            inode
+        );
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("hk-deleted"))
+            .collect();
+        assert!(leftovers.is_empty());
+    }
+
+    #[test]
+    fn restoring_a_deleted_file_never_replaces_a_newer_one() {
+        let dir = dir_with(&[(".gone.txt.hk-deleted", "old\n"), ("gone.txt", "newer\n")]);
+        let aside = dir.path().join(".gone.txt.hk-deleted");
+        let err = super::restore_aside(&aside, &dir.path().join("gone.txt")).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(read(&dir, "gone.txt"), "newer\n");
+        assert_eq!(read(&dir, ".gone.txt.hk-deleted"), "old\n");
+    }
+
+    #[test]
+    fn restoring_a_deleted_file_puts_it_back() {
+        let dir = dir_with(&[(".gone.txt.hk-deleted", "old\n")]);
+        let aside = dir.path().join(".gone.txt.hk-deleted");
+        super::restore_aside(&aside, &dir.path().join("gone.txt")).unwrap();
+        assert_eq!(read(&dir, "gone.txt"), "old\n");
+        assert!(!aside.exists());
+    }
+
+    #[test]
+    fn a_deleted_file_leaves_no_copy_behind() {
+        let dir = dir_with(&[("gone.txt", "x\n")]);
+        let diff = "--- gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restores_a_deleted_file_with_its_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("run.sh", "x\n"), ("blocker", "")]);
+        fs::set_permissions(dir.path().join("run.sh"), fs::Permissions::from_mode(0o755)).unwrap();
+        let diff = "--- run.sh\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n\
+                    --- /dev/null\n+++ blocker/new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        assert_eq!(read(&dir, "run.sh"), "x\n");
+        let mode = fs::metadata(dir.path().join("run.sh"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o755);
+    }
+
+    #[test]
+    fn falls_back_to_the_modified_side_when_the_original_is_unusable() {
+        let dir = dir_with(&[("a.txt", "x\n")]);
+        let diff = "--- /tmp/original-a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(read(&dir, "a.txt"), "y\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_files_with_other_hard_links() {
+        let outside = dir_with(&[("file.txt", "x\n")]);
+        let dir = dir_with(&[]);
+        fs::hard_link(outside.path().join("file.txt"), dir.path().join("file.txt")).unwrap();
+        let diff = "--- file.txt\n+++ file.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .to_string()
+                .contains("hard links")
+        );
+        assert_eq!(read(&outside, "file.txt"), "x\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn keeps_permissions_and_gives_new_files_the_usual_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("run.sh", "x\n")]);
+        fs::set_permissions(dir.path().join("run.sh"), fs::Permissions::from_mode(0o755)).unwrap();
+        let diff = "--- run.sh\n+++ run.sh\n@@ -1 +1 @@\n-x\n+y\n\
+                    --- /dev/null\n+++ new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(2));
+        let mode = |name: &str| {
+            fs::metadata(dir.path().join(name))
+                .unwrap()
+                .permissions()
+                .mode()
+        };
+        assert_eq!(mode("run.sh") & 0o777, 0o755);
+        // Created like any other file: readable by others unless the umask
+        // says otherwise, not the owner-only mode of a temporary file.
+        let umask_allows_other_read = {
+            let probe = dir.path().join("probe");
+            fs::write(&probe, "").unwrap();
+            mode("probe") & 0o044
+        };
+        assert_eq!(mode("new.txt") & 0o044, umask_allows_other_read);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn leaves_read_only_files_to_the_fixer() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("a.txt", "x\n")]);
+        fs::set_permissions(dir.path().join("a.txt"), fs::Permissions::from_mode(0o444)).unwrap();
+        let diff = "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        // Root can write read-only files, so only check the outcome matches.
+        let result = apply_patch(diff, 0, dir.path());
+        assert_eq!(result.is_ok(), read(&dir, "a.txt") == "y\n");
+        assert_eq!(
+            fs::metadata(dir.path().join("a.txt"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o444
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn roll_back_leaves_an_unchanged_file_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("a.txt", "x\n")]);
+        let path = dir.path().join("a.txt");
+        // Read-only, so rewriting it would fail (unless run as root).
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
+        let original = (Some("x\n".to_string()), None);
+        super::roll_back(&path, &original, None).unwrap();
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn roll_back_reports_a_file_it_cannot_restore() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("a.txt", "")]);
+        let path = dir.path().join("a.txt");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
+        let original = (Some("x\n".to_string()), None);
+        let result = super::roll_back(&path, &original, Some("y\n"));
+        // Root can write read-only files; everyone else gets the error.
+        assert_eq!(result.is_err(), read(&dir, "a.txt").is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn roll_back_fails_for_a_file_it_cannot_read() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("created.txt", "hel")]);
+        let path = dir.path().join("created.txt");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
+        // Root can read anything, and then the partial file is removed.
+        let readable = fs::read(&path).is_ok();
+        let result = super::roll_back(&path, &(None, None), Some("hello\n"));
+        assert_eq!(result.is_err(), !readable);
+        assert_eq!(path.exists(), !readable);
+    }
+
+    #[test]
+    fn roll_back_restores_a_changed_file() {
+        let dir = dir_with(&[("a.txt", "")]);
+        let path = dir.path().join("a.txt");
+        let original = (Some("x\n".to_string()), None);
+        super::roll_back(&path, &original, Some("y\n")).unwrap();
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[test]
+    fn roll_back_removes_only_a_file_hk_was_creating() {
+        let dir = dir_with(&[("partial.txt", "hel"), ("theirs.txt", "not ours\n")]);
+        let absent = (None, None);
+        super::roll_back(&dir.path().join("partial.txt"), &absent, Some("hello\n")).unwrap();
+        assert!(!dir.path().join("partial.txt").exists());
+        super::roll_back(&dir.path().join("theirs.txt"), &absent, Some("hello\n")).unwrap();
+        assert_eq!(read(&dir, "theirs.txt"), "not ours\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn applies_patches_for_names_with_tabs_and_literal_quotes() {
+        use crate::step::Step;
+        let dir = dir_with(&[
+            ("x\ty", "a\n"),
+            ("plain.txt", "c\n"),
+            ("\"q\"", "e\n"),
+            ("q", "keep\n"),
+        ]);
+        let step = Step::default();
+        // git-quoted with prefixes, mixed with an unprefixed pair.
+        let mixed = "--- \"a/x\\ty\"\n+++ \"b/x\\ty\"\n@@ -1 +1 @@\n-a\n+b\n\
+                     --- plain.txt\n+++ plain.txt\n@@ -1 +1 @@\n-c\n+d\n";
+        assert!(step.apply_diff_output(mixed, dir.path().to_str()).unwrap());
+        assert_eq!(read(&dir, "x\ty"), "b\n");
+        assert_eq!(read(&dir, "plain.txt"), "d\n");
+        // A literal `"q"` from a tool that doesn't quote isn't read as `q`.
+        let literal = "--- \"q\"\n+++ \"q\"\n@@ -1 +1 @@\n-e\n+f\n";
+        assert!(
+            step.apply_diff_output(literal, dir.path().to_str())
+                .unwrap()
+        );
+        assert_eq!(read(&dir, "\"q\""), "f\n");
+        assert_eq!(read(&dir, "q"), "keep\n");
+    }
+
+    #[test]
+    fn output_without_a_patch_is_an_error() {
+        let dir = dir_with(&[]);
+        assert!(apply_patch("Issues were detected.\n", 0, dir.path()).is_err());
     }
 }

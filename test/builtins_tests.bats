@@ -9,6 +9,12 @@ teardown() {
     _common_teardown
 }
 
+# Cases tagged git-backend-independent run only `hk test`, which never opens the
+# repository through hk's git backend, so HK_LIBGIT2 cannot change their result.
+# test:bats:libgit2 filters them out and leaves them to test:bats:nolibgit2
+# rather than paying for "builtins tests run", the slowest case, twice.
+
+# bats test_tags=git-backend-independent
 @test "builtins tests run" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -33,6 +39,27 @@ PKL
     assert_output --partial "ok - newlines :: fix bad file"
 }
 
+# bats test_tags=git-backend-independent
+@test "tested builtins with check_diff have a diff test" {
+    # A "diff" test applies check_diff's patch without falling back to the
+    # fixer, so it fails when check_diff prints anything but a patch that git
+    # apply accepts. Fix tests run `fix` directly and pass either way.
+    cat <<PKL > missing.pkl
+import "$PKL_PATH/Builtins.pkl"
+output {
+  value = Builtins.all.toMap()
+    .filter((_, step) -> step.check_diff != null && !step.tests.isEmpty
+      && !step.tests.toMap().values.any((t) -> t.run == "diff"))
+    .keys.toListing()
+  renderer = new JsonRenderer {}
+}
+PKL
+    run pkl eval missing.pkl
+    assert_success
+    assert_output "[]"
+}
+
+# bats test_tags=git-backend-independent
 @test "gitleaks staged option tests run" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -54,6 +81,7 @@ PKL
     assert_output --partial "ok - gitleaks :: check bad staged file"
 }
 
+# bats test_tags=git-backend-independent
 @test "editorconfig-checker builtin tests run with editorconfig-checker v4" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -74,6 +102,7 @@ PKL
     assert_output --partial "ok - editorconfig_checker :: check good file"
 }
 
+# bats test_tags=git-backend-independent
 @test "editorconfig-checker v3 builtin tests run with ec" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -96,6 +125,7 @@ PKL
     assert_output --partial "ok - editorconfig_checker_v3 :: check good file"
 }
 
+# bats test_tags=git-backend-independent
 @test "pinact v3 builtin tests run with pinact v3" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -117,6 +147,7 @@ PKL
     assert_output --partial "ok - pinact_v3 :: fix bad file and mismatched version comment"
 }
 
+# bats test_tags=git-backend-independent
 @test "knip strict option tests run" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -138,6 +169,7 @@ PKL
     assert_output --partial "ok - knip_strict :: check bad file"
 }
 
+# bats test_tags=git-backend-independent
 @test "kubeconform dirs option retargets the glob and its tests" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -160,6 +192,7 @@ PKL
     assert_output --partial "ok - kubeconform_apps :: check skips helm values and kustomization"
 }
 
+# bats test_tags=git-backend-independent
 @test "kubeconform test_dir keeps the tests valid when glob is replaced" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -182,6 +215,34 @@ PKL
     assert_output --partial "ok - kubeconform_gitops :: check manifest without kind"
 }
 
+@test "rumdl fixes apply the check_diff patch instead of rerunning the tool" {
+    # The fixers are replaced by commands that would leave a marker, so the
+    # expected output can only come from applying check_diff's patch. The
+    # file needs lines deleted, which rumdl 0.1.0 wrote corrupt hunks for.
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["rumdl_format"] = (Builtins.rumdl_format) {
+        fix { command = "for f in {{ files }}; do echo fixer-ran > \"\$f\"; done" }
+      }
+    }
+  }
+}
+PKL
+    printf '# Hello\n\n\n\nParagraph\n\n\nMore\n' > a.md
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk fix --all
+    assert_success
+    run cat a.md
+    assert_output $'# Hello\n\nParagraph\n\nMore'
+}
+
+# bats test_tags=git-backend-independent
 @test "kubeconform extra_excludes adds to the default excludes" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -434,4 +495,77 @@ PKL
     [ -x data.json ]
     [ formatted.json -ef formatted-link.json ]
     assert_equal "$(find . -name '*.json.*' -o -name '*.yaml.*' | wc -l | tr -d ' ')" 0
+}
+
+@test "jq and yq check a batch of files without running the tool for each file" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["jq"] = Builtins.jq
+      ["yq"] = Builtins.yq
+    }
+  }
+}
+PKL
+    for i in $(seq 1 20); do
+        printf '{\n  "a": %d\n}\n' "$i" > "data$i.json"
+        printf 'a: %d\n' "$i" > "config$i.yaml"
+    done
+    printf '{"b": 1}' > unformatted.json
+    printf 'b:  1\n' > unformatted.yaml
+    # Formatted, but the batch run cannot tell, so these run on their own too.
+    printf '1\n2\n' > several.json
+    printf -- '---\nc: 1\n' > separator.yaml
+
+    # Log each run's arguments to a file of its own, since batches run at the
+    # same time, then run the tool. The tool may be a mise shim, which runs the
+    # next one of that name on PATH, so the wrapper takes itself off PATH
+    # first; otherwise the two run each other forever. The wrapper reads its
+    # paths from the environment, so no quoting can break it.
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    export SHIM_PATH=$PATH SHIM_LOGS=$TEST_TEMP_DIR
+    mkdir "$TEST_TEMP_DIR/bin"
+    cat > "$TEST_TEMP_DIR/bin/jq" <<'SHIM'
+#!/bin/sh
+tool=${0##*/}
+printf '%s\n' "$*" > "$(mktemp "$SHIM_LOGS/$tool.log/XXXXXX")"
+PATH=$SHIM_PATH
+exec "$tool" "$@"
+SHIM
+    chmod +x "$TEST_TEMP_DIR/bin/jq"
+    cp "$TEST_TEMP_DIR/bin/jq" "$TEST_TEMP_DIR/bin/yq"
+    mkdir "$TEST_TEMP_DIR/jq.log" "$TEST_TEMP_DIR/yq.log"
+    # Counts the runs of a tool, or those whose arguments are exactly $2.
+    runs() {
+        if [ $# -eq 1 ]; then
+            find "$TEST_TEMP_DIR/$1.log" -type f | wc -l | tr -d ' '
+        else
+            grep -lxF -- "$2" "$TEST_TEMP_DIR/$1.log"/* | wc -l | tr -d ' '
+        fi
+    }
+    PATH="$TEST_TEMP_DIR/bin:$PATH"
+
+    # The two batched steps share the jobs, so 4 jobs give each step two
+    # batches.
+    HK_JOBS=4 run hk check --all --no-fail-fast
+    assert_failure
+    assert_output --partial "+++ b/unformatted.json"
+    assert_output --partial "+++ b/unformatted.yaml"
+    refute_output --partial "+++ b/data"
+    refute_output --partial "+++ b/config"
+    refute_output --partial "+++ b/several.json"
+    refute_output --partial "+++ b/separator.yaml"
+    # Each step's files make two batches. jq formats a batch in one run and
+    # compares the output with the files in another, and yq formats a batch in
+    # one run. Only the unformatted files and the two the batch run cannot
+    # vouch for run on their own.
+    assert_equal "$(runs jq)" 6
+    assert_equal "$(runs yq)" 4
+    assert_equal "$(runs jq '-S . several.json')" 1
+    assert_equal "$(runs jq '-S . unformatted.json')" 1
+    assert_equal "$(runs yq '-P separator.yaml')" 1
+    assert_equal "$(runs yq '-P unformatted.yaml')" 1
 }

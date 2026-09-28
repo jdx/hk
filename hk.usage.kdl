@@ -2,7 +2,7 @@
 min_usage_version "4.0"
 name hk
 bin hk
-version "2.3.0"
+version "2.3.1"
 unknown_flags error
 subcommand_required #true
 flagset hook-options {
@@ -591,6 +591,21 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-h --help" help="Print help" action=help builtin=#true
         arg "[PATHS]..." help="Paths to check. Defaults to the whole repository."
     }
+    cmd format-diff help="Print a patch of what a formatter would change, for a `check_diff` command" {
+        long_help #"""
+Print a patch of what a formatter would change, for a `check_diff` command
+
+Runs COMMAND once for each file, with the file on stdin, and compares what it prints with the file. `{}` in COMMAND is replaced with the file's path, for formatters that take the path of their input as an option. With `--no-stdin`, COMMAND reads the file itself, from the path `{}` gives it. Files are formatted in parallel.
+
+Prints a unified diff for every file that would change and exits 1, or exits 0 when none would. If COMMAND fails for any file, or prints nothing for a file that isn't empty, no patch is printed: its error output is shown and hk runs the step's fixer instead.
+
+Example: `hk util format-diff a.lua b.lua -- stylua --stdin-filepath {} -`
+"""#
+        flag --no-stdin help="Give COMMAND no stdin, for a formatter that reads the file at `{}`"
+        flag "-h --help" help="Print help" action=help builtin=#true
+        arg <FILES>... help="Files to format"
+        arg <COMMAND>... help="The formatter, reading stdin and writing the formatted file to stdout" double_dash=required
+    }
     cmd mixed-line-ending help="Detect and fix mixed line endings" effect=write {
         flag "-d --diff" help="Output a diff of the change. Cannot use with `fix`." conflicts=--fix
         flag "-f --fix" help="Fix mixed line endings by normalizing to LF"
@@ -610,6 +625,22 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
     cmd python-debug-statements help="Detect Python debug statements" effect=read {
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check"
+    }
+    cmd sarif-diff help="Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command" {
+        long_help #"""
+Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command
+
+Runs COMMAND, reads the SARIF log it prints on stdout, and applies the fixes its results carry to the files they name, printing a unified diff of the changes. Exits 0 when there are no results, and 1 after printing the patch when every result has a fix.
+
+If any result has no fix, a fix can't be applied, or COMMAND fails, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest. COMMAND fails when it exits with anything but 0 or a findings exit code, which is 1 unless `--findings-exit-code` says otherwise.
+
+Example: `hk util sarif-diff -- pinact run --check --format sarif a.yml`
+"""#
+        flag --findings-exit-code help="An exit code COMMAND uses for \"found problems\" rather than for failing (repeatable; default 1)" var=#true {
+            arg <CODE>
+        }
+        flag "-h --help" help="Print help" action=help builtin=#true
+        arg <COMMAND>... help="The tool, printing a SARIF log on stdout" double_dash=required
     }
     cmd trailing-whitespace help="Check for and optionally fix trailing whitespace" effect=write {
         flag "-d --diff" help="Output a diff of the change. Cannot use with `fix`." conflicts=--fix

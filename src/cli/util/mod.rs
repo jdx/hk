@@ -11,10 +11,13 @@ mod detect_private_key;
 mod end_of_file_fixer;
 mod fix_smart_quotes;
 mod forbid_submodules;
+mod format_diff;
 mod mixed_line_ending;
 mod no_commit_to_branch;
 mod python_check_ast;
 mod python_debug_statements;
+mod sarif_diff;
+mod text_files;
 mod trailing_whitespace;
 
 pub use byte_order_marker::{CheckByteOrderMarker, FixByteOrderMarker};
@@ -30,10 +33,12 @@ pub use detect_private_key::DetectPrivateKey;
 pub use end_of_file_fixer::EndOfFileFixer;
 pub use fix_smart_quotes::FixSmartQuotes;
 pub use forbid_submodules::ForbidSubmodules;
+pub use format_diff::FormatDiff;
 pub use mixed_line_ending::MixedLineEnding;
 pub use no_commit_to_branch::NoCommitToBranch;
 pub use python_check_ast::PythonCheckAst;
 pub use python_debug_statements::PythonDebugStatements;
+pub use sarif_diff::SarifDiff;
 pub use trailing_whitespace::TrailingWhitespace;
 
 use crate::Result;
@@ -79,6 +84,8 @@ enum UtilCommands {
     FixSmartQuotes(FixSmartQuotes),
     /// Check that the repository contains no git submodules
     ForbidSubmodules(ForbidSubmodules),
+    /// Print a patch of what a formatter would change, for a `check_diff` command
+    FormatDiff(FormatDiff),
     /// Detect and fix mixed line endings
     MixedLineEnding(MixedLineEnding),
     /// Prevent commits to specific branches
@@ -87,6 +94,8 @@ enum UtilCommands {
     PythonCheckAst(PythonCheckAst),
     /// Detect Python debug statements
     PythonDebugStatements(PythonDebugStatements),
+    /// Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command
+    SarifDiff(SarifDiff),
     /// Check for and optionally fix trailing whitespace
     TrailingWhitespace(TrailingWhitespace),
 }
@@ -108,10 +117,12 @@ impl Util {
             UtilCommands::FixByteOrderMarker(cmd) => cmd.run().await,
             UtilCommands::FixSmartQuotes(cmd) => cmd.run().await,
             UtilCommands::ForbidSubmodules(cmd) => cmd.run().await,
+            UtilCommands::FormatDiff(cmd) => cmd.run().await,
             UtilCommands::MixedLineEnding(cmd) => cmd.run().await,
             UtilCommands::NoCommitToBranch(cmd) => cmd.run().await,
             UtilCommands::PythonCheckAst(cmd) => cmd.run().await,
             UtilCommands::PythonDebugStatements(cmd) => cmd.run().await,
+            UtilCommands::SarifDiff(cmd) => cmd.run().await,
             UtilCommands::TrailingWhitespace(cmd) => cmd.run().await,
         }
     }

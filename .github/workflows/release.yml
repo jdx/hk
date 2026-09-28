@@ -25,6 +25,9 @@ jobs:
       contents: write
     env:
       HK_REQUIRE_EMBEDDED_PKL: "1"
+      # Links the Linux GNU executable non-PIE (see link_without_pie in
+      # build/mod.rs); ignored for every other target.
+      HK_NO_PIE: "1"
       # mise-action puts mise's shims on PATH, and its cargo shim routes through
       # the [wrappers.cargo] mbx wrapper. Release builds stay on cargo/cross.
       MBX_DISABLE: "1"
@@ -170,6 +173,16 @@ jobs:
       # would, but `stapler` only writes into bundles, disk images, and
       # installer packages, and this is a bare Mach-O in an archive. Gatekeeper
       # resolves the ticket online instead.
+      - name: Check the Linux GNU binary is linked non-PIE
+        if: contains(matrix.target, '-linux-gnu')
+        shell: bash
+        env:
+          BINARY: target/${{ matrix.target }}/${{ matrix.optimized && 'serious-pgo' || 'serious' }}/hk
+        run: |
+          if ! readelf -h "$BINARY" | grep -q 'Type:.*EXEC'; then
+            echo "::error::$BINARY is not linked non-PIE; HK_NO_PIE did not reach build.rs"
+            exit 1
+          fi
       - name: Notarize macOS binary
         if: matrix.os == 'macos-latest'
         shell: bash
@@ -385,7 +398,7 @@ jobs:
       # than against a key this project would have to hold. The Pkl package
       # is not an artifact anyone installs a binary from, so it stays out.
       # See https://packslip.dev.
-      - uses: jdx/packslip@74c75db7d611b36dd5a157999ec16cf823ccf80c # v1.2.0
+      - uses: jdx/packslip@87479dfc6443253dff69601cace5fc6ea07e6df5 # v1.4.0
         with:
           tag: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
           artifacts: release-assets/hk-*.tar.gz release-assets/hk-*.tar.xz release-assets/hk-*.zip

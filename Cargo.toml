@@ -19,8 +19,8 @@ license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
 resolver = "3"
-rust-version = "1.91.0"
-version = "2.3.0"
+rust-version = "1.94.0"
+version = "2.3.1"
 
 [[bin]]
 name = "generate-docs"
@@ -33,6 +33,7 @@ clx                = "3"
 console            = "0.16"
 dashmap            = "6"
 demand             = "2"
+diffy              = "0.5"
 dirs               = "7"
 ensembler          = "1"
 expr-lang          = { version = "2", features = ["serde"] }
@@ -77,6 +78,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"]
 url                = "2"
 usage-rs           = { version = "6", features = ["diagnostics", "completions"] }
 xx                 = { version = "2", features = ["hash"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi-util = "0.1"
 
 [build-dependencies]
 codegen    = "0.3"

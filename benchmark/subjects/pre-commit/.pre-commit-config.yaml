@@ -1,5 +1,6 @@
-# pre-commit (and prek, which reads the same file). Hooks run one at a time;
-# within a hook, both tools split the files into batches across CPUs.
+# pre-commit. Hooks run one at a time; within a hook, pre-commit splits the
+# files into batches across CPUs. ../prek/.pre-commit-config.yaml is this file
+# plus prek's `priority` settings, and setup.sh checks that nothing else differs.
 #
 # Fix hooks run at the pre-commit stage. The check hooks are the same tools in
 # read-only mode, run with `--hook-stage manual`.
@@ -126,18 +127,64 @@ repos:
           - manual
   # The fixers pre-commit's documentation points to. prek runs its bundled
   # Rust implementation of these two instead. They have no check mode: they exit
-  # 1 when they change a file, so the same hooks serve the manual stage. They
-  # write nothing on the clean tree check-all uses; on the dirty tree
-  # (check-detects) only the exit code counts and every sample starts from a
-  # reset clone.
+  # 1 when they change a file, so the manual stage runs them too. They write
+  # nothing on the clean tree check-all uses; on the dirty tree (check-detects)
+  # only the exit code counts and every sample starts from a reset clone. Each
+  # stage lists them separately so prek can run the manual-stage copies
+  # concurrently (../prek).
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
         stages:
           - pre-commit
-          - manual
       - id: end-of-file-fixer
         stages:
           - pre-commit
+      - id: trailing-whitespace
+        alias: trailing-whitespace-check
+        stages:
+          - manual
+      - id: end-of-file-fixer
+        alias: end-of-file-fixer-check
+        stages:
+          - manual
+  # The type checkers write nothing and come last, after every fixer. mypy
+  # needs all its files in one process to follow imports (pre-commit's mypy
+  # mirror sets require_serial too); tsc checks the whole project.
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types:
+          - python
+        require_serial: true
+        stages:
+          - pre-commit
+      - id: tsc
+        name: tsc
+        entry: tsc --noEmit -p tsconfig.json
+        language: system
+        files: \.ts$
+        pass_filenames: false
+        stages:
+          - pre-commit
+      - id: mypy-check
+        name: mypy (check)
+        entry: mypy
+        language: system
+        types:
+          - python
+        require_serial: true
+        stages:
+          - manual
+      - id: tsc-check
+        name: tsc (check)
+        entry: tsc --noEmit -p tsconfig.json
+        language: system
+        files: \.ts$
+        pass_filenames: false
+        stages:
           - manual

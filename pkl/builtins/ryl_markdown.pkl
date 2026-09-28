@@ -164,6 +164,7 @@ ryl_markdown = new Config.Step {
         1,
       )
     ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
     ["fix good file"] = testMaker.fixPass(good, good)
   }
 }

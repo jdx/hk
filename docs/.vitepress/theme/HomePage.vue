@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from "vue";
+import HomeShowreel from "./HomeShowreel.vue";
 
 const installCommand = "mise use hk";
 const copyStatus = ref("");
@@ -70,20 +71,13 @@ onUnmounted(() => clearTimeout(copyTimer));
         </div>
         <pre
           class="hk-config"
-          aria-label="Example steps shared by pre-commit and check hooks"
-        ><code><span class="hk-code-keyword">local</span> linters = <span class="hk-code-keyword">new</span> Mapping&lt;String, Step&gt; {
+          role="group"
+          aria-label="Example steps shared by the check, fix, and pre-commit hooks"
+        ><code><span class="hk-code-comment">// Run by check, fix, and pre-commit</span>
+steps {
   [<span class="hk-code-string">"prettier"</span>] = Builtins.prettier
   [<span class="hk-code-string">"eslint"</span>] = Builtins.eslint
   [<span class="hk-code-string">"ruff"</span>] = Builtins.ruff
-}
-
-hooks {
-  [<span class="hk-code-string">"pre-commit"</span>] {
-    fix = <span class="hk-code-keyword">true</span>
-    stash = <span class="hk-code-string">"git"</span>
-    steps = linters
-  }
-  [<span class="hk-code-string">"check"</span>] { steps = linters }
 }</code></pre>
         <div class="hk-coordination">
           <p class="hk-eyebrow">Independent files, concurrent work</p>
@@ -112,6 +106,9 @@ hooks {
         >
       </div>
     </section>
+
+    <!-- Full width under the hero; left out of builds without a render. -->
+    <HomeShowreel />
 
     <section class="hk-principles" aria-label="How hk works">
       <article>
@@ -334,8 +331,8 @@ hooks {
   line-height: 1.9;
   tab-size: 2;
 }
-.hk-code-keyword {
-  color: var(--hk-code-keyword);
+.hk-code-comment {
+  color: var(--vp-c-text-2);
 }
 .hk-code-string {
   color: var(--vp-c-brand-1);

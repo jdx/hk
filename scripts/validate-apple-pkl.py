@@ -23,6 +23,7 @@ FUNCTION = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{")
 SHELL_EXPANSIONS = {
     "$check_after_diff": "true",
     "$first_effect": "read",
+    "$check_diff_effect": "read",
     "$second_effect": "write",
     "$oversized": "x",
     "$stash_method": "git",

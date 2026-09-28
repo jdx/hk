@@ -1,6 +1,10 @@
-use crate::{Result, file_rw_locks::Flocks, hook::SkipReason, step::RunType};
+use crate::{
+    Result,
+    file_rw_locks::Flocks,
+    hook::SkipReason,
+    step::{CommandEffect, RunType},
+};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
-use itertools::Itertools;
 use tokio::sync::{OwnedRwLockWriteGuard, OwnedSemaphorePermit};
 
 use crate::{env, step::Step, step_context::StepContext, step_locks::StepLocks, tera};
@@ -25,6 +29,12 @@ pub struct StepJob {
     pub progress: Option<Arc<ProgressJob>>,
     pub semaphore: Option<OwnedSemaphorePermit>,
     workspace_indicator: Option<PathBuf>,
+    /// Set once this job has computed a patch under read locks and traded
+    /// them for write locks, so any rerun of `check_diff` keeps writers out.
+    pub diff_needs_write_locks: bool,
+    /// Set while `check` runs again after a patch applied, for a step with
+    /// `check_after_diff`.
+    pub rechecking_after_diff: bool,
 
     pub status: StepJobStatus,
 }
@@ -56,7 +66,43 @@ impl StepJob {
             skip_reason: None,
             progress: None,
             semaphore: None,
+            diff_needs_write_locks: false,
+            rechecking_after_diff: false,
         }
+    }
+
+    /// Whether this job is running `check_diff` first in fix mode under read
+    /// locks, so that steps reading the same files run alongside it. It takes
+    /// write locks only if there is a patch to apply
+    /// (see [`Self::relock_for_write`]).
+    pub fn diffs_under_read_locks(&self) -> bool {
+        self.check_first
+            && self.run_type == RunType::Check
+            && self.requested_run_type == RunType::Fix
+            && !self.diff_needs_write_locks
+            && self.step.diffs_under_read_locks()
+    }
+
+    /// Trade this job's read locks for write locks on `self.files`, keeping
+    /// its job slot unless it has to wait for them.
+    ///
+    /// The read locks are released first, so this never waits while holding
+    /// locks. Another step may write the files in between; callers compare
+    /// write counts to find out.
+    pub async fn relock_for_write(&mut self, ctx: &StepContext) -> Result<()> {
+        let status = std::mem::replace(&mut self.status, StepJobStatus::Pending);
+        let StepJobStatus::Started(locks) = status else {
+            unreachable!("relocking a job that is not running: {status:?}")
+        };
+        self.diff_needs_write_locks = true;
+        let semaphore = locks.into_semaphore();
+        // The command that printed the patch has finished, and its progress
+        // row with it. Applying the patch runs no command, so the row stays
+        // finished: marking it running again would leave its spinner and
+        // command on screen once the step is done. Diffing again runs the
+        // command anew, with a fresh row.
+        self.take_locks(ctx, Some(semaphore)).await?;
+        Ok(())
     }
 
     pub fn with_workspace_indicator(mut self, workspace_indicator: PathBuf) -> Self {
@@ -118,7 +164,6 @@ impl StepJob {
     pub fn build_progress(&self, ctx: &StepContext) -> Arc<ProgressJob> {
         let job = ProgressJobBuilder::new()
             .prop("name", &self.step.name)
-            .prop("files", &self.files.iter().map(|f| f.display()).join(" "))
             .body(
                 "{{spinner()}} {% if ensembler_cmd %}{{ensembler_cmd | flex}}{% if ensembler_stdout %}\n{{ensembler_stdout | flex}}{% endif %}{% else %}{{message | flex}}{% endif %}"
             )
@@ -145,12 +190,30 @@ impl StepJob {
     pub async fn status_start(
         &mut self,
         ctx: &StepContext,
-        mut semaphore: Option<OwnedSemaphorePermit>,
+        semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
+        if !self.take_locks(ctx, semaphore).await? {
+            return Ok(());
+        }
+        ctx.status_started();
+        if let Some(progress) = &mut self.progress {
+            progress.set_status(ProgressStatus::Running);
+        }
+        Ok(())
+    }
+
+    /// Take this job's file locks and a job slot, as [`Self::status_start`]
+    /// does, without marking the job or its progress running. Returns false
+    /// if the job already holds them.
+    async fn take_locks(
+        &mut self,
+        ctx: &StepContext,
+        mut semaphore: Option<OwnedSemaphorePermit>,
+    ) -> Result<bool> {
         match &self.status {
             StepJobStatus::Pending => {}
             StepJobStatus::Started(_) => {
-                return Ok(());
+                return Ok(false);
             }
             _ => unreachable!("invalid status: {:?}", self.status),
         }
@@ -161,25 +224,21 @@ impl StepJob {
                 self.flocks(ctx).await
             }
         };
-        // Every job holding a slot also holds its file locks, so a waiter
-        // cannot occupy the slot needed by the job that will release its files.
+        // Every job holding a slot also holds its locks, so the slot holders
+        // always finish and this wait cannot deadlock.
         let semaphore = match semaphore {
             Some(semaphore) => semaphore,
             None => ctx.hook_ctx.semaphore().await,
         };
-        // Take shared command access only after the file locks and job slot:
-        // a waiting job must not block an active job's exclusive diff access.
+        // Wait for file locks and a job slot before taking shared access, so
+        // a waiting command cannot hold up an active patch transaction.
         let command_guard = ctx.hook_ctx.diff_lock.clone().read_owned().await;
         self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore, command_guard));
-        ctx.status_started();
-        if let Some(progress) = &mut self.progress {
-            progress.set_status(ProgressStatus::Running);
-        }
-        Ok(())
+        Ok(true)
     }
 
-    /// Exclude other commands and patch transactions until apply and rollback
-    /// finish. Never acquire more file locks while holding this exclusive guard.
+    /// Exclude commands, staging, and other patches through apply and rollback.
+    /// Never acquire more file locks while holding this exclusive guard.
     pub async fn lock_diff(&mut self, ctx: &StepContext) -> Result<OwnedRwLockWriteGuard<()>> {
         let StepJobStatus::Started(locks) = &mut self.status else {
             eyre::bail!("cannot apply diff for a job that has not started");
@@ -217,10 +276,28 @@ impl StepJob {
         Ok(())
     }
 
+    fn takes_write_locks(&self) -> bool {
+        self.requested_run_type == RunType::Fix
+            && !self.diffs_under_read_locks()
+            && !self.rechecks_under_read_locks()
+    }
+
+    /// Whether this job is rerunning a read-only `check` after applying a
+    /// patch (`check_after_diff`), which only needs read locks.
+    fn rechecks_under_read_locks(&self) -> bool {
+        self.rechecking_after_diff
+            && self.run_type == RunType::Check
+            && self
+                .step
+                .check
+                .as_ref()
+                .is_some_and(|check| check.effect() == Some(CommandEffect::Read))
+    }
+
     fn try_flocks(&self, ctx: &StepContext) -> Option<Flocks> {
         if self.step.stomp {
             Some(Default::default())
-        } else if self.requested_run_type == RunType::Fix {
+        } else if self.takes_write_locks() {
             ctx.hook_ctx.file_locks.try_write(&self.files)
         } else {
             ctx.hook_ctx.file_locks.try_read(&self.files)
@@ -230,7 +307,7 @@ impl StepJob {
     async fn flocks(&self, ctx: &StepContext) -> Flocks {
         if self.step.stomp {
             Default::default()
-        } else if self.requested_run_type == RunType::Fix {
+        } else if self.takes_write_locks() {
             ctx.hook_ctx.file_locks.write_locks(&self.files).await
         } else {
             ctx.hook_ctx.file_locks.read_locks(&self.files).await
@@ -251,6 +328,8 @@ impl Clone for StepJob {
             status: StepJobStatus::Pending,
             progress: self.progress.clone(),
             semaphore: None,
+            diff_needs_write_locks: self.diff_needs_write_locks,
+            rechecking_after_diff: self.rechecking_after_diff,
         }
     }
 }
@@ -301,5 +380,42 @@ mod tests {
             tera::render("{{workspace_indicator}}", &tctx).unwrap(),
             "pkgs/api/go.mod"
         );
+    }
+}
+
+#[cfg(test)]
+mod lock_mode_tests {
+    use super::*;
+
+    fn step_with_check(check: serde_json::Value) -> Arc<Step> {
+        Arc::new(Step {
+            check: Some(serde_json::from_value(check).unwrap()),
+            check_diff: Some(
+                serde_json::from_value(serde_json::json!({"command": "diff", "effect": "read"}))
+                    .unwrap(),
+            ),
+            check_after_diff: true,
+            ..Default::default()
+        })
+    }
+
+    fn recheck_job(step: Arc<Step>) -> StepJob {
+        let mut job = StepJob::new(step, vec![], RunType::Fix);
+        job.run_type = RunType::Check;
+        job.check_first = false;
+        job.rechecking_after_diff = true;
+        job
+    }
+
+    #[test]
+    fn a_read_only_recheck_takes_read_locks() {
+        let step = step_with_check(serde_json::json!({"command": "check", "effect": "read"}));
+        assert!(!recheck_job(step).takes_write_locks());
+    }
+
+    #[test]
+    fn a_recheck_that_may_write_keeps_write_locks() {
+        let step = step_with_check(serde_json::json!({"command": "check", "effect": "write"}));
+        assert!(recheck_job(step).takes_write_locks());
     }
 }

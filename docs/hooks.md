@@ -70,11 +70,15 @@ An unspecified hook stash setting defaults to `"none"`. `hk init` explicitly ena
 
 Untracked files are included in stashing by default. `HK_STASH_UNTRACKED=0` also disables their discovery, which can help very large worktrees but changes file selection.
 
+Files marked with `git add -N` (intent to add) have no staged content, so hk sets them aside as well, even with `HK_STASH_UNTRACKED=0`. Steps do not receive them, and afterward hk restores them and marks them intent-to-add again.
+
 ### If restoration fails
 
 Read hk’s error before changing the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git stash list` to understand which changes are present.
 
 hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls retention. Preserve the reported stash and backup until you have recovered and reviewed your work. Avoid blindly applying a stash again to files that already contain its changes.
+
+Intent-to-add files are kept in a separate stash entry named `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
 
 ## Review fixes before committing
 
@@ -135,8 +139,8 @@ failure.
 `commit-msg` runs after the message is prepared and before the commit is created. Use the built-in Conventional Commits check:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.3.1/hk@2.3.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.3.1/hk@2.3.1#/Builtins.pkl"
 
 hooks {
   ["commit-msg"] {
