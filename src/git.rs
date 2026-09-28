@@ -620,6 +620,20 @@ impl StashedChanges {
     }
 }
 
+/// Reads a regular-file blob in checkout form, applying the path's attributes
+/// and Git filters (including line endings and working-tree encoding). Merge
+/// inputs must use the same representation as snapshots read from disk.
+fn read_worktree_blob(object: &std::ffi::OsStr, path: &std::path::Path) -> Result<Vec<u8>> {
+    let mut path_arg = OsString::from("--path=");
+    path_arg.push(path.as_os_str());
+    git_read_bytes([
+        OsString::from("cat-file"),
+        "--filters".into(),
+        path_arg,
+        object.to_owned(),
+    ])
+}
+
 /// Merges a step's change to the regular file at `path`, which hk did not
 /// give or stage for it, with the stashed edits to it. Fails with why when
 /// they cannot be merged: when one of them is not text, or both change the
@@ -634,7 +648,7 @@ fn merge_step_change(stash_ref: &str, path: &std::path::Path) -> std::result::Re
     let text = |rev: &str| {
         let mut object = OsString::from(format!("{rev}:"));
         object.push(path.as_os_str());
-        git_read_bytes([OsString::from("cat-file"), "blob".into(), object])
+        read_worktree_blob(&object, path)
             .ok()
             .and_then(|contents| String::from_utf8(contents).ok())
     };
@@ -748,15 +762,6 @@ fn set_file_mode(path: &std::path::Path, mode: u32) -> std::io::Result<()> {
     #[cfg(not(unix))]
     let _ = (path, mode);
     Ok(())
-}
-
-fn git_read_raw<I, S>(args: I) -> Result<String>
-where
-    I: IntoIterator<Item = S>,
-    S: Into<OsString>,
-{
-    let bytes = git_read_bytes(args)?;
-    String::from_utf8(bytes).map_err(|err| eyre!("git output is not valid UTF-8: {err}"))
 }
 
 pub struct Git {
@@ -2159,7 +2164,9 @@ impl Git {
                             display_path(&path),
                             work_size.unwrap_or(0)
                         );
-                        if let Ok(bytes) = git_read_bytes(["cat-file", "-p", &work_ref]) {
+                        if let Ok(bytes) =
+                            read_worktree_blob(std::ffi::OsStr::new(&work_ref), &path)
+                        {
                             if let Err(err) = xx::file::write(&path, &bytes) {
                                 warn!(
                                     "failed to write large worktree snapshot for {}: {err:?}",
@@ -2227,12 +2234,22 @@ impl Git {
                         None
                     };
 
-                    // Detect binary files: try reading the worktree blob as UTF-8.
-                    // If it fails, restore using raw bytes and skip text merging entirely.
-                    let work_bytes = git_read_bytes(["cat-file", "-p", &work_ref]).ok();
-                    let is_binary = work_bytes
-                        .as_ref()
-                        .is_some_and(|b| std::str::from_utf8(b).is_err());
+                    // Decode checkout-form bytes, preserving non-UTF-8 files
+                    // without text merging. A failed filter must not turn the
+                    // stashed contents into an empty file.
+                    let work_bytes =
+                        match read_worktree_blob(std::ffi::OsStr::new(&work_ref), &path) {
+                            Ok(bytes) => bytes,
+                            Err(err) => {
+                                warn!(
+                                    "failed to read worktree snapshot for {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                                continue;
+                            }
+                        };
+                    let is_binary = std::str::from_utf8(&work_bytes).is_err();
 
                     if is_binary {
                         if !should_stage && fixer_worktree.is_some() {
@@ -2248,9 +2265,7 @@ impl Git {
                             "manual-unstash: binary file detected; restoring worktree snapshot directly path={}",
                             display_path(&path),
                         );
-                        // SAFETY: is_binary is only true when work_bytes is Some (via is_some_and)
-                        let bytes = work_bytes.unwrap();
-                        if let Err(err) = xx::file::write(&path, &bytes) {
+                        if let Err(err) = xx::file::write(&path, &work_bytes) {
                             warn!(
                                 "failed to write binary worktree snapshot for {}: {err:?}",
                                 display_path(&path)
@@ -2269,16 +2284,22 @@ impl Git {
                     } else {
                         None
                     }
-                    .or_else(|| work_bytes.and_then(|b| String::from_utf8(b).ok()));
+                    .or_else(|| String::from_utf8(work_bytes).ok());
                     // Parent ^1 of the stash commit points to the HEAD commit at stash time
-                    let base_pre =
-                        git_read_raw(["cat-file", "-p", &format!("{}^1:{}", stash_ref, path_str)])
-                            .ok();
+                    let base_pre = read_worktree_blob(
+                        std::ffi::OsStr::new(&format!("{}^1:{}", stash_ref, path_str)),
+                        &path,
+                    )
+                    .ok()
+                    .and_then(|bytes| String::from_utf8(bytes).ok());
                     // Parent ^2 is the index at stash time. Use this to detect whether the path had
                     // any unstaged changes then (worktree vs index).
-                    let index_pre =
-                        git_read_raw(["cat-file", "-p", &format!("{}^2:{}", stash_ref, path_str)])
-                            .ok();
+                    let index_pre = read_worktree_blob(
+                        std::ffi::OsStr::new(&format!("{}^2:{}", stash_ref, path_str)),
+                        &path,
+                    )
+                    .ok()
+                    .and_then(|bytes| String::from_utf8(bytes).ok());
                     // Fixer content comes from the index when fixes were staged, or from the
                     // isolated post-step worktree when staging was disabled.
                     // A step's change to the worktree counts, whether or not
@@ -2292,7 +2313,10 @@ impl Git {
                         step_changed.then(step_worktree).flatten().or_else(|| {
                             fixer_map
                                 .get(&path)
-                                .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
+                                .and_then(|(_, oid)| {
+                                    read_worktree_blob(std::ffi::OsStr::new(oid), &path).ok()
+                                })
+                                .and_then(|bytes| String::from_utf8(bytes).ok())
                         })
                     } else {
                         fixer_worktree
