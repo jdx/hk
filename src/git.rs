@@ -2026,6 +2026,11 @@ impl Git {
                     }
                 }
 
+                // Tree membership distinguishes absent merge inputs from failed
+                // checkout filters. A filter error must retain the stash.
+                let base_tree = read_tree(&format!("{stash_ref}^1"))?;
+                let index_tree = read_tree(&format!("{stash_ref}^2"))?;
+
                 // Avoid excessive memory usage on very large files by short-circuiting
                 // the merge logic when no fixer output exists for the path.
                 const LARGE_STASH_FILE_BYTES: usize = 1_000_000; // 1 MiB
@@ -2285,41 +2290,40 @@ impl Git {
                         None
                     }
                     .or_else(|| String::from_utf8(work_bytes).ok());
-                    // Parent ^1 of the stash commit points to the HEAD commit at stash time
-                    let base_pre = read_worktree_blob(
-                        std::ffi::OsStr::new(&format!("{}^1:{}", stash_ref, path_str)),
-                        &path,
-                    )
-                    .ok()
-                    .and_then(|bytes| String::from_utf8(bytes).ok());
-                    // Parent ^2 is the index at stash time. Use this to detect whether the path had
-                    // any unstaged changes then (worktree vs index).
-                    let index_pre = read_worktree_blob(
-                        std::ffi::OsStr::new(&format!("{}^2:{}", stash_ref, path_str)),
-                        &path,
-                    )
-                    .ok()
-                    .and_then(|bytes| String::from_utf8(bytes).ok());
-                    // Fixer content comes from the index when fixes were staged, or from the
-                    // isolated post-step worktree when staging was disabled.
-                    // A step's change to the worktree counts, whether or not
-                    // hk staged all of it
-                    let step_worktree = || {
-                        std::fs::read(&path)
-                            .ok()
-                            .and_then(|contents| String::from_utf8(contents).ok())
+                    let read_text = |entry: Option<&TreeEntry>| -> Result<Option<String>> {
+                        entry
+                            .map(|(_, oid)| {
+                                let bytes = read_worktree_blob(std::ffi::OsStr::new(oid), &path)?;
+                                Ok(String::from_utf8(bytes)?)
+                            })
+                            .transpose()
                     };
-                    let fixer = if should_stage {
-                        step_changed.then(step_worktree).flatten().or_else(|| {
-                            fixer_map
-                                .get(&path)
-                                .and_then(|(_, oid)| {
-                                    read_worktree_blob(std::ffi::OsStr::new(oid), &path).ok()
-                                })
-                                .and_then(|bytes| String::from_utf8(bytes).ok())
-                        })
-                    } else {
-                        fixer_worktree
+                    // All existing merge inputs must be readable. Only an
+                    // absent tree entry means there is no base or index.
+                    let inputs = (|| -> Result<_> {
+                        let base = read_text(base_tree.get(&path))?;
+                        let index = read_text(index_tree.get(&path))?;
+                        let fixer = if should_stage {
+                            if step_changed {
+                                Some(String::from_utf8(std::fs::read(&path)?)?)
+                            } else {
+                                read_text(fixer_map.get(&path))?
+                            }
+                        } else {
+                            fixer_worktree
+                        };
+                        Ok((base, index, fixer))
+                    })();
+                    let (base_pre, index_pre, fixer) = match inputs {
+                        Ok(inputs) => inputs,
+                        Err(err) => {
+                            warn!(
+                                "failed to read merge inputs for {}: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
+                            continue;
+                        }
                     };
 
                     // Trace summaries of inputs for diagnostics (trace-level only)

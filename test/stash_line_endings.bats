@@ -140,3 +140,65 @@ PKL
     printf 'two\n' > "$TEST_TEMP_DIR/expected-stashed"
     cmp "$TEST_TEMP_DIR/stashed" "$TEST_TEMP_DIR/expected-stashed"
 }
+
+check_failed_merge_input() {
+    local rejected="$1"
+    git config filter.example.clean cat
+    git config filter.example.smudge cat
+    git config filter.example.required true
+    printf 'crlf.txt filter=example text eol=crlf\n' > .gitattributes
+    cat > filter.sh <<SH
+#!/bin/sh
+contents=\$(cat)
+case "\$contents" in $rejected*) exit 1 ;; esac
+printf '%s\n' "\$contents"
+SH
+    cat > fix.sh <<'SH'
+#!/bin/sh
+# Stage output without changing the isolated worktree, exercising the index read.
+oid=$(printf 'fixed\n' | git hash-object -w --stdin)
+git update-index --cacheinfo "100644,$oid,crlf.txt"
+git config filter.example.smudge 'sh filter.sh'
+SH
+    cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["fixer"] {
+        glob = "crlf.txt"
+        check = "sh fix.sh"
+      }
+    }
+  }
+}
+PKL
+    printf 'base\r\n' > crlf.txt
+    git add .
+    git commit -m init
+    printf 'staged\r\n' > crlf.txt
+    git add crlf.txt
+    printf 'unstaged\r\n' > crlf.txt
+
+    run hk run pre-commit
+    assert_failure
+    assert_output --partial 'failed to read merge inputs'
+
+    printf 'staged\r\n' > "$TEST_TEMP_DIR/expected"
+    cmp crlf.txt "$TEST_TEMP_DIR/expected"
+    assert_equal "$(git show :crlf.txt)" fixed
+    assert_equal "$(git show 'stash@{0}:crlf.txt')" unstaged
+}
+
+@test "git stash retains worktree and stash when the base filter fails" {
+    check_failed_merge_input base
+}
+
+@test "git stash retains worktree and stash when the index filter fails" {
+    check_failed_merge_input staged
+}
+
+@test "git stash retains worktree and stash when the fixer filter fails" {
+    check_failed_merge_input fixed
+}
