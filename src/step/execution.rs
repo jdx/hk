@@ -162,6 +162,11 @@ impl Step {
             let mut job = job;
             set.spawn(async move {
                 let original_job_files = job.files.clone();
+                // A check that keeps seeing new destinations or intervening
+                // writes must eventually reach the fixer.
+                const MAX_PATCH_RETRIES: usize = 8;
+                let mut retried_existing_creations = HashSet::new();
+                let mut patch_retries = 0;
                 let mut focused_check_failed = false;
                 let mut focused_check_output: Option<(String, String, String)> = None;
                 if let Some(reason) = &job.skip_reason {
@@ -216,28 +221,44 @@ impl Step {
                                     // Parse according to the check-first command that actually ran.
                                     // Platform-specific Script values can be empty, in which case
                                     // check_first_cmd falls back to the next available command.
-                                    let (files, extras) = if matches!(
+                                    let (files, created, extras) = if matches!(
                                         check_first_cmd,
                                         Some(CheckFirstCmd::Diff(_))
                                     ) {
                                         let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                        step.filter_files_from_check_diff(
+                                        let parsed = step.filter_files_from_check_diff(
                                             &job.files,
                                             stdout,
                                             dir.as_deref(),
-                                        )
+                                        );
+                                        // Patch application resolves `dir` before writing. Use
+                                        // that same destination for locks and staging, including
+                                        // when `dir` is a symlink into the repository.
+                                        let root = std::env::current_dir()?.canonicalize()?;
+                                        let base = PathBuf::from(dir.as_deref().unwrap_or("."));
+                                        let base = base.canonicalize().unwrap_or(base);
+                                        let created = parsed.created.into_iter().map(|path| {
+                                            let path = if path.is_relative() {
+                                                base.join(path)
+                                            } else {
+                                                path
+                                            };
+                                            path.strip_prefix(&root).unwrap_or(&path).to_path_buf()
+                                        }).collect::<Vec<_>>();
+                                        (parsed.files, created, parsed.extras)
                                     } else if matches!(
                                         check_first_cmd,
                                         Some(CheckFirstCmd::ListFiles(_))
                                     ) {
                                         let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                        step.filter_files_from_check_list(
+                                        let (files, extras) = step.filter_files_from_check_list(
                                             &job.files,
                                             stdout,
                                             dir.as_deref(),
-                                        )
+                                        );
+                                        (files, Vec::new(), extras)
                                     } else {
-                                        (job.files.clone(), Vec::new())
+                                        (job.files.clone(), Vec::new(), Vec::new())
                                     };
                                     // Files the output names outside this job, which it
                                     // holds no locks on.
@@ -249,12 +270,24 @@ impl Step {
                                         );
                                     }
 
-                                    // For check_diff: if no parseable files, keep all original files
+                                    // A creation header can name a file that was already in
+                                    // this job. Keep it among the files sent to the fixer if
+                                    // applying the patch fails or is disabled.
+                                    let mut files = files;
+                                    files.extend(
+                                        created
+                                            .iter()
+                                            .filter(|path| original_job_files.contains(path))
+                                            .cloned(),
+                                    );
+                                    let files: Vec<_> = files.into_iter().collect::<IndexSet<_>>().into_iter().collect();
+                                    let patch_job_files = files.clone();
+                                    // A creation-only patch still needs the original inputs if
+                                    // application is disabled or falls back to the fixer.
                                     if files.is_empty()
                                         && matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
                                     {
-                                        debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
-                                        // Keep all original files for check_diff when diff parsing fails
+                                        debug!("{step}: check_diff named no job files, keeping original files for the fixer");
                                     } else if files.is_empty()
                                         && matches!(check_first_cmd, Some(CheckFirstCmd::ListFiles(_)))
                                     {
@@ -274,26 +307,65 @@ impl Step {
                                         && prev_run_type == RunType::Fix
                                         && step.applies_check_diff()
                                     {
-                                        if job.diffs_under_read_locks() {
-                                            // Other steps read these files while the patch was computed.
-                                            // Lock just the files it names for writing, and apply it only
-                                            // if no step wrote any of the job's files meanwhile: the
-                                            // patch may be derived from files it doesn't name, as
-                                            // `go mod tidy -diff` derives go.mod from the .go files.
-                                            // A patch that also names files outside the job is
-                                            // computed again under write locks, as it always was,
-                                            // since those had no read lock.
+                                        let mut applied_files = if created.is_empty() {
+                                            job.files.clone()
+                                        } else {
+                                            patch_job_files
+                                        };
+                                        applied_files.extend(created.iter().cloned());
+                                        let fixer_files = job.files.clone();
+                                        let newly_created: Vec<_> = created.iter().filter(|path| !original_job_files.contains(path)).cloned().collect();
+                                        let under_read_locks = job.diffs_under_read_locks();
+                                        // Stomp steps intentionally bypass file locks, so
+                                        // there are no locks to upgrade or release here.
+                                        if !step.stomp && (under_read_locks || !newly_created.is_empty()) {
+                                            // Take every path needed by the patch in one call.
+                                            // A write-effect check already holds its original
+                                            // files, but must release them before waiting for a
+                                            // newly created destination's lock.
+                                            let mut named = if under_read_locks {
+                                                applied_files.clone()
+                                            } else {
+                                                original_job_files.clone()
+                                            };
+                                            // The patch may depend on inputs it does not name.
+                                            named.extend(original_job_files.iter().cloned());
+                                            if !created.is_empty() {
+                                                named.extend(created.iter().cloned());
+                                            }
+                                            let named: Vec<_> = named.into_iter().collect::<IndexSet<_>>().into_iter().collect();
                                             let locks = &ctx.hook_ctx.file_locks;
-                                            let before = locks.write_counts(&original_job_files);
+                                            let before = locks.write_counts(&named);
+                                            job.files = named.clone();
                                             job.relock_for_write(&ctx).await?;
-                                            if names_other_files
-                                                || locks.write_counts(&original_job_files) != before
-                                            {
+                                            let after = locks.write_counts(&named);
+                                            let original_locked: HashSet<_> = original_job_files.iter().collect();
+                                            let files_written_meanwhile = named.iter().zip(before.iter().zip(&after)).any(|(path, (&before, &after))| {
+                                                // Releasing our own write locks increments their
+                                                // counts once; an additional increment means
+                                                // another writer ran while we waited.
+                                                let own_release = u64::from(!under_read_locks && original_locked.contains(path));
+                                                after != before.saturating_add(own_release)
+                                            });
+                                            let existing_creations: Vec<_> = newly_created.iter()
+                                                .filter(|path| path.symlink_metadata().is_ok() && !retried_existing_creations.contains(*path))
+                                                .cloned().collect();
+                                            let retry_creation = !existing_creations.is_empty()
+                                                && retried_existing_creations.len() < MAX_PATCH_RETRIES;
+                                            if (under_read_locks && names_other_files) || files_written_meanwhile || retry_creation {
+                                                if patch_retries == MAX_PATCH_RETRIES {
+                                                    debug!("{step}: patch did not settle after {MAX_PATCH_RETRIES} retries, falling back to fixer");
+                                                    job.files = fixer_files;
+                                                    break 'check_first;
+                                                }
+                                                patch_retries += 1;
+                                                retried_existing_creations.extend(existing_creations);
                                                 debug!("{step}: files written meanwhile, diffing again");
                                                 // Diff the job's files again, not just the ones the
                                                 // patch named: a tool may derive its patch from all
                                                 // of them, as `go mod tidy -diff` does for go.sum.
                                                 job.files = original_job_files.clone();
+                                                job.relock_for_write(&ctx).await?;
                                                 continue 'check_first;
                                             }
                                         }
@@ -301,7 +373,6 @@ impl Step {
                                         let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
                                         match step.apply_diff_output(stdout, dir.as_deref()) {
                                             Ok(true) => {
-                                                let applied_files = job.files.clone();
                                                 if step.check_after_diff {
                                                     debug!(
                                                         "{step}: diff applied successfully, rerunning check on original files"
@@ -328,6 +399,9 @@ impl Step {
                                             // files: stop instead.
                                             Err(err) => return Err(err),
                                         }
+                                        // Lock acquisition may temporarily widen `job.files`.
+                                        // The fixer receives only the files selected by the check.
+                                        job.files = fixer_files;
                                     }
                                 }
                                 // For regular check commands that fail: fall through to run fixer

@@ -21,7 +21,7 @@ use super::{diff_lines, normalize_diff_paths, split_line_ending, strips_git_pref
 ///
 /// Paths outside `base` are left as they are; `git apply` will reject them and
 /// the caller falls back to running the fixer.
-fn relativize_diff_paths(diff: &str, base: &Path) -> String {
+pub(crate) fn relativize_diff_paths(diff: &str, base: &Path) -> String {
     let mut out = String::with_capacity(diff.len() + 1);
     // Keep each line's terminator: a changed line's `\r` must survive.
     for (line, in_hunk) in diff_lines(diff) {

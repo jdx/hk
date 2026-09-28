@@ -910,6 +910,59 @@ EOF
     assert_output --regexp '^line-(1-2|2-1)$'
 }
 
+@test "read-only check_diff rechecks unnamed job inputs changed before apply" {
+    cat <<'SCRIPT' > derived.sh
+#!/bin/bash
+touch derived.started
+source=$(cat b.txt)
+sleep 0.4
+if [ "$(cat a.txt)" != "from-$source" ]; then
+    printf '%s\n' '--- a.txt' '+++ a.txt' '@@ -1 +1 @@' "-$(cat a.txt)" "+from-$source"
+    exit 1
+fi
+SCRIPT
+    cat <<'SCRIPT' > writer.sh
+#!/bin/bash
+for _ in $(seq 50); do
+    [ -e derived.started ] && break
+    sleep 0.1
+done
+[ -e derived.started ] || exit 2
+if [ "$(cat b.txt)" = "old" ]; then
+    printf '%s\n' '--- b.txt' '+++ b.txt' '@@ -1 +1 @@' '-old' '+new'
+    exit 1
+fi
+SCRIPT
+    chmod +x derived.sh writer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["derived"] {
+                glob = List("*.txt")
+                check_diff = new CommandSpec { command = "./derived.sh"; effect = "read" }
+            }
+            ["writer"] {
+                glob = List("b.txt")
+                check_diff = new CommandSpec { command = "./writer.sh"; effect = "read" }
+            }
+        }
+    }
+}
+EOF
+    echo "old" > a.txt
+    echo "old" > b.txt
+
+    run hk fix a.txt b.txt
+    assert_success
+    run cat a.txt
+    assert_output "from-new"
+    run cat b.txt
+    assert_output "new"
+}
+
 @test "check_diff steps that declare a write effect keep write locks in fix mode" {
     write_rendezvous_formatter
     write_rendezvous_config write
@@ -1091,6 +1144,496 @@ EOF
     assert_success
 
     run git show :test.txt
+    assert_output "new"
+}
+
+@test "check_diff stages a file created by its patch without warning" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+if [ ! -e go.sum ]; then
+    printf '%s\n' '--- /dev/null' '+++ b/go.sum' '@@ -0,0 +1 @@' '+sum'
+    exit 1
+fi
+SCRIPT
+    chmod +x formatter.sh
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" >&2
+exit 1
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "none"
+        steps {
+            ["tidy"] {
+                glob = List("go.mod")
+                dir = "."
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }
+                fix = "./fixer.sh"
+                stage = "<JOB_FILES>"
+            }
+        }
+    }
+}
+EOF
+
+    echo "module example.com/test" > go.mod
+    git add go.mod formatter.sh fixer.sh hk.pkl
+    git commit -m "test: create base fixture"
+    echo "module example.com/changed" > go.mod
+    git add go.mod
+
+    run hk run pre-commit
+    assert_success
+    refute_output --partial "file in check output not found in original files"
+    run git show :go.sum
+    assert_success
+    assert_output "sum"
+}
+
+@test "stomp check_diff applies a patch that creates a file" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+if [ ! -e created.txt ]; then
+    printf '%s\n' '--- /dev/null' '+++ b/created.txt' '@@ -0,0 +1 @@' '+made'
+    exit 1
+fi
+SCRIPT
+    chmod +x formatter.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("source.txt")
+                stomp = true
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "write" }
+            }
+        }
+    }
+}
+EOF
+    echo "source" > source.txt
+
+    run hk fix source.txt
+    assert_success
+    refute_output --partial "file in check output not found in original files"
+    run cat created.txt
+    assert_output "made"
+}
+
+@test "absolute creation headers use the applied path for staging" {
+    mkdir pkg
+    cat <<'SCRIPT' > pkg/formatter.sh
+#!/bin/bash
+if [ ! -e created.txt ]; then
+    printf '%s\n' '--- /dev/null' "+++ $(pwd)/b/created.txt" '@@ -0,0 +1 @@' '+made'
+    exit 1
+fi
+SCRIPT
+    chmod +x pkg/formatter.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "none"
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                dir = "pkg"
+                check_diff = "./formatter.sh"
+                fix = "false"
+                stage = "<JOB_FILES>"
+            }
+        }
+    }
+}
+EOF
+    echo "base" > pkg/source.txt
+    git add .
+    git commit -m "test: create base fixture"
+    echo "changed" > pkg/source.txt
+    git add pkg/source.txt
+
+    run hk run pre-commit
+    assert_success
+    run git show :pkg/created.txt
+    assert_success
+    assert_output "made"
+    run test ! -e pkg/b/created.txt
+    assert_success
+}
+
+@test "created paths under a symlinked step directory use the resolved file" {
+    mkdir pkg
+    ln -s pkg alias
+    cat <<'SCRIPT' > pkg/formatter.sh
+#!/bin/bash
+if [ ! -e created.txt ]; then
+    printf '%s\n' '--- /dev/null' '+++ created.txt' '@@ -0,0 +1 @@' '+made'
+    exit 1
+fi
+SCRIPT
+    chmod +x pkg/formatter.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                dir = "alias"
+                check_diff = "./formatter.sh"
+                fix = "false"
+                stage = "<JOB_FILES>"
+            }
+        }
+    }
+}
+EOF
+    echo "source" > pkg/source.txt
+    git add .
+    git commit -m "test: create base fixture"
+
+    run hk fix alias/source.txt
+    assert_success
+    run git show :pkg/created.txt
+    assert_success
+    assert_output "made"
+}
+
+@test "a failed creation patch passes only check-selected files to the fixer" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+echo "already here" > generated.txt
+printf '%s\n' '--- /dev/null' '+++ generated.txt' '@@ -0,0 +1 @@' '+from-patch'
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+printf '%s\n' "$@" > fixer-files.txt
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("source.txt")
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "source" > source.txt
+    run hk fix source.txt
+    assert_success
+    run cat fixer-files.txt
+    assert_output "source.txt"
+}
+
+@test "write-effect creation patches take all file locks together" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+sleep 0.2
+case "$1" in
+    source-a.txt) target=source-b.txt ;;
+    source-b.txt) target=source-a.txt ;;
+esac
+printf '%s\n' '--- /dev/null' "+++ $target" '@@ -0,0 +1 @@' '+from-patch'
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+touch "fixed-$1"
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = List("source-a.txt")
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "write" }
+                fix = "./fixer.sh {{files}}"
+            }
+            ["b"] {
+                glob = List("source-b.txt")
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "write" }
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "a" > source-a.txt
+    echo "b" > source-b.txt
+    run python3 -c 'import subprocess, sys; sys.exit(subprocess.run(sys.argv[1:], timeout=10).returncode)' hk fix source-a.txt source-b.txt
+    assert_success
+    [ -e fixed-source-a.txt ]
+    [ -e fixed-source-b.txt ]
+}
+
+@test "each created destination appearing during check_diff is rechecked" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+if [ ! -e generated-one.txt ]; then
+    # Simulate another step creating the destination before hk takes its lock.
+    echo "from-other-step" > generated-one.txt
+    printf '%s\n' '--- /dev/null' '+++ generated-one.txt' '@@ -0,0 +1 @@' '+from-patch'
+    exit 1
+fi
+if [ ! -e generated-two.txt ]; then
+    echo "from-other-step" > generated-two.txt
+    printf '%s\n' '--- /dev/null' '+++ generated-two.txt' '@@ -0,0 +1 @@' '+from-patch'
+    exit 1
+fi
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" >&2
+exit 1
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    echo "source" > source.txt
+    for effect in read write; do
+        rm -f generated-one.txt generated-two.txt
+        cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("source.txt")
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+        if [ "$effect" = "write" ]; then
+            perl -pi -e 's/effect = "read"/effect = "write"/' hk.pkl
+        fi
+        run hk fix source.txt
+        assert_success
+        run cat generated-one.txt
+        assert_output "from-other-step"
+        run cat generated-two.txt
+        assert_output "from-other-step"
+    done
+}
+
+@test "check_diff falls back to the fixer when created destinations never settle" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+attempt=$(cat attempts 2>/dev/null || echo 0)
+attempt=$((attempt + 1))
+echo "$attempt" > attempts
+if [ "$attempt" -le 12 ]; then
+    created="generated-$attempt.txt"
+    echo "from-other-step" > "$created"
+    printf '%s\n' '--- /dev/null' "+++ $created" '@@ -0,0 +1 @@' '+from-patch'
+    exit 1
+fi
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran" > fixed.txt
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    echo "source" > source.txt
+    for effect in read write; do
+        rm -f attempts fixed.txt generated-*.txt
+        cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("source.txt")
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+        if [ "$effect" = "write" ]; then
+            perl -pi -e 's/effect = "read"/effect = "write"/' hk.pkl
+        fi
+        run hk fix source.txt
+        assert_success
+        run cat attempts
+        assert_output "9"
+        run cat fixed.txt
+        assert_output "fixer ran"
+    done
+}
+
+@test "creation-only check_diff still passes job files to the fixer" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf '%s\n' '--- /dev/null' '+++ created.txt' '@@ -0,0 +1 @@' '+from-patch'
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+printf '%s\n' "$@" > fixer-files.log
+echo "from-fixer" > created.txt
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("go.mod")
+                check_diff = "./formatter.sh {{files}}"
+                apply_check_diff = false
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "module example.com/test" > go.mod
+
+    run hk fix go.mod
+    assert_success
+    run cat fixer-files.log
+    assert_output "go.mod"
+    run cat created.txt
+    assert_output "from-fixer"
+}
+
+@test "a creation header for a job file does not reacquire its write lock" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf '%s\n' '--- /dev/null' '+++ existing.txt' '@@ -0,0 +1 @@' '+from-patch'
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "from-fixer" > "$1"
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "old" > existing.txt
+
+    run perl -e 'alarm 5; exec @ARGV' hk fix existing.txt
+    assert_success
+    run cat existing.txt
+    assert_output "from-fixer"
+}
+
+@test "fixer receives an existing job file named by a creation header in a mixed patch" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf '%s\n' '--- /dev/null' '+++ existing.txt' '@@ -0,0 +1 @@' '+from-patch' \
+    '--- other.txt' '+++ other.txt' '@@ -1 +1 @@' '-old' '+updated'
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+printf '%s\n' "$@" > fixer-files.log
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "already here" > existing.txt
+    echo "old" > other.txt
+
+    run hk fix existing.txt other.txt
+    assert_success
+    run cat fixer-files.log
+    assert_output --partial "existing.txt"
+    assert_output --partial "other.txt"
+}
+
+@test "a mixed-prefix creation patch keeps unprefixed paths intact" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf '%s\n' '--- /dev/null' '+++ b/new.txt' '@@ -0,0 +1 @@' '+new' \
+    '--- sub/existing.txt' '+++ sub/existing.txt' '@@ -1 +1 @@' '-old' '+updated'
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" >&2
+exit 1
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("**/*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    mkdir sub
+    echo "old" > sub/existing.txt
+
+    run hk fix sub/existing.txt
+    assert_success
+    run cat sub/existing.txt
+    assert_output "updated"
+    run cat b/new.txt
     assert_output "new"
 }
 
