@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent
 # Bump when results from an older configuration should stop rendering: the docs
 # page and benchmark-refresh.yml accept only this schema, and the refresh
 # re-measures when the published results.json has another.
-SCHEMA = 4
+SCHEMA = 5
 
 # Benchmarks in tak.toml that guard the run but aren't shown as scenarios.
 SANITY = {"check-detects"}
@@ -45,7 +45,7 @@ SUBJECTS = {
     "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "fixers in turn, parallel checks",
                  "modes": {"check-all": "parallel: true"}},
     "pre-commit": {"tool": "pre-commit", "label": "pre-commit", "mode": "sequential hooks, batched files"},
-    "prek": {"tool": "prek", "label": "prek", "mode": "fixers in turn, parallel checks, batched",
+    "prek": {"tool": "prek", "label": "prek", "mode": "safe priority groups, batched files",
              "modes": {"check-all": "shared priority, batched files"}},
 }
 

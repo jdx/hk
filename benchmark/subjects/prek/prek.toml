@@ -1,0 +1,240 @@
+#:schema https://www.schemastore.org/prek.json
+# Independent file types share a priority. Python and JavaScript fixers keep
+# their original order, followed by the text fixers and type checkers.
+# Black and Ruff already parallelize internally; avoid concurrent invocations.
+
+minimum_prek_version = "0.5.4"
+
+[priorities]
+checks      = 0
+format      = 0
+lint        = 20
+newlines    = 40
+post-format = 10
+typechecks  = 100
+whitespace  = 30
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+entry          = "black --quiet"
+id             = "black"
+language       = "system"
+name           = "black"
+priority       = "format"
+require_serial = true
+stages         = ["pre-commit"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry          = "ruff format --quiet --force-exclude"
+id             = "ruff-format"
+language       = "system"
+name           = "ruff-format"
+priority       = "post-format"
+require_serial = true
+stages         = ["pre-commit"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry          = "ruff check --quiet --force-exclude --fix"
+id             = "ruff"
+language       = "system"
+name           = "ruff"
+priority       = "lint"
+require_serial = true
+stages         = ["pre-commit"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry    = "prettier --write --log-level warn"
+files    = "\\.(js|ts|css|md)$"
+id       = "prettier"
+language = "system"
+name     = "prettier"
+priority = "format"
+stages   = ["pre-commit"]
+
+[[repos.hooks]]
+entry    = "eslint --fix"
+files    = "\\.(js|ts)$"
+id       = "eslint"
+language = "system"
+name     = "eslint"
+priority = "post-format"
+stages   = ["pre-commit"]
+
+[[repos.hooks]]
+entry    = "sh -c 'for f; do t=$(mktemp) && jq -S . \"$f\" >\"$t\" && mv \"$t\" \"$f\"; done' _"
+files    = "\\.json$"
+id       = "jq"
+language = "system"
+name     = "jq"
+priority = "format"
+stages   = ["pre-commit"]
+
+[[repos.hooks]]
+entry    = "sh -c 'for f; do yq -iP \"$f\"; done' _"
+files    = "\\.ya?ml$"
+id       = "yq"
+language = "system"
+name     = "yq"
+priority = "format"
+stages   = ["pre-commit"]
+
+[[repos.hooks]]
+entry          = "shfmt -w"
+files          = "\\.sh$"
+id             = "shfmt"
+language       = "system"
+name           = "shfmt"
+priority       = "format"
+require_serial = true
+stages         = ["pre-commit"]
+
+[[repos.hooks]]
+entry          = "black --quiet --check"
+id             = "black-check"
+language       = "system"
+name           = "black (check)"
+priority       = "checks"
+require_serial = true
+stages         = ["manual"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry          = "ruff format --quiet --force-exclude --check"
+id             = "ruff-format-check"
+language       = "system"
+name           = "ruff-format (check)"
+priority       = "checks"
+require_serial = true
+stages         = ["manual"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry          = "ruff check --quiet --force-exclude"
+id             = "ruff-check"
+language       = "system"
+name           = "ruff (check)"
+priority       = "checks"
+require_serial = true
+stages         = ["manual"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry    = "prettier --check --log-level warn"
+files    = "\\.(js|ts|css|md)$"
+id       = "prettier-check"
+language = "system"
+name     = "prettier (check)"
+priority = "checks"
+stages   = ["manual"]
+
+[[repos.hooks]]
+entry    = "eslint"
+files    = "\\.(js|ts)$"
+id       = "eslint-check"
+language = "system"
+name     = "eslint (check)"
+priority = "checks"
+stages   = ["manual"]
+
+[[repos.hooks]]
+entry    = "sh -c 'r=0; for f; do jq -S . \"$f\" | cmp -s \"$f\" - || r=1; done; exit $r' _"
+files    = "\\.json$"
+id       = "jq-check"
+language = "system"
+name     = "jq (check)"
+priority = "checks"
+stages   = ["manual"]
+
+[[repos.hooks]]
+entry    = "sh -c 'r=0; for f; do yq -P \"$f\" | cmp -s \"$f\" - || r=1; done; exit $r' _"
+files    = "\\.ya?ml$"
+id       = "yq-check"
+language = "system"
+name     = "yq (check)"
+priority = "checks"
+stages   = ["manual"]
+
+[[repos.hooks]]
+entry          = "shfmt -d"
+files          = "\\.sh$"
+id             = "shfmt-check"
+language       = "system"
+name           = "shfmt (check)"
+priority       = "checks"
+require_serial = true
+stages         = ["manual"]
+
+[[repos]]
+repo = "builtin"
+
+[[repos.hooks]]
+id       = "trailing-whitespace"
+priority = "whitespace"
+stages   = ["pre-commit"]
+
+[[repos.hooks]]
+id       = "end-of-file-fixer"
+priority = "newlines"
+stages   = ["pre-commit"]
+
+[[repos.hooks]]
+alias    = "trailing-whitespace-check"
+args     = ["--check"]
+id       = "trailing-whitespace"
+priority = "checks"
+stages   = ["manual"]
+
+[[repos.hooks]]
+alias    = "end-of-file-fixer-check"
+args     = ["--check"]
+id       = "end-of-file-fixer"
+priority = "checks"
+stages   = ["manual"]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+entry          = "mypy"
+id             = "mypy"
+language       = "system"
+name           = "mypy"
+priority       = "typechecks"
+require_serial = true
+stages         = ["pre-commit"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry          = "tsc --noEmit -p tsconfig.json"
+files          = "\\.ts$"
+id             = "tsc"
+language       = "system"
+name           = "tsc"
+pass_filenames = false
+priority       = "typechecks"
+stages         = ["pre-commit"]
+
+[[repos.hooks]]
+entry          = "mypy"
+id             = "mypy-check"
+language       = "system"
+name           = "mypy (check)"
+priority       = "checks"
+require_serial = true
+stages         = ["manual"]
+types          = ["python"]
+
+[[repos.hooks]]
+entry          = "tsc --noEmit -p tsconfig.json"
+files          = "\\.ts$"
+id             = "tsc-check"
+language       = "system"
+name           = "tsc (check)"
+pass_filenames = false
+priority       = "checks"
+stages         = ["manual"]

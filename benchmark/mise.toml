@@ -13,7 +13,7 @@ node             = "26.10.0"
 "npm:prettier"   = "3.9.9"
 "npm:typescript" = "7.0.2"
 pre-commit       = "4.6.2"
-prek             = "0.5.3"
+prek             = "0.5.4"
 # pre-commit is a Python zipapp; without a pinned interpreter it would start
 # through a mise shim, which rewrites PATH for the fixture directory.
 "pipx:black" = "26.5.1"

@@ -19,7 +19,7 @@ HK_BIN=~/Downloads/hk mise run benchmark            # measure a specific binary
 | `generate-project.sh`   | Generates the fixture: `clean` and `dirty` tags, where fixing `dirty` must give `clean` byte for byte and both pass mypy and tsc. |
 | `lib/reference-fix.sh`  | The ten fixers, run one after another. It defines what `clean` is.                                       |
 | `lib/inject-defects.sh` | Breaks a quarter of the files so that two or three fixers must write each one.                           |
-| `subjects/`             | Each tool's configuration. prek's is pre-commit's plus `priority` keys, and `setup.sh` checks that.     |
+| `subjects/`             | Each tool's configuration, including prek's native `prek.toml`.                          |
 | `setup.sh`              | One clone of the fixture per subject in `~/.cache/hk-bench` (`.work` links to it).                       |
 | `tak.toml`              | Scenarios, commands and the per-sample `check`, timed by [tak](https://github.com/jdx/tak) 0.0.13.       |
 | `report.py`             | Writes `results.json` from tak's export, publishable only if every subject always passed.                |
@@ -32,9 +32,9 @@ time against other programs. `run.sh` passes it to tak with `--config`.
 
 1. Add the configuration under `subjects/<name>/` and map the subject to it in
    `CONFIG` in `setup.sh`. Use the tool's fastest settings in which two fixers can never
-   write the same file at once: concurrency for hooks that write nothing
-   (checks, type checkers), and fixers one at a time unless the tool
-   coordinates writes to the same file.
+   write the same file at once: run read-only hooks and fixers with disjoint
+   file sets concurrently, and order fixers that share files unless the tool
+   coordinates their writes.
 2. In `tak.toml`, add a shared `[subject.<name>]` with its `version_cmd`, list
    it in each benchmark's `subjects`, and give each benchmark a
    `[bench.<scenario>.subject.<name>]` with the command for that scenario.
@@ -47,6 +47,19 @@ time against other programs. `run.sh` passes it to tak with `--config`.
 The workload's yq fixer also formats each tool's own YAML configuration, so
 `setup.sh` normalizes those files with `yq -P` before committing them into the
 fixture.
+
+`check-configs.py` compares prek's hooks with pre-commit's, including their
+commands, arguments, file filters and order. It permits different `priority`
+values and aliases, `require_serial` settings, native replacements for the
+two text fixers, and their `--check` mode in prek's manual stage. Missing hooks
+or a changed workload still fail setup.
+
+prek runs disjoint file types in the same priority group, preserves the Python
+and JavaScript fixer chains, and runs type checkers after all fixers. Black,
+Ruff and shfmt use one concurrent invocation per hook; mypy retains its
+single-invocation setting. The other hooks can use two concurrent batches,
+set explicitly in `tak.toml` rather than inherited from the host environment.
+The two text fixers use prek 0.5.4's native `--check` mode in the manual stage.
 
 ## Publishing
 

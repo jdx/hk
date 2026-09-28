@@ -12,9 +12,9 @@ This benchmark compares hk, lefthook, pre-commit, and prek on everyday tasks: fi
 
 Every tool produces the expected files in every timed sample. Each chart states how hk compares with the fastest other tool in that scenario. The scenarios differ in how much of each tool's run can overlap:
 
-- **Fix every file:** each hook has thousands of files, so pre-commit and prek split them into batches that keep every CPU busy. Running different fixers at the same time has little idle CPU to reclaim, and a quarter of the files need two or three fixers in turn.
+- **Fix every file:** each hook has thousands of files, and a quarter of the files need two or three fixers in turn. Tools can split files into batches or use their own internal parallelism. prek also overlaps fixers whose file types are disjoint.
 - **Check every file:** nothing writes, so lefthook and prek also run every check at once. The comparison is between tools that all run their checks concurrently, except pre-commit, which has no mode for it.
-- **Commit and small commit:** each hook has few files, so batching cannot fill the CPUs, and much of each hook's time is spent starting its tool. hk starts independent steps together and stages each step's files as it finishes. The other configurations run fixers one at a time.
+- **Commit and small commit:** each hook has few files, so batching cannot fill the CPUs, and much of each hook's time is spent starting its tool. hk starts independent steps together and stages each step's files as it finishes. prek overlaps fixers for disjoint file types using priority groups. lefthook and pre-commit run fixers one at a time.
 
 ## Workload and correctness
 
@@ -44,11 +44,11 @@ Each configuration uses the tool's fastest setting that cannot cause overlapping
 | hk | Steps run concurrently with per-file locks. | Same configuration. |
 | lefthook | Fixers run sequentially (the default); then mypy and tsc run together in a `parallel: true` group. | Jobs run concurrently with `parallel: true`. |
 | pre-commit | Hooks run sequentially; each hook's file batches run across CPUs. | Same configuration. |
-| prek | Fixers run sequentially; then mypy and tsc run together with a shared `priority`. Each hook's file batches run across CPUs. | Hooks run concurrently with a shared `priority`. |
+| prek | Disjoint file types share a `priority`; fixers that share files run in order, followed by mypy and tsc. | Read-only hooks share a `priority`, including native `--check` modes for the text fixers. |
 
-lefthook's `parallel: true` and prek hooks with a shared `priority` can run fixers that write the same file at once. Those modes are never used for fixers, even if a particular run happens to produce correct output. They are used only for hooks that write nothing to the files being checked. pre-commit has no mode for running hooks concurrently.
+A shared prek `priority` does not coordinate writes. Its configuration therefore groups only fixers with disjoint file types: Black, Prettier, jq, yq and shfmt. Ruff format and Ruff check follow Black, ESLint follows Prettier, and the text fixers run after the language fixers. lefthook uses `parallel: true` only for read-only work. pre-commit has no mode for running hooks concurrently.
 
-hk uses its builtins, including their check-before-fix behavior and the `hk util` whitespace fixers. The other configurations invoke the language fixers directly. pre-commit and lefthook use the whitespace fixers from [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks); prek uses its bundled Rust replacements. See the complete [tool configurations](https://github.com/jdx/hk/tree/main/benchmark/subjects).
+hk uses its builtins, including their check-before-fix behavior and the `hk util` whitespace fixers. The other configurations invoke the language fixers directly. pre-commit and lefthook use the whitespace fixers from [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks); prek uses its bundled Rust replacements. prek uses a standalone `prek.toml`. Black and Ruff use `require_serial` as their upstream hooks do, shfmt also runs in one invocation, and the remaining batched hooks have a limit of two concurrent batches. This limit applies per hook; it does not disable concurrency between hooks or the tools' internal parallelism. See the complete [tool configurations](https://github.com/jdx/hk/tree/main/benchmark/subjects).
 
 ## Measurement method
 
