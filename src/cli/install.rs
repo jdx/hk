@@ -439,6 +439,7 @@ pub(crate) fn lock_local_config() -> Result<File> {
     let lock = OpenOptions::new()
         .create(true)
         .write(true)
+        .truncate(false)
         .open(lock_path)?;
     lock.lock()?;
     Ok(lock)
