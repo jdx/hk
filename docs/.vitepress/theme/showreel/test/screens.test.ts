@@ -10,7 +10,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { TERM } from "../bible";
-import { blocked, checkAll, commit, final, finding, LOG, PROMPT_COMMIT, type Screen, VERSION } from "../kit/screens";
+import { blocked, checkAll, COMMIT_FRAME, commit, final, finding, HASH, LOG, PROMPT_COMMIT, type Screen, VERSION } from "../kit/screens";
 import {
   advance,
   firstLine,
@@ -26,6 +26,7 @@ import {
   styleLine,
   termLayout,
 } from "../kit/term";
+import { PANE as CATCH_PANE } from "../scenes/catch";
 import { REPO, SHOWREEL } from "./repo";
 
 const CAPTURES = join(SHOWREEL, "test/captures");
@@ -65,12 +66,14 @@ test("every screen in screens.ts is its capture's frame of the same number, line
   // The storyboard's frames: the ones its beats name are the ones it describes.
   assert.equal(commit[1][1], "✔ files - Fetching staged files (4 files)");
   assert.equal(commit[2][1], "✔ stash – Stashed unstaged changes (1 file)");
-  assert.deepEqual(commit[22], final.commit, "the commit's last frame is its final screen");
+  assert.deepEqual(commit[COMMIT_FRAME.made], final.commit, "the commit's last frame is its final screen");
+  assert.equal(COMMIT_FRAME.made, Math.max(...[...c.keys()].filter((f) => f !== "final").map(Number)), "and it is the run's last frame");
+  assert.equal(commit[COMMIT_FRAME.restored].at(-1), "✔ stash – Restoring unstaged changes (manual)");
   assert.equal(blocked[11][3], "✗ shellcheck");
   assert.equal(blocked[12][3], "✗ shellcheck  – ERROR");
-  assert.equal(blocked[13].at(-1), "✔ stash – Restoring unstaged changes (manual)");
-  assert.equal(checkAll[15][0], header(null, "check", 7, 7));
-  assert.deepEqual(checkAll[16], checkAll[15]);
+  assert.equal(blocked[14].at(-1), "✔ stash – Restoring unstaged changes (manual)");
+  assert.equal(checkAll[16][0], header(null, "check", 7, 7));
+  assert.deepEqual(checkAll[17], checkAll[16]);
 });
 
 test("every string in screens.ts occurs verbatim in the captures", () => {
@@ -85,7 +88,8 @@ test("every string in screens.ts occurs verbatim in the captures", () => {
   const message = /-m "([^"]+)"$/.exec(PROMPT_COMMIT)?.[1];
   assert.ok(message && PROMPT_COMMIT.startsWith("$ git commit -m "));
   assert.ok(CAPTURED.has(`[main ${LOG[0].split(" ")[0]}] ${message}`));
-  assert.equal(LOG[0], `ada2ca4 ${message}`);
+  assert.equal(LOG[0], `${HASH.head} ${message}`);
+  assert.equal(LOG[1], `${HASH.parent} initial commit`);
 });
 
 test("the captures hold no machine paths", () => {
@@ -214,7 +218,7 @@ test("styleLine classifies the lines the captures do not print", () => {
   ]);
   assert.deepEqual(colors("shellcheck stderr:"), [["shellcheck stderr:", TERM.text, true]]);
   // Tool and git output, and a line only mentioning a glyph, stay plain.
-  for (const text of ["[main ada2ca4] feat: hoist the sails", " README.md 12ms", "unused=1", "hk.pkl ✔ later", "✔done"]) {
+  for (const text of [`[main ${HASH.head}] feat: hoist the sails`, " README.md 12ms", "unused=1", "hk.pkl ✔ later", "✔done"]) {
     assert.deepEqual(colors(text), [[text, TERM.text, false]], text);
   }
 });
@@ -328,11 +332,11 @@ test("a pane shows a screen's bottom rows; MINI and a top-anchored pane show the
   // stash: the strip keeps the header and the files row as the prompt scrolls away.
   assert.deepEqual(shown(STRIP, [PROMPT_COMMIT, ...commit[1]]), commit[1]);
   assert.deepEqual(shown(STRIP, commit[2]), [header("pre-commit", "fix", 0, 7), "✔ stash – Stashed unstaged changes (1 file)"]);
-  // restore: the strip's two rows of frames 19 and 22.
-  assert.deepEqual(shown(STRIP, commit[19]), ["✔ newlines", "✔ stash – Restoring unstaged changes (manual)"]);
-  assert.deepEqual(shown(STRIP, commit[22]), ["[main ada2ca4] feat: hoist the sails", " 3 files changed, 8 insertions(+), 1 deletion(-)"]);
-  // catch: every blocked frame fits the inset whole.
-  for (const s of blocked) assert.deepEqual(shown(INSET, s), s);
+  // restore: the strip's two rows of the restored frame and the last.
+  assert.deepEqual(shown(STRIP, commit[COMMIT_FRAME.restored]), ["✔ newlines", "✔ stash – Restoring unstaged changes (manual)"]);
+  assert.deepEqual(shown(STRIP, commit[COMMIT_FRAME.made]), [`[main ${HASH.head}] feat: hoist the sails`, " 3 files changed, 8 insertions(+), 1 deletion(-)"]);
+  // catch: every blocked frame fits its inset whole.
+  for (const s of blocked) assert.deepEqual(shown(CATCH_PANE, s), s);
   // everywhere: the top 9 rows of each final screen, header first.
   for (const s of Object.values(final)) assert.deepEqual(shown(mini(160), s), s.slice(0, 9));
   // race F0: the top 11 rows of each check-all frame, the header always on top.

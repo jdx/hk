@@ -7,8 +7,10 @@
 //
 // The file contents are verbatim: HKPKL_LINES is the capture repo's
 // hk.pkl steps block, MAIN_PY_STAGED what was staged of src/main.py (hk's
-// stash backup patch, without the unstaged last line), and MAIN_PY_FIXED
-// `git show ada2ca4:src/main.py`, the version the commit got.
+// stash backup patch, without the unstaged last line), MAIN_PY_FIXED
+// `git show 6697300:src/main.py`, the version the commit got,
+// RUFF_FORMAT_DIFF lines of ruff-format's diff of the staged file and
+// RUFF_FORMAT_FIX_DIFF lines of its diff once ruff has fixed that file.
 
 import { PALETTE, TERM } from "../bible";
 import { mix, rgba } from "../color";
@@ -324,7 +326,8 @@ export function drawCard(ctx: CanvasRenderingContext2D, rect: CardRect, o: CardO
 
 /**
  * The capture repo's hk.pkl, steps block verbatim. Line 0 folds the real
- * `amends` and `import` lines (package URLs) into a pill.
+ * `amends` and `import` lines (paths to the capture build's own Config.pkl
+ * and Builtins.pkl) into a pill.
  */
 export const HKPKL_LINES: readonly CardLine[] = [
   { pill: "amends … import …" },
@@ -407,7 +410,7 @@ export const MAIN_PY_STAGED: readonly string[] = [
 /** The unstaged 11th line, which hk stashes and puts back. */
 export const MAIN_PY_TODO = "# TODO: splice the mainbrace";
 
-/** src/main.py as committed, after ruff and ruff-format: `git show ada2ca4:src/main.py`. */
+/** src/main.py as committed, after ruff and ruff-format: `git show 6697300:src/main.py`. */
 export const MAIN_PY_FIXED: readonly string[] = [
   "def main() -> None:",
   '    print("ahoy")',
@@ -419,4 +422,41 @@ export const MAIN_PY_FIXED: readonly string[] = [
   "",
   'if __name__ == "__main__":',
   "    main()",
+];
+
+/**
+ * ruff-format's diff of MAIN_PY_STAGED, which `hk check` prints (the
+ * builtin's `check_diff`, `ruff format --diff`): the first eight lines of
+ * its hunk in test/captures/ruff-format.diff.txt, as ruff 0.16.8 printed
+ * them. Column 0 is diff's own: a space for context, `-` for a removal and
+ * `+` for an addition. The blank line between the removals is context,
+ * right-trimmed as the capture is.
+ */
+export const RUFF_FORMAT_DIFF: readonly string[] = [
+  " import os",
+  "-def main()->None:",
+  "-    print( 'ahoy' )",
+  "",
+  "-def hoist(sail:str)->str:",
+  "+",
+  "+def main() -> None:",
+  '+    print("ahoy")',
+];
+
+/**
+ * ruff-format's diff under `hk fix`, which hk applies: ruff-format depends
+ * on ruff, so ruff has already removed the unused import, and the same
+ * command diffs the file without it. The first eight lines of its hunk in
+ * test/captures/ruff-format.after-ruff.diff.txt; applied, they give the top
+ * of MAIN_PY_FIXED.
+ */
+export const RUFF_FORMAT_FIX_DIFF: readonly string[] = [
+  "-def main()->None:",
+  "-    print( 'ahoy' )",
+  "+def main() -> None:",
+  '+    print("ahoy")',
+  "+",
+  "",
+  "-def hoist(sail:str)->str:",
+  "+def hoist(sail: str) -> str:",
 ];

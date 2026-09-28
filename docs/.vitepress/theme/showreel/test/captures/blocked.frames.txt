@@ -1,88 +1,104 @@
 ----- frame 0 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+hk 2.3.1 by @jdx – pre-commit – fix  [                                     ] 0/7
 ⠋ files - Fetching git status
 ----- frame 1 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+hk 2.3.1 by @jdx – pre-commit – fix  [                                     ] 0/7
 ✔ files - Fetching staged files (1 file)
 ----- frame 2 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+hk 2.3.1 by @jdx – pre-commit – fix  [                                     ] 0/7
 ✔ stash – Stashed unstaged changes (1 file)
 ----- frame 3 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/4
-✔ stash – Stashed unstaged changes (1 file)
-❯ shellcheck
------ frame 4 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/4
+hk 2.3.1 by @jdx – pre-commit – fix  [                                     ] 0/4
 ✔ stash – Stashed unstaged changes (1 file)
 ❯ shfmt
 ❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
+❯ trailing-whitespace
+ ⠋ hk util trailing-whitespace --diff scripts/deploy.sh
+❯ newlines
+ ⠋ hk util end-of-file-fixer --diff scripts/deploy.sh
+----- frame 4 -----
+hk 2.3.1 by @jdx – pre-commit – fix  [========>                            ] 1/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
+❯ trailing-whitespace
+ ⠋ hk util trailing-whitespace --diff scripts/deploy.sh
+❯ newlines
+ ⠋ hk util end-of-file-fixer --diff scripts/deploy.sh
 ----- frame 5 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [========>                            ] 1/4
+hk 2.3.1 by @jdx – pre-commit – fix  [========>                            ] 1/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
 ❯ trailing-whitespace
- ⠋
+❯ newlines
+ ⠋ hk util end-of-file-fixer --diff scripts/deploy.sh
 ----- frame 6 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [========>                            ] 1/4
+hk 2.3.1 by @jdx – pre-commit – fix  [==================>                  ] 2/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ❯ shellcheck
-❯ trailing-whitespace
+ ⠋ shellcheck --format=diff scripts/deploy.sh
+✔ trailing-whitespace
+❯ newlines
+ ⠋ hk util end-of-file-fixer --diff scripts/deploy.sh
 ----- frame 7 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [==================>                  ] 2/4
+hk 2.3.1 by @jdx – pre-commit – fix  [==================>                  ] 2/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
 ✔ trailing-whitespace
 ❯ newlines
- ⠋
 ----- frame 8 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [==================>                  ] 2/4
+hk 2.3.1 by @jdx – pre-commit – fix  [===========================>         ] 3/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
 ✔ trailing-whitespace
-❯ newlines
+✔ newlines
 ----- frame 9 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [===========================>         ] 3/4
+hk 2.3.1 by @jdx – pre-commit – fix  [===========================>         ] 3/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ❯ shellcheck
- ⠋
 ✔ trailing-whitespace
 ✔ newlines
 ----- frame 10 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [===========================>         ] 3/4
+hk 2.3.1 by @jdx – pre-commit – fix  [===========================>         ] 3/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ❯ shellcheck
 ✔ trailing-whitespace
 ✔ newlines
 ----- frame 11 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [===========================>         ] 3/4
+hk 2.3.1 by @jdx – pre-commit – fix  [===========================>         ] 3/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ✗ shellcheck
 ✔ trailing-whitespace
 ✔ newlines
 ----- frame 12 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+hk 2.3.1 by @jdx – pre-commit – fix  [=====================================] 4/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ✗ shellcheck  – ERROR
 ✔ trailing-whitespace
 ✔ newlines
 ----- frame 13 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+hk 2.3.1 by @jdx – pre-commit – fix  [=====================================] 4/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ✗ shellcheck  – ERROR
 ✔ trailing-whitespace
 ✔ newlines
-✔ stash – Restoring unstaged changes (manual)
+⠋ stash – Restoring unstaged changes (manual)
 ----- frame 14 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+hk 2.3.1 by @jdx – pre-commit – fix  [=====================================] 4/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ✗ shellcheck  – ERROR
@@ -90,7 +106,7 @@ hk 2.2.0 by @jdx – pre-commit – fix  [=====================================]
 ✔ newlines
 ✔ stash – Restoring unstaged changes (manual)
 ----- frame 15 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+hk 2.3.1 by @jdx – pre-commit – fix  [=====================================] 4/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ✗ shellcheck  – ERROR
@@ -98,7 +114,15 @@ hk 2.2.0 by @jdx – pre-commit – fix  [=====================================]
 ✔ newlines
 ✔ stash – Restoring unstaged changes (manual)
 ----- frame 16 -----
-hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+hk 2.3.1 by @jdx – pre-commit – fix  [=====================================] 4/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+✗ shellcheck  – ERROR
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+----- frame 17 -----
+hk 2.3.1 by @jdx – pre-commit – fix  [=====================================] 4/4
 ✔ stash – Stashed unstaged changes (1 file)
 ✔ shfmt
 ✗ shellcheck  – ERROR

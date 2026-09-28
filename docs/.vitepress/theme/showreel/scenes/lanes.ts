@@ -1,46 +1,55 @@
-// Section 5, "Steps in parallel" (storyboard §6.5): the heart of the reel.
-// A commit is a fix run, so every step takes a write lock on each file it
-// touches. The pre-commit run of canon80 plays on the four file lanes from
-// kit/lanes.ts SCHEDULE: prettier, ruff and shfmt start together on
-// different files; shellcheck takes deploy.sh from shfmt; ruff-format waits
-// for ruff because it depends on it; and trailing-whitespace and newlines,
-// which touch every file, wait in the dock above the lanes and clamp down
-// across all four in turn.
+// Section 5, "Fixers in parallel" (storyboard §6.5): the heart of the reel.
+// hk runs every step whose files are free at once, and a fixer that works
+// out its fix as a diff (`check_diff`) only reads its files while it does:
+// any number of steps can read a file together, and only writing one needs
+// it alone. The pre-commit run of the commit capture plays on the four file
+// lanes from kit/lanes.ts SCHEDULE, read phases cyan and write phases warm:
+// prettier and ruff fix their own files side by side while shfmt and
+// shellcheck read deploy.sh together; shfmt, holding its patch, waits for
+// shellcheck to finish reading before hk writes it; ruff-format follows
+// ruff, which it depends on, reads main.py and takes the write lock only to
+// apply its patch; and trailing-whitespace and newlines, which read every
+// file, wait in the dock for prettier's files and then read all four
+// together.
 //
 // What the viewer reads, beat by beat (lanes-local beats, BEATS in lanes-timing.ts):
 //
 //   b0.5   the queue: the two all-file steps slide into the dock, the
-//          waiting chips pop onto lanes 3 and 4, and a dashed bracket ties
-//          ruff-format to lane 3's start: depends = "ruff"
-//   b1     go: the playhead drops in at x 648, the first three bars grow
-//          from it, and all four padlocks snap shut
-//   b2.5   shfmt ✔; deploy.sh's padlock opens for a sixteenth and sends
-//          a warm key under lane 4 to shellcheck's waiting chip, and shuts
-//          as it lands: the chip flushes warm and turns into the bar
-//   b3.5   ruff ✔ sends a green spark along the bracket, reading its label
-//          through; b4 it snaps taut and fades, and ruff-format starts
-//   b5     shellcheck ✔; b6.5 ruff-format ✔; only prettier still runs and
-//          the docked steps knock on their locks
-//   b8     the clamp: prettier ✔, README.md and src/app.ts flash warm,
-//          and trailing-whitespace, wound up over the sixteenth before,
-//          springs its small padlock and dives out of the dock; it slams
-//          down across all four lanes on b8.25 as every padlock shuts: a
-//          dashed outline of the whole bar, its name up the middle, which
-//          the bar then grows into
-//   b10    trailing-whitespace ✔, and newlines does the same on b10.25
-//   b12    newlines ✔, a green ✔ cascade down x 1730, padlocks open
+//          waiting ruff-format chip pops onto lane 3, and a dashed bracket
+//          ties it to lane 3's start: depends = "ruff"
+//   b1     all hands: the playhead drops in at x 648, the chart takes the
+//          hit, all four padlocks snap shut together, deploy.sh's cyan
+//          with two pips, and four bars surge out of it at once: prettier
+//          and ruff warm, shfmt and shellcheck cyan, a half of lane 4 each
+//   b2     shfmt has its patch: its read bar ends, a pip goes out, and a
+//          dashed tie runs on while it waits holding nothing
+//   b3     shellcheck ✔, with nothing to write: deploy.sh's padlock opens
+//          for a sixteenth and sends a warm key over lane 4 to the start
+//          of shfmt's write, and shuts warm as it lands on b3.25
+//   b4     shfmt ✔ and deploy.sh flashes warm: written. b4.5 ruff ✔
+//          writes main.py and sends a green spark along the bracket,
+//          reading its label through; b5 it snaps taut and fades, and
+//          ruff-format starts reading
+//   b7.5   ruff-format has its patch and trades its read lock for main.py's
+//          write lock; b8.5 ruff-format ✔ writes main.py
+//   b10    prettier ✔ writes README.md and src/app.ts and lets them go,
+//          and trailing-whitespace and newlines drop out of the dock
+//          together across all four lanes, landing on b10.25 as every
+//          padlock shuts cyan with two pips: a dashed outline of the whole
+//          bar, both names up the middle, which the bar then grows into
+//   b12    both ✔, having found nothing to fix; a green ✔ cascade down
+//          x 1730, padlocks open
 //   b14.5  the detail wipes; from b15 the frame is the lanes|restore
 //          handoff (the finished Gantt and the closed tray)
 //
-// Running bars glow at the playhead and carry a sheen toward it; a finished
-// bar flashes, thunks a few px past its end and settles, and wears a ✔
-// badge on its corner until the cascade gathers them at b12. Waiting chips
-// march; the docked ones knock on the locks they wait for (b6.5–9.5), and
-// the lanes holding those locks answer. The slams jolt the chart, the dock
-// a little more and the tray a little less, and a light crosses the
-// finished chart in the hold. Every frame is a pure function of the beat:
-// the chart's state comes from ganttAt(), and everything drawn over it is
-// timed from SCHEDULE and BEATS.
+// Running bars glow at the playhead and carry a sheen toward it, in their
+// phase's colour; a finished bar flashes, thunks a few px past its end and
+// settles, and wears a ✔ badge on its corner until the cascade gathers them
+// at b12. A file flashes warm when a fixer's ✔ row said it modified it
+// (kit/lanes.ts WROTE). Waiting chips march, and the docked ones breathe.
+// A light crosses the finished chart in the hold. Every frame is a pure
+// function of the beat: the chart's state comes from ganttAt(), and
+// everything drawn over it is timed from SCHEDULE and BEATS.
 
 import { BEAT, LANE, PALETTE, type Scene, type SceneEnv, sec } from "../bible";
 import { mix, rgba } from "../color";
@@ -48,12 +57,11 @@ import { glow, ring, roundedRect } from "../fx";
 import { drawHandoff } from "../handoff";
 import { drawMono, monoWidth } from "../kit/card";
 import {
-  barSpan,
+  badgeY,
   CASCADE,
   chipWidth,
   DOCK,
   DOCK_CHIP,
-  drawBar,
   drawBarLabel,
   drawDone,
   drawLanes,
@@ -64,12 +72,19 @@ import {
   inDock,
   LANE_FILES,
   LANES,
-  lanesOf,
+  type LockChange,
+  lockChanges,
   lockedFrom,
+  phaseKind,
+  phaseLockedFrom,
   PLAYHEAD_LINE,
-  playheadX,
   SCHEDULE,
   type ScheduleStep,
+  stepReach,
+  stepSpan,
+  twinDx,
+  twinIndex,
+  WROTE,
 } from "../kit/lanes";
 import { type Curve, drawSpark, jolt, land } from "../kit/motion";
 import { drawTray } from "../kit/tray";
@@ -79,12 +94,12 @@ import { BEATS } from "./lanes-timing";
 
 /** The section's must-read captions. */
 export const CAPTIONS: readonly Caption[] = [
-  // 6 words: need 4, hold 4.
-  { out: 6, lines: [{ in: 2, text: "Different files? Steps run at once." }] },
-  // 5 words: need 3.5, hold 3.5; lands on the clamp's echo. "They", not
-  // "Fixes": everywhere's thesis says "Fixes take turns." and this must not
-  // pre-empt it word for word.
-  { out: 12, lines: [{ in: 8.5, text: "Same file? They take turns." }] },
+  // 4 words: need 3, hold 4, landing a beat after the four steps start.
+  { out: 6, lines: [{ in: 2, text: "Fixers run in parallel." }] },
+  // 6 words: need 4, hold 4.5, up as ruff-format trades its read lock for a
+  // write lock, and while the two steps that read every file wait for
+  // prettier's files, then share all four.
+  { out: 12.5, lines: [{ in: 8, text: "File locks keep them from colliding." }] },
 ];
 
 const S = sec("lanes");
@@ -118,53 +133,39 @@ function glowLine(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: num
 const edgeGlow = (ctx: CanvasRenderingContext2D, x: number, y0: number, y1: number, color: string, alpha: number, radius = 34): void =>
   glowLine(ctx, x, y0, x, y1, color, alpha, radius);
 
-/** A bar's rect as drawScheduleBar draws it, to `x1`. */
+/** A step's rect as drawScheduleBar draws it, from its start to `x1`: its lanes' band, or the half a shared reader takes. */
 function barRect(s: ScheduleStep, x1: number): { x0: number; x1: number; y0: number; y1: number } {
-  const { y0, y1 } = barSpan(s.lanes[0], s.lanes[1]);
+  const { y0, y1 } = stepSpan(s);
   return { x0: s.x0, x1, y0, y1 };
 }
 
-// The padlocks: each shut and each opening gets a punch, and a shut a
-// warm flare. The events are the kit's own lock times.
-
-interface LockEvent {
-  at: number;
-  shut: boolean;
+/** Phase `i` of step `s`, to `x1` at most. */
+function phaseRect(s: ScheduleStep, i: number, x1: number): { x0: number; x1: number; y0: number; y1: number } {
+  const { y0, y1 } = stepSpan(s);
+  return { x0: s.phases[i].x0, x1, y0, y1 };
 }
-const LOCK_EVENTS: readonly LockEvent[][] = LANES.rows.map((_, lane) =>
-  SCHEDULE.filter((s) => lanesOf(s).includes(lane))
-    .flatMap((s) => [
-      { at: lockedFrom(s), shut: true },
-      { at: s.end, shut: false },
-    ])
-    .sort((a, b) => a.at - b.at),
-);
-const lastLockEvent = (lane: number, b: number): LockEvent | null =>
-  LOCK_EVENTS[lane].reduce<LockEvent | null>((m, e) => (e.at <= b ? e : m), null);
+
+/** The colour of a phase's light: cyan for a read, warm for a write. */
+const phaseColor = (s: ScheduleStep, i: number): { base: string; bright: string } =>
+  s.phases[i].lock === "read" ? { base: PALETTE.cyan, bright: PALETTE.cyanBright } : { base: PALETTE.warm, bright: PALETTE.warmBright };
+
+// The padlocks: each shut and each opening gets a punch, a reader joining
+// or leaving a small one, and a shut a flare, warm for a writer and cyan for
+// readers. The events are the kit's own lock changes.
+
+const LOCK_EVENTS: readonly LockChange[][] = LANES.rows.map((_, lane) => lockChanges(lane));
+const lastLockEvent = (lane: number, b: number): LockChange | null =>
+  LOCK_EVENTS[lane].reduce<LockChange | null>((m, e) => (e.at <= b ? e : m), null);
 
 /**
- * A docked step knocking on the locks it waits for: the lanes held at that
- * moment answer with a flare and a small punch (every knock falls while
- * some other step holds the lane, never on a lock event).
+ * The padlock's scale: a punch that overshoots and settles, exactly 1 half
+ * a beat on. The four that shut together at go punch hardest.
  */
-function knockOn(b: number, locked: boolean): { flare: number; punch: number } {
-  let f = 0;
-  let p = 0;
-  if (!locked) return { flare: 0, punch: 0 };
-  for (const at of BEATS.knocks) {
-    if (b < at || b > at + 1) continue;
-    f = Math.max(f, flare(b, at, 0.12));
-    p += jolt(b, at, 0.375, 3);
-  }
-  return { flare: f, punch: p };
-}
-
-/** The padlock's scale: a punch that overshoots and settles, exactly 1 half a beat on. */
-function lockScale(lane: number, b: number, locked: boolean): number {
+function lockScale(lane: number, b: number): number {
   const e = lastLockEvent(lane, b);
-  const knock = 0.12 * knockOn(b, locked).punch;
-  if (!e) return 1 + knock;
-  return 1 + (e.shut ? 0.34 : 0.16) * jolt(b, e.at, 0.5, 3) + knock;
+  if (!e) return 1;
+  const punch = e.change === "open" ? 0.16 : e.change === "pips" ? 0.1 : e.at === BEATS.go ? 0.5 : 0.34;
+  return 1 + punch * jolt(b, e.at, 0.5, 3);
 }
 
 // The dock: where the two all-file steps wait. Their slots are the kit's.
@@ -178,42 +179,22 @@ const DOCK_CY = (DOCK.y0 + DOCK.y1) / 2;
  */
 const dockOrder = (s: ScheduleStep): number => DOCKED.indexOf(s);
 
-/**
- * A knock's shove: up to about 0.72 in the first 32nd of a beat and back to
- * exactly 0 by `at + dur`, with no bounce, so it reads as one hit.
- */
-function shove(b: number, at: number, dur: number): number {
-  const p = progress(at, at + dur, b);
-  if (p <= 0 || p >= 1) return 0;
-  return Math.sin((Math.PI / 2) * Math.min(1, p / 0.15)) * (1 - p) ** 2;
-}
-
-/** How a docked chip sits at `b`: its slide in, idle bob, knocks on its lock and the wind-up before its dive. */
-function dockPose(s: ScheduleStep, b: number): { dx: number; dy: number; sx: number; sy: number; lockAngle: number; flush: number; alpha: number } {
+/** How a docked chip sits at `b`: its slide in, idle bob and the small wind-up before it drops. */
+function dockPose(s: ScheduleStep, b: number): { dx: number; dy: number; sx: number; sy: number; alpha: number } {
   const k = dockOrder(s);
   const inAt = BEATS.queue + k / 8;
   const alpha = progress(inAt, inAt + 0.25, b);
   const dx = 96 * (1 - swiftOut(progress(inAt, inAt + 0.625, b)));
   // Waiting: a slow bob, the queue breathing together.
   let dy = 2 * Math.sin(TAU * (b / 4)) * smoothstep(1, 2, b);
-  // Knocks: it shoves down toward the lanes it wants, the lock rattles and
-  // the outline flushes warm.
-  let lockAngle = 0;
-  let flush = 0;
-  for (const at of BEATS.knocks) {
-    if (at >= s.start) continue;
-    dy += 8 * shove(b, at, 0.375);
-    lockAngle += 0.4 * jolt(b, at, 0.45, 5);
-    flush = Math.max(flush, flare(b, at, 0.15));
-  }
-  // The wind-up: it rises and squashes over the sixteenth before it dives.
+  // The wind-up: it rises and squashes a little over the sixteenth before it drops.
   const wind = smoothstep(s.start - 0.25, s.start, b);
-  dy -= 8 * wind;
-  return { dx, dy, sx: 1 + 0.04 * wind, sy: 1 - 0.12 * wind, lockAngle, flush, alpha };
+  dy -= 4 * wind;
+  return { dx, dy, sx: 1 + 0.02 * wind, sy: 1 - 0.06 * wind, alpha };
 }
 
-/** A docked chip's outline colour: text3, flushed warm as it knocks. */
-const dockStroke = (flush: number): string => mix(PALETTE.text3, PALETTE.warmBright, flush);
+/** A docked chip's outline: any waiting chip's. */
+const DOCK_STROKE = LANE.waiting.stroke;
 
 /** The docked chip's rect in its pose. */
 function dockRect(s: ScheduleStep, b: number): { x0: number; x1: number; y0: number; y1: number } {
@@ -237,20 +218,14 @@ function drawDockChip(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: number,
   roundedRect(ctx, r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, LANES.barRadius);
   ctx.setLineDash([...LANE.waiting.dash]);
   ctx.lineDashOffset = -lt * 36;
-  ctx.strokeStyle = dockStroke(p.flush);
+  ctx.strokeStyle = DOCK_STROKE;
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
   ctx.save();
   ctx.translate(x + w / 2 + p.dx, DOCK_CY + p.dy);
   ctx.scale(p.sx, p.sy);
-  if (p.flush > 0) {
-    // The knock shows at phone size: the lock flares, and light spills off
-    // the chip's foot toward the lanes it wants.
-    glow(ctx, w / 2 - 22, 0, 56, PALETTE.warm, 0.9 * p.flush);
-    glowLine(ctx, -w / 2 + 30, DOCK_CHIP.h / 2, w / 2 - 30, DOCK_CHIP.h / 2, PALETTE.warm, 0.3 * p.flush, 30);
-  }
-  drawWaitingChip(ctx, -w / 2, 0, s.step, { ...DOCK_CHIP, alpha: p.alpha, outline: false, lockAngle: p.lockAngle });
+  drawWaitingChip(ctx, -w / 2, 0, s.step, { ...DOCK_CHIP, alpha: p.alpha, outline: false });
   ctx.restore();
 }
 
@@ -268,9 +243,27 @@ const GHOST_NAME_IN = (u: number): number => smoothstep(0.2, 0.5, u);
 /** The dive: a sixteenth, from the docked step's start to its landing. */
 const diveOf = (s: ScheduleStep, b: number): number => progress(s.start, landOf(s), b);
 
-/** The docked chip's rect and pose as it leaves the dock, and the rect it falls into. */
+/**
+ * The docked chip's rect and pose as it leaves the dock, and the rect it
+ * falls into. Twins leave together, as one blind round both their chips.
+ */
 function diveRects(s: ScheduleStep): { from: { x0: number; x1: number; y0: number; y1: number }; full: { x0: number; x1: number; y0: number; y1: number } } {
-  return { from: dockRect(s, s.start), full: barRect(s, s.x1) };
+  const own = dockRect(s, s.start);
+  if (!s.twin) return { from: own, full: barRect(s, s.x1) };
+  const pair = dockRect(STEP[s.twin], s.start);
+  const from = { x0: Math.min(own.x0, pair.x0), x1: Math.max(own.x1, pair.x1), y0: Math.min(own.y0, pair.y0), y1: Math.max(own.y1, pair.y1) };
+  return { from, full: barRect(s, s.x1) };
+}
+
+/**
+ * Where twins' blind is split between their chips at dive progress `u`:
+ * from the middle of the gap between them in the dock to the middle of
+ * their bar, moving with the blind's sides. Each name holds its own side.
+ */
+function twinSeam(s: ScheduleStep, u: number): number {
+  const [a, b] = [dockRect(s, s.start), dockRect(STEP[s.twin!], s.start)].sort((p, q) => p.x0 - q.x0);
+  const { full } = diveRects(s);
+  return lerp((a.x1 + b.x0) / 2, (full.x0 + full.x1) / 2, swiftOut(u));
 }
 
 /** Where the falling blind is at dive progress `u`: it narrows fast and drops accelerating. */
@@ -297,48 +290,62 @@ function drawGhost(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: number, lt
   const { from, full } = diveRects(s);
   const r = ghostRect(s, u);
   const w = r.x1 - r.x0;
-  const slam = flare(b, to, 0.2);
+  const landed = flare(b, to, 0.2);
   const fade = 1 - progress(s.end, s.end + 0.25, b);
-  const pose = dockPose(s, b);
+  // It lands as the phase it reserves: cyan for readers.
+  const light = phaseColor(s, 0);
+  // Twins share one blind: the first draws it, and each draws its own chip's name.
+  const blind = twinIndex(s) !== 1;
   ctx.save();
   ctx.globalAlpha *= fade;
-  // Falling light at the blind's foot, and the impact along it.
-  if (u < 1) glow(ctx, (r.x0 + r.x1) / 2, r.y1, 50, PALETTE.warm, 0.55 * smoothstep(0.3, 0.9, u));
+  // Falling light at the blind's foot.
+  if (blind && u < 1) glow(ctx, (r.x0 + r.x1) / 2, r.y1, 44, light.base, 0.35 * smoothstep(0.3, 0.9, u));
   roundedRect(ctx, r.x0, r.y0, w, r.y1 - r.y0, LANES.barRadius);
-  // The chip has no fill; the reservation takes a faint one as it falls.
-  ctx.fillStyle = rgba(PALETTE.warm, 0.05 * smoothstep(0, 0.6, u) + 0.1 * slam);
-  ctx.fill();
-  ctx.setLineDash([...LANE.waiting.dash]);
-  ctx.lineDashOffset = -lt * 36;
-  ctx.strokeStyle = mix(dockStroke(pose.flush), PALETTE.warmBright, Math.max(0.5 * smoothstep(0, 1, u) * (1 - progress(to, to + 1, b)), slam));
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.setLineDash([]);
+  if (blind) {
+    // The chip has no fill; the reservation takes a faint one as it falls.
+    ctx.fillStyle = rgba(light.base, 0.05 * smoothstep(0, 0.6, u) + 0.05 * landed);
+    ctx.fill();
+    ctx.setLineDash([...LANE.waiting.dash]);
+    ctx.lineDashOffset = -lt * 36;
+    ctx.strokeStyle = mix(DOCK_STROKE, light.bright, Math.max(0.5 * smoothstep(0, 1, u) * (1 - progress(to, to + 1, b)), 0.6 * landed));
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   // The chip's name and its small padlock ride the blind's top right corner
   // in the chip's wound-up squash, so the first frame of the dive is the
-  // last frame in the dock. The lock it waited for is free: the shackle
+  // last frame in the dock; a twin's ride its side of the pair's blind, up
+  // to the seam between them. The lock it waited for is free: the shackle
   // springs open, and both fade as the blind drops.
   const ca = GHOST_CHIP_OUT(u);
   if (ca > 0) {
     ctx.save();
     ctx.clip();
+    const own = dockRect(s, at);
     const cw = chipWidth(s.step, DOCK_CHIP);
-    const sx = (from.x1 - from.x0) / cw;
-    const sy = (from.y1 - from.y0) / DOCK_CHIP.h;
-    ctx.translate(r.x1 - (cw * sx) / 2, r.y0 + (DOCK_CHIP.h * sy) / 2);
+    const sx = (own.x1 - own.x0) / cw;
+    const sy = (own.y1 - own.y0) / DOCK_CHIP.h;
+    const left = s.twin !== undefined && own.x0 === from.x0;
+    if (s.twin) {
+      const seam = twinSeam(s, u);
+      ctx.beginPath();
+      if (left) ctx.rect(r.x0 - 1, r.y0 - 1, seam - r.x0 + 1, r.y1 - r.y0 + 2);
+      else ctx.rect(seam, r.y0 - 1, r.x1 - seam + 1, r.y1 - r.y0 + 2);
+      ctx.clip();
+    }
+    ctx.translate(left ? r.x0 + (cw * sx) / 2 : r.x1 - (cw * sx) / 2, r.y0 + (DOCK_CHIP.h * sy) / 2);
     ctx.scale(sx, sy);
     drawWaitingChip(ctx, -cw / 2, 0, s.step, {
       ...DOCK_CHIP,
       alpha: ca,
       outline: false,
-      lockAngle: pose.lockAngle,
       lockLift: land(b, at, 0.0625, 0.3),
     });
     ctx.restore();
   }
   ctx.restore();
-  // The impact runs along its foot.
-  if (slam > 0) glowLine(ctx, full.x0, full.y1, full.x1, full.y1, PALETTE.warm, 0.35 * slam * fade, 30);
+  // It lands softly along its foot.
+  if (blind && landed > 0) glowLine(ctx, full.x0, full.y1, full.x1, full.y1, light.base, 0.18 * landed * fade, 30);
 }
 
 /**
@@ -368,9 +375,11 @@ function drawGhostLabel(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: numbe
   ctx.globalAlpha *= a;
   roundedRect(ctx, r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, LANES.barRadius);
   ctx.clip();
-  drawBarLabel(ctx, { x0: r.x0, x1: r.x1, y0: full.y0 + drop, y1: full.y1 + drop }, "fix", s.step, {
+  const kind = phaseKind(s.phases[0]);
+  drawBarLabel(ctx, { x0: r.x0, x1: r.x1, y0: full.y0 + drop, y1: full.y1 + drop }, kind, s.step, {
     rotate: true,
-    color: mix(PALETTE.text3, LANE.fix.text, smoothstep(0.35, 1, u)),
+    dx: twinDx(s),
+    color: mix(PALETTE.text3, (kind === "check" ? LANE.check : LANE.fix).text, smoothstep(0.35, 1, u)),
   });
   ctx.restore();
 }
@@ -434,7 +443,7 @@ function drawDepends(ctx: CanvasRenderingContext2D, b: number, lt: number): void
   const chipX = chip?.x ?? STEP["ruff-format"].x0;
   const path = depPath(chipX);
   const L = path.lens[path.lens.length - 1];
-  // Waiting it is dashed and marching toward ruff-format; ruff's ✔ lights it; on b4 it pulls taut.
+  // Waiting it is dashed and marching toward ruff-format; ruff's ✔ lights it; on b5 (BEATS.depends) it pulls taut.
   const lit = smoothstep(BEATS.ruffDone, BEATS.ruffDone + 0.25, b);
   const taut = smoothstep(BEATS.depends - 0.0625, BEATS.depends, b);
   const snap = flare(b, BEATS.depends, 0.12);
@@ -545,33 +554,35 @@ function drawDepends(ctx: CanvasRenderingContext2D, b: number, lt: number): void
   ctx.restore();
 }
 
-// deploy.sh changes hands: shfmt lets its lock go, and the padlock sends
-// its key under lane 4 to shellcheck's leading edge, which holds it as the
-// padlock shuts again. Under the lane, the key stays clear of shfmt's ✔
-// badge on the bar's top corner, which pops on the same beat.
+// deploy.sh changes hands: shellcheck finishes reading and lets its lock go,
+// and the padlock sends its key over lane 4 to shfmt's write stub, which
+// holds it as the padlock shuts again, warm: hk applies shfmt's patch.
+// Over the lane, in the gap above its track, the key stays clear of
+// shellcheck's ✔ badge under its bar, which pops on the same beat, and it
+// has risen about 20 px clear of shfmt's read bar by the bar's start.
 
-const KEY = { at: BEATS.shfmtDone, to: BEATS.shellcheckLock } as const;
+const SHFMT_WRITE = STEP.shfmt.phases[1];
+const KEY = { at: BEATS.shellcheckDone, to: BEATS.shfmtWrite } as const;
 /** From the padlock's body, where its keyhole would be… */
 const KEY_FROM = { x: LANES.lockX + 2, y: LANES.rows[3] + 12 };
-/** …to the middle of shellcheck's leading edge. */
-const KEY_TO = { x: STEP.shellcheck.x0 + 6, y: LANES.rows[3] };
-/** Its low point runs just under lane 4's track. */
-const KEY_LOW = LANES.rows[3] + LANES.trackH / 2 + 16;
-const KEY_HOP: Curve = { a: KEY_FROM, c: { x: (KEY_FROM.x + KEY_TO.x) / 2, y: 2 * KEY_LOW - (KEY_FROM.y + KEY_TO.y) / 2 }, b: KEY_TO };
-/** The ring it lands with: small enough to clear the badge. */
-const KEY_RING = 22;
+/** …to the middle of shfmt's write stub's leading edge. */
+const KEY_TO = { x: SHFMT_WRITE.x0 + 6, y: (stepSpan(STEP.shfmt).y0 + stepSpan(STEP.shfmt).y1) / 2 };
 /**
- * Steps on a lane that are handed their lock (shellcheck): the kit fades
- * their chip on their start, but it holds here until the key lands.
+ * Its control point stands 12 px into shfmt's read bar, 10 px above lane
+ * 3's centre, so the hop rises steeply out of the padlock and clears the
+ * bar's corner; its high point, about y 494, runs in the gap between lanes
+ * 3 and 4, some 18 px under lane 3's track.
  */
-const KEYED = SCHEDULE.filter((s) => !inDock(s) && lockedFrom(s) > s.start);
+const KEY_HOP: Curve = { a: KEY_FROM, c: { x: STEP.shfmt.phases[0].x0 + 12, y: LANES.rows[2] - 10 }, b: KEY_TO };
+/** The ring it lands with: small enough to sit on the stub's half of the lane. */
+const KEY_RING = 16;
 
-// Flashes down a column: the playhead dropping in, and the two slams.
+// Flashes down a column: the playhead dropping in, and the readers' slam.
 
-function columnFlash(ctx: CanvasRenderingContext2D, x: number, b: number, at: number, color: string): void {
+function columnFlash(ctx: CanvasRenderingContext2D, x: number, b: number, at: number, color: string, strength = 1): void {
   if (b < at) return;
   const u = progress(at, at + 0.125, b);
-  const a = u < 1 ? 1 : flare(b, at + 0.125, 0.12);
+  const a = strength * (u < 1 ? 1 : flare(b, at + 0.125, 0.12));
   if (a <= 0) return;
   const y0 = PLAYHEAD_LINE.y0;
   const head = lerp(y0, PLAYHEAD_LINE.y1, swiftOut(u));
@@ -581,7 +592,7 @@ function columnFlash(ctx: CanvasRenderingContext2D, x: number, b: number, at: nu
   g.addColorStop(1, rgba(color, 0.85 * a));
   ctx.fillStyle = g;
   ctx.fillRect(x - 2, y0, 4, head - y0);
-  if (u < 1) glow(ctx, x, head, 46, color, 0.9);
+  if (u < 1) glow(ctx, x, head, 46, color, 0.9 * strength);
   edgeGlow(ctx, x, y0, head, color, 0.18 * a, 40);
   ctx.restore();
 }
@@ -632,56 +643,67 @@ const DETAIL_TEXT = "Order from one real commit. Not to scale.";
 const DETAIL_STYLE = wordStyle(40, PALETTE.text3);
 const DETAIL_AT = { x: 640, y: 690 } as const;
 
+/** The phase step `s` holds, or last held, at `b`: the last whose lock has shut. */
+function phaseAt(s: ScheduleStep, b: number): number {
+  let i = 0;
+  for (let k = 0; k < s.phases.length; k++) if (b >= phaseLockedFrom(s, k)) i = k;
+  return i;
+}
+
 /** Every bar the chart shows at `b`, where it has reached, and how it moves. */
 function drawBars(ctx: CanvasRenderingContext2D, b: number, lt: number): void {
-  const ph = playheadX(b);
   for (const s of SCHEDULE) {
-    // A bar starts when its step holds its locks.
-    const from = lockedFrom(s);
-    if (b < from) continue;
-    let x1 = clamp(ph, s.x0, s.x1);
-    // A step handed its lock by another (a docked step's landing, shellcheck's
-    // key) gets it a little after the playhead has passed its start: its bar
-    // catches up over a 32nd instead of appearing part-grown.
-    if (from > s.start) x1 = lerp(s.x0, x1, swiftOut(progress(from, from + 0.125, b)));
+    // A bar starts when its step holds its locks, and each phase grows while
+    // it holds them (stepReach), a phase handed its lock catching up.
+    if (b < lockedFrom(s)) continue;
+    let x1 = stepReach(s, b);
     // Home with a thunk: a few px past its end, back, and still.
     if (b >= s.end) x1 = s.x1 + 5 * jolt(b, s.end, 0.375, 2);
     // A docked step's name is on its reservation until its bar is whole (drawGhostLabel).
-    if (inDock(s) && b < s.end) drawBar(ctx, barRect(s, x1), "fix");
-    else drawScheduleBar(ctx, s, x1);
-    const r = barRect(s, x1);
+    drawScheduleBar(ctx, s, x1, 1, { labels: !(inDock(s) && b < s.end) });
+    // A twin's light is its pair's: the first draws it.
+    if (twinIndex(s) === 1) continue;
+    const i = phaseAt(s, b);
+    const p = s.phases[i];
+    const color = phaseColor(s, i);
+    const last = i === s.phases.length - 1;
+    const r = phaseRect(s, i, last ? x1 : Math.min(x1, p.x1));
     const h = r.y1 - r.y0;
-    const running = b < s.end;
-    const edge = running ? 1 : 1 - progress(s.end, s.end + 0.25, b);
-    if (edge > 0 && x1 - s.x0 > 1) {
+    const running = b < p.end;
+    const edge = running ? 1 : last ? 1 - progress(s.end, s.end + 0.25, b) : 0;
+    if (edge > 0 && r.x1 - r.x0 > 1) {
       ctx.save();
-      // A sheen travelling the bar toward its write head, once a beat.
+      // A sheen travelling the bar toward its head, once a beat.
       roundedRect(ctx, r.x0, r.y0, r.x1 - r.x0, h, LANES.barRadius);
       ctx.clip();
       const band = 110;
       const u = (((lt / BEAT + s.x0 / 400) % 1) + 1) % 1;
       const cx = r.x0 - band + u * (r.x1 - r.x0 + 2 * band);
       const g = ctx.createLinearGradient(cx - band, 0, cx + band, 0);
-      g.addColorStop(0, rgba(PALETTE.warmBright, 0));
-      g.addColorStop(0.5, rgba(PALETTE.warmBright, 0.1 * edge));
-      g.addColorStop(1, rgba(PALETTE.warmBright, 0));
+      g.addColorStop(0, rgba(color.bright, 0));
+      g.addColorStop(0.5, rgba(color.bright, 0.1 * edge));
+      g.addColorStop(1, rgba(color.bright, 0));
       ctx.fillStyle = g;
       ctx.fillRect(r.x0, r.y0, r.x1 - r.x0, h);
-      // The write head at the tip.
-      ctx.fillStyle = rgba(PALETTE.warmBright, 0.85 * edge);
-      ctx.fillRect(r.x1 - 4, r.y0 + 6, 2.5, h - 12);
+      // The head at the tip: a read head or a write head.
+      ctx.fillStyle = rgba(color.bright, 0.85 * edge);
+      ctx.fillRect(r.x1 - 4, r.y0 + Math.min(6, h / 4), 2.5, h - 2 * Math.min(6, h / 4));
       ctx.restore();
-      edgeGlow(ctx, r.x1 - 3, r.y0 + 10, r.y1 - 10, PALETTE.warm, 0.2 * edge);
+      edgeGlow(ctx, r.x1 - 3, r.y0 + Math.min(10, h / 3), r.y1 - Math.min(10, h / 3), color.base, 0.2 * edge);
     }
-    // Done: the bar flashes.
-    const f = flare(b, s.end, 0.15);
-    if (f > 0) {
+    // A phase ending flashes: brightly as the step finishes, softly as a
+    // reader with a patch lets its read lock go.
+    s.phases.forEach((q, k) => {
+      const done = k === s.phases.length - 1;
+      const f = flare(b, q.end, 0.15) * (done ? 1 : 0.5);
+      if (f <= 0) return;
+      const rr = phaseRect(s, k, done ? x1 : q.x1);
       ctx.save();
-      roundedRect(ctx, r.x0, r.y0, r.x1 - r.x0, h, LANES.barRadius);
-      ctx.fillStyle = rgba(PALETTE.warmBright, 0.4 * f);
+      roundedRect(ctx, rr.x0, rr.y0, rr.x1 - rr.x0, rr.y1 - rr.y0, LANES.barRadius);
+      ctx.fillStyle = rgba(phaseColor(s, k).bright, 0.4 * f);
       ctx.fill();
       ctx.restore();
-    }
+    });
   }
 }
 
@@ -695,14 +717,16 @@ function drawGlint(ctx: CanvasRenderingContext2D, b: number): void {
   ctx.save();
   ctx.beginPath();
   for (const st of SCHEDULE) {
-    const r = barRect(st, st.x1);
-    const q = LANES.barRadius;
-    ctx.moveTo(r.x0 + q, r.y0);
-    ctx.arcTo(r.x1, r.y0, r.x1, r.y1, q);
-    ctx.arcTo(r.x1, r.y1, r.x0, r.y1, q);
-    ctx.arcTo(r.x0, r.y1, r.x0, r.y0, q);
-    ctx.arcTo(r.x0, r.y0, r.x1, r.y0, q);
-    ctx.closePath();
+    st.phases.forEach((ph, i) => {
+      const r = phaseRect(st, i, ph.x1);
+      const q = Math.min(LANES.barRadius, (r.y1 - r.y0) / 2);
+      ctx.moveTo(r.x0 + q, r.y0);
+      ctx.arcTo(r.x1, r.y0, r.x1, r.y1, q);
+      ctx.arcTo(r.x1, r.y1, r.x0, r.y1, q);
+      ctx.arcTo(r.x0, r.y1, r.x0, r.y0, q);
+      ctx.arcTo(r.x0, r.y0, r.x1, r.y0, q);
+      ctx.closePath();
+    });
   }
   ctx.clip();
   const g = ctx.createLinearGradient(cx - band, 0, cx + band, 0);
@@ -719,8 +743,7 @@ function drawBadges(ctx: CanvasRenderingContext2D, b: number): void {
   const gather = 1 - smoothstep(CASCADE.beat + 0.25, CASCADE.beat + 1, b);
   for (const s of SCHEDULE) {
     if (s.end >= CASCADE.beat || b < s.end) continue;
-    const { y0 } = barSpan(s.lanes[0], s.lanes[1]);
-    drawBadge(ctx, s.x1 - 14, y0, land(b, s.end, 0.25, 0.25), gather);
+    drawBadge(ctx, s.x1 - 14, badgeY(s), land(b, s.end, 0.25, 0.25), gather);
   }
 }
 
@@ -733,19 +756,19 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
     return;
   }
   const g = ganttAt(b);
-  // The slams jolt the chart down and back; the dock and the tray, nearer
-  // and farther, move a little more and a little less.
-  const kick = 4 * (jolt(b, BEATS.slam, 0.6, 2.5) + jolt(b, BEATS.slam2, 0.6, 2.5));
+  // All hands: go jolts the chart down and back as four steps start at
+  // once; the dock and the tray, nearer and farther, move a little more and
+  // a little less.
+  const kick = 5 * jolt(b, BEATS.go, 0.6, 2.5);
 
-  // A broad, low warm bloom behind the chart on each slam.
-  for (const at of [BEATS.slam, BEATS.slam2]) {
-    const f = flare(b, at, 0.3);
-    if (f <= 0) continue;
-    // Twice as wide as it is tall, so it stays above the captions' band.
+  // A broad, low warm bloom behind the steps as they start together.
+  const surge = flare(b, BEATS.go, 0.3);
+  if (surge > 0) {
+    // Wider than it is tall, so it stays above the captions' band.
     ctx.save();
-    ctx.translate(1200, 390);
-    ctx.scale(2, 1);
-    glow(ctx, 0, 0, 340, PALETTE.warm, 0.12 * f);
+    ctx.translate(820, 380);
+    ctx.scale(1.6, 1);
+    glow(ctx, 0, 0, 300, PALETTE.warm, 0.16 * surge);
     ctx.restore();
   }
 
@@ -755,14 +778,15 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
   // Labels, tracks and padlocks, the padlocks punching as they snap.
   drawLanes(ctx, {
     locks: g.locks.map((l, lane) => {
-      const scale = lockScale(lane, b, l.state === "write");
-      return { state: l.state, lift: l.lift, scale: scale === 1 ? undefined : scale };
+      const scale = lockScale(lane, b);
+      return { state: l.state, lift: l.lift, pips: l.pips, scale: scale === 1 ? undefined : scale };
     }),
   });
-  // The files a fixer has just written flash: warm at the clamp, green as the cascade passes them.
+  // A file flashes warm as a fixer that wrote it finishes (WROTE: the ✔ rows'
+  // `N files modified`), and green as the cascade passes it.
   LANE_FILES.forEach((file, lane) => {
     const cy = LANES.rows[lane] + 14;
-    const warm = lane <= 1 ? flare(b, BEATS.clamp, 0.5) : 0;
+    const warm = Math.max(0, ...SCHEDULE.filter((s) => WROTE[s.step].includes(lane)).map((s) => flare(b, s.end, 0.5)));
     const green = flare(b, BEATS.cascade[lane], 0.3);
     if (warm > 0) {
       const w = monoWidth(file, 40);
@@ -793,11 +817,10 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
   }
 
   // Waiting chips on the lanes: they pop on, march, and ride ahead of the
-  // playhead. A chip waiting for a key stays solid until the key lands on
-  // it, flushes warm, and gives way to its bar as the bar grows in under it.
+  // playhead.
   const pop = 0.85 + 0.15 * land(b, BEATS.queue, 0.3, 0.4);
   for (const c of g.chips) {
-    if (c.dock || KEYED.includes(c.step)) continue;
+    if (c.dock) continue;
     const w = chipWidth(c.step.step);
     ctx.save();
     ctx.translate(c.x + w / 2, c.cy);
@@ -805,26 +828,12 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
     drawWaitingChip(ctx, -w / 2, 0, c.step.step, { alpha: c.alpha, dashOffset: -lt * 36 });
     ctx.restore();
   }
-  for (const s of KEYED) {
-    const c = ganttAt(Math.min(b, s.start)).chips.find((k) => k.step === s);
-    const to = lockedFrom(s);
-    const alpha = (c?.alpha ?? 0) * (1 - progress(to, to + 0.125, b));
-    if (!c || alpha <= 0) continue;
-    const w = chipWidth(s.step);
-    const flush = smoothstep(to - 0.0625, to, b);
-    ctx.save();
-    ctx.translate(c.x + w / 2, c.cy);
-    ctx.scale(pop, pop);
-    if (flush > 0) glow(ctx, -w / 2 + 4, 0, 40, PALETTE.warm, 0.5 * flush * alpha);
-    drawWaitingChip(ctx, -w / 2, 0, s.step, { alpha, dashOffset: -lt * 36, stroke: mix(PALETTE.text3, PALETTE.warmBright, flush) });
-    ctx.restore();
-  }
   drawDepends(ctx, b, lt);
 
-  // deploy.sh's key, from its padlock to shellcheck.
+  // deploy.sh's key, from its padlock to shfmt's write.
   const ku = progress(KEY.at, KEY.to, b);
   if (ku > 0 && ku < 1) drawSpark(ctx, KEY_HOP, inOutSine(ku), { color: PALETTE.warmBright, size: 7, trail: 0.3 });
-  // Its ring is gone before shellcheck's label comes up under it.
+  // It lands with a ring on the write's leading edge.
   if (b >= KEY.to) ring(ctx, KEY_TO.x, KEY_TO.y, KEY_RING, progress(KEY.to, KEY.to + 0.3, b), PALETTE.warm, 4);
 
   drawBadges(ctx, b);
@@ -839,15 +848,22 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
   });
 
   columnFlash(ctx, STEP.prettier.x0, b, BEATS.go, PALETTE.cyanBright);
-  columnFlash(ctx, STEP["trailing-whitespace"].x0, b, BEATS.slam, PALETTE.warmBright);
-  columnFlash(ctx, STEP.newlines.x0, b, BEATS.slam2, PALETTE.warmBright);
+  // The steps that start together flare where their bars leave the line, each in its phase's colour.
+  for (const s of SCHEDULE) {
+    if (s.start !== BEATS.go) continue;
+    const { y0, y1 } = stepSpan(s);
+    const inset = Math.min(10, (y1 - y0) / 3);
+    edgeGlow(ctx, s.x0 + 4, y0 + inset, y1 - inset, phaseColor(s, 0).base, 0.5 * surge, 40);
+  }
+  // The steps that read every file land together: one flash down their column.
+  columnFlash(ctx, STEP["trailing-whitespace"].x0, b, BEATS.slam, PALETTE.cyanBright, 0.45);
 
-  // A warm flare on each padlock as it shuts.
+  // A flare on each padlock as it shuts, warm for a writer and cyan for
+  // readers, brightest as all four shut together at go.
   LANES.rows.forEach((cy, lane) => {
     const e = lastLockEvent(lane, b);
-    const knock = knockOn(b, g.locks[lane].state === "write").flare;
-    const shut = e?.shut ? flare(b, e.at, 0.2) : 0;
-    glow(ctx, LANES.lockX, cy, 56, PALETTE.warm, Math.max(0.6 * shut, 0.45 * knock));
+    const shut = e?.change === "shut" ? flare(b, e.at, 0.2) * (e.at === BEATS.go ? 0.9 : 0.6) : 0;
+    glow(ctx, LANES.lockX, cy, 56, e?.state === "read" ? PALETTE.cyan : PALETTE.warm, shut);
   });
   ctx.restore();
 

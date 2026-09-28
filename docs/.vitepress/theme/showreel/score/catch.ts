@@ -18,6 +18,7 @@ import type { Part } from ".";
 import { blocked } from "../kit/screens";
 import { smoothstep } from "../math";
 import { SNAG, STOP, SWING } from "../scenes/catch";
+import { FRAME_BEATS } from "../scenes/catch-timing";
 import { BEAT, type Section } from "../timeline";
 import { BED, CHORD, DM, HALF, heartbeat, STOMP, stompBar } from "./grooves";
 import { ad, hz, line, sweep, X } from "./mix";
@@ -43,8 +44,6 @@ const YANK = 5.25;
 const GLINT = 6.25;
 const REEL = [10, 11.5] as const;
 
-/** When the inset shows each of blocked's frames 0 to 13 (storyboard 6.7). */
-const FRAME_BEATS = [1, 1.25, 1.5, 1.75, 2, 2.125, 2.25, 2.375, 2.5, 2.625, 2.75, 3, 3.125, 3.25];
 
 /** The step ✔ rows ring D5, F5, A5 in the order they land. */
 const STEP_NOTES = [74, 77, 81];
@@ -89,7 +88,7 @@ export const part: Part = {
     // b0 to b1: the main line pans left under a wash of sea.
     wave(m, s.start, s.beat(2.4), 0.07, 0.05, -1);
 
-    // b1 to b3.25: hk's blocked run redraws in the inset.
+    // From b1 (FRAME_BEATS): hk's blocked run redraws in the inset.
     let step = 0;
     for (const [b, row] of newRows()) {
       const t = s.beat(b);

@@ -70,10 +70,12 @@ export function describeChapters(f: ReelFacts | null): { id: SectionId; label: s
       "The staged file src/main.py appears with one unstaged line at its end, a to-do comment. hk slices that line off into a git stash, and the formatting problems in the staged version are underlined. " +
       caption("Unstaged work is stashed,", "so linters see only what you staged."),
     lanes:
-      "The seven steps run as bars on four file lanes. prettier, ruff and shfmt start together on different files. " +
-      `${caption("Different files? Steps run at once.")} ` +
-      "shellcheck waits for shfmt on the same shell script, ruff-format waits for ruff because it depends on it, and trailing-whitespace and newlines, which touch every file, wait for the others and then take turns. " +
-      `${caption("Same file? They take turns.")} A note says the order comes from one real commit and is not to scale.`,
+      "The seven steps run as bars on four file lanes, each lane with a padlock: cyan bars read a file, amber bars write it. " +
+      "prettier and ruff start fixing their own files while shfmt and shellcheck read the shell script together, and all four padlocks shut at once, the script's with two readers. " +
+      `${caption("Fixers run in parallel.")} ` +
+      "shfmt works out its fix while reading, then waits for shellcheck to finish before hk writes the fix. ruff-format follows ruff, which it depends on: it reads src/main.py and needs the file to itself only to apply its fix. Each file lights up as a fixer writes it. " +
+      "trailing-whitespace and newlines, which read every file, wait until prettier lets its files go, then read all four together and find nothing left to fix. " +
+      `${caption("File locks keep them from colliding.")} A note says the order comes from one real commit and is not to scale.`,
     restore:
       "The fixed files are staged, and README.md is back to its last committed version. Side by side, the staged src/main.py holds the fixed code, and the worktree copy gets the same fixes plus the to-do line back from the stash. " +
       `${caption("Fixes are staged.", "Your edits come back.")} ` +
@@ -84,8 +86,9 @@ export function describeChapters(f: ReelFacts | null): { id: SectionId; label: s
     everywhere:
       "Three panels show the same seven steps passing in a git commit, in hk fix at a terminal, and in hk check --all in CI. " +
       `${caption("One set of steps:", "commit, terminal, CI.")} ` +
-      "Then two small timelines compare one file, README.md: under hk check, three checks read it at the same time; under hk fix, three fixers take turns. " +
-      caption("Checks share a file.", "Fixes take turns."),
+      "Then two small timelines follow one step, ruff-format, on one file, src/main.py. Under hk check it reads the file and fails, and its diff unfolds beneath it, removed lines in red and added lines in green. " +
+      "Under hk fix the step runs the same command, reading the file once ruff has removed its unused import, then trades its read lock for the write lock, and hk applies its diff: the removed lines are struck out, and the added lines settle into the file. " +
+      caption("Check shows the diff.", "Fix applies it."),
     race: race(f),
     morph: "The bars shrink into strokes that set into the hk logo.",
     end: "The hk logo returns in full, beside the name hk, the line Git hooks for linters and formatters, the command mise use hk, and the address hk.jdx.dev.",

@@ -57,7 +57,7 @@ test("commit|stash is the prompt, the header at 0/7 and the four staged files", 
     header("pre-commit", "fix", 0, 7),
     "✔ files - Fetching staged files (4 files)",
   ]);
-  assert.equal(COMMIT_STASH_LINES[1], `hk 2.2.0 by @jdx – pre-commit – fix  [${" ".repeat(37)}] 0/7`);
+  assert.equal(COMMIT_STASH_LINES[1], `hk 2.3.1 by @jdx – pre-commit – fix  [${" ".repeat(37)}] 0/7`);
 });
 
 test("race|morph's capsules span x 700–1420, 56 px high, on rows 270–630; morph|end drops only the barb", () => {

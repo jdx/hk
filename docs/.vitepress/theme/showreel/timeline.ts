@@ -24,7 +24,7 @@ export const SECTIONS = [
   { id: "config", label: "Steps in hk.pkl", bars: 3 },
   { id: "commit", label: "git commit runs hk", bars: 3 },
   { id: "stash", label: "Unstaged work is stashed", bars: 3 },
-  { id: "lanes", label: "Steps in parallel", bars: 4 },
+  { id: "lanes", label: "Fixers in parallel", bars: 4 },
   { id: "restore", label: "Fixes staged, edits back", bars: 3 },
   { id: "catch", label: "A commit hk can't fix", bars: 3 },
   { id: "everywhere", label: "Commit, terminal, CI", bars: 3 },

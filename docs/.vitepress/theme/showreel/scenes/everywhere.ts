@@ -10,43 +10,56 @@
 // Pulses run down the connectors on the eighths, from the one config into
 // all three.
 //
-// Checks share a file; fixes take turns. The panels roll up, their
+// Check shows the diff; fix applies it. The panels roll up, their
 // connectors retract into the chip, which goes, and two small timelines for
-// one file, README.md, draw in. Under `hk check` three cyan checks leave the
-// same line together, all three lit on the line down from the read lock at
-// once, and finish in the order `hk check --all` finished them
-// (check-all.frames.txt: newlines, trailing-whitespace, then prettier).
-// Under `hk fix` three warm fixes take the write lock one per beat, in the
-// order `hk fix` ran them (fix.frames.txt: prettier, newlines, then
-// trailing-whitespace): the padlock opens and shuts between them and the
-// lit node slides on to the next, and each pill grows only once the key has
-// reached it. The contrast is also the score's: a three-note chord on b6.5,
-// the same notes one at a time as each fix takes the lock. The beats live in
-// everywhere-timing.ts, which the score can import.
+// one file and one step draw in: ruff-format on src/main.py, whose builtin
+// fixes through `check_diff` (`ruff format --diff`). Under `hk check` the
+// step reads the file under a read lock and fails, a red ✗, and its diff
+// unfolds under it: rows of ruff's own diff of the staged file
+// (RUFF_FORMAT_DIFF). Under `hk fix` the same step runs the same command
+// under a read lock too, a cyan pill the length of the check's, and its
+// own diff comes up under it: ruff, which it depends on, has already
+// removed the unused import there, so it is the diff of the file without
+// it (RUFF_FORMAT_FIX_DIFF). Then the step trades the read lock for the
+// write lock, a warm pill, and hk applies the diff itself: the removals are
+// struck and fold away, the additions settle into the file as the commit
+// got it, and the step ✔. Both modes run the same command: hk check
+// prints its diff, hk fix applies its own, and only applying it needs the
+// file to itself (src/step_job.rs relock_for_write, then src/step/diff.rs
+// apply_patch). The beats live in everywhere-timing.ts, which the score
+// can import.
 //
 // The section leaves on the whip into the race (whip.ts): from b10.5 the
 // columns wind up, whip out to the left and the streaks take over, still
 // moving on its last frame. Nothing here depends on the benchmark facts.
 
 import { BEAT, type LitRect, PALETTE, type Scene, type SceneEnv, sec, TERM } from "../bible";
-import { rgba } from "../color";
+import { mix, rgba } from "../color";
 import { glow, roundedRect } from "../fx";
-import { drawChip, drawMono, HKPKL_CHIP, monoWidth } from "../kit/card";
-import { BAR_FILL, drawBar, drawDone, drawPadlock, LANES, type LockState } from "../kit/lanes";
+import { drawChip, drawPanel as drawCardPanel, drawMono, HKPKL_CHIP, monoWidth, RUFF_FORMAT_DIFF, RUFF_FORMAT_FIX_DIFF } from "../kit/card";
+import { BAR_FILL, type BarKind, drawBar, drawDone, drawPadlock, HANDOFF_GAP, LANES, type LockMode } from "../kit/lanes";
 import { bump, jolt, land, lerpRect, type Pt, type Rect, typedChars } from "../kit/motion";
 import { final, type Screen } from "../kit/screens";
 import { advance, drawTermLine, drawWindow, mini, termLit } from "../kit/term";
-import { clamp, DEG, hash, inQuad, keys, lerp, outCubic, outQuad, progress, smoothstep, swiftInOut, swiftOut, TAU } from "../math";
+import { clamp, DEG, hash, inQuad, keys, lerp, outCubic, outQuad, progress, smoothstep, swiftOut, TAU } from "../math";
 import { type Caption, drawWords, LABEL, wordStyle } from "../type";
 import { drawWhip, drawWhipOut, WHIP_START } from "../whip";
+import { drawCross } from "./catch-rig";
 import {
   ALL_DONE,
+  APPLY,
   CHECK_DONE,
   CHECK_GO,
   CHIP_OUT,
+  COLUMN_DRAW,
   COLUMN_IN,
-  FIX_HOLDS,
-  FIX_ROWS,
+  DIFF_IN,
+  DIFF_ROW,
+  FIX_DIFF_ROW,
+  FIX_DONE,
+  FIX_GO,
+  FIX_PATCH,
+  FIX_WRITE,
   FOLD,
   FOLD_LEN,
   IMPACT,
@@ -68,8 +81,11 @@ export const CAPTIONS: readonly Caption[] = [
   // Each line lands on a slam, and it wipes away over b5.5–5.75 as the
   // panels start to roll up, clear before the next caption's first word.
   { out: 5.5, lines: [{ in: 1, text: "One set of steps:" }, { in: 2, text: "commit, terminal, CI." }] },
-  // 4 + 3 words: need 4.5, hold 4.5; its first word rises on b6, a 16th after the caption above has gone.
-  { out: 11, lines: [{ in: 6.5, text: "Checks share a file." }, { in: 7, text: "Fixes take turns." }] },
+  // 4 + 3 words: need 4.5, hold 4.5; its last word lands on b6.5, as the
+  // check starts, and its first rises on b6, after the caption above has
+  // gone. Line 2 lands as hk fix has its patch and holds 3 beats, 2.5
+  // needed.
+  { out: 11, lines: [{ in: CHECK_GO, text: "Check shows the diff." }, { in: FIX_PATCH, text: "Fix applies it." }] },
 ];
 
 // The beats, section-local (everywhere-timing.ts, which the score can
@@ -124,28 +140,72 @@ const HUB: Pt = { x: HKPKL_CHIP.x + HKPKL_CHIP.w / 2, y: HKPKL_CHIP.y + HKPKL_CH
 /** A panel leaves the chip as a sliver under it. */
 const SLIVER: Rect = { x: HUB.x - 90, y: HUB.y + 2, w: 180, h: 6 };
 
+/** A stretch of the column's step holding the file: its lock, from when to when, and its pill's extent. */
+interface Hold {
+  lock: LockMode;
+  from: number;
+  to: number;
+  x0: number;
+  x1: number;
+}
+
 interface Column {
   x: number;
   title: string;
   color: string;
-  kind: "check" | "fix";
   lock: Pt;
-  lockState: LockState;
   labelRight: number;
   x0: number;
   x1: number;
   at: number;
+  /**
+   * Its step's holds on the file, in order, each with its pill: a read
+   * while the diff command runs, and under hk fix a write while hk applies
+   * the diff. The reads' pills are the same length in both columns: the
+   * same command.
+   */
+  holds: readonly Hold[];
 }
 
-/** The two timelines for one file (storyboard §6.8). */
-const CHECK: Column = { x: 160, title: "hk check", color: PALETTE.cyan, kind: "check", lock: { x: 470, y: 338 }, lockState: "read", labelRight: 504, x0: 540, x1: 900, at: COLUMN_IN[0] };
-const FIX: Column = { x: 1020, title: "hk fix", color: PALETTE.warm, kind: "fix", lock: { x: 1330, y: 338 }, lockState: "write", labelRight: 1364, x0: 1400, x1: 1760, at: COLUMN_IN[1] };
-const COLUMNS = [CHECK, FIX] as const;
-const TITLE_Y = 290;
-const FILE_Y = 350;
-const FILE = "README.md";
-const ROW_Y = [440, 520, 600] as const;
-const ROW_STEPS = ["prettier", "trailing-whitespace", "newlines"] as const;
+/** A read's pill: half a track, x0 to x0 + 180. */
+const READ_W = 180;
+/** The two timelines for one file and one step (storyboard §6.8). */
+const CHECK: Column = {
+  x: 160,
+  title: "hk check",
+  color: PALETTE.cyan,
+  lock: { x: 470, y: 308 },
+  labelRight: 504,
+  x0: 540,
+  x1: 900,
+  at: COLUMN_IN[0],
+  holds: [{ lock: "read", from: CHECK_GO, to: CHECK_DONE, x0: 540, x1: 540 + READ_W }],
+};
+const FIX: Column = {
+  x: 1020,
+  title: "hk fix",
+  color: PALETTE.warm,
+  lock: { x: 1330, y: 308 },
+  labelRight: 1364,
+  x0: 1400,
+  x1: 1760,
+  at: COLUMN_IN[1],
+  holds: [
+    { lock: "read", from: FIX_GO, to: FIX_PATCH, x0: 1400, x1: 1400 + READ_W },
+    // Handed on from its own read, 8 px on, as on the lanes.
+    { lock: "write", from: FIX_WRITE, to: FIX_DONE, x0: 1400 + READ_W + HANDOFF_GAP, x1: 1760 },
+  ],
+};
+export const COLUMNS = [CHECK, FIX] as const;
+/** A hold's colour and its pill's kind: cyan for a read, warm for a write. */
+const HOLD_COLOR: Record<LockMode, string> = { read: PALETTE.cyan, write: PALETTE.warm };
+const HOLD_KIND: Record<LockMode, BarKind> = { read: "check", write: "fix" };
+const TITLE_Y = 260;
+const FILE_Y = 320;
+const FILE = "src/main.py";
+/** The step's row: its name right-aligned to the column's gutter, and its track. */
+const ROW_Y = 390;
+const ROW_STEP = "ruff-format";
 const ROW_SIZE = 30;
 const PILL_H = 44;
 const TRACK_H = 56;
@@ -153,23 +213,20 @@ const TRACK_H = 56;
 const LOCK_SCALE = 1.5;
 
 /**
- * The checks grow together at one rate, a shared clock, so a shorter bar is
- * a read that ended sooner: prettier to x 900 on b8, and the others where
- * the clock stands when their reads end (trailing-whitespace x 720 on
- * b7.25, newlines x 660 on b7).
+ * The diff card under a column's step: a panel of the eight rows of ruff's
+ * diff (RUFF_FORMAT_DIFF under hk check, RUFF_FORMAT_FIX_DIFF under hk
+ * fix), removals red on a red band and additions green on a green one, in
+ * mono 28 on 34 px rows, x 300–900 under hk check and 1160–1760 under hk
+ * fix, y 432–732: clear of the captions' band.
  */
-const CHECK_RATE = (900 - CHECK.x0) / (CHECK_DONE[0] - CHECK_GO);
-const CHECK_END = CHECK_DONE.map((d) => CHECK.x0 + CHECK_RATE * (d - CHECK_GO));
-
-/**
- * The fixes' pills, turn by turn (FIX_ROWS says whose), 8 px apart where
- * the lock is handed on (as the lanes); each grows while it holds the lock.
- */
-const FIX_PILLS = [
-  { x0: 1400, x1: 1560 },
-  { x0: 1568, x1: 1660 },
-  { x0: 1668, x1: 1760 },
-] as const;
+export const DIFF = { dx: 140, y: 432, w: 600, pad: 14, rowH: 34, size: 28, inset: 20 } as const;
+/** The card's top left in a column. */
+const diffAt = (c: Column): Pt => ({ x: c.x + DIFF.dx, y: DIFF.y });
+/** Each column's diff. */
+const DIFFS = { check: RUFF_FORMAT_DIFF, fix: RUFF_FORMAT_FIX_DIFF } as const;
+/** What a row of a diff is: a removal, an addition, or context. */
+const diffKind = (line: string): "del" | "add" | "ctx" => (line.startsWith("-") ? "del" : line.startsWith("+") ? "add" : "ctx");
+const DIFF_COLOR = { del: TERM.red, add: TERM.green, ctx: PALETTE.text2 } as const;
 
 /** A padlock snaps over a 32nd. */
 const SNAP = 1 / 8;
@@ -513,47 +570,38 @@ function drawSource(ctx: CanvasRenderingContext2D, bt: number): void {
 
 // The two columns.
 
-/**
- * When each row holds its column's lock, in beats: the checks all from the
- * go until their reads end; the fixes one after another, each taking the
- * lock a 16th after the last let it go (the lanes' rule, lanes.ts).
- */
-const HOLDS: Record<Column["kind"], readonly (readonly [from: number, to: number])[]> = {
-  check: CHECK_DONE.map((d) => [CHECK_GO, d] as const),
-  fix: ROW_Y.map((_, r) => FIX_HOLDS[FIX_ROWS.indexOf(r as 0 | 1 | 2)]),
-};
-
-/** How far row `r` holds column `c`'s lock at `bt`, 0..1, snapping in and out over a 32nd. */
-function holding(c: Column, r: number, bt: number): number {
-  const [from, to] = HOLDS[c.kind][r];
-  return progress(from, from + SNAP, bt) * (1 - progress(to, to + SNAP, bt));
+/** How far column `c`'s step holds the file's lock at `bt`, 0..1, snapping in and out over a 32nd, and which hold it is. */
+function holding(c: Column, bt: number): { k: number; hold: Hold } {
+  let best = { k: 0, hold: c.holds[0] };
+  for (const h of c.holds) {
+    const k = progress(h.from, h.from + SNAP, bt) * (1 - progress(h.to, h.to + SNAP, bt));
+    if (k > best.k) best = { k, hold: h };
+  }
+  return best;
 }
 
 /**
- * A column's padlock: read or write while any row holds it, open between
- * and after. `held` is how far it shows its held colour, 0..1: it
- * cross-fades from open over the same 32nd as its shackle shuts and its
- * row's node lights, and back as the shackle springs open. A read lock
- * shows a pip per check still reading.
+ * A column's padlock: read (with a pip for its one reader) or write while
+ * its step holds the file, open before, between and after. `held` is how
+ * far it shows its held colour, 0..1: it cross-fades from open over the
+ * same 32nd as its shackle shuts and its row's node lights, and back as
+ * the shackle springs open.
  */
-function lockAt(c: Column, bt: number): { held: number; lift: number; pips: number } {
-  const holds = HOLDS[c.kind];
-  const held = holds.filter(([from, to]) => bt >= from && bt < to);
-  const k = Math.max(0, ...holds.map((_, r) => holding(c, r, bt)));
-  if (held.length) return { held: k, lift: 1 - land(bt, Math.min(...held.map(([from]) => from)), SNAP, 0.2), pips: c.kind === "check" ? held.length : 0 };
-  const released = holds.filter(([, to]) => to <= bt).reduce((m, [, to]) => Math.max(m, to), -Infinity);
-  return { held: k, lift: released === -Infinity ? 1 : land(bt, released, SNAP, 0.2), pips: 0 };
+function lockAt(c: Column, bt: number): { held: number; hold: Hold; lift: number; pips: number } {
+  const { k, hold } = holding(c, bt);
+  const now = c.holds.find((h) => bt >= h.from && bt < h.to);
+  if (now) return { held: k, hold: now, lift: 1 - land(bt, now.from, SNAP, 0.2), pips: now.lock === "read" ? 1 : 0 };
+  const last = c.holds.filter((h) => h.to <= bt).pop();
+  return { held: k, hold, lift: last ? land(bt, last.to, SNAP, 0.2) : 1, pips: 0 };
 }
 
 /**
- * The reader line down from a column's padlock: out of its right side,
- * round a corner and down the gutter between the row labels and the
- * tracks, with a node at each row. A row that holds the lock lights its
- * node and the line from the padlock down to it: under hk check all three
- * at once (and the read lock shows a pip per reader), under hk fix one at
- * a time, the key sliding on to the next fix's node while the lock is open.
+ * The line from a column's padlock to its step: out of the padlock's right
+ * side, round a corner and down the gutter between the row's label and its
+ * track, to a node on the row. While the step holds the lock the line and
+ * the node light in its hold's colour, and the node joins the track.
  */
-const BUS_Y = 352;
+const BUS_Y = 322;
 const busX = (c: Column): number => c.x0 - 18;
 const BUS_R = 12;
 
@@ -570,38 +618,6 @@ function busPath(ctx: CanvasRenderingContext2D, c: Column, y1: number): void {
   ctx.lineTo(x, y1);
 }
 
-/** How far down the bus is lit (its y), and how brightly. */
-function busLit(c: Column, bt: number): { y: number; a: number; key: number | null } {
-  if (c.kind === "check") {
-    // Lit to the lowest row still reading, retracting as reads end.
-    let y = BUS_Y - BUS_R;
-    let a = 0;
-    ROW_Y.forEach((cy, r) => {
-      const h = holding(c, r, bt);
-      if (h <= 0) return;
-      y = Math.max(y, lerp(r ? ROW_Y[r - 1] : BUS_Y - BUS_R, cy, h));
-      a = Math.max(a, h);
-    });
-    return { y, a, key: null };
-  }
-  // Unlit until the first fix takes the lock; then the fix holding it, or
-  // the key on its way to the next, down or back up the line.
-  if (bt < FIX_HOLDS[0][0]) return { y: BUS_Y - BUS_R, a: 0, key: null };
-  for (let k = 0; k < FIX_HOLDS.length; k++) {
-    const [from, to] = FIX_HOLDS[k];
-    const cy = ROW_Y[FIX_ROWS[k]];
-    if (k === 0 && bt < from + SNAP) return { y: lerp(BUS_Y - BUS_R, cy, progress(from, from + SNAP, bt)), a: 1, key: null };
-    if (bt >= from && bt < to) return { y: cy, a: 1, key: null };
-    if (k + 1 < FIX_HOLDS.length && bt >= to && bt < FIX_HOLDS[k + 1][0]) {
-      const y = lerp(cy, ROW_Y[FIX_ROWS[k + 1]], swiftInOut(progress(to, FIX_HOLDS[k + 1][0], bt)));
-      return { y, a: 1, key: y };
-    }
-  }
-  const last = FIX_HOLDS.length - 1;
-  const end = FIX_HOLDS[last][1];
-  return { y: ROW_Y[FIX_ROWS[last]], a: 1 - progress(end, end + 2 * SNAP, bt), key: null };
-}
-
 function drawBus(ctx: CanvasRenderingContext2D, c: Column, bt: number, reveal: number): void {
   if (reveal <= 0) return;
   const x = busX(c);
@@ -609,100 +625,88 @@ function drawBus(ctx: CanvasRenderingContext2D, c: Column, bt: number, reveal: n
   ctx.lineCap = "round";
   ctx.lineWidth = 2;
   ctx.strokeStyle = rgba(PALETTE.text3, 0.45);
-  const drawn = lerp(BUS_Y - BUS_R, ROW_Y[2], swiftOut(reveal));
+  const drawn = lerp(BUS_Y - BUS_R, ROW_Y, swiftOut(reveal));
   busPath(ctx, c, drawn);
   ctx.stroke();
-  const lit = busLit(c, bt);
-  if (lit.a > 0) {
+  const { k: h, hold } = holding(c, bt);
+  const color = HOLD_COLOR[hold.lock];
+  if (h > 0) {
     // Never lit further than the line has drawn in.
-    ctx.strokeStyle = rgba(c.color, 0.9 * lit.a);
+    ctx.strokeStyle = rgba(color, 0.9 * h);
     ctx.lineWidth = 3;
-    busPath(ctx, c, Math.min(lit.y, drawn));
+    busPath(ctx, c, Math.min(lerp(BUS_Y - BUS_R, ROW_Y, h), drawn));
     ctx.stroke();
   }
-  // A node per row: a ring, filled and glowing while its row holds the lock.
-  ROW_Y.forEach((cy, r) => {
-    const k = progress(0.3 + 0.2 * r, 0.5 + 0.2 * r, reveal);
-    if (k <= 0) return;
-    const h = holding(c, r, bt);
+  // The row's node: a ring, filled and glowing while the step holds the lock.
+  const k = progress(0.5, 0.7, reveal);
+  if (k > 0) {
     ctx.fillStyle = PALETTE.bg;
-    ctx.strokeStyle = rgba(h > 0 ? c.color : PALETTE.text3, h > 0 ? 1 : 0.7 * k);
+    ctx.strokeStyle = rgba(h > 0 ? color : PALETTE.text3, h > 0 ? 1 : 0.7 * k);
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(x, cy, 5.5 * k, 0, TAU);
+    ctx.arc(x, ROW_Y, 5.5 * k, 0, TAU);
     ctx.fill();
     ctx.stroke();
     if (h > 0) {
-      // Joined to its row's track while it holds the lock.
-      ctx.strokeStyle = rgba(c.color, 0.9 * h);
+      ctx.strokeStyle = rgba(color, 0.9 * h);
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(x, cy);
-      ctx.lineTo(lerp(x, c.x0, h), cy);
+      ctx.moveTo(x, ROW_Y);
+      ctx.lineTo(lerp(x, c.x0, h), ROW_Y);
       ctx.stroke();
-      glow(ctx, x, cy, 34, c.color, 0.55 * h);
-      ctx.fillStyle = c.color;
+      glow(ctx, x, ROW_Y, 34, color, 0.55 * h);
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(x, cy, 5.5 * (0.4 + 0.6 * land(h, 0, 1, 0.5)), 0, TAU);
+      ctx.arc(x, ROW_Y, 5.5 * (0.4 + 0.6 * land(h, 0, 1, 0.5)), 0, TAU);
       ctx.fill();
     }
-  });
-  if (lit.key !== null) {
-    glow(ctx, x, lit.key, 36, PALETTE.warm, 0.8);
-    ctx.fillStyle = PALETTE.warmBright;
-    ctx.beginPath();
-    ctx.arc(x, lit.key, 5, 0, TAU);
-    ctx.fill();
   }
   ctx.restore();
 }
 
-/** A column's frame: title, file, padlock and its line, row labels and tracks, drawn in from its `at`. */
+/** A column's frame: title, file, padlock and its line, the step's label and track, drawn in from its `at`. */
 function drawColumnFrame(ctx: CanvasRenderingContext2D, c: Column, bt: number, lt: number): void {
   drawWords(ctx, c.title, c.x, TITLE_Y, wordStyle(56, c.color), lt, b(c.at + 1 / 4));
   const n = typedChars(FILE, bt, c.at + 1 / 8, 1 / 4);
   if (n > 0) drawMono(ctx, FILE.slice(0, n), c.x, FILE_Y, 40, PALETTE.text2);
-  ROW_Y.forEach((cy, r) => {
-    const at = c.at + r / 16;
-    const k = swiftOut(progress(at, at + 3 / 8, bt));
-    if (k <= 0) return;
-    const label = ROW_STEPS[r];
+  const k = swiftOut(progress(c.at, c.at + 3 / 8, bt));
+  if (k > 0) {
     ctx.save();
     ctx.globalAlpha *= k;
-    drawMono(ctx, label, c.labelRight - monoWidth(label, ROW_SIZE) - 12 * (1 - k), cy + 0.3 * ROW_SIZE, ROW_SIZE, PALETTE.text2);
+    drawMono(ctx, ROW_STEP, c.labelRight - monoWidth(ROW_STEP, ROW_SIZE) - 12 * (1 - k), ROW_Y + 0.3 * ROW_SIZE, ROW_SIZE, PALETTE.text2);
     ctx.restore();
-    roundedRect(ctx, c.x0, cy - TRACK_H / 2, (c.x1 - c.x0) * k, TRACK_H, 10);
+    roundedRect(ctx, c.x0, ROW_Y - TRACK_H / 2, (c.x1 - c.x0) * k, TRACK_H, 10);
     ctx.fillStyle = PALETTE.elevated;
     ctx.fill();
-  });
-  drawBus(ctx, c, bt, progress(c.at + 1 / 4, c.at + 1 / 2, bt));
+  }
+  drawBus(ctx, c, bt, progress(c.at + 1 / 4, c.at + COLUMN_DRAW, bt));
   // The padlock pops in, then shows who holds the file.
-  const pop = land(bt, c.at + 1 / 4, 1 / 4, 0.3);
+  const pop = land(bt, c.at + 1 / 4, COLUMN_DRAW - 1 / 4, 0.3);
   if (pop > 0) {
     const { x, y } = c.lock;
     const lock = lockAt(c, bt);
     const open = { lift: lock.lift, scale: LOCK_SCALE * pop };
     const held = { ...open, alpha: lock.held, pips: lock.pips };
     if (lock.held <= 0) drawPadlock(ctx, x, y, "open", open);
-    else if (lock.held >= 1) drawPadlock(ctx, x, y, c.lockState, held);
+    else if (lock.held >= 1) drawPadlock(ctx, x, y, lock.hold.lock, held);
     else {
       // Cross-fading: the held padlock over the open one at `held`, on one
       // shackle. As the shackle snaps shut it overshoots into the body,
       // where only an opaque fill hides it, so both are drawn round the
       // body's inside (kit/lanes.ts: a 32×24 body at y −3, 3 px stroke),
       // which then takes the held fill at `held`.
-      const k = open.scale;
-      const inside = () => roundedRect(ctx, x - 14 * k, y - k, 28 * k, 20 * k, 3 * k);
+      const s = open.scale;
+      const inside = () => roundedRect(ctx, x - 14 * s, y - s, 28 * s, 20 * s, 3 * s);
       ctx.save();
       inside();
       ctx.rect(x - 120, y - 140, 240, 240);
       ctx.clip("evenodd");
       drawPadlock(ctx, x, y, "open", open);
-      drawPadlock(ctx, x, y, c.lockState, held);
+      drawPadlock(ctx, x, y, lock.hold.lock, held);
       ctx.restore();
       ctx.save();
       ctx.globalAlpha *= lock.held;
-      ctx.fillStyle = BAR_FILL[c.kind];
+      ctx.fillStyle = BAR_FILL[HOLD_KIND[lock.hold.lock]];
       inside();
       ctx.fill();
       ctx.restore();
@@ -720,61 +724,173 @@ const tipLit = (bt: number, start: number, end: number): number => progress(star
  */
 const PILL_IN = [LANES.barRadius, 4 * LANES.barRadius] as const;
 
-/** One step's pill from x0 to x1 on row `r`, its leading edge lit while it runs, and its ✔ once done. */
-function drawPill(ctx: CanvasRenderingContext2D, c: Column, r: number, x0: number, x1: number, tip: number, done: number, flourish: number): void {
-  const cy = ROW_Y[r];
-  drawBar(ctx, { x0, x1, y0: cy - PILL_H / 2, y1: cy + PILL_H / 2 }, c.kind, { alpha: smoothstep(PILL_IN[0], PILL_IN[1], x1 - x0) });
-  if (tip > 0) glow(ctx, x1, cy, 46, c.color, 0.45 * tip);
-  if (done > 0) {
-    const cx = x1 - 22;
-    if (flourish > 0) glow(ctx, cx, cy, 40, PALETTE.green, 0.5 * flourish);
-    drawDone(ctx, cx, cy, { size: 30, scale: done * (1 + 0.18 * flourish) });
+/**
+ * The step's pills at `bt`: each hold's from its start, growing to its end
+ * (a read quickly, as its command's output comes in; a write steadily, as
+ * hk applies the patch), its leading edge lit while it runs, and the step's
+ * mark at the end of the last once it is done: hk's ✔, or its ✗ in red.
+ */
+function drawPills(ctx: CanvasRenderingContext2D, c: Column, bt: number, mark: { fail: boolean; flourish: number }): void {
+  for (const h of c.holds) {
+    if (bt < h.from) break;
+    const u = progress(h.from, h.to, bt);
+    const x1 = lerp(h.x0, h.x1, h.lock === "read" ? swiftOut(u) : u);
+    drawBar(ctx, { x0: h.x0, x1, y0: ROW_Y - PILL_H / 2, y1: ROW_Y + PILL_H / 2 }, HOLD_KIND[h.lock], { alpha: smoothstep(PILL_IN[0], PILL_IN[1], x1 - h.x0) });
+    const tip = tipLit(bt, h.from, h.to);
+    if (tip > 0) glow(ctx, x1, ROW_Y, 46, HOLD_COLOR[h.lock], 0.45 * tip);
   }
+  const last = c.holds[c.holds.length - 1];
+  const k = land(bt, last.to, 1 / 4, 0.3);
+  if (k <= 0) return;
+  const cx = last.x1 - 22;
+  const color = mark.fail ? TERM.red : PALETTE.green;
+  if (mark.flourish > 0) glow(ctx, cx, ROW_Y, 40, color, 0.5 * mark.flourish);
+  const size = 30 * k * (1 + 0.18 * mark.flourish);
+  if (mark.fail) drawCross(ctx, cx, ROW_Y, 0.62 * size, color);
+  else drawDone(ctx, cx, ROW_Y, { size });
 }
 
-function drawChecks(ctx: CanvasRenderingContext2D, bt: number): void {
+/** A diff row's state as hk applies the patch. */
+interface DiffRow {
+  /** Struck through, left to right, 0..1: a removal being applied. */
+  strike: number;
+  /** Folded away, 0..1: its height goes as the removal is made. */
+  fold: number;
+  /** Settled into the file, 0..1: an addition's + and band go, and its text steps a column left. */
+  settle: number;
+}
+const AS_PRINTED: DiffRow = { strike: 0, fold: 0, settle: 0 };
+
+/**
+ * The card of diff `lines` with its top left at `at`: `shown` of its eight
+ * rows (fractional, so it grows row by row, each sliding in from the left),
+ * each in its state, its edge lit by `lit` in `edge`. Its height follows
+ * the rows it shows, less the ones folded away.
+ */
+function drawDiffCard(
+  ctx: CanvasRenderingContext2D,
+  at: Pt,
+  lines: readonly string[],
+  o: { shown?: number; rows?: (r: number) => DiffRow; alpha?: number; lit?: number; edge?: string; scale?: number },
+): void {
+  const a = o.alpha ?? 1;
+  const shown = o.shown ?? lines.length;
+  if (a <= 0 || shown <= 0) return;
+  const rows = lines.map((_, r) => ({ reveal: clamp(shown - r), ...(o.rows?.(r) ?? AS_PRINTED) }));
+  const tall = rows.map((s) => s.reveal * (1 - s.fold) * DIFF.rowH);
+  const h = 2 * DIFF.pad * Math.min(1, 2 * shown) + tall.reduce((sum, t) => sum + t, 0);
+  const rect = { x: at.x, y: at.y, w: DIFF.w, h };
+  ctx.save();
+  ctx.globalAlpha *= a;
+  if (o.scale !== undefined && o.scale !== 1) {
+    ctx.translate(at.x + DIFF.w / 2, at.y + h / 2);
+    ctx.scale(o.scale, o.scale);
+    ctx.translate(-(at.x + DIFF.w / 2), -(at.y + h / 2));
+  }
+  drawCardPanel(ctx, rect, { radius: 12, fill: TERM.window, stroke: TERM.edge });
+  if ((o.lit ?? 0) > 0) {
+    roundedRect(ctx, rect.x + 1, rect.y + 1, rect.w - 2, rect.h - 2, 11);
+    ctx.strokeStyle = rgba(o.edge ?? PALETTE.cyan, 0.8 * clamp(o.lit ?? 0));
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  roundedRect(ctx, rect.x, rect.y, rect.w, rect.h, 12);
+  ctx.clip();
+  const adv = 0.6 * DIFF.size;
+  let y = at.y + DIFF.pad;
+  lines.forEach((line, r) => {
+    const s = rows[r];
+    const kind = diffKind(line);
+    const rowH = tall[r];
+    if (s.reveal <= 0) return;
+    const color = DIFF_COLOR[kind];
+    // The band behind a removal or an addition: it goes as the row folds or settles.
+    const band = kind === "ctx" ? 0 : 0.14 * (1 - s.settle);
+    if (band > 0 && rowH > 0.5) {
+      ctx.fillStyle = rgba(color, band);
+      ctx.fillRect(rect.x + 8, y, rect.w - 16, rowH);
+    }
+    const fade = s.reveal * (1 - smoothstep(0, 0.6, s.fold));
+    if (fade > 0) {
+      ctx.save();
+      ctx.globalAlpha *= fade;
+      const x0 = rect.x + DIFF.inset - 16 * (1 - swiftOut(s.reveal)) - adv * s.settle;
+      const base = y + 0.72 * DIFF.rowH;
+      // Column 0 is diff's marker: it goes as the row settles into the
+      // file, and the text steps into its place.
+      if (line) drawMono(ctx, line[0], x0, base, DIFF.size, rgba(color, 1 - s.settle));
+      drawMono(ctx, line.slice(1), x0 + adv, base, DIFF.size, kind === "del" ? color : mix(color, PALETTE.text1, s.settle));
+      if (s.strike > 0) {
+        ctx.strokeStyle = TERM.red;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x0, base - 0.3 * DIFF.size);
+        ctx.lineTo(x0 + monoWidth(line, DIFF.size) * s.strike, base - 0.3 * DIFF.size);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    y += rowH;
+  });
+  ctx.restore();
+}
+
+/** Each row of hk fix's diff as hk applies it: removals struck one after another and folded away, then the additions settle. */
+function applied(bt: number): (r: number) => DiffRow {
+  const a = progress(APPLY[0], APPLY[1], bt);
+  const kinds = DIFFS.fix.map(diffKind);
+  const dels = kinds.flatMap((k, r) => (k === "del" ? [r] : []));
+  return (r) => {
+    const kind = kinds[r];
+    if (kind === "del") {
+      const k = dels.indexOf(r);
+      return { strike: smoothstep(0.08 * k, 0.08 * k + 0.3, a), fold: smoothstep(0.45, 0.85, a), settle: 0 };
+    }
+    return { strike: 0, fold: 0, settle: smoothstep(0.55, 1, a) };
+  };
+}
+
+/** hk check: its step reads the file, fails on the diff, and the diff unfolds under it. */
+function drawCheck(ctx: CanvasRenderingContext2D, bt: number): void {
   if (bt < CHECK_GO) return;
-  const go = bt - CHECK_GO;
-  const flourish = bump(bt, ALL_DONE, 1 / 2);
-  ROW_Y.forEach((_, r) => {
-    const end = CHECK_DONE[r];
-    const x1 = Math.min(CHECK_END[r], CHECK.x0 + CHECK_RATE * go);
-    drawPill(ctx, CHECK, r, CHECK.x0, x1, tipLit(bt, CHECK_GO, end), land(bt, end, 1 / 4, 0.3), flourish);
-  });
-  // All three leave the same line together.
-  const flash = Math.exp(-go / 0.15) * (1 - progress(0.5, 0.75, go));
-  if (flash > 0.001) {
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = rgba(PALETTE.cyanBright, 0.8 * flash);
-    ctx.fillRect(CHECK.x0 - 1.5, ROW_Y[0] - TRACK_H / 2 - 6, 3, ROW_Y[2] - ROW_Y[0] + TRACK_H + 12);
-    ctx.restore();
-    for (const cy of ROW_Y) glow(ctx, CHECK.x0, cy, 60, PALETTE.cyan, 0.5 * flash);
-  }
+  drawPills(ctx, CHECK, bt, { fail: true, flourish: bump(bt, CHECK_DONE, 1 / 2) });
+  // The failure lights the card's edge red as it unfolds; it dims a little
+  // as hk fix's own diff comes up.
+  const n = DIFFS.check.length;
+  const shown = progress(DIFF_IN, DIFF_IN + n * DIFF_ROW, bt) * n;
+  const lit = Math.exp(-Math.max(0, bt - DIFF_IN) / 0.25) * (1 - progress(FIX_GO, FIX_GO + 1 / 4, bt));
+  drawDiffCard(ctx, diffAt(CHECK), DIFFS.check, { shown, alpha: 1 - 0.3 * smoothstep(FIX_PATCH, FIX_WRITE, bt), lit, edge: TERM.red });
 }
 
-function drawFixes(ctx: CanvasRenderingContext2D, bt: number): void {
-  const flourish = bump(bt, ALL_DONE, 1 / 2);
-  FIX_PILLS.forEach((f, k) => {
-    // It grows only while it holds the write lock: from the moment the key
-    // reaches its node to its ✔ on the beat.
-    const [from, to] = FIX_HOLDS[k];
-    const r = FIX_ROWS[k];
-    if (bt < from) return;
-    const x1 = lerp(f.x0, f.x1, progress(from, to, bt));
-    drawPill(ctx, FIX, r, f.x0, x1, tipLit(bt, from, to), land(bt, to, 1 / 4, 0.3), flourish);
-    // It takes the lock: a warm flare where it starts.
-    const flare = Math.exp(-(bt - from) / 0.12) * (1 - progress(from + 0.5, from + 0.75, bt));
-    glow(ctx, f.x0, ROW_Y[r], 50, PALETTE.warm, 0.5 * flare);
-  });
+/**
+ * hk fix: the same command reads the file, which ruff has fixed first, and
+ * its diff comes up under it; the step trades its read lock for the write
+ * lock, hk applies the diff, and the step's ✔.
+ */
+function drawFix(ctx: CanvasRenderingContext2D, bt: number): void {
+  if (bt < FIX_GO) return;
+  drawPills(ctx, FIX, bt, { fail: false, flourish: bump(bt, ALL_DONE, 1 / 2) });
+  if (bt >= FIX_PATCH) {
+    const n = DIFFS.fix.length;
+    const shown = progress(FIX_PATCH, FIX_PATCH + n * FIX_DIFF_ROW, bt) * n;
+    // Its edge comes up cyan with the diff the read printed, turns warm as
+    // the write lock shuts, and fades as the patch goes in.
+    const lit = Math.exp(-Math.max(0, bt - FIX_WRITE) / 0.25);
+    const edge = mix(PALETTE.cyan, PALETTE.warm, smoothstep(FIX_WRITE, FIX_WRITE + SNAP, bt));
+    drawDiffCard(ctx, diffAt(FIX), DIFFS.fix, { shown, rows: applied(bt), lit, edge });
+  }
+  // A warm flare where the step takes the write lock.
+  const write = FIX.holds[1];
+  if (bt >= write.from) glow(ctx, write.x0, ROW_Y, 50, PALETTE.warm, 0.5 * Math.exp(-(bt - write.from) / 0.12) * (1 - progress(write.from + 0.5, write.from + 0.75, bt)));
 }
 
 /** Both columns at beat `bt`: what whips out at the end. */
 function drawColumns(ctx: CanvasRenderingContext2D, bt: number, lt: number): void {
   if (bt < COLUMN_IN[0]) return;
   for (const c of COLUMNS) drawColumnFrame(ctx, c, bt, lt);
-  drawChecks(ctx, bt);
-  drawFixes(ctx, bt);
+  drawCheck(ctx, bt);
+  drawFix(ctx, bt);
 }
 
 // The frame.

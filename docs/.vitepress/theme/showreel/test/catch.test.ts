@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BEAT } from "../bible";
 import { MAIN } from "../kit/mainline";
-import { blocked } from "../kit/screens";
+import { blocked, HASH } from "../kit/screens";
 import { advance, firstLine, termLayout } from "../kit/term";
 import { cardAt, insetPane, labelX, PANE, SNAG, STOP, SWING } from "../scenes/catch";
 import { HOLE_Y, LOOP_R, LOOP_W } from "../scenes/catch-rig";
@@ -71,9 +71,9 @@ test("the `main` label glides from the line's start to sit centred over the head
   assert.equal(labelX(0), MAIN.label.x, "restore|catch: at the line's start on b0");
   const panned = BEATS.panned * BEAT;
   for (const lt of [panned, SWING, 8.5 * BEAT]) {
-    assert.ok(Math.abs(labelX(lt) + width / 2 - 600) < 1e-9, "centred over ada2ca4, panned to x 600");
+    assert.ok(Math.abs(labelX(lt) + width / 2 - 600) < 1e-9, `centred over ${HASH.head}, panned to x 600`);
     const parent = MAIN.parent.x - 800;
-    assert.ok(labelX(lt) > parent + MAIN.dotR + 40, "clear of the parent, f92f487, at x 200");
+    assert.ok(labelX(lt) > parent + MAIN.dotR + 40, `clear of the parent, ${HASH.parent}, at x 200`);
   }
   for (let lt = 0; lt < panned; lt += 1 / 240) assert.ok(labelX(lt + 1 / 240) >= labelX(lt), "it never doubles back");
 });

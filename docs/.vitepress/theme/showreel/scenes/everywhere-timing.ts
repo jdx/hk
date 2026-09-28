@@ -38,35 +38,38 @@ export const FOLD_LEN = 3 / 8;
 export const CHIP_OUT = [5.875, 6.25] as const;
 /** The two columns draw in, left then right, settled before their first steps. */
 export const COLUMN_IN = [6, 6.125] as const;
+/** A column draws in over this from its COLUMN_IN beat: title, file and track first, its padlock and line from a sixteenth in. */
+export const COLUMN_DRAW = 1 / 2;
 
-/** Checks: all three start together on b6.5 (the read lock snaps shut). */
+/**
+ * hk check: ruff-format runs its diff command on src/main.py under a read
+ * lock from b6.5, and fails on b7, since the diff is not empty: a red ✗,
+ * and the lock springs open.
+ */
 export const CHECK_GO = 6.5;
+export const CHECK_DONE = 7;
+/** Its diff unfolds under it from the ✗, a row every 1/16 beat: eight rows, whole on b7.5. */
+export const DIFF_IN = 7;
+export const DIFF_ROW = 1 / 16;
 /**
- * When each check's read ends and its ✔ lands, by row (prettier,
- * trailing-whitespace, newlines): newlines first and prettier last, as
- * `hk check --all` finished them, all on the 16th grid and done by b8.
+ * hk fix: ruff-format runs the same diff command under a read lock from
+ * b7.5, as the check's diff is whole, and has its patch on b8: the read
+ * lock lets go, and its own diff comes up under it, a row every 1/32 beat,
+ * whole on b8.25.
  */
-export const CHECK_DONE = [8, 7.25, 7] as const;
+export const FIX_GO = 7.5;
+export const FIX_PATCH = 8;
+export const FIX_DIFF_ROW = 1 / 32;
+/**
+ * A sixteenth after the read lock lets go, the step takes the write lock,
+ * as a lane's lock handed straight on does (kit/lanes.ts), and hk applies
+ * the patch over b8.375–8.875: the removed rows are struck and fold away,
+ * and the added rows settle into the file. ✔ on b9, and the lock springs
+ * open.
+ */
+export const FIX_WRITE = 8.25;
+export const APPLY = [8.375, 8.875] as const;
+export const FIX_DONE = 9;
 
-/**
- * Fixes: when each holds the write lock, in turn, one per beat. The first
- * takes it on b7; each lets it go on the beat (its ✔, the lock springs
- * open) and the next takes it a 16th later (the lock shuts, its pill
- * starts), the lanes' rule. The last lets it go on b10.
- */
-export const FIX_HOLDS = [
-  [7, 8],
-  [8.25, 9],
-  [9.25, 10],
-] as const;
-/**
- * Which row (0 prettier, 1 trailing-whitespace, 2 newlines) takes each of
- * those turns: prettier, newlines, then trailing-whitespace, the order
- * `hk fix` took README.md's write lock (fix.frames.txt frames 12–16), the
- * run the column is titled after. The commit run went prettier,
- * trailing-whitespace, newlines: the order of the turns is not fixed.
- */
-export const FIX_ROWS = [0, 2, 1] as const;
-
-/** Every row of both columns done. */
-export const ALL_DONE = 10;
+/** Both columns done. */
+export const ALL_DONE = 9.5;
