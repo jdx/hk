@@ -1272,6 +1272,46 @@ EOF
     assert_success
 }
 
+@test "created paths under a symlinked step directory use the resolved file" {
+    mkdir pkg
+    ln -s pkg alias
+    cat <<'SCRIPT' > pkg/formatter.sh
+#!/bin/bash
+if [ ! -e created.txt ]; then
+    printf '%s\n' '--- /dev/null' '+++ created.txt' '@@ -0,0 +1 @@' '+made'
+    exit 1
+fi
+SCRIPT
+    chmod +x pkg/formatter.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                dir = "alias"
+                check_diff = "./formatter.sh"
+                fix = "false"
+                stage = "<JOB_FILES>"
+            }
+        }
+    }
+}
+EOF
+    echo "source" > pkg/source.txt
+    git add .
+    git commit -m "test: create base fixture"
+
+    run hk fix alias/source.txt
+    assert_success
+    run git show :pkg/created.txt
+    assert_success
+    assert_output "made"
+}
+
 @test "a failed creation patch passes only check-selected files to the fixer" {
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash

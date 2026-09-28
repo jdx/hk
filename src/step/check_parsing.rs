@@ -346,8 +346,13 @@ mod tests {
         let tabbed = PathBuf::from("foo\tbar.txt");
         let files = vec![PathBuf::from("foo"), tabbed.clone()];
         let stdout = "--- \"a/foo\\tbar.txt\"\n+++ \"b/foo\\tbar.txt\"\n@@ -1 +1 @@\n-x  \n+x\n";
-        let (matched, extras) = step.filter_files_from_check_diff(&files, stdout, None);
+        let DiffFiles {
+            files: matched,
+            created,
+            extras,
+        } = step.filter_files_from_check_diff(&files, stdout, None);
         assert_eq!(matched, vec![tabbed]);
+        assert!(created.is_empty());
         assert!(extras.is_empty());
     }
 

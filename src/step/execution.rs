@@ -231,16 +231,19 @@ impl Step {
                                             stdout,
                                             dir.as_deref(),
                                         );
+                                        // Patch application resolves `dir` before writing. Use
+                                        // that same destination for locks and staging, including
+                                        // when `dir` is a symlink into the repository.
+                                        let root = std::env::current_dir()?.canonicalize()?;
+                                        let base = PathBuf::from(dir.as_deref().unwrap_or("."));
+                                        let base = base.canonicalize().unwrap_or(base);
                                         let created = parsed.created.into_iter().map(|path| {
                                             let path = if path.is_relative() {
-                                                dir.as_ref().map(|dir| PathBuf::from(dir).join(&path)).unwrap_or(path)
+                                                base.join(path)
                                             } else {
                                                 path
                                             };
-                                            // `dir = "."` and workspace templates can add a
-                                            // leading `./`, but job and staging paths use the
-                                            // repository-relative spelling without it.
-                                            path.strip_prefix(".").unwrap_or(&path).to_path_buf()
+                                            path.strip_prefix(&root).unwrap_or(&path).to_path_buf()
                                         }).collect::<Vec<_>>();
                                         (parsed.files, created, parsed.extras)
                                     } else if matches!(
