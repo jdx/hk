@@ -22,6 +22,7 @@ impl Uninstall {
         }
         // Clean both legacy script shims and config-based entries so the
         // uninstall is complete regardless of which mode the user had.
+        let _config_lock = install::lock_local_config()?;
         install::remove_local_shims()?;
         install::remove_config_entries("--local")?;
         info!("removed hk hooks from this repository");

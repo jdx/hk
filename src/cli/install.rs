@@ -2,6 +2,7 @@ use crate::{Result, config::Config, env, git_util};
 use eyre::bail;
 use log::{info, warn};
 use std::ffi::{OsStr, OsString};
+use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::process::Command;
 
@@ -72,6 +73,7 @@ impl Install {
         }
 
         if !self.force_local && has_global_hk_hooks()? {
+            let _config_lock = lock_local_config()?;
             // The global install is the single source of truth; clean up any
             // stale local install so it doesn't double-fire alongside global.
             let removed = remove_local_shims()? + remove_local_config_entries()?;
@@ -95,6 +97,10 @@ impl Install {
         let config = Config::get()?;
         let events = hook_events(&config);
 
+        // Git locks each config write separately. Hold a separate lock across
+        // the entire removal and installation so concurrent hk processes
+        // cannot observe or overwrite each other's partial installs.
+        let _config_lock = lock_local_config()?;
         // Clean up any prior installation so modes don't accumulate.
         let removed = remove_local_shims()? + remove_local_config_entries()?;
 
@@ -403,6 +409,39 @@ fn write_config_hook(
 
 fn remove_local_config_entries() -> Result<usize> {
     remove_config_entries("--local")
+}
+
+pub(crate) fn lock_local_config() -> Result<File> {
+    // --git-path resolves the shared config for linked worktrees and also
+    // honors GIT_DIR, unlike constructing a path from the working tree.
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-path", "config"])
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "git rev-parse --git-path config failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    #[cfg(unix)]
+    let config = {
+        use std::os::unix::ffi::OsStringExt;
+        let mut path = output.stdout;
+        while matches!(path.last(), Some(b'\n' | b'\r')) {
+            path.pop();
+        }
+        OsString::from_vec(path)
+    };
+    #[cfg(not(unix))]
+    let config = OsString::from(String::from_utf8(output.stdout)?.trim_end());
+    let mut lock_path = config;
+    lock_path.push(".hk-install.lock");
+    let lock = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(lock_path)?;
+    lock.lock()?;
+    Ok(lock)
 }
 
 pub(crate) fn remove_config_entries(scope: &str) -> Result<usize> {
