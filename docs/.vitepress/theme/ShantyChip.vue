@@ -38,6 +38,28 @@ const anchor = ref<HTMLElement>();
 </script>
 
 <template>
+  <!-- The switch cannot run without JavaScript. Where scripting is off this
+       plain link takes its place (see the media query below): the pirate
+       pages need no JavaScript, so it goes into the mode, or back out of it. -->
+  <a class="hk-shanty-chip hk-shanty-fallback" :class="{ 'is-pirate': pirate }" :href="pirate ? '/' : '/pirate/'">
+    <span class="hk-shanty-chip-anchor" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="4.5" r="2" />
+        <path
+          d="M12 6.5V21M8.5 10h7M5 14.5c.6 3.6 3.4 6.5 7 6.5s6.4-2.9 7-6.5M3.6 16 5 14.5 6.6 16M17.4 16 19 14.5 20.4 16"
+        />
+      </svg>
+    </span>
+    <span v-if="pirate"><strong>Avast!</strong> Back to plain English →</span>
+    <span v-else><strong>Yo ho!</strong> Sea shanty mode →</span>
+  </a>
   <button
     type="button"
     role="switch"
@@ -216,6 +238,18 @@ const anchor = ref<HTMLElement>();
 }
 .hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-knob {
   background: var(--vp-c-bg);
+}
+/* Shown only where scripting is off; it stands where the switch would. */
+.hk-shanty-fallback {
+  display: none;
+}
+@media (scripting: none) {
+  button.hk-shanty-chip {
+    display: none;
+  }
+  .hk-shanty-fallback {
+    display: flex;
+  }
 }
 @media (forced-colors: active) {
   .hk-shanty-chip-track {

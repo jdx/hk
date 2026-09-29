@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { useRoute } from "vitepress";
+import { computed, onMounted, ref } from "vue";
+import { data as pirate } from "../pirate.data";
+import { englishPath, hasVariant, isPiratePath, piratePath } from "./shanty-mode";
 import { useShantyMode, warmShantyFonts } from "./useShantyMode";
 
 // Sea shanty mode's switch in the header, on every page, drawn like the
@@ -16,6 +19,15 @@ onMounted(() => {
   hydrated.value = true;
 });
 const knob = ref<HTMLElement>();
+
+// Without JavaScript the switch cannot run, but the pirate pages need none:
+// a link drawn like the switch goes to this page's other version instead.
+const route = useRoute();
+const other = computed(() => {
+  const path = route.path;
+  if (isPiratePath(path)) return englishPath(path);
+  return hasVariant(path, pirate.missing) ? piratePath(path) : null;
+});
 </script>
 
 <template>
@@ -31,7 +43,7 @@ const knob = ref<HTMLElement>();
       :title="on ? 'Sea shanty mode is on: back to plain English' : 'Sea shanty mode: the docs as the crew sings them'"
       @pointerenter="warmShantyFonts"
       @focus="warmShantyFonts"
-      @click="toggle(knob, screen ? '.VPNavScreen .hk-shanty-switch-button' : '.VPNavBar .hk-shanty-switch-button')"
+      @click="toggle(knob, screen ? '.VPNavScreen button.hk-shanty-switch-button' : '.VPNavBar button.hk-shanty-switch-button')"
     >
       <span ref="knob" class="hk-shanty-switch-knob">
         <svg
@@ -50,6 +62,30 @@ const knob = ref<HTMLElement>();
         </svg>
       </span>
     </button>
+    <a
+      v-if="other"
+      class="hk-shanty-switch-button hk-shanty-switch-link"
+      :class="{ 'is-on': on }"
+      :href="other"
+      :aria-label="on ? 'Leave sea shanty mode: this page in plain English' : 'Sea shanty mode: this page as the crew sings it'"
+    >
+      <span class="hk-shanty-switch-knob">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="4.5" r="2" />
+          <path
+            d="M12 6.5V21M8.5 10h7M5 14.5c.6 3.6 3.4 6.5 7 6.5s6.4-2.9 7-6.5M3.6 16 5 14.5 6.6 16M17.4 16 19 14.5 20.4 16"
+          />
+        </svg>
+      </span>
+    </a>
   </div>
 </template>
 
@@ -60,6 +96,21 @@ const knob = ref<HTMLElement>();
 }
 .hk-shanty-switch.is-pending {
   visibility: hidden;
+}
+/* The link stands in for the switch only where scripting is off. */
+.hk-shanty-switch-link {
+  display: none !important;
+}
+@media (scripting: none) {
+  .hk-shanty-switch.is-pending {
+    visibility: visible;
+  }
+  button.hk-shanty-switch-button {
+    display: none !important;
+  }
+  .hk-shanty-switch-link {
+    display: block !important;
+  }
 }
 /* In the bar: after the social links, with the divider the bar puts
    between its groups. */
