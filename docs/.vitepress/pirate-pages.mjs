@@ -64,12 +64,14 @@ export function normalize(text) {
     .replace(new RegExp(`^\\*\\*Version:\\*\\* ${VERSION}$`, "gm"), "**Version:** X");
 }
 
+/** The hash a variant records of the English page's text it was written from. */
+export function hashText(text) {
+  return createHash("sha256").update(normalize(text)).digest("hex").slice(0, 12);
+}
+
 /** The hash a variant records for the English page it was written from. */
 export function sourceHash(page) {
-  return createHash("sha256")
-    .update(normalize(readFileSync(join(DOCS, page), "utf8")))
-    .digest("hex")
-    .slice(0, 12);
+  return hashText(readFileSync(join(DOCS, page), "utf8"));
 }
 
 const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
@@ -218,8 +220,8 @@ export async function skeleton(file) {
   return out;
 }
 
-/** Front matter a variant rewrites in its own words; every other key must match. */
-const OWN_WORDS = new Set(["title", "description", "sourceHash"]);
+/** Front matter a variant has of its own (its words, and what pirate-cli.mjs records); every other key must match. */
+const OWN_WORDS = new Set(["title", "description", "sourceHash", "pirateUntranslated"]);
 
 const listed = (items) => [...items].map((item) => `    ${JSON.stringify(item)}`).join("\n");
 
@@ -294,12 +296,21 @@ async function main(args) {
     console.log(
       `${total - missing.length} of ${total} English pages have a pirate variant; ${stale.length} ${stale.length === 1 ? "is" : "are"} behind their English page.`,
     );
+    // The CLI reference's variants are generated (pirate-cli.mjs): regenerating them is the fix.
+    const generated = (page) => page.startsWith("cli/");
     for (const [label, list] of [
-      ["behind their English page (rewrite, then `stamp`)", stale],
-      ["with no pirate variant", missing],
+      ["behind their English page (rewrite, then `stamp`)", stale.filter((p) => !generated(p))],
+      ["generated CLI pages behind their English page (run `aube run pirate:cli`)", stale.filter(generated)],
+      ["with no pirate variant", missing.filter((p) => !generated(p))],
+      ["CLI pages with no pirate variant yet (run `aube run pirate:cli`)", missing.filter(generated)],
       ["variants of English pages that are gone", orphans],
     ]) {
       if (list.length) console.log(`\n${list.length} ${label}:\n${list.map((p) => `  ${p}`).join("\n")}`);
+    }
+    const { missingWords } = await import("./pirate-cli.mjs");
+    const english = missingWords().length;
+    if (english) {
+      console.log(`\n${english} line${english === 1 ? "" : "s"} of the CLI reference ${english === 1 ? "is" : "are"} still in English (\`aube run pirate:cli --missing\` lists them).`);
     }
     return 0;
   }

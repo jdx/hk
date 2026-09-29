@@ -209,9 +209,33 @@ docs build runs it for every variant that is up to date.
 
 ### Reference pages generated from the CLI
 
-`docs/cli/**` is generated from hk's usage spec. Their variants follow the same
-rules and keep the command as their `title` and `#` heading. Use these labels
-so every command page reads alike:
+`docs/cli/**` is generated from hk's usage spec, and so are their variants:
+`.vitepress/pirate-cli.mjs` builds `docs/pirate/cli/**` from the English pages
+and the crew's words in `docs/pirate/cli.json`, and `mise run render:usage` runs
+it right after it writes the English pages. Never edit a page under
+`docs/pirate/cli/`: edit `cli.json`, then run `aube run pirate:cli` from `docs/`.
+
+`cli.json` translates the pages line by line, keyed by each English line exactly
+as the generated page has it:
+
+- `lines` holds the words for every page, so a flag that several commands share
+  reads the same on each of them;
+- `pages` holds one page's own words (`"util.md": { … }`), which win over
+  `lines`;
+- `labels` swaps a prefix wherever it starts a line (`- **Usage:** `).
+
+A heading's words go without an anchor; the script adds the English heading's.
+Code blocks, commands and links come from the English page as they are, and the
+words follow the rules above: keep every inline code span and link a line has.
+A command page keeps the command as its `title` and `#` heading.
+
+A line with no words in `cli.json` stays in English, and its page says how many
+of its lines do; `aube run pirate:cli --missing` lists them. So a new or
+reworded flag never leaves a page wrong or stale: the English words stand until
+someone gives them the crew's. To keep a line in English on purpose, map it to
+itself.
+
+Use these labels so every command page reads alike:
 
 | English                                                          | Pirate                                                                                                  |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
@@ -246,14 +270,8 @@ The links under `## Further charts` use these words:
 | `[Configuration guide](/configuration)`       | `[Configuration guide: the ship's charts](/configuration)`       |
 | `[Coding agents](/agents)`                    | `[Coding agents: the clockwork hands](/agents)`                  |
 
-A flag that several commands share (`hk check`, `hk fix`, `hk run` and every
-`hk run <hook>` page) reads the same on each of them: copy its line from
-`pirate/cli/check.md`, which gives the English sentence first and the crew's
-gloss after it.
-
-Replace the `<!-- @generated … -->` comment with
-`<!-- Pirate variant of docs/cli/<page>.md; see docs/pirate/STYLE.md. -->`, and
-keep `<!-- hk documentation examples -->` where the English page has it.
+A shared flag's line gives the English sentence first and the crew's gloss after
+it.
 
 ### Configuration example pages
 
@@ -284,8 +302,9 @@ different phrase from the heading: change the heading and its entry together.
 
 ## When the English page changes
 
-A variant records the English page it was written from (`sourceHash`). When
-the English page changes, the variant is stale: it keeps building and shows a
+The generated CLI pages never go stale (see above). Every other variant records
+the English page it was written from (`sourceHash`). When the English page
+changes, the variant is stale: it keeps building and shows a
 notice that links to the English page, and `status` lists it. The build never
 fails over a stale variant, so English docs never wait for the crew.
 

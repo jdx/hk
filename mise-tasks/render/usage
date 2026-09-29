@@ -9,4 +9,6 @@ target/usage-cli/bin/usage g markdown -mf hk.usage.kdl --out-dir docs/cli --url-
 target/usage-cli/bin/usage g json -f hk.usage.kdl > docs/cli/commands.json
 python3 scripts/enrich-cli-docs.py
 prettier --write docs/cli
+# The pirate CLI reference (sea shanty mode) is generated from the English one.
+node docs/.vitepress/pirate-cli.mjs
 git add hk.usage.kdl docs
