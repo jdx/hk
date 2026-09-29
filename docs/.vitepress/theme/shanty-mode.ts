@@ -1,19 +1,33 @@
 // Sea shanty mode: the whole site as the shanty sings it. Every English page
 // has a pirate variant under /pirate/ (a VitePress locale), and the switch in
-// the header moves between the two. The choice is remembered in localStorage,
-// so a visitor who turned the mode on is taken to the pirate variant of any
-// page they open, and `?shanty` offers the mode in a shared link. While the
-// mode is on, <html> carries one class that shanty-mode.css themes the site
-// from. This file holds the rules and nothing else: no Vue, and no DOM or
-// storage access until a function is called, so it is safe to server-render,
-// to import from config.mts, and to test with plain objects.
+// the header moves between the two. While the mode is on, <html> carries one
+// class that shanty-mode.css themes the site from. This file holds the rules
+// and nothing else: no Vue, and no DOM or storage access until a function is
+// called, so it is safe to server-render, to import from config.mts, and to
+// test with plain objects.
+//
+// Whether the mode is on comes from two choices:
+//
+// - The switch saves the visitor's choice in localStorage, for every visit.
+// - An address the visitor opens decides for the rest of the visit (the tab,
+//   in sessionStorage) without saving anything: `?shanty` turns the mode on,
+//   `?shanty=0` turns it off, and a pirate page's address turns it on, so a
+//   shared pirate link stays pirate as the visitor follows its links. Using
+//   the switch ends the visit's choice, and the saved one applies again.
+//
+// With the mode on, every page that has a variant is shown as the variant,
+// including pages reached with Back and Forward; with it off, every pirate
+// page is shown as its English page. An English page with no variant is shown
+// in English, themed while the mode is on.
 
 /** On <html> while the mode is on. */
 export const SHANTY_CLASS = "shanty-mode";
 /** On <html> while the switch is playing its ripple. */
 export const TURNING_CLASS = "shanty-turning";
-/** localStorage key; "1" when the visitor turned the mode on. */
+/** localStorage: the switch's choice, "1" on and "0" off; absent until the visitor uses it. */
 export const SHANTY_KEY = "hk-shanty-mode";
+/** sessionStorage: the choice an address made for this visit, "1" or "0"; absent when none did. */
+export const VISIT_KEY = "hk-shanty-visit";
 /** The VitePress locale that holds the pirate pages, and its path prefix. */
 export const PIRATE_LOCALE = "pirate";
 export const PIRATE_PREFIX = `/${PIRATE_LOCALE}/`;
@@ -21,58 +35,19 @@ export const PIRATE_PREFIX = `/${PIRATE_LOCALE}/`;
 /**
  * The `?shanty` parameter: on when bare or given any value, off for 0, off,
  * false and no. `?shantytown` and `?x=shanty` are other parameters. The
- * pre-paint script embeds this pattern, so the two cannot disagree.
+ * pre-paint script embeds these patterns, so the two cannot disagree.
  */
 const PARAM_RE = /(?:^|[?&])shanty(?:=([^&#]*))?(?=&|#|$)/i;
 const OFF_VALUE_RE = /^(?:0|off|false|no)$/i;
-const PIRATE_RE = /^\/pirate(?:\/|$)/;
+/** A pirate page's path, including the landing page's /pirate and /pirate.html forms. */
+const PIRATE_RE = /^\/pirate(?:\/|\.html$|$)/;
+/** The pirate landing page's path without its slash, which VitePress would load as a page of its own. */
+const PIRATE_ROOT_RE = /^\/pirate(?:\.html)?$/;
 
 /** What a URL's query says: true, false, or null when it does not mention the mode. */
 export function paramState(search: string): boolean | null {
   const match = PARAM_RE.exec(search);
   return match ? !OFF_VALUE_RE.test(match[1] ?? "") : null;
-}
-
-/** The subset of Storage the mode reads and writes. */
-export type ShantyStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
-/** localStorage, or null where reaching for it throws (blocked site data). */
-export function browserStorage(): ShantyStorage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** Whether the visitor turned the mode on last time. A blocked store says no. */
-export function storedShanty(storage: Pick<Storage, "getItem"> | null | undefined): boolean {
-  try {
-    return storage?.getItem(SHANTY_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/** Whether a visit wants the mode: the URL decides, else the visitor's last choice. */
-export function wantsShanty(search: string, storage: Pick<Storage, "getItem"> | null | undefined): boolean {
-  return paramState(search) ?? storedShanty(storage);
-}
-
-/** Remembers the visitor's choice. A blocked store keeps it for this visit only. */
-export function rememberShanty(on: boolean, storage: Pick<Storage, "setItem" | "removeItem"> | null | undefined): void {
-  try {
-    if (on) storage?.setItem(SHANTY_KEY, "1");
-    else storage?.removeItem(SHANTY_KEY);
-  } catch {
-    // The mode still works for this visit.
-  }
-}
-
-/** Sets or clears the mode's class on <html>. Only that class: `dark` is VitePress's. */
-export function paintShanty(root: { classList: Pick<DOMTokenList, "add" | "remove"> }, on: boolean): void {
-  if (on) root.classList.add(SHANTY_CLASS);
-  else root.classList.remove(SHANTY_CLASS);
 }
 
 /** A query string without the `?shanty` parameter, the others in their order. */
@@ -82,6 +57,64 @@ export function stripShantyParam(search: string): string {
     .split("&")
     .filter((part) => part && !/^shanty(?:=.*)?$/i.test(part));
   return kept.length ? `?${kept.join("&")}` : "";
+}
+
+/** A choice: on, off, or not made. */
+export type Choice = boolean | null;
+
+/** The subset of Storage the mode reads and writes. */
+export type ShantyStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+/** localStorage or sessionStorage, or null where reaching for it throws (blocked site data). */
+export function browserStorage(kind: "localStorage" | "sessionStorage"): ShantyStorage | null {
+  try {
+    return window[kind];
+  } catch {
+    return null;
+  }
+}
+
+/** The choice stored under `key`: "1" is on, "0" is off, anything else (or a blocked store) is none. */
+export function readChoice(storage: Pick<Storage, "getItem"> | null | undefined, key: string): Choice {
+  try {
+    const value = storage?.getItem(key);
+    return value === "1" ? true : value === "0" ? false : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stores a choice under `key`, or forgets it for null. A blocked store keeps it for this page only. */
+export function writeChoice(storage: Pick<Storage, "setItem" | "removeItem"> | null | undefined, key: string, choice: Choice): void {
+  try {
+    if (choice === null) storage?.removeItem(key);
+    else storage?.setItem(key, choice ? "1" : "0");
+  } catch {
+    // The mode still works for this page.
+  }
+}
+
+/** Whether the mode is on: the visit's choice, else the saved one, else off. */
+export function modeOn(visit: Choice, saved: Choice): boolean {
+  return (visit ?? saved) === true;
+}
+
+/**
+ * What opening an address chooses for the visit: its `?shanty` parameter, or
+ * on for a pirate page's address. Returning to a page with Back or Forward
+ * opens no address, so it chooses nothing, and nor does an English address
+ * without the parameter.
+ */
+export function visitFromAddress(pathname: string, search: string, navigation: string): Choice {
+  const fromParam = paramState(search);
+  if (fromParam !== null) return fromParam;
+  return isPiratePath(pathname) && navigation !== "back_forward" ? true : null;
+}
+
+/** Sets or clears the mode's class on <html>. Only that class: `dark` is VitePress's. */
+export function paintShanty(root: { classList: Pick<DOMTokenList, "add" | "remove"> }, on: boolean): void {
+  if (on) root.classList.add(SHANTY_CLASS);
+  else root.classList.remove(SHANTY_CLASS);
 }
 
 /** Whether a site path is one of the pirate pages. */
@@ -100,7 +133,7 @@ export function englishPath(pathname: string): string {
 }
 
 /**
- * The page a path shows, as `pageKey` of its English Markdown file: `hooks`
+ * The page a path shows, as `fileKey` of its English Markdown file: `hooks`
  * for `/hooks`, `/hooks.html` and `/pirate/hooks.html`; `cli/` for `/cli/`;
  * and the empty string for the landing page.
  */
@@ -130,45 +163,51 @@ export function pirateLink(link: string, missing: readonly string[]): string {
   return hasVariant(path, missing) ? piratePath(path) + rest : link;
 }
 
+/**
+ * Where a page is shown instead, or null when it is shown where it is: with
+ * the mode on, an English page that has a variant is shown as the variant;
+ * with it off, a pirate page is shown as its English page.
+ */
+export function routeFor(pathname: string, on: boolean, missing: readonly string[]): string | null {
+  if (PIRATE_ROOT_RE.test(pathname)) return on ? PIRATE_PREFIX : "/";
+  if (isPiratePath(pathname)) return on ? null : englishPath(pathname);
+  return on && hasVariant(pathname, missing) ? piratePath(pathname) : null;
+}
+
+/** Whether a page shown where it is gets the theme: a pirate page, or an English page with no variant while the mode is on. */
+export function themedPage(pathname: string, on: boolean, missing: readonly string[]): boolean {
+  return isPiratePath(pathname) || (on && !hasVariant(pathname, missing));
+}
+
 /** What a page load does before its first paint. */
 export interface Arrival {
-  /** Where to go instead, keeping the query and fragment, or null to stay. */
+  /** Where to go instead, with the other query parameters and the fragment, or null to stay. */
   redirect: string | null;
   /** Whether the page is themed while it stays. */
   themed: boolean;
+  /** The visit's choice after this load, for sessionStorage. */
+  visit: Choice;
 }
 
 /**
- * Decides a page load: a pirate page is themed, and `?shanty=0` takes it back
- * to English. An English page whose visitor wants the mode goes to its pirate
- * variant; one with no variant stays and is themed in place. The pre-paint
- * script is this function written out for <head>; the tests hold them to the
- * same answers.
+ * Decides a page load: the address may make the visit's choice, and the mode
+ * then shows the page where it belongs. The pre-paint script is this function
+ * written out for <head>; the tests hold them to the same answers, and to at
+ * most one redirect.
  */
 export function arrive(
   location: { pathname: string; search: string; hash: string },
-  storage: Pick<Storage, "getItem"> | null | undefined,
+  stored: { visit: Choice; saved: Choice },
+  navigation: string,
   missing: readonly string[],
 ): Arrival {
   const { pathname, search, hash } = location;
-  const fromUrl = paramState(search);
-  if (isPiratePath(pathname)) {
-    return fromUrl === false
-      ? { redirect: englishPath(pathname) + stripShantyParam(search) + hash, themed: false }
-      : { redirect: null, themed: true };
-  }
-  if (!(fromUrl ?? storedShanty(storage))) return { redirect: null, themed: false };
-  if (!hasVariant(pathname, missing)) return { redirect: null, themed: true };
-  return { redirect: piratePath(pathname) + stripShantyParam(search) + hash, themed: true };
-}
-
-/**
- * Whether a page shown after a navigation inside the site is themed: every
- * pirate page, and an English page with no variant while the visitor has the
- * mode on.
- */
-export function themedAfterNavigation(pathname: string, on: boolean, missing: readonly string[]): boolean {
-  return isPiratePath(pathname) || (on && !hasVariant(pathname, missing));
+  const visit = visitFromAddress(pathname, search, navigation) ?? stored.visit;
+  const on = modeOn(visit, stored.saved);
+  const to = routeFor(pathname, on, missing);
+  return to === null
+    ? { redirect: null, themed: themedPage(pathname, on, missing), visit }
+    : { redirect: to + stripShantyParam(search) + hash, themed: isPiratePath(to), visit };
 }
 
 /**
@@ -191,36 +230,47 @@ export function announcement(on: boolean, hasVariantPage = true): string {
 }
 
 /**
- * Runs in <head> of every page before the first paint, so a visitor who chose
- * the mode is taken to the pirate variant without seeing the English page,
- * and a themed page never flashes plain. It is `arrive` written out for a
- * browser; the class is on <html>, outside the app, so hydration does not see
- * it. `missing` lists the English pages with no pirate variant. It holds no
- * `</`.
+ * Runs in <head> of every page before the first paint, so a visitor in the
+ * mode is taken to the pirate variant without seeing the English page, and a
+ * themed page never flashes plain. It is `arrive` written out for a browser,
+ * and records the visit's choice for the pages that follow. The class is on
+ * <html>, outside the app, so hydration does not see it. `missing` lists the
+ * English pages with no pirate variant. It holds no `</`.
  */
 export function prePaintScript(missing: readonly string[]): string {
   return `(function () {
+  var l = location, p = l.pathname, s = l.search;
+  var read = function (store, key) {
+    try {
+      var v = window[store].getItem(key);
+      return v === "1" ? true : v === "0" ? false : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  var nav = "navigate";
   try {
-    var l = location, p = l.pathname, s = l.search;
-    var m = /${PARAM_RE.source}/i.exec(s);
-    var url = m ? !/${OFF_VALUE_RE.source}/i.test(m[1] || "") : null;
-    var pirate = ${PIRATE_RE}.test(p);
-    var strip = function () {
-      var kept = s.replace(/^\\?/, "").split("&").filter(function (x) { return x && !/^shanty(?:=.*)?$/i.test(x); });
-      return (kept.length ? "?" + kept.join("&") : "") + l.hash;
-    };
-    var on = url;
-    if (on === null && !pirate) {
-      try { on = localStorage.getItem(${JSON.stringify(SHANTY_KEY)}) === "1"; } catch (e) { on = false; }
-    }
-    if (pirate) {
-      if (on === false) return l.replace(p.replace(${PIRATE_RE}, "/") + strip());
-    } else {
-      if (!on) return;
-      var key = p.replace(/^\\//, "").replace(/(^|\\/)index(?:\\.html)?$/, "$1").replace(/\\.html$/, "");
-      if (${JSON.stringify(missing)}.indexOf(key) < 0) return l.replace("/${PIRATE_LOCALE}" + p + strip());
-    }
-    document.documentElement.classList.add(${JSON.stringify(SHANTY_CLASS)});
+    nav = performance.getEntriesByType("navigation")[0].type;
   } catch (e) {}
+  var pirate = ${PIRATE_RE}.test(p);
+  var m = /${PARAM_RE.source}/i.exec(s);
+  var visit = m ? !/${OFF_VALUE_RE.source}/i.test(m[1] || "") : pirate && nav !== "back_forward" ? true : null;
+  if (visit === null) visit = read("sessionStorage", ${JSON.stringify(VISIT_KEY)});
+  else
+    try {
+      sessionStorage.setItem(${JSON.stringify(VISIT_KEY)}, visit ? "1" : "0");
+    } catch (e) {}
+  var on = (visit === null ? read("localStorage", ${JSON.stringify(SHANTY_KEY)}) : visit) === true;
+  var key = p.replace(${PIRATE_RE}, "/").replace(/^\\//, "").replace(/(^|\\/)index(?:\\.html)?$/, "$1").replace(/\\.html$/, "");
+  var variant = ${JSON.stringify(missing)}.indexOf(key) < 0;
+  var to = ${PIRATE_ROOT_RE}.test(p)
+    ? on ? ${JSON.stringify(PIRATE_PREFIX)} : "/"
+    : pirate ? (on ? null : p.replace(${PIRATE_RE}, "/"))
+    : on && variant ? "/${PIRATE_LOCALE}" + p : null;
+  if (to !== null) {
+    var kept = s.replace(/^\\?/, "").split("&").filter(function (x) { return x && !/^shanty(?:=.*)?$/i.test(x); });
+    return l.replace(to + (kept.length ? "?" + kept.join("&") : "") + l.hash);
+  }
+  if (pirate || (on && !variant)) document.documentElement.classList.add(${JSON.stringify(SHANTY_CLASS)});
 })();`;
 }

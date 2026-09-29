@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import { useShantyMode } from "./useShantyMode";
+import { useShantyMode, warmShantyFonts } from "./useShantyMode";
 
 // The landing page's switch for sea shanty mode, in the place mise puts its
 // announcement chip: above the title. It flips the same mode as the switch in
@@ -44,7 +44,9 @@ const anchor = ref<HTMLElement>();
     :aria-checked="on"
     class="hk-shanty-chip"
     :class="{ 'is-on': on, 'is-pending': !hydrated, 'is-dropping': dropping, 'is-pirate': pirate }"
-    @click="toggle(anchor)"
+    @pointerenter="warmShantyFonts"
+    @focus="warmShantyFonts"
+    @click="toggle(anchor, '.hk-shanty-chip')"
   >
     <span ref="anchor" class="hk-shanty-chip-anchor" aria-hidden="true">
       <svg

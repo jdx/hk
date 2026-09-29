@@ -2,7 +2,6 @@
 import { useData, useRoute } from "vitepress";
 import { computed } from "vue";
 import { englishPath, isPiratePath } from "./shanty-mode";
-import { useShantyMode } from "./useShantyMode";
 
 // A note above a page in sea shanty mode that is not the whole story: a pirate
 // page written from an older English page (the build marks it, see
@@ -12,11 +11,12 @@ import { useShantyMode } from "./useShantyMode";
 // the saved choice is read, it would push the page down after it loads.
 const { frontmatter } = useData();
 const route = useRoute();
-const { readEnglish } = useShantyMode();
 
 const pirate = computed(() => isPiratePath(route.path));
 const stale = computed(() => pirate.value && frontmatter.value.pirateStale === true);
-const english = computed(() => englishPath(route.path));
+// `?shanty=0` makes this visit English (shanty-mode.ts), so the English page
+// stays English, in this tab or a new one, until the switch is used.
+const english = computed(() => `${englishPath(route.path)}?shanty=0`);
 </script>
 
 <template>
@@ -25,7 +25,7 @@ const english = computed(() => englishPath(route.path));
       <strong>Arr, this chart be behind the times.</strong> The English page was
       redrawn after this one was inked, so some o' what follows may be out o'
       date.
-      <a :href="english" @click.prevent="readEnglish">Read the latest English page →</a>
+      <a :href="english">Read the latest English page →</a>
     </p>
   </aside>
   <aside v-else-if="!pirate" class="hk-shanty-notice is-untranslated" aria-label="About this page">

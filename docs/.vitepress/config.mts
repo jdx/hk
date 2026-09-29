@@ -54,8 +54,11 @@ export default defineConfig({
   srcExclude: ["gen/**", `${PIRATE_DIR}/STYLE.md`, ...orphanedVariants().map((page) => `${PIRATE_DIR}/${page}`)],
   sitemap: {
     hostname: siteUrl,
-    // Search engines get the English pages; the pirate ones are for fun.
-    transformItems: (items) => items.filter((item) => !item.url.startsWith(`${PIRATE_DIR}/`)),
+    // Search engines get the English pages; the pirate ones are for fun. The
+    // pirate pages would also be listed as each English page's alternates,
+    // and they are its only ones.
+    transformItems: (items) =>
+      items.filter((item) => !item.url.startsWith(`${PIRATE_DIR}/`)).map(({ links: _alternates, ...item }) => item),
   },
   // Sea shanty mode (theme/shanty-mode.ts) is a second locale: every English
   // page has a pirate variant under /pirate/, with the interface's words from

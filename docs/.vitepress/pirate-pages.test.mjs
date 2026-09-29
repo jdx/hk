@@ -149,12 +149,17 @@ test("a release's version bump does not change what a variant was written from",
   assert.equal(normalize(url("2.4.0")), normalize(url("2.10.1")));
   assert.notEqual(normalize(`${url("2.4.0")}\nold`), normalize(`${url("2.4.0")}\nnew`));
   assert.equal(normalize("a\r\nb"), "a\nb");
+  assert.equal(normalize("**Version:** 2.4.0\n"), normalize("**Version:** 2.5.0-rc.1\n"));
 });
 
 test("stamping writes the hash into the front matter, adding it or replacing it", () => {
   assert.equal(stampText("---\ntitle: x\n---\n\n# X\n", "abc"), "---\ntitle: x\nsourceHash: abc\n---\n\n# X\n");
   assert.equal(stampText("---\ntitle: x\nsourceHash: 111\n---\n\n# X\n", "abc"), "---\ntitle: x\nsourceHash: abc\n---\n\n# X\n");
   assert.equal(stampText("# X\n", "abc"), "---\nsourceHash: abc\n---\n\n# X\n");
+  // Dollar signs in a page are text, not replacement patterns.
+  const dollars = "---\ndescription: costs $$ and $& and $'\n---\n\nrun `$'x'`\n";
+  assert.equal(stampText(dollars, "abc"), "---\ndescription: costs $$ and $& and $'\nsourceHash: abc\n---\n\nrun `$'x'`\n");
+  assert.equal(stampText(stampText(dollars, "abc"), "def"), "---\ndescription: costs $$ and $& and $'\nsourceHash: def\n---\n\nrun `$'x'`\n");
 });
 
 test("includes are expanded without their front matter, as VitePress does", () => {

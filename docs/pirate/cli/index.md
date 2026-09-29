@@ -1,7 +1,7 @@
 ---
 title: "CLI reference: the bosun's calls"
 description: "Every call the bosun can pipe: the commands, options, and examples of the hk CLI."
-sourceHash: 21c3f76e09b4
+sourceHash: f095f7aa434a
 ---
 
 <!-- Pirate variant of docs/cli/index.md; see docs/pirate/STYLE.md. -->

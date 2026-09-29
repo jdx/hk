@@ -50,13 +50,15 @@ export function pirateVariants() {
 
 /**
  * The English page with the parts a release rewrites by itself taken out, so
- * bumping the version in every `package://` URL (mise-tasks/update-version.sh
- * edits both pages alike) does not make a variant stale.
+ * a release does not make a variant stale: the version in every `package://`
+ * URL and the CLI reference's `**Version:**` line, which
+ * mise-tasks/update-version.sh updates in both pages alike.
  */
 export function normalize(text) {
   return text
     .replace(/\r\n/g, "\n")
-    .replace(/(package:\/\/github\.com\/jdx\/hk\/releases\/download\/)v[0-9.]+(\/hk@)[0-9.]+#/g, "$1vX$2X#");
+    .replace(/(package:\/\/github\.com\/jdx\/hk\/releases\/download\/)v[0-9.]+(\/hk@)[0-9.]+#/g, "$1vX$2X#")
+    .replace(/^\*\*Version:\*\* \S+$/gm, "**Version:** X");
 }
 
 /** The hash a variant records for the English page it was written from. */
@@ -86,8 +88,10 @@ export function stampText(text, hash) {
   const line = `sourceHash: ${hash}`;
   const front = FRONT_MATTER_RE.exec(text);
   if (!front) return `---\n${line}\n---\n\n${text}`;
-  if (HASH_LINE_RE.test(front[1])) return text.replace(front[0], front[0].replace(HASH_LINE_RE, line));
-  return text.replace(front[0], `---\n${front[1]}\n${line}\n---\n`);
+  // Sliced, not replaced: a replacement string would read `$&` and the like in the page.
+  const rest = text.slice(front[0].length);
+  if (HASH_LINE_RE.test(front[1])) return front[0].replace(HASH_LINE_RE, () => line) + rest;
+  return `---\n${front[1]}\n${line}\n---\n${rest}`;
 }
 
 /** Writes the English page's current hash into its variant's front matter. */
@@ -284,7 +288,9 @@ async function main(args) {
   if (command === "status") {
     const { stale, missing, orphans } = pirateStatus();
     const total = englishPages().length;
-    console.log(`${total - missing.length} of ${total} English pages have a pirate variant; ${stale.length} are behind their English page.`);
+    console.log(
+      `${total - missing.length} of ${total} English pages have a pirate variant; ${stale.length} ${stale.length === 1 ? "is" : "are"} behind their English page.`,
+    );
     for (const [label, list] of [
       ["behind their English page (rewrite, then `stamp`)", stale],
       ["with no pirate variant", missing],

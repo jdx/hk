@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useShantyMode } from "./useShantyMode";
+import { useShantyMode, warmShantyFonts } from "./useShantyMode";
 
 // Sea shanty mode's switch in the header, on every page, drawn like the
 // appearance switch beside it: a track with an anchor on its knob. `screen`
@@ -29,7 +29,9 @@ const knob = ref<HTMLElement>();
       :aria-checked="on"
       aria-label="Sea shanty mode"
       :title="on ? 'Sea shanty mode is on: back to plain English' : 'Sea shanty mode: the docs as the crew sings them'"
-      @click="toggle(knob)"
+      @pointerenter="warmShantyFonts"
+      @focus="warmShantyFonts"
+      @click="toggle(knob, screen ? '.VPNavScreen .hk-shanty-switch-button' : '.VPNavBar .hk-shanty-switch-button')"
     >
       <span ref="knob" class="hk-shanty-switch-knob">
         <svg
