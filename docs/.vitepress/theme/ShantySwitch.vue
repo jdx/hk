@@ -87,6 +87,12 @@ const knob = ref<HTMLElement>();
     display: none;
   }
 }
+/* While the small-screen menu is open, its row stands in for this switch,
+   so there is one switch on screen. The bar keeps the switch's room, so
+   nothing beside it moves. */
+.VPNavBar.screen-open .hk-shanty-switch:not(.is-screen) {
+  visibility: hidden;
+}
 /* In the small-screen menu: a row like the appearance row above it. */
 .hk-shanty-switch.is-screen {
   justify-content: space-between;

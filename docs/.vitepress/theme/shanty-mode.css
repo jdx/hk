@@ -85,6 +85,17 @@
   --hk-art-chest-open: url("./shanty/chest-open.svg");
   --hk-art-bottle: url("./shanty/bottle.svg");
 }
+/* Libre Caslon's italic draws "st" as a swash ligature, which reads as a long
+   s ("ﬆash"); its roman and the Fell faces have none. So wherever the
+   reading face is set in italic, common ligatures are off. */
+:root.shanty-mode :is(em, i, cite, dfn, var, blockquote, address),
+:root.shanty-mode .VPDocFooter :is(.last-updated, .edit-link-button),
+:root.shanty-mode .hk-shanty-notice p,
+:root.shanty-mode .DocSearch-Button-Placeholder,
+:root.shanty-mode .VPLocalSearchBox .search-input,
+:root.shanty-mode .NotFound .quote {
+  font-variant-ligatures: no-common-ligatures;
+}
 
 /* Chart room: parchment, iron-gall ink and brass. The brand stays a teal, a
    shade deeper, for the links. */
@@ -328,6 +339,14 @@
 :root.shanty-mode .DocSearch-Button .DocSearch-Button-Placeholder {
   font-style: italic;
 }
+/* Buttons and switches take the links' focus ring (style.css), which
+   VitePress's button rules would swap for the browser's own. It stands 4 px
+   off, on the paper around the control, so it never lies on brass. */
+:root.shanty-mode
+  :is(button, [role="button"], [role="switch"], summary):focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 4px;
+}
 /* The serif names and the flag take more room than the plain bar's, so
    where the bar is tight the search button keeps its icon and its keys, and
    the links close up a little. */
@@ -393,6 +412,21 @@
 }
 :root.shanty-mode .VPSidebarItem .text {
   font-size: 14.5px;
+}
+/* An entry's English gloss (sidebar.ts marks it up) is a line of its own
+   under the crew's words, small, so the entry wraps where it means to. The
+   caret and the X keep to the first line. */
+:root.shanty-mode .hk-gloss {
+  display: block;
+  color: var(--vp-c-text-3);
+  font-family: var(--hk-font-body);
+  font-size: 13px;
+  font-style: italic;
+  font-variant-ligatures: no-common-ligatures;
+  line-height: 18px;
+}
+:root.shanty-mode .VPSidebarItem .text:has(.hk-gloss) {
+  padding-bottom: 6px;
 }
 :root.shanty-mode .VPSidebarItem .indicator {
   display: none;
@@ -493,17 +527,13 @@
 :root.shanty-mode .VPDoc .vp-doc li {
   line-height: 1.75;
 }
-/* The lead paragraph opens as a book's first page does, its first line in
-   small capitals. A drop cap would split the many leads that begin "hk". */
+/* The lead paragraph is set a size up, in the full ink. Not in small
+   capitals, nor with a drop cap: many leads begin "hk", which small capitals
+   would turn into "HK" and a drop cap would split. */
 :root.shanty-mode .VPDoc .vp-doc > div > h1 + p {
   color: var(--vp-c-text-1);
   font-size: 19px;
   line-height: 1.7;
-}
-:root.shanty-mode .VPDoc .vp-doc > div > h1 + p::first-line {
-  font-family: var(--hk-font-caps);
-  font-size: 1.08em;
-  letter-spacing: 0.03em;
 }
 
 /* Links are inked in the brand teal; the line under them swells on hover. */
@@ -517,14 +547,15 @@
   text-decoration-style: wavy;
 }
 
-/* A compass point for each item. */
-:root.shanty-mode .VPDoc .vp-doc ul {
+/* A compass point for each item. Only the Markdown's own lists, which carry
+   no class: a component's list (BenchmarkResults.vue's bars) is its own. */
+:root.shanty-mode .VPDoc .vp-doc ul:not([class]) {
   list-style: none;
 }
-:root.shanty-mode .VPDoc .vp-doc ul > li {
+:root.shanty-mode .VPDoc .vp-doc ul:not([class]) > li {
   position: relative;
 }
-:root.shanty-mode .VPDoc .vp-doc ul > li::before {
+:root.shanty-mode .VPDoc .vp-doc ul:not([class]) > li::before {
   content: "";
   position: absolute;
   top: calc(0.875em - 5px);
@@ -543,7 +574,7 @@
     38% 38%
   );
 }
-:root.shanty-mode .VPDoc .vp-doc ul ul > li::before {
+:root.shanty-mode .VPDoc .vp-doc ul ul:not([class]) > li::before {
   transform: scale(0.7);
   opacity: 0.7;
 }
@@ -608,6 +639,12 @@
 :root.shanty-mode .VPDoc .vp-doc td {
   font-size: 15px;
 }
+/* A command in a cell stays whole: the serif's cells are narrower than the
+   plain site's, and would break `--global` at its hyphens. A table too wide
+   for the screen scrolls, as VitePress's tables do. */
+:root.shanty-mode .VPDoc .vp-doc td code {
+  white-space: nowrap;
+}
 @media (max-width: 640px) {
   :root.shanty-mode .VPDoc .vp-doc th,
   :root.shanty-mode .VPDoc .vp-doc td {
@@ -638,7 +675,8 @@
   }
 }
 :root.shanty-mode .VPDoc .vp-doc div[class*="language-"]::before,
-:root.shanty-mode .VPDoc .vp-doc .vp-code-group::before {
+:root.shanty-mode .VPDoc .vp-doc .vp-code-group::before,
+:root.shanty-mode .VPDoc .vp-doc :is(.bench-card, .bench-empty)::before {
   --corner: linear-gradient(var(--hk-sea-brass), var(--hk-sea-brass));
   content: "";
   position: absolute;
@@ -696,6 +734,23 @@
 :root.shanty-mode .vp-code-group input:checked + label::after {
   background-color: var(--hk-sea-brass);
 }
+/* The speed trials (BenchmarkResults.vue) are log entries too, ruled like a
+   code card, with its brass corners (drawn with the code cards' above).
+   Their times keep the reading face's proportional figures: its tabular ones
+   give the point a digit's width, which spaces "3.24 s" out. Set flush
+   right, the times still line up on their units. */
+:root.shanty-mode .vp-doc :is(.bench-card, .bench-empty) {
+  position: relative;
+  border-color: var(--hk-sea-rule);
+  border-radius: 3px;
+  background-image: var(--hk-grain);
+  background-size: 180px 180px;
+}
+:root.shanty-mode .vp-doc .bench-value {
+  font-size: 15px;
+  font-variant-numeric: proportional-nums;
+}
+
 /* Inline code is stamped on the page. In a heading, where it is often the
    whole title of a command's page, it is set plain in the heading's ink. */
 :root.shanty-mode .vp-doc :not(pre) > code {
@@ -953,8 +1008,19 @@
   -webkit-mask: var(--hk-art-ship) center / contain no-repeat;
   mask: var(--hk-art-ship) center / contain no-repeat;
 }
-:root.shanty-mode .VPDocAsideOutline .outline-link {
+/* The crew's headings run long, so an entry wraps rather than being cut
+   short, here and in the small-screen dropdown. VitePress puts the ship 7 px
+   below the top of the entry it is on; 5 px of padding over a 22 px line
+   puts the middle of the first line where the ship's middle is, and keeps a
+   one-line entry at VitePress's 32 px. */
+:root.shanty-mode :is(.VPDocAsideOutline, .VPLocalNavOutlineDropdown) .outline-link {
+  padding-block: 5px;
+  overflow: visible;
   font-size: 14.5px;
+  line-height: 22px;
+  white-space: normal;
+  text-overflow: clip;
+  text-wrap: pretty;
 }
 
 /* The foot of a page: a quill for the edit link, and signposts astern and
@@ -1043,6 +1109,11 @@
   font-weight: 400;
   line-height: 1.3;
 }
+/* The signposts reuse the sidebar's words, gloss and all. */
+:root.shanty-mode .VPDocFooter .pager-link .hk-gloss {
+  margin-top: 2px;
+  font-size: 14px;
+}
 
 /* Small screens: the bar below the nav, and the menu. */
 :root.shanty-mode .VPLocalNav {
@@ -1052,6 +1123,7 @@
 :root.shanty-mode .VPLocalNavOutlineDropdown button {
   font-family: var(--hk-font-caps);
   font-size: 15px;
+  font-weight: 400;
   letter-spacing: 0.04em;
 }
 :root.shanty-mode .VPNavScreenMenuLink,
@@ -1231,10 +1303,10 @@
     forced-color-adjust: none;
     background-color: Highlight;
   }
-  :root.shanty-mode .VPDoc .vp-doc ul {
+  :root.shanty-mode .VPDoc .vp-doc ul:not([class]) {
     list-style: disc;
   }
-  :root.shanty-mode .VPDoc .vp-doc ul > li::before {
+  :root.shanty-mode .VPDoc .vp-doc ul:not([class]) > li::before {
     content: none;
   }
   :root.shanty-mode .vp-doc .custom-block.details summary {

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import DefaultTheme from "vitepress/theme";
+// The theme without VitePress's Inter: style.css sets the site's own fonts,
+// so Inter was never shown, only preloaded and downloaded.
+import DefaultTheme from "vitepress/theme-without-fonts";
 import EndevFooter from "./EndevFooter.vue";
 import EndevSponsors from "./EndevSponsors.vue";
 import ShantyNotice from "./ShantyNotice.vue";
@@ -29,3 +31,19 @@ const { Layout } = DefaultTheme;
     </template>
   </Layout>
 </template>
+
+<style>
+/* The small-screen menu's slot for the switch's row comes after the social
+   links; the row belongs under the appearance row it is drawn like, so the
+   menu is a column and the links go after it. */
+.VPNavScreen .container {
+  display: flex;
+  flex-direction: column;
+}
+.VPNavScreen .container > .social-links {
+  order: 1;
+}
+.VPNavScreen .container::after {
+  order: 2;
+}
+</style>

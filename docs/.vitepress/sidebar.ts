@@ -123,8 +123,21 @@ export const PIRATE_SIDEBAR_TEXT: Record<string, string> = {
 };
 
 /**
+ * Marks up an entry's trailing English gloss, "Foul weather
+ * (troubleshooting)", as `Foul weather <span class="hk-gloss">troubleshooting</span>`,
+ * so that sea shanty mode sets it as a line of its own under the crew's
+ * words (shanty-mode.css). VitePress renders sidebar text as HTML, here and
+ * in the "Astern" and "Ahead" signposts at a page's foot.
+ */
+export function markGloss(text: string): string {
+  const gloss = /^(.+?) \(([^()]+)\)$/.exec(text);
+  return gloss ? `${gloss[1]} <span class="hk-gloss">${gloss[2]}</span>` : text;
+}
+
+/**
  * A sidebar with its words from `text` and its links moved under `prefix`,
- * except the links `moves` turns down, which keep their English page.
+ * except the links `moves` turns down, which keep their English page. A
+ * translation's trailing gloss is marked up by `markGloss`.
  */
 export function translateSidebar(
   items: SidebarItem[],
@@ -134,7 +147,7 @@ export function translateSidebar(
 ): SidebarItem[] {
   return items.map((item) => ({
     ...item,
-    text: item.text && (text[item.text] ?? item.text),
+    text: item.text && (Object.hasOwn(text, item.text) ? markGloss(text[item.text]) : item.text),
     ...(item.link && moves(item.link) ? { link: `${prefix}${item.link}` } : {}),
     ...(item.items ? { items: translateSidebar(item.items, prefix, text, moves) } : {}),
   }));
