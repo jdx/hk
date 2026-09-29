@@ -3,7 +3,8 @@ import { useData } from "vitepress";
 import { computed, onUnmounted, ref } from "vue";
 import HomeShowreel from "./HomeShowreel.vue";
 import ShantyChip from "./ShantyChip.vue";
-import { PIRATE_LOCALE } from "./shanty-mode";
+import { data as pirateData } from "../pirate.data";
+import { PIRATE_LOCALE, pirateLink } from "./shanty-mode";
 
 // The landing page serves both locales: docs/index.md, and docs/pirate/index.md
 // for sea shanty mode (shanty-mode.ts), which the server renders as it is, so
@@ -13,7 +14,7 @@ import { PIRATE_LOCALE } from "./shanty-mode";
 const { localeIndex } = useData();
 const pirate = computed(() => localeIndex.value === PIRATE_LOCALE);
 /** A link to a page, in this landing page's locale. */
-const to = (path: string) => (pirate.value ? `/${PIRATE_LOCALE}${path}` : path);
+const to = (path: string) => (pirate.value ? pirateLink(path, pirateData.missing) : path);
 
 const installCommand = "mise use hk";
 const copyStatus = ref("");

@@ -4,7 +4,8 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { data } from "../benchmarks.data";
 import { data as shantyFiles } from "../shanty.data";
 import { data as showreel } from "../showreel.data";
-import { reelKind } from "./shanty-mode";
+import { data as pirateData } from "../pirate.data";
+import { pirateLink, reelKind } from "./shanty-mode";
 import { describeChapters } from "./showreel/describe";
 import { factsFromBenchmarks, races } from "./showreel/facts";
 
@@ -19,7 +20,7 @@ import { factsFromBenchmarks, races } from "./showreel/facts";
 // section also holds the sing-along card, so it stays when no video was
 // rendered: the song's MP3 is in the repository, so it is always there.
 const props = defineProps<{ shanty?: boolean }>();
-const to = (path: string) => withBase(props.shanty ? `/pirate${path}` : path);
+const to = (path: string) => withBase(props.shanty ? pirateLink(path, pirateData.missing) : path);
 
 const facts = factsFromBenchmarks(data);
 const described = describeChapters(facts);

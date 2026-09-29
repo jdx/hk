@@ -121,6 +121,15 @@ export function hasVariant(pathname: string, missing: readonly string[]): boolea
   return !missing.includes(pageKey(pathname));
 }
 
+/**
+ * A link to a site page from a pirate page: to its variant when it has one,
+ * else to the English page. The query and fragment are kept.
+ */
+export function pirateLink(link: string, missing: readonly string[]): string {
+  const [, path, rest] = /^([^?#]*)(.*)$/.exec(link)!;
+  return hasVariant(path, missing) ? piratePath(path) + rest : link;
+}
+
 /** What a page load does before its first paint. */
 export interface Arrival {
   /** Where to go instead, keeping the query and fragment, or null to stay. */
