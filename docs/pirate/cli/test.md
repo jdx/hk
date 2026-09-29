@@ -15,7 +15,7 @@ Run step-defined tests: drills written into the steps themselves.
 ## Flags to fly {#flags}
 
 - **`--list`** — List the tests without running them
-- **`--name <NAME>…`** — Pick tests by name (give it more than once for more)
+- **`--name <NAME>…`** — Filter by test name, to pick out only the drills ye name (repeatable)
 - **`--step <STEP>…`** — Filter by step name, to drill only those hands (repeatable)
 - **`-h --help`** — Print help, for when ye've lost yer bearings
 

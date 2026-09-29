@@ -7,9 +7,10 @@ import { englishPath, isPiratePath } from "./shanty-mode";
 // page written from an older English page (the build marks it, see
 // pirate-pages.mjs), a generated CLI page with lines the crew has no words for
 // yet (pirate-cli.mjs counts them), or an English page shown in the mode
-// because it has no pirate variant yet. The second is in every English page and shown only by
-// the mode's class, which the pre-paint script sets: were it rendered once
-// the saved choice is read, it would push the page down after it loads.
+// because it has no pirate variant yet. The last is in every English page and
+// shown only by the mode's class, which the pre-paint script sets: were it
+// rendered once the saved choice is read, it would push the page down after it
+// loads.
 const { frontmatter } = useData();
 const route = useRoute();
 

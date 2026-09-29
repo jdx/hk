@@ -109,6 +109,49 @@ test("headings keep their anchors: custom ones, repeated ones, and untranslated 
   assert.equal(body, "## Flags to fly {#flags}\n\n## Flags to fly {#flags-1}\n\n## Setup {#set-up}\n\n## Other\n");
 });
 
+test("heading words may bring the English anchor, and no other", () => {
+  const withAnchor = { lines: { "## Flags": "## Flags to fly {#flags}" } };
+  assert.equal(translatePage("## Flags\n\n## Flags\n", "x.md", withAnchor).body, "## Flags to fly {#flags}\n\n## Flags to fly {#flags-1}\n");
+  assert.throws(() => translatePage("## Flags\n", "x.md", { lines: { "## Flags": "## Flags to fly {#flying}" } }), /needs \{#flags\}/);
+});
+
+test("slugs read code and words as VitePress does", () => {
+  const words = { lines: { "## `HK_MISE` and `HK_FILE`": "## Orders", "## check_diff output": "## The patch", "## A *bold* <em>move</em>": "## Arr" } };
+  const { body } = translatePage("## `HK_MISE` and `HK_FILE`\n\n## check_diff output\n\n## A *bold* <em>move</em>\n", "x.md", words);
+  assert.equal(body, "## Orders {#hk-mise-and-hk-file}\n\n## The patch {#check-diff-output}\n\n## Arr {#a-bold-move}\n");
+});
+
+test("tables keep escaped pipes in their cells, and their columns' alignment", () => {
+  const english = "| Left | Right | Mid |\n| :--- | ---: | :-: |\n| Pick a \\| b | `a\\|b` | x |\n";
+  const words = { lines: { Left: "Port", Right: "Starboard", Mid: "Midships", "Pick a \\| b": "Choose a \\| b" } };
+  assert.equal(
+    translatePage(english, "x.md", words).body,
+    "| Port          | Starboard | Midships |\n| :------------ | --------: | :------: |\n| Choose a \\| b |    `a\\|b` |    x     |\n",
+  );
+});
+
+test("only the crew's own words count: nothing inherited from JavaScript objects", () => {
+  const { body, untranslated } = translatePage("| constructor |\n| --- |\n| toString |\n\nvalueOf\n", "constructor", {});
+  assert.equal(body, "| constructor |\n| ----------- |\n| toString    |\n\nvalueOf\n");
+  assert.deepEqual(untranslated, ["constructor", "toString", "valueOf"]);
+});
+
+test("comments are copied, and includes still reach their files from under docs/pirate", () => {
+  // From docs/cli/util/x.md: docs/gen is outside docs/cli, and ./fix.md is a CLI page the pirate pages mirror.
+  const english = "<!--@include: ../../gen/builtins.md-->\n<!--@include: ./fix.md#flags-->\n<!--@include: @/gen/x.md-->\n<!--\na note\nfor maintainers\n-->\n";
+  assert.equal(
+    translatePage(english, "util/x.md", {}).body,
+    "<!--@include: ../../../gen/builtins.md-->\n<!--@include: ./fix.md#flags-->\n<!--@include: @/gen/x.md-->\n<!--\na note\nfor maintainers\n-->\n",
+  );
+  assert.deepEqual(translatePage(english, "util/x.md", {}).untranslated, [], "a comment's words are not the page's");
+});
+
+test("front matter the crew has no words for is listed, not counted on the page", () => {
+  const { untranslated, frontUntranslated } = translatePage('---\ndescription: "Brand new."\n---\n\nBrand new.\n', "x.md", {});
+  assert.deepEqual(untranslated, ["Brand new."]);
+  assert.deepEqual(frontUntranslated, ['description: "Brand new."']);
+});
+
 test("only prose counts as untranslated", () => {
   assert.equal(hasProse("- [`hk util check-symlinks`](/cli/util/check-symlinks.md)"), false);
   assert.equal(hasProse("# `hk check`"), false);
@@ -139,6 +182,8 @@ test("generating writes a page per English page and removes the rest", () => {
 test("docs/pirate/cli is what pirate-cli.mjs generates (run `aube run pirate:cli` after editing docs/pirate/cli.json)", () => {
   const words = readWords();
   for (const page of cliPages()) {
-    assert.equal(readFileSync(join(DOCS, "pirate/cli", page), "utf8"), pirateCliPage(page, words).text, page);
+    // Read as the generator reads its input, whatever line endings the checkout uses.
+    const onDisk = readFileSync(join(DOCS, "pirate/cli", page), "utf8").replace(/\r\n/g, "\n");
+    assert.equal(onDisk, pirateCliPage(page, words).text, page);
   }
 });

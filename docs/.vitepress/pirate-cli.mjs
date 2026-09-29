@@ -22,7 +22,7 @@
 // the voice and the lexicon. Edit cli.json, never the generated pages.
 
 import { existsSync, globSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DOCS, hashText, PIRATE_DIR } from "./pirate-pages.mjs";
 
@@ -41,12 +41,20 @@ export function slugify(text) {
     .toLowerCase();
 }
 
-/** A heading's text as VitePress slugs it: the words of its text and code, without Markdown. */
+/**
+ * A heading's text as VitePress slugs it: only its text and code, without
+ * Markdown or HTML. Code is set aside first, so its `_` and `*` stay, and an
+ * underscore inside a word (`check_diff`) is not emphasis.
+ */
 function headingText(markdown) {
+  const code = [];
   return markdown
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replace(/`([^`]*)`/g, "$1")
-    .replace(/(\*\*|__|\*|_)(.+?)\1/g, "$2");
+    .replace(/`([^`]*)`/g, (_, text) => `\u0000${code.push(text) - 1}\u0000`)
+    .replace(/(\*\*|\*)(.+?)\1/g, "$2")
+    .replace(/(?<![A-Za-z0-9])(__|_)(.+?)\1(?![A-Za-z0-9])/g, "$2")
+    .replace(/<[^>]*>/g, "")
+    .replace(/\u0000(\d+)\u0000/g, (_, n) => code[n]);
 }
 
 /** Whether a line has words for the crew to say, beyond code, links and punctuation. */
@@ -62,18 +70,52 @@ export function hasProse(line) {
 }
 
 const TABLE_RE = /^\|.*\|$/;
-const RULE_RE = /^\|(?:\s*:?-{3,}:?\s*\|)+$/;
+const RULE_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
+/** A row's cells: split at pipes, but not at escaped ones (`\|`), which stay in their cell. */
+const cellsOf = (line) => line.slice(1, -1).split(/(?<!\\)\|/);
+const alignOf = (cell) => {
+  const rule = cell.trim();
+  if (rule.startsWith(":") && rule.endsWith(":")) return "center";
+  return rule.endsWith(":") ? "right" : rule.startsWith(":") ? "left" : null;
+};
 
-/** A table's rows padded as prettier pads them, so the page is already formatted. `null` is the rule row. */
+/**
+ * A table's rows padded as prettier pads them, so the page is already
+ * formatted. The rule row is `{ align }`, one alignment (or null) per column.
+ */
 function formatTable(rows) {
   const width = (cell) => [...cell].length;
   const widths = [];
-  for (const row of rows) row?.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 3, width(cell))));
+  for (const row of rows) if (Array.isArray(row)) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 3, width(cell))));
+  const align = rows.find((row) => !Array.isArray(row))?.align ?? [];
+  const pad = (cell, i) => {
+    const room = widths[i] - width(cell);
+    if (align[i] === "right") return " ".repeat(room) + cell;
+    if (align[i] === "center") return " ".repeat(Math.floor(room / 2)) + cell + " ".repeat(room - Math.floor(room / 2));
+    return cell + " ".repeat(room);
+  };
+  const rule = (w, i) =>
+    align[i] === "center" ? `:${"-".repeat(w - 2)}:` : align[i] === "right" ? `${"-".repeat(w - 1)}:` : align[i] === "left" ? `:${"-".repeat(w - 1)}` : "-".repeat(w);
   return rows.map((row) =>
-    row === null
-      ? `| ${widths.map((w) => "-".repeat(w)).join(" | ")} |`
-      : `| ${row.map((cell, i) => cell + " ".repeat(widths[i] - width(cell))).join(" | ")} |`,
+    Array.isArray(row) ? `| ${row.map(pad).join(" | ")} |` : `| ${widths.map(rule).join(" | ")} |`,
   );
+}
+
+/**
+ * An include copied into the pirate page, pointing at the same file: a
+ * relative path to a file outside docs/cli gains a `../` for the page's place
+ * under docs/pirate/. Paths inside docs/cli, which the pirate pages mirror,
+ * and `@`-rooted ones stay as they are.
+ */
+function pirateInclude(line, page) {
+  return line.replace(/(<!--\s*@include:\s*)(.*?)(\s*-->)/g, (whole, open, target, close) => {
+    if (target.startsWith("@")) return whole;
+    const [, path, meta] = /^(.*?)((?:#[\w-]+)?(?:\{\d*,\d*\})?)$/.exec(target);
+    const from = posix.dirname(`cli/${page}`);
+    const resolved = posix.normalize(posix.join(from, path));
+    if (resolved.startsWith("cli/")) return whole;
+    return `${open}${posix.relative(posix.join(PIRATE_DIR, from), resolved)}${meta}${close}`;
+  });
 }
 
 /**
@@ -82,33 +124,41 @@ function formatTable(rows) {
  * front matter lines and body, and the English lines left untranslated.
  */
 export function translatePage(english, page, words) {
-  const own = words.pages?.[page] ?? {};
+  // Own properties only: an English line such as "constructor" is not a word the crew gave.
+  const has = (map, key) => map != null && Object.hasOwn(map, key);
+  const own = has(words.pages, page) ? words.pages[page] : {};
   const labels = Object.entries(words.labels ?? {});
   const untranslated = [];
+  let missed = untranslated;
   const say = (text) => {
-    const found = own[text] ?? words.lines?.[text];
-    if (found !== undefined) return found;
+    if (has(own, text)) return own[text];
+    if (has(words.lines, text)) return words.lines[text];
     for (const [from, to] of labels) if (text.startsWith(from)) return to + text.slice(from.length);
-    if (hasProse(text)) untranslated.push(text);
+    if (hasProse(text)) missed.push(text);
     return text;
   };
 
   const lines = english.replace(/\r\n/g, "\n").split("\n");
   const front = [];
   const body = [];
+  // Front matter a reader sees only in link previews: listed, not counted on the page.
+  const frontUntranslated = [];
   let i = 0;
   if (lines[0] === "---") {
     const end = lines.indexOf("---", 1);
+    missed = frontUntranslated;
     for (const line of lines.slice(1, end)) {
       // A command's page keeps the command as its title; only other titles have words to translate.
       const commandTitle = /^title: "hk(?: [^"]*)?"$/.test(line);
       front.push(/^(title|description):/.test(line) && !commandTitle ? say(line) : line);
     }
+    missed = untranslated;
     i = end + 1;
   }
 
   const slugs = new Set();
   let fence = null;
+  let comment = false;
   let table = [];
   const flushTable = () => {
     if (table.length) body.push(...formatTable(table));
@@ -116,6 +166,11 @@ export function translatePage(english, page, words) {
   };
   for (; i < lines.length; i++) {
     const line = lines[i];
+    if (comment) {
+      body.push(line);
+      if (line.includes("-->")) comment = false;
+      continue;
+    }
     if (fence) {
       body.push(line);
       const close = /^\s*(`{3,}|~{3,})\s*$/.exec(line);
@@ -123,13 +178,13 @@ export function translatePage(english, page, words) {
       continue;
     }
     if (TABLE_RE.test(line)) {
-      const cells = line.slice(1, -1).split("|");
+      const cells = cellsOf(line);
       if (cells.some((cell) => (cell.match(/`/g) ?? []).length % 2)) {
-        // A pipe inside code split a cell; the row is translated whole.
+        // An unescaped pipe inside code split a cell; the row is translated whole.
         flushTable();
         body.push(say(line));
       } else {
-        table.push(RULE_RE.test(line) ? null : cells.map((cell) => say(cell.trim())));
+        table.push(RULE_RE.test(line) ? { align: cells.map(alignOf) } : cells.map((cell) => say(cell.trim())));
       }
       continue;
     }
@@ -146,6 +201,11 @@ export function translatePage(english, page, words) {
       );
       continue;
     }
+    if (line.trimStart().startsWith("<!--")) {
+      body.push(pirateInclude(line, page));
+      comment = !line.includes("-->");
+      continue;
+    }
     const heading = /^(#{1,6}) (.*?)(?: \{#([^}]+)\})?$/.exec(line);
     if (heading) {
       const [, hashes, text, custom] = heading;
@@ -153,15 +213,24 @@ export function translatePage(english, page, words) {
       let id = base;
       for (let n = 1; slugs.has(id); n++) id = `${base}-${n}`;
       slugs.add(id);
-      const pirate = say(`${hashes} ${text}`);
+      const said = say(`${hashes} ${text}`);
+      // The words may bring the English anchor along (STYLE.md shows headings
+      // that way); any other anchor would break every link to the section.
+      const anchored = / \{#([^}]+)\}$/.exec(said);
+      if (anchored && anchored[1] !== base) {
+        throw new Error(
+          `docs/pirate/cli.json: "${hashes} ${text}" gives the anchor {#${anchored[1]}}, but ${page} needs {#${base}}; give the words alone and the anchor is added`,
+        );
+      }
+      const pirate = anchored ? said.slice(0, anchored.index) : said;
       // An h1 needs no anchor, and English words keep their own.
       body.push(hashes.length === 1 || (pirate === `${hashes} ${text}` && !custom) ? pirate : `${pirate} {#${id}}`);
       continue;
     }
-    body.push(line.trim() && !line.startsWith("<!--") ? say(line) : line);
+    body.push(line.trim() ? say(line) : line);
   }
   flushTable();
-  return { front, body: body.join("\n"), untranslated };
+  return { front, body: body.join("\n"), untranslated, frontUntranslated };
 }
 
 /** Every English CLI page, as its path under docs/cli, sorted. */
@@ -179,12 +248,12 @@ export function readWords(file = WORDS) {
 /** The pirate page for docs/cli/<page>, as it is written to disk. */
 export function pirateCliPage(page, words, docs = DOCS) {
   const english = readFileSync(join(docs, "cli", page), "utf8");
-  const { front, body, untranslated } = translatePage(english, page, words);
+  const { front, body, untranslated, frontUntranslated } = translatePage(english, page, words);
   // Written from the English page as it is now, so it is never stale; the
   // lines still in English are counted for the page's notice.
   const extra = [`sourceHash: ${hashText(english)}`];
   if (untranslated.length) extra.push(`pirateUntranslated: ${untranslated.length}`);
-  return { text: `---\n${[...front, ...extra].join("\n")}\n---\n${body}`, untranslated };
+  return { text: `---\n${[...front, ...extra].join("\n")}\n---\n${body}`, untranslated: [...frontUntranslated, ...untranslated] };
 }
 
 /** Rebuilds docs/pirate/cli: one page per English page, and none for pages that are gone. */

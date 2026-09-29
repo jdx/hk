@@ -26,7 +26,7 @@ Run the prepare-commit-msg hook, the bosun's pipe that calls all hands while the
 - **`-c --check`** — Run the check command instead of the fix command: inspect the cargo, don't mend it
 - **`-e --exclude <EXCLUDE>`** — Exclude files that otherwise would have been selected; that cargo stays out of the run
 - **`-f --fix`** — Run fix commands instead of check commands for this call only: mend the canvas
-- **`-g --glob <GLOB>`** — Work only the cargo that matches these glob patterns
+- **`-g --glob <GLOB>`** — Run on the cargo that matches these glob patterns
 - **`-J --json`** — Output the passage plan as JSON when combined with --plan or --why
 - **`-P --plan`** — Print the passage plan instead of running the hook
 - **`-S --step <STEP>`** — Run only specific step(s): call just the hands ye name
@@ -41,9 +41,9 @@ Run the prepare-commit-msg hook, the bosun's pipe that calls all hands while the
 - **`--junit-xml <PATH>`** — Write each step's results as a JUnit XML report
 - **`--no-fail-fast`** — Continue on failures, sailing on through every squall (opposite of --fail-fast)
 - **`--no-stage`** — Disable auto-staging of fixed files: mended cargo stays on the dock, unstaged
-- **`--pr`** — Inspect only the cargo changed in the current PR or branch (a shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
+- **`--pr`** — Run only on the cargo changed in the current PR or branch (a shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
 - **`--safe`** — Reject commands with unknown or destructive effects before anything runs
-- **`--sarif <PATH>`** — Write the diagnostics down as SARIF, in its standard form
+- **`--sarif <PATH>`** — Write normalized diagnostics as SARIF: what the lookouts sang out
 - **`--skip-step <STEP>`** — Skip specific step(s): those hands sit this one out
 - **`--stage`** — Enable auto-staging of fixed files: mended cargo is loaded aboard
 - **`--staged`** — Run on staged files only, without stashing unstaged changes: just the cargo loaded aboard, with nothing stowed in the hold
@@ -52,7 +52,7 @@ Run the prepare-commit-msg hook, the bosun's pipe that calls all hands while the
   **Choose from:** `git`, `patch-file`, `none`
 
 - **`--stats`** — Display statistics about the files matching each step
-- **`--to-ref <TO_REF>`** — The reference to sail to, where the comparison with --from-ref ends
+- **`--to-ref <TO_REF>`** — The end reference for the comparison with --from-ref
 - **`--unstaged`** — Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files a clockwork hand (a coding agent) just changed.
 - **`-h --help`** — Print help, for when ye've lost yer bearings
 

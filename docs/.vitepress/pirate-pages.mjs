@@ -251,9 +251,11 @@ export async function compareFiles(englishFile, pirateFile) {
 
   if (english.h1 !== pirate.h1) problems.push(`has ${pirate.h1} h1 headings; the English page has ${english.h1}`);
   if (english.headings.join() !== pirate.headings.join()) {
-    problems.push(
-      `sections differ. Each heading needs the English heading's level and anchor, in order, written as \`## Pirate words {#anchor}\`.\n  English:\n${listed(english.headings)}\n  Pirate:\n${listed(pirate.headings)}`,
-    );
+    // A generated CLI page gets its headings from pirate-cli.mjs, which adds the anchors itself.
+    const how = relative(DOCS, pirateFile).split("\\").join("/").startsWith(`${PIRATE_DIR}/cli/`)
+      ? "Its words come from docs/pirate/cli.json, which gives each heading's words at the English heading's level; the anchor is added by pirate-cli.mjs."
+      : "Each heading needs the English heading's level and anchor, in order, written as `## Pirate words {#anchor}`.";
+    problems.push(`sections differ. ${how}\n  English:\n${listed(english.headings)}\n  Pirate:\n${listed(pirate.headings)}`);
   }
   english.code.forEach((block, i) => {
     if (pirate.code[i] !== block) {

@@ -25,7 +25,7 @@ Generate shell completion scripts, so yer shell can finish the bosun's calls for
 
   **Effect:** modifies state (it touches, as well as looks)
 
-- **`--force`** — Heave a file hk did not write out of the target path, and put this one in its place
+- **`--force`** — Replace a file at the target path that hk did not write: heave it out and put this script in its place
 
   **Effect:** modifies state (it touches, as well as looks)
 

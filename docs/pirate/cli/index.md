@@ -33,11 +33,11 @@ New aboard, sailor? Get under way with [getting started](/getting_started), a se
 - **`-p --profile <PROFILE>`** — Profiles to enable or disable, the watches ye call up or stand down. Prefix a profile with ! to disable it, e.g. --profile slow --profile !fast
 - **`-s --slow`** — Shorthand for --profile=slow: call up the slow watch
 - **`-v --verbose`** — Enable verbose (debug) output, a fuller ship's log. Pass it twice for trace output
-- **`-n --no-progress`** — Keep the progress reports off the deck
+- **`-n --no-progress`** — Disable progress output, keeping it off the deck
 - **`-q --quiet`** — Quiet on deck: suppress non-essential output (info messages, progress indicators). Diagnostics for failed steps are still shown
 - **`--silent`** — Silent running: suppress all output except errors. Warnings are suppressed too
-- **`--trace`** — Keep a close log: tracing spans and performance diagnostics
-- **`--json`** — Report in JSON, for machines to read
+- **`--trace`** — Enable tracing spans and performance diagnostics: every leg of the passage, traced and timed
+- **`--json`** — Output in JSON format, for machines to read
 
 ## Flags to fly {#flags}
 

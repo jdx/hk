@@ -235,7 +235,9 @@ reworded flag never leaves a page wrong or stale: the English words stand until
 someone gives them the crew's. To keep a line in English on purpose, map it to
 itself.
 
-Use these labels so every command page reads alike:
+Use these labels so every command page reads alike (a heading shows its anchor
+below, which the script adds; in `cli.json` give the words alone, or with that
+same anchor):
 
 | English                                                          | Pirate                                                                                                  |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |

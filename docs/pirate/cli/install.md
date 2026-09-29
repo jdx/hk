@@ -22,7 +22,7 @@ If hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), 
 
 ## Flags to fly {#flags}
 
-- **`--force-local`** — Rig local hooks even when hk is already rigged for the whole fleet (globally)
+- **`--force-local`** — Rig local hooks on this ship even when hk is already configured globally
   (any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
   install is skipped in that case, so hk doesn't fire twice per
   event. Not compatible with `--global`.
