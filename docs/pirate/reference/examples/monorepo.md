@@ -30,7 +30,7 @@ hk check --all
 hk check --all --profile slow
 ```
 
-The `slow` profile (the slow watch) enables the extra Cargo check. It is not enabled automatically in CI: the harbour-master never musters the slow watch on its own.
+The `slow` profile (the slow watch) enables the extra Cargo check. It is not enabled automatically in CI: the harbour-master never calls up the slow watch on its own.
 
 ## Refit her for yer own ship {#adapt-it}
 
@@ -38,10 +38,10 @@ Change the `dir` values to match yer ship, strike off any components ye don't us
 
 For tools that find nested packages on their own, see [workspaces](/configuration#workspaces).
 
-## Boats with charts of their own: nested configs with `subprojects` {#nested-configs-with-subprojects}
+## Quarters with charts of their own: nested configs with `subprojects` {#nested-configs-with-subprojects}
 
 Ye needn't chart every component in the root `hk.pkl`: each subproject can keep
-its own `hk.pkl` right beside its code, a boat with charts of her own. The root config
+its own `hk.pkl` right beside its code, a quarter of the ship with charts of its own. The root config
 lists the subproject directories (literal names or globs):
 
 ```pkl
@@ -136,7 +136,7 @@ machine, with `hk install --global --mise`. For an installation scoped to this o
 ship, on any supported Git version, use `hk install --mise`.
 
 When hk runs from the repo root, each subproject's hooks are merged in, and each
-boat's hands keep to her own directory:
+quarter's hands keep to its own directory:
 
 - Step working directories and glob matching are relative to the subdirectory, so
   `frontend/hk.pkl` only sees the cargo under `frontend/`.
@@ -148,8 +148,8 @@ boat's hands keep to her own directory:
 - Hooks compose by name. Steps declared only under `check` do not automatically run
   under `pre-commit` or `fix`: each pipe calls only the hands listed for it.
 - Set hook-wide settings such as `fix`, `stash`, `stage`, and `report` in the root
-  config, so every subproject sails by the same rules.
-- Only one level of subprojects is supported: no boats within boats.
+  config, the master chart, so every subproject sails by the same rules.
+- Only one level of subprojects is supported: no quarters within quarters.
 
 This maps straight onto [mise monorepo config roots](https://mise.jdx.dev/tasks/monorepo.html):
 the same directories that keep a `mise.toml` for the quartermaster can keep their own `hk.pkl`.

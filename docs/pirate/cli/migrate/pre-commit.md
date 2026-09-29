@@ -9,7 +9,7 @@ sourceHash: a85878c9d34b
 # `hk migrate pre-commit`
 
 - **How to hail it:** `hk migrate pre-commit [FLAGS]`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
 Change ships: migrate from pre-commit (or prek) to hk.
 
@@ -43,7 +43,7 @@ It reads a .pre-commit-config.yaml and writes an hk.pkl (the ship's charts) that
   **Choose from:** `prek`, `pre-commit`
 
 - **`--hk-pkl-root <HK_PKL_ROOT>`** — Root path for hk's pkl files (e.g. "pkl" for a local checkout, or a package URL prefix). If it's set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl
-- **`-h --help`** — Print help, matey
+- **`-h --help`** — Print help, for when ye've lost yer bearings
 
 <!-- hk documentation examples -->
 
@@ -58,4 +58,4 @@ HK_FILE=./hk.migrated.pkl hk check --all --plan
 
 ## Further charts {#learn-more}
 
-[Set sail with getting started](/getting_started) · [Troubleshooting and the ship's log](/logging) · [All the bosun's calls](/cli/)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

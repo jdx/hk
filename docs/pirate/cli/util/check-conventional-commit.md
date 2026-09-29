@@ -21,7 +21,7 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits made
 
 ## Flags to fly {#flags}
 
-- **`--allowed-types <ALLOWED_TYPES>`** — Comma-separated list of commit types to let aboard
+- **`--allowed-types <ALLOWED_TYPES>`** — Comma-separated list of commit types to accept
 
   **Unless ye say otherwise:** `build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test`
 

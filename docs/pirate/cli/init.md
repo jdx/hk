@@ -9,7 +9,7 @@ sourceHash: c3583a09efe0
 # `hk init`
 
 - **How to hail it:** `hk init [FLAGS]`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
 Generate a new hk.pkl file for a project: fresh charts for the ship.
 
@@ -39,4 +39,4 @@ hk init --interactive
 
 ## Further charts {#learn-more}
 
-[Getting started: set sail](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

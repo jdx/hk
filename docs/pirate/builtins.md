@@ -26,7 +26,7 @@ hooks {
 }
 ```
 
-`Builtins.prettier` is the Pkl property name, the name the hand goes by on the roster. The step name, `"prettier"`, is yer own label for that hand, the one ye call out in orders such as `hk check --step prettier`.
+`Builtins.prettier` is the Pkl property name, the name the hand goes by on the roster. The step name, `"prettier"`, is yer own label for that hand, the one ye name in calls such as `hk check --step prettier`.
 
 Aye, and keep the schema and Builtins imports on the same version. The roster below describes the version of the source this website was built from; an older pinned package may differ.
 
@@ -91,4 +91,4 @@ The roster below is generated from the builtin definitions themselves, so it sta
 
 If there's no builtin for yer tool, define a step with `glob`, `check`, and an optional `fix` command. Only enable batching if the tool can process independent subsets of the files correctly.
 
-See [custom steps](/reference/examples/custom-linters) for a complete example. And all ye hands who would sign aboard: see [contributing](/contributing#add-a-builtin) to add a reusable definition to the standing crew.
+See [custom steps](/reference/examples/custom-linters) for a complete example. And, as the song goes, all you hands who would sign aboard: see [contributing](/contributing#add-a-builtin) to add a reusable definition to the standing crew.

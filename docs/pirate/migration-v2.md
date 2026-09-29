@@ -9,7 +9,7 @@ hk v2 strikes off the deprecated configuration entry points, the old gangways in
 
 ## The standing crew: builtins {#builtins}
 
-Every builtin, every hand o' the standing crew, is a `Config.Step`. A plain reference that takes the defaults stays short, and ye needn't change it:
+Every builtin, every hand of the standing crew, is a `Config.Step`. A plain reference that takes the defaults stays short, and ye needn't change it:
 
 ```pkl
 ["prettier"] = Builtins.prettier
@@ -23,7 +23,7 @@ local linters = new Mapping<String, Step> {
 }
 ```
 
-The staged, strict, and versioned names have been removed, struck from the roll. Replace them like so:
+The staged, strict, and versioned names have been removed, struck off the crew roster. Replace them like so:
 
 ```pkl
 ["gitleaks"] = (Builtins.gitleaks) {
@@ -40,7 +40,7 @@ The staged, strict, and versioned names have been removed, struck from the roll.
 }
 ```
 
-These stand in for `gitleaks_staged`, `knip_strict`, `pinact_v3`, and `pinact_update_v3`, in that order. Put generic step customization, the orders any hand can take, under that same amended step object, matey:
+These stand in for `gitleaks_staged`, `knip_strict`, `pinact_v3`, and `pinact_update_v3`, in that order. Put generic step customization, the settings any hand can take, under that same amended step object, matey:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) { batch = false }
@@ -52,7 +52,7 @@ Two hands become one: swap `Builtins.check_byte_order_marker` and `Builtins.fix_
 
 Top-level `steps` be optional, not something the refit demands. Existing charts that define their steps only inside `hooks`, shared `local linters` mappings included, are still supported. Ye needn't move those steps when ye upgrade.
 
-For a new set o' charts, we recommend top-level `steps` when `check`, `fix`, and `pre-commit` should share the same linters:
+For a new set of charts, we recommend top-level `steps` when `check`, `fix`, and `pre-commit` should share the same linters:
 
 ```pkl
 steps {
@@ -60,7 +60,7 @@ steps {
 }
 ```
 
-When it isn't empty, it rigs implicit `check`, `fix`, and `pre-commit` hooks. Without top-level steps, only the hooks ye declare outright are aboard. Explicit hooks inherit these steps, and an entry the hook defines under the same name replaces the inherited one entirely. Use `enabled = false` to disable an implicit hook ye don't want aboard.
+When it isn't empty, it rigs implicit `check`, `fix`, and `pre-commit` hooks. Without top-level steps, only the hooks ye declare outright are aboard. Explicit hooks inherit these steps, and an entry the hook defines under the same name replaces the inherited one entirely. Use `enabled = false` to stand down an implicit hook ye don't want.
 
 `pre-commit` mends the canvas and loads the fixes aboard (stages them) by default. `hk fix` and every other hook leave their changes on the dock, unstaged, unless `stage = true` or `--stage` is given. A step's `stage` patterns only filter which paths get loaded, and only once staging is turned on at the hook level.
 

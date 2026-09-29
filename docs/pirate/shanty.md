@@ -9,7 +9,7 @@ _The crew's own sea shanty about the hk git hook manager_
 
 <ShantyVideo />
 
-The words are below, so ye can sing along with the crew. For the tool itself, weigh anchor with [getting started](/getting_started).
+The words are below, so ye can sing along with the crew. For the tool itself, get under way with [getting started](/getting_started).
 
 ## The first verse {#verse-1}
 

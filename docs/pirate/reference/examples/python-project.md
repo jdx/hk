@@ -25,11 +25,11 @@ hk check --all --profile types
 hk fix
 ```
 
-Ruff's formatter waits for Ruff's lint fixes before it takes up the canvas. mypy runs only when `types` is enabled; until then it stays below decks. Mark this well: the profile must be enabled for the hk invocation itself; setting `HK_PROFILE` in a hook's child-command environment does not select it.
+Ruff's formatter waits for Ruff's lint fixes before it takes up the canvas. mypy runs only when `types` is enabled; until then its watch stays off duty. Mark this well: the profile must be enabled for the hk invocation itself; setting `HK_PROFILE` in a hook's child-command environment does not select it.
 
-## Refit her for yer own voyage {#adapt-it}
+## Refit her for yer own ship {#adapt-it}
 
-If ye'd rather sail with Black, replace the `ruff-format` entry with `Builtins.black`. Choose one primary formatter, one master sailmaker, to avoid formatting passes that fight each other.
+If ye'd rather have Black mend the canvas, replace the `ruff-format` entry with `Builtins.black`. Choose one primary formatter, one master sailmaker, to avoid formatting passes that fight each other.
 
 For a push hook that always brings mypy along, add a `pre-push` hook that copies the top-level steps and clears mypy's profile requirement there:
 

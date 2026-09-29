@@ -7,7 +7,7 @@ sourceHash: e0cde651d892
 
 A hook is a named muster of steps: the bosun's pipe that calls a set of hands on deck. Git sounds the installed hooks when particular events come round; `hk run <hook>` sounds them directly. The `check` and `fix` hooks also answer to `hk check` and `hk fix`.
 
-To install the hooks, see [getting started](/getting_started#install-hooks).
+To rig the hooks, see [getting started](/getting_started#install-hooks).
 
 ## Check and fix: inspecting the cargo, mending the canvas {#check-and-fix-commands}
 
@@ -36,7 +36,7 @@ For both `hk run pre-commit --all` and `hk check --all`, the resolved stash meth
 `HK_STASH_UNTRACKED=0` stops hk discovering untracked files or stowing them in the hold. Setting it to `1` allows discovery and stashing, but still leaves untracked files out of `--all` when stashing is on.
 
 ::: warning Mind ye: staged paths are not staged contents
-`--staged` does not stow unstaged changes in the hold. If a file holds both staged and unstaged edits, the command sees its working-tree contents, dock cargo and all. Use a hook set up with stashing when the staged version must be kept apart on its own.
+`--staged` does not stow unstaged changes in the hold. If a file carries both staged and unstaged edits, the command sees its working-tree contents, dock cargo and all. Use a hook set up with stashing when the staged version must be kept apart on its own.
 :::
 
 Use `hk run pre-commit --plan` to read the passage plan: the steps and files it picks, before any of them run.
@@ -77,13 +77,13 @@ Files marked with `git add -N` (intent to add) have no staged content, so hk set
 
 Read hk's error before ye change the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git stash list` to see which changes are present.
 
-hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls how many it keeps. Hold on to the stash and backup hk reports until ye have recovered and reviewed yer work. Don't blindly apply a stash again to files that already carry its changes.
+hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls how many it keeps. Keep the stash and backup hk reports until ye have recovered and reviewed yer work. Don't blindly apply a stash again to files that already carry its changes.
 
 Intent-to-add files are kept in a separate stash entry named `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
 
 ## Look over the mending before ye set sail {#review-fixes-before-committing}
 
-The generated pre-commit hook automatically stages the fixes that apply, so ye skip the "fail, git add, and commit again" dance. To mend the canvas but hold the voyage for review:
+The generated pre-commit hook automatically stages the fixes that apply, so ye skip the "fail, git add, and commit again" dance. To mend the canvas but stop the voyage for review:
 
 ```pkl
 hooks {
@@ -137,7 +137,7 @@ failure and hauled back to port.
 
 ## Commit-message hooks: the name ye christen her with {#commit-message-hooks}
 
-`commit-msg` runs after the commit message is prepared and before the commit is made. Use the built-in Conventional Commits check, one o' the standing crew:
+`commit-msg` runs after the commit message is prepared and before the commit is made. Use the built-in Conventional Commits check, one of the standing crew:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
@@ -154,9 +154,9 @@ hooks {
 
 The `commit_msg_file` template variable holds the message's path. `prepare-commit-msg` also gets `source` and `sha` when Git supplies them. Use that hook to prepare or edit a message before the sailor's editor opens.
 
-## Other calls from Git {#other-git-events}
+## When else Git sounds the pipe {#other-git-events}
 
-hk answers these calls from Git with dedicated handlers:
+hk answers these Git events with dedicated handlers:
 
 | Event                | Template variables worth having aboard                    |
 | -------------------- | --------------------------------------------------------- |
@@ -187,7 +187,7 @@ hooks {
 }
 ```
 
-## Stand down a hook or a hand {#skip-a-hook-or-step}
+## Let a hook or a hand sit this one out {#skip-a-hook-or-step}
 
 ```sh
 HK_SKIP_STEPS=eslint git commit

@@ -13,7 +13,7 @@ sourceHash: 8b8f475fe321
 
 Print the effective runtime settings, the ones the ship is sailing by right now.
 
-Lays out the configuration once every source that came aboard has been merged, including CLI flags, environment variables, git config, project config, and user config.
+Lays out the configuration merged from every source, including CLI flags, environment variables, git config, project config, and user config.
 
 ## Flags to fly {#flags}
 

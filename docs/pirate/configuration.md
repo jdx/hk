@@ -8,11 +8,11 @@ sourceHash: eaeee6c42cf0
 
 hk reads `hk.pkl` to decide which hands (steps) to call and how to work them. Start with a shared set of lookouts (linters), then add file filters, dependencies, and profiles as yer ship needs them. As the song has it, hook, helm and harbour-master "steer by the one set of charts, in hk.pkl, typed and true."
 
-Setting sail for the first time? Follow [getting started](/getting_started). For whole configurations, fully rigged, see the [examples](/reference/examples/).
+Getting under way for the first time? Follow [getting started](/getting_started). For whole configurations, fully rigged, see the [examples](/reference/examples/).
 
 ## `hk.pkl`, the charts ye sail by {#hk-pkl}
 
-A configuration amends hk's [Pkl schema](/pkl_introduction). For a set of linters the whole crew shares, prefer top-level `steps`:
+A configuration amends hk's [Pkl schema](/pkl_introduction). For one set of lookouts that every hook shares, prefer top-level `steps`:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
@@ -70,14 +70,14 @@ hk starts in the current directory and climbs upward, like a hand going up the r
 | ----- | ---------------------- | --------------------------------------- |
 | 1     | `hk.local.pkl`         | Yer own local override for the ship     |
 | 2     | `.config/hk.local.pkl` | Yer own local override under `.config/` |
-| 3     | `hk.pkl`               | The charts the whole crew shares        |
+| 3     | `hk.pkl`               | The charts all yer shipmates share      |
 | 4     | `.config/hk.pkl`       | The shared charts under `.config/`      |
 
 [`HK_FILE`](/environment_variables#hk-file) points hk at a specific configuration instead. hk sails by one project file; it does not merge every file it finds.
 
 ### `hk.local.pkl`, yer own marks on the charts {#hk-local-pkl}
 
-Use Pkl's `amends` to extend the shared project configuration locally, on yer own deck:
+Use Pkl's `amends` to extend the shared project configuration locally:
 
 ```pkl
 amends "./hk.pkl"
@@ -127,7 +127,7 @@ local eslint = new Step {
 - `fix` should mend what it can and report any problems that remain.
 - `{{files}}` expands to the selected files, as arguments.
 
-A step without file patterns can run even when no cargo is selected. Use that for commands that work the whole ship, and declare an order when they read or write beyond a known set of files.
+A step without file patterns can run even when no cargo is selected. Use that for commands that work the whole ship, and declare their ordering when they read or write beyond a known set of files.
 
 ### A hand's duties: step commands {#step-commands}
 
@@ -253,7 +253,7 @@ If the formatter fails on any file, no patch is printed and hk runs `fix`, which
 }
 ```
 
-The amended object keeps every property ye don't override. See [builtins](/builtins) for the full muster roll and command details.
+The amended object keeps every property ye don't override. See [builtins](/builtins) for the full crew roster and command details.
 
 ### Who hauls first: dependencies and groups {#dependencies-and-groups}
 
@@ -378,20 +378,20 @@ The bosun's pipe brings word of its own too: Git hook arguments such as `hook_ar
 
 Mind: conditions are expr-lang expressions, not Tera templates. Name variables directly, as in `is_branch_checkout`, not as `{{ is_branch_checkout }}`.
 
-## Whose orders win: configuration precedence {#configuration-precedence}
+## Who outranks whom: configuration precedence {#configuration-precedence}
 
 Runtime settings are settled from lowest precedence to highest, like a chain of command:
 
-| Precedence | Who gives the order                                                   |
+| Precedence | Where it hails from                                                   |
 | ---------- | --------------------------------------------------------------------- |
 | 1          | Built-in defaults                                                     |
 | 2          | User configuration, typically `~/.config/hk/config.pkl`               |
 | 3          | The selected project configuration                                    |
 | 4          | Git configuration, with local values overriding global/system values  |
 | 5          | `HK_*` environment variables, the standing orders                     |
-| 6          | CLI flags, the order called on deck                                   |
+| 6          | CLI flags, flown on the call itself                                   |
 
-For scalar settings, a higher layer's order overrides the ones below it. List settings such as `exclude`, `skip_steps`, `skip_hooks`, and `hide_warnings` are different: they gather up their values from every source.
+For scalar settings, a higher layer's value overrides the ones below it. List settings such as `exclude`, `skip_steps`, `skip_hooks`, and `hide_warnings` are different: they gather up their values from every source.
 
 ### Yer own sea chest: user configuration {#hkrc}
 
@@ -407,12 +407,12 @@ skip_steps = List("optional-check")
 
 For user files amending `Config.pkl`, hooks and steps merge additively with the project: yer user configuration adds names the project doesn't define, and when names collide, the project's definitions win. Use `hk.local.pkl` to replace project behaviour locally.
 
-For removed `UserConfig.pkl` fields (thrown overboard) and legacy paths, see the
+For removed `UserConfig.pkl` fields (struck off) and legacy paths, see the
 [hk v2 migration guide](/migration-v2).
 
 Global configuration is a separate matter from [global hook installation](/getting_started#install-hooks). An installed hook in a repository with no project configuration exits silently: no charts, no call.
 
-### Orders kept in Git: Git configuration {#git-configuration}
+### Settings kept in Git: Git configuration {#git-configuration}
 
 Use Git settings for preferences that stick, without touching `hk.pkl`:
 
@@ -430,7 +430,7 @@ git config --local hk.exclude node_modules
 git config --local --add hk.exclude "**/*.min.js"
 ```
 
-### Read the orders in force: inspect effective settings {#inspect-effective-settings}
+### What the ship sails by right now: inspect effective settings {#inspect-effective-settings}
 
 ```sh
 hk config dump
@@ -446,7 +446,7 @@ The reference below is generated from the schema's own documentation, so it stay
 
 <!--@include: ../gen/pkl-config.md-->
 
-## Every order ye can give: settings reference {#settings-reference}
+## Every setting the ship sails by: settings reference {#settings-reference}
 
 Each setting below lists its type, its default, and the sources it can come from; it's generated too, and stays in plain English. Pkl property names use underscores; CLI flags generally use hyphens.
 

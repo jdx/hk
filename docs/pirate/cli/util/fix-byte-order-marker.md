@@ -9,9 +9,9 @@ sourceHash: fb6475516a01
 # `hk util fix-byte-order-marker`
 
 - **How to hail it:** `hk util fix-byte-order-marker <FILES>…`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
-Removes the UTF-8 byte order marker (BOM), that stowaway at the very start of a file.
+Removes the UTF-8 byte order marker (BOM), that unbidden passenger at the very start of a file.
 
 ## Cargo it takes {#arguments}
 

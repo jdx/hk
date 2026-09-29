@@ -23,11 +23,11 @@ Generate shell completion scripts, so yer shell can finish the bosun's calls for
 
   Writes the script file and nothing else: no shell rc file and no PowerShell profile is edited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's dot-source — it is printed for ye to add by hand.
 
-  **Effect:** modifies state (lays hands on the cargo)
+  **Effect:** modifies state (it touches, as well as looks)
 
 - **`--force`** — Replace a file at the target path that hk did not write
 
-  **Effect:** modifies state (lays hands on the cargo)
+  **Effect:** modifies state (it touches, as well as looks)
 
 - **`-h --help`** — Print help, for when ye've lost yer bearings
 
@@ -45,4 +45,4 @@ hk completion fish --install
 
 ## Further charts {#learn-more}
 
-[Getting started: set sail](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

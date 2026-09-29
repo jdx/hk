@@ -9,7 +9,7 @@ sourceHash: a804fb65cb75
 # `hk util fix-smart-quotes`
 
 - **How to hail it:** `hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
 Replaces smart (curly) quotes with plain ASCII quotes, straight as a mast.
 

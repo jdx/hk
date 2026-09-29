@@ -9,9 +9,9 @@ hk draws its charts in [Pkl](https://pkl-lang.org/), the chart-maker's language,
 
 Pkl evaluates the charts. Then hk runs the commands those charts set down.
 
-## Start from the schema, the master chart {#start-with-the-schema}
+## Start from the schema, the base chart {#start-with-the-schema}
 
-Every ship's configuration should amend hk's base schema, the master chart the rest are drawn over:
+Every ship's configuration should amend hk's base schema, the base chart every set of charts is drawn over:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
@@ -31,7 +31,7 @@ local enabled = true
 local extensions = List("*.js", "*.ts")
 ```
 
-Use `local` for helper values that aren't part o' hk's schema: working figures for yer own reckoning rather than settings. Leave it off, and Pkl takes the value for a configuration property.
+Use `local` for helper values that aren't part of hk's schema: working figures for yer own reckoning rather than settings. Leave it off, and Pkl takes the value for a configuration property.
 
 Strings sail in double quotes, booleans are `true` and `false`, and a list is `List(...)`.
 
@@ -45,7 +45,7 @@ local eslint = new Step {
 }
 ```
 
-`new Step` creates an instance of the schema's step class: a fresh hand, signed to the articles. `{{files}}` is an hk command template, filled in later, when the step runs; it is not Pkl interpolation.
+`new Step` creates an instance of the schema's step class: a fresh hand, signed on under the schema's rules. `{{files}}` is an hk command template, filled in later, when the step runs; it is not Pkl interpolation.
 
 ## Muster the same hands in mappings {#reuse-steps-in-mappings}
 
@@ -146,7 +146,7 @@ hooks {
 }
 ```
 
-This is a local amendment of an existing project configuration: yer own pencil marks over the ship's charts. Save it as `hk.local.pkl` and keep it out of version control. The file hk selects amends `hk.pkl`; hk itself does not merge those two project files. See [local overrides, yer own marks on the charts](/configuration#hk-local-pkl).
+This is a local amendment of an existing project configuration: yer own marks on the ship's charts. Save it as `hk.local.pkl` and keep it out of version control. The file hk selects amends `hk.pkl`; hk itself does not merge those two project files. See [local overrides, yer own marks on the charts](/configuration#hk-local-pkl).
 
 ## Import a whole haul o' files at once {#import-many-files-at-once}
 
@@ -211,7 +211,7 @@ hk check --plan
 
 Validation evaluates the charts without running a single linter command. A passage plan then shows how hk selects its hands and its cargo: the steps and the files.
 
-If ye have the Pkl CLI installed, look over the evaluated module with:
+If ye have the Pkl CLI on hand, look over the evaluated module with:
 
 ```sh
 pkl eval --format json hk.pkl
@@ -225,9 +225,9 @@ hk sails with [pklr](https://github.com/jdx/pklr) built in, and always uses it t
 
 ## Caching the charts {#caching}
 
-The built-in evaluator keeps the packages it downloads for later runs, and stocks the cache from the start with the Pkl package matching the running hk version. Use [`HK_PKL_OFFLINE`](/environment_variables#hk-pkl-offline) to require cached or embedded packages and sail without network access.
+The built-in evaluator lays up the packages it downloads in its locker for later runs, and stocks that locker from the start with the Pkl package matching the running hk version. Use [`HK_PKL_OFFLINE`](/environment_variables#hk-pkl-offline) to require cached or embedded packages, with no network access: no boats go ashore.
 
-Release builds cache the evaluated configuration; debug builds turn this cache off by default. The values of environment variables (the winds and currents) that the configuration reads with `read("env:NAME")` or `read?("env:NAME")` are part of the cache key. hk re-evaluates the configuration only when no cache entry exists for the current values; set a variable back to an earlier value, and hk reuses that entry. Files read as resources, such as `read("data.txt")`, are not tracked: change one, and the cache won't notice. When the charts give ye an unexpected result after ye change an import or an evaluation input, bypass the cache or clear it:
+Release builds cache the evaluated configuration; debug builds turn this cache off by default. The values of environment variables (the standing orders) that the configuration reads with `read("env:NAME")` or `read?("env:NAME")` are part of the cache key. hk re-evaluates the configuration only when no cache entry exists for the current values; set a variable back to an earlier value, and hk reuses that entry. Files read as resources, such as `read("data.txt")`, are not tracked: change one, and the cache won't notice. When the charts give ye an unexpected result after ye change an import or an evaluation input, bypass the cache or clear it:
 
 ```sh
 HK_CACHE=0 hk validate

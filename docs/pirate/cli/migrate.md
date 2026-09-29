@@ -15,7 +15,7 @@ Change ships: migrate from other hook managers to hk.
 
 ## Flags to fly {#flags}
 
-- **`-h --help`** — Print help, matey
+- **`-h --help`** — Print help, for when ye've lost yer bearings
 
 ## Lesser calls {#subcommands}
 
@@ -34,4 +34,4 @@ HK_FILE=./hk.migrated.pkl hk validate
 
 ## Further charts {#learn-more}
 
-[Set sail with getting started](/getting_started) · [Troubleshooting and the ship's log](/logging) · [All the bosun's calls](/cli/)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

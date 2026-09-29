@@ -29,6 +29,6 @@ ESLint and Prettier can both mend JavaScript files. The dependency gives them a 
 
 The top-level `steps` crews the default `pre-commit`, `check`, and `fix` hooks. The pre-commit hook stows yer unstaged work in the hold before it fixes and stages changes.
 
-## Refit her for yer own voyage {#adapt-it}
+## Refit her for yer own ship {#adapt-it}
 
-Remove `tsc` from the crew for a JavaScript-only project. If yer tools live in multiple packages, use [workspaces](/configuration#workspaces) or the [monorepo example, one ship with many crews](./monorepo). Use `hk check --all --profile types` in CI, the harbour-master's inspection, to include type checking.
+Remove `tsc` from the crew for a JavaScript-only project. If yer tools live in multiple packages, use [workspaces](/configuration#workspaces) or the [monorepo example, one ship, many crews](./monorepo). Use `hk check --all --profile types` in CI, the harbour-master's inspection, to include type checking.

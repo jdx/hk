@@ -9,7 +9,7 @@ sourceHash: 91569b5dea8d
 # `hk util mixed-line-ending`
 
 - **How to hail it:** `hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
 Spots mixed line endings in the cargo, and mends them if ye ask.
 

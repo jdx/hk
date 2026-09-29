@@ -5,13 +5,13 @@ sourceHash: 615e042a7cef
 
 # mise integration: the quartermaster
 
-[mise](https://mise.jdx.dev/) be the ship's quartermaster: it manages tools, environments, and tasks. hk picks out the cargo (the files) and coordinates the checks and fixes. Together they let a whole crew share the same tool versions and run hooks from terminals, editors, and CI alike.
+[mise](https://mise.jdx.dev/) be the ship's quartermaster: it manages tools, environments, and tasks. hk picks out the cargo (the files) and coordinates the checks and fixes. Together they let all yer shipmates share the same tool versions and run hooks from terminals, editors, and CI alike.
 
 mise is optional, mind: hk can run any executable it finds on `PATH`.
 
 ## Provision the tools {#install-tools}
 
-From yer project directory, there's but three words left to say, and a sailmaker to sign aboard besides:
+From yer project directory, there's but three words left to say, as the song goes, and a sailmaker to bring aboard besides:
 
 ```sh
 mise use hk
@@ -47,7 +47,7 @@ hk install --mise
 
 The local launcher uses `mise x` too, but it needs Git to find mise on its `PATH` at the moment the hook runs. With either launcher, no sailor needs an activated shell.
 
-Use one installation scope at a time. When moving a ship from a local installation to the recommended global one, strike the local hooks first:
+Use one installation scope at a time. When moving a ship from a local installation to the recommended global one, take the local hooks down first:
 
 ```sh
 hk uninstall
@@ -102,7 +102,7 @@ Use mise's `[env]` section for the standing orders that yer project's commands s
 NODE_ENV = "development"
 ```
 
-For orders meant only for the linter commands, use hk's global, hook, or step `env` blocks. See [mise environments](https://mise.jdx.dev/environments/) and [hk's charts, the configuration](/configuration).
+For standing orders meant only for the linter commands, use hk's global, hook, or step `env` blocks. See [mise environments](https://mise.jdx.dev/environments/) and [hk's charts, the configuration](/configuration).
 
 ## Sail under the harbour-master's eye (CI) {#run-in-ci}
 
@@ -132,4 +132,4 @@ hooks {
 }
 ```
 
-Explicit step `env` values always win over the environment mise provides: a hand's own orders outrank the quartermaster's.
+Explicit step `env` values always win over the environment mise provides: a hand's own standing orders outrank the quartermaster's.

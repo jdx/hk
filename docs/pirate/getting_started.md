@@ -43,7 +43,7 @@ From the root of yer repository, have hk draw up a configuration:
 hk init
 ```
 
-hk spots yer tools from the project's files and writes `hk.pkl`, the ship's charts. Read over its steps before ye run them. To pick the tools and hooks yerself, use `hk init --interactive`. hk searches recursively, down through the decks, for the source files that give a tool away, honouring ignore rules and never following symlinks; `.gitignore` applies inside Git repositories, and `.ignore` works outside Git too. .NET manifest globs and configuration indicators are only looked for at the root, so a nested workspace is not activated behind yer back.
+hk spots yer tools from the project's files and writes `hk.pkl`, the ship's charts. Read over its steps before ye run them. To pick the tools and hooks yerself, use `hk init --interactive`. hk searches recursively, through every directory, for the source files that give a tool away, honouring ignore rules and never following symlinks; `.gitignore` applies inside Git repositories, and `.ignore` works outside Git too. .NET manifest globs and configuration indicators are only looked for at the root, so a nested workspace is not activated behind yer back.
 
 When `hk init --mise` is used, hk merges into an existing `mise.toml` only the entries it lacks: `hk` if it's missing, and `pre-commit` when there's none. The quartermaster's existing pins, comments, tools, and tasks are all kept as ye left them. `--force` governs `hk.pkl` and does not reset `mise.toml`. hk inspects only literal local task includes; an included flat `pre-commit` task stops it adding a duplicate. An include that is unknown, remote, dynamic, missing, unreadable, or malformed stops the insertion, and hk sings out a warning.
 
@@ -68,13 +68,13 @@ If hk is already rigged across the fleet (installed globally), `hk install` skip
 On Git 2.54+, the recommended course is `hk install --global --mise`, which launches hooks through `mise x`. The installer writes down where mise lives, so mise must be on `PATH` while ye install, but Git does not need it on its runtime `PATH`. For an installation scoped to one repository, on any supported Git version, use `hk install --mise`; this local launcher does need mise on Git's runtime `PATH`.
 :::
 
-Commit `hk.pkl` so the whole crew sails by the same charts. Installing the hooks is local to each developer's machine or clone.
+Commit `hk.pkl` so all yer shipmates sail by the same charts. Installing the hooks is local to each developer's machine or clone.
 
 To take an installation down, use `hk uninstall` or `hk uninstall --global`. The [install reference](/cli/install) lists every option.
 
 ## Yer first charts {#your-first-configuration}
 
-This complete example puts Prettier, ESLint, and Ruff to work. Install and configure those tools first, or swap them for [builtins](/builtins) that suit yer project.
+This complete example puts Prettier, ESLint, and Ruff to work. Bring those tools aboard and configure them first, or swap them for [builtins](/builtins) that suit yer project.
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
@@ -109,7 +109,7 @@ hk check src/main.ts # Check a specific file
 hk check --step eslint
 ```
 
-With the charts above, the modified files include the staged, unstaged, and untracked ones: cargo loaded aboard, cargo left on the dock, and cargo not yet on the manifest. `--all` selects the tracked files plus eligible untracked ones; ignore rules and exclusions still apply. Hook settings and flags can change which files are selected.
+With the charts above, the modified files include the staged, unstaged, and untracked ones: cargo loaded aboard, cargo left on the dock, and cargo Git doesn't track yet. `--all` selects the tracked files plus eligible untracked ones; ignore rules and exclusions still apply. Hook settings and flags can change which files are selected.
 
 Check commands should be read-only: lookouts look, they don't touch. Fix commands may edit files, and some findings need mending by hand. `hk fix` leaves its fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached` to see what the sailmakers changed.
 
@@ -127,7 +127,7 @@ These commands do not execute the hook's steps; no hand goes aloft. See [trouble
 
 ## Calling all hands: running hooks {#running-hooks}
 
-Once the hooks are installed, Git sounds the pipe for each configured hook by itself. Ye can also sound it directly:
+Once the hooks are rigged, Git sounds the pipe for each configured hook by itself. Ye can also sound it directly:
 
 ```sh
 hk run pre-commit

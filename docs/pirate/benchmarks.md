@@ -3,7 +3,7 @@ description: Race hk against lefthook, pre-commit, and prek at fixing files, che
 sourceHash: cc71bd2e679c
 ---
 
-# Benchmarks: four hook managers, one course
+# Benchmarks: speed trials of four hook managers
 
 This benchmark races hk, lefthook, pre-commit, and prek over the same everyday course: fixing files, checking a repository, and running pre-commit hooks on a large and a small commit. It measures elapsed time and inspects the cargo, verifying the files each tool produces. hk sends all hands to haul at once, running steps concurrently, with file locks that keep two fixers from writing the same file at the same moment.
 
@@ -32,7 +32,7 @@ The generator lays down two commits: `clean`, the result of running the fixers o
 
 With about 60 files aboard, splitting each hook's files into batches keeps several CPUs busy. With one file per hook, there's nothing to split: most of the run is the time each tool takes to start, and a tool that runs its hooks one at a time waits for every start in turn.
 
-The commit scenarios measure one call of the bosun's pipe: a single hook invocation. hk and lefthook stage their fixes. pre-commit and prek leave fixes unstaged and return a failure, so the user must stage the changes and retry the commit, setting sail a second time. That manual work and the retry are outside the measurement.
+The commit scenarios measure one sounding of the bosun's pipe: a single hook invocation. hk and lefthook stage their fixes. pre-commit and prek leave fixes unstaged and return a failure, so the user must stage the changes and retry the commit, setting sail a second time. That manual work and the retry are outside the measurement.
 
 After every timed sample, [tak](https://github.com/jdx/tak) inspects the cargo: the resulting tree must match `clean` byte for byte. hk and lefthook must also exit successfully, since a failed type check changes no files. pre-commit and prek report failure whenever a hook modified files, so their exit codes cannot show a failed type check; they run the type checkers after every fixer has finished, and setup verifies that both commits type-check, including mypy on exactly the files each commit scenario stages. A separate check verifies that each tool spots the defects in `dirty`. A run is fit to publish only if every tool passes all required checks.
 

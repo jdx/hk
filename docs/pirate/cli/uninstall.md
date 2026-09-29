@@ -24,7 +24,7 @@ Removes hk's hooks from the current git repository, taking hk's pipes down from 
 
 ## Tales from the deck {#examples}
 
-Remove the installation in the matching scope, one ship or the global config; this does not delete hk.pkl.
+Remove the installation in the matching scope, this ship alone or the whole fleet (the global config); this does not delete hk.pkl.
 
 ```sh
 hk uninstall
@@ -33,4 +33,4 @@ hk uninstall --global
 
 ## Further charts {#learn-more}
 
-[Getting started: set sail](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

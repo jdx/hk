@@ -11,7 +11,7 @@ sourceHash: f17581d463c7
 - **How to hail it:** `hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`
 - **Effect:** read-only (looks, never touches)
 
-Checks for large files being added to the repository: no hold-busting crates loaded aboard the ship.
+Checks for large files being added to the repository: no crates too big for the ship loaded aboard.
 
 ## Cargo it takes {#arguments}
 

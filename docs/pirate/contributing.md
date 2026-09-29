@@ -1,5 +1,5 @@
 ---
-description: Sign aboard hk's crew. Fit out for development, run focused checks, edit the generated documentation, and ready yer contribution for review.
+description: Sign aboard hk. Fit out for development, run focused checks, edit the generated documentation, and ready yer contribution for review.
 sourceHash: 752a31b1098f
 ---
 
@@ -9,7 +9,7 @@ _So all you hands who would sign aboard:_ bug fixes, documentation improvements,
 
 ## What to expect at review {#review-expectations}
 
-Open a [discussion](https://github.com/jdx/hk/discussions) or hail the crew in [Discord](https://discord.gg/UBa7pJUN7Z) before starting a change whose scope or design isn't obvious. hk has a deliberate scope and holds its course; the maintainer may decline features that add complexity or long-term maintenance without a clear fit.
+Open a [discussion](https://github.com/jdx/hk/discussions) or hail yer shipmates in [Discord](https://discord.gg/UBa7pJUN7Z) before starting a change whose scope or design isn't obvious. hk has a deliberate scope and holds its course; the maintainer may decline features that add complexity or long-term maintenance without a clear fit.
 
 Before ye ask for review, make sure CI passes, so the harbour-master waves ye through, and address the automated review comments. In the PR, explain the problem, the resulting behavior, and how ye validated it. A contribution should be complete enough to assess without extensive coaching.
 
@@ -26,11 +26,11 @@ mise install
 mise run build
 ```
 
-The build task generates the builtin registry, the roll of the standing crew, before compiling hk. Development tasks put the local debug binary on `PATH`, ready to hand.
+The build task generates the builtin registry, the crew roster, before compiling hk. Development tasks put the local debug binary on `PATH`, ready to hand.
 
 ## Run focused inspections {#run-focused-checks}
 
-| The job                           | The call                             |
+| The task                          | The call                             |
 | --------------------------------- | ------------------------------------ |
 | Build                             | `mise run build`                     |
 | Rust tests                        | `mise run test:cargo`                |
@@ -72,7 +72,7 @@ Each kind of page has one true source. Edit it there:
 | Navigation                              | `docs/.vitepress/config.mts`                                                  |
 | Schema reference                        | Documentation comments in `pkl/Config.pkl`                                    |
 | Settings reference                      | `docs` strings in `settings.toml`                                             |
-| Builtin catalogue, the standing crew    | Metadata and definitions in `pkl/builtins/`                                   |
+| Builtin catalogue, the crew roster      | Metadata and definitions in `pkl/builtins/`                                   |
 | CLI reference, the bosun's calls        | Rust CLI help and usage definitions; examples in `scripts/enrich-cli-docs.py` |
 | Downloadable examples, ships in bottles | `docs/public/*.pkl`, included directly by their guide pages                   |
 

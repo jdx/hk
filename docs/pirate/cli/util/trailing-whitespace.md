@@ -9,7 +9,7 @@ sourceHash: d8ba2d120f22
 # `hk util trailing-whitespace`
 
 - **How to hail it:** `hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
 Checks for trailing whitespace, and mends it if ye ask: no loose threads left hanging off the end of a line.
 

@@ -9,7 +9,7 @@ sourceHash: d625acd19e1b
 # `hk util end-of-file-fixer`
 
 - **How to hail it:** `hk util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
 Checks for missing final newlines, and mends them if ye ask.
 

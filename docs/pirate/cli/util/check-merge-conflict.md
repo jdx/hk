@@ -11,7 +11,7 @@ sourceHash: ef42464cc17a
 - **How to hail it:** `hk util check-merge-conflict [--assume-in-merge] <FILES>…`
 - **Effect:** read-only (looks, never touches)
 
-Checks for merge conflict markers, the tangled rigging a conflicted merge leaves behind.
+Checks for merge conflict markers, the tangled lines a conflicted merge leaves behind.
 
 ## Cargo it takes {#arguments}
 
@@ -19,7 +19,7 @@ Checks for merge conflict markers, the tangled rigging a conflicted merge leaves
 
 ## Flags to fly {#flags}
 
-- **`--assume-in-merge`** — Run the check even when no merge is under way
+- **`--assume-in-merge`** — Run the check even when no merge is in progress
 - **`-h --help`** — Print help, for when ye've lost yer bearings
 
 <!-- hk documentation examples -->

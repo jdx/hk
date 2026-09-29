@@ -1,6 +1,6 @@
 ---
 title: "hk util python-check-ast"
-description: "Check Python syntax with python3 (or python). If neither interpreter is available aboard, the utility skips the files. Python may create `__pycache__` directories."
+description: "Check Python syntax with python3 (or python). If neither interpreter is on hand, the utility skips the files. Python may create `__pycache__` directories."
 sourceHash: 41d35aca3f95
 ---
 
@@ -25,7 +25,7 @@ Checks Python files for valid syntax: every plank sound before she sails.
 
 ## Tales from the deck {#examples}
 
-Checks Python syntax using python3 (or python). If neither interpreter is available aboard, the utility skips the files. Python may create `__pycache__` directories.
+Checks Python syntax using python3 (or python). If neither interpreter is on hand, the utility skips the files. Python may create `__pycache__` directories.
 
 ```sh
 hk util python-check-ast app.py

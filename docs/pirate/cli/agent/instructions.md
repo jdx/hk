@@ -1,6 +1,6 @@
 ---
 title: "hk agent instructions"
-description: "Print the project's instructions for a clockwork hand without editing any agent configuration."
+description: "Print the project's sailing instructions for a clockwork hand without editing any agent configuration."
 sourceHash: 2d724866c48e
 ---
 
@@ -11,7 +11,7 @@ sourceHash: 2d724866c48e
 - **How to hail it:** `hk agent instructions <--target <TARGET>>`
 - **Effect:** read-only (looks, never touches)
 
-Print project instructions for a coding agent, the briefing for a clockwork hand coming aboard
+Print project instructions for a coding agent, the sailing instructions for a clockwork hand coming aboard
 
 ## Flags to fly {#flags}
 

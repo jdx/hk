@@ -4,7 +4,7 @@ sourceHash: 320226173211
 
 # The hk MCP dashboard, a view from the quarterdeck
 
-`hk mcp` embeds a self-contained [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) dashboard, stowed aboard and ready to hoist. Compatible hosts show the live state of the run, normalized diagnostics, effects, logs, and the resulting Git patch. Other clients get the same authoritative structured content, plus text summaries.
+`hk mcp` embeds a self-contained [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) dashboard, carried aboard and ready to hoist. Compatible hosts show the live state of the run, normalized diagnostics, effects, logs, and the resulting Git patch. Other clients get the same authoritative structured content, plus text summaries.
 
 ## A practice ship: the local demo fixture {#local-demo-fixture}
 

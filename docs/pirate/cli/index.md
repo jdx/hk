@@ -10,17 +10,17 @@ sourceHash: 21c3f76e09b4
 
 _The hook, the helm and the harbour-master all muster the self-same crew._ Run the same configured steps locally, in Git hooks, and in CI.
 
-| What ye're after                                       | The call                                                  |
-| ------------------------------------------------------ | --------------------------------------------------------- |
-| Fit out a ship (set up a project)                      | [hk init](/cli/init) and [hk install](/cli/install)       |
-| Inspect or mend the cargo (check or fix code)          | [hk check](/cli/check) and [hk fix](/cli/fix)             |
-| Pipe up a named hook (run a named hook)                | [hk run](/cli/run)                                        |
-| Look over the charts (inspect configuration)           | [hk config](/cli/config) and [hk validate](/cli/validate) |
-| Put a hand through its drills (test a step definition) | [hk test](/cli/test)                                      |
-| Sign on a clockwork hand (integrate a coding agent)    | [hk agent](/cli/agent) and [hk mcp](/cli/mcp)             |
-| Use the file checks hk carries aboard                  | [hk util](/cli/util)                                      |
+| What ye're after                                         | The call                                                  |
+| -------------------------------------------------------- | --------------------------------------------------------- |
+| Rig a ship (set up a project)                            | [hk init](/cli/init) and [hk install](/cli/install)       |
+| Inspect or mend the cargo (check or fix code)            | [hk check](/cli/check) and [hk fix](/cli/fix)             |
+| Pipe up a named hook (run a named hook)                  | [hk run](/cli/run)                                        |
+| Look over the charts (inspect configuration)             | [hk config](/cli/config) and [hk validate](/cli/validate) |
+| Put a hand through its drills (test a step definition)   | [hk test](/cli/test)                                      |
+| Bring a clockwork hand aboard (integrate a coding agent) | [hk agent](/cli/agent) and [hk mcp](/cli/mcp)             |
+| Open the ship's tool chest (use included file checks)    | [hk util](/cli/util)                                      |
 
-New hand? Start with [getting started](/getting_started) for a setup from stem to stern. Each call's own flags are listed on its page; the flags below fly on every call.
+New aboard, sailor? Get under way with [getting started](/getting_started), a setup from stem to stern. Each call's own flags are listed on its page; the flags below fly on every call.
 
 **How to hail it:** `hk [FLAGS] <SUBCOMMAND>`
 
@@ -28,9 +28,9 @@ New hand? Start with [getting started](/getting_started) for a setup from stem t
 
 ## Flags flown on every call {#global-flags}
 
-- **`--cd <DIRECTORY>`** — Run as if hk was started in this directory, as though it came aboard there
+- **`--cd <DIRECTORY>`** — Run as if hk was started in this directory
 - **`-j --jobs <JOBS>`** — Number of jobs to run in parallel: how many hands haul at once
-- **`-p --profile <PROFILE>`** — Profiles to enable or disable, the watches ye call on deck or stand down. Prefix a profile with ! to disable it, e.g. --profile slow --profile !fast
+- **`-p --profile <PROFILE>`** — Profiles to enable or disable, the watches ye call up or stand down. Prefix a profile with ! to disable it, e.g. --profile slow --profile !fast
 - **`-s --slow`** — Shorthand for --profile=slow: call up the slow watch
 - **`-v --verbose`** — Enable verbose (debug) output, a fuller ship's log. Pass it twice for trace output
 - **`-n --no-progress`** — Disable progress output
@@ -41,7 +41,7 @@ New hand? Start with [getting started](/getting_started) for a setup from stem t
 
 ## Flags to fly {#flags}
 
-- **`--format <FORMAT>`** — Select human or machine-readable execution output: a log for a sailor's eyes, or one for machines
+- **`--format <FORMAT>`** — Select human or machine-readable execution output: for a sailor's eyes, or for machines to read
 
   **Choose from:** `human`, `json`, `jsonl`
 
@@ -113,4 +113,4 @@ New hand? Start with [getting started](/getting_started) for a setup from stem t
 
 ## Further charts {#learn-more}
 
-[Getting started: set sail](/getting_started) · [Troubleshooting: the ship's log](/logging)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging)

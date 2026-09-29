@@ -23,7 +23,7 @@ hk test --step whitespace
 hk check --all --plan
 ```
 
-Each test writes a file in a temporary sandbox, a dry dock all its own. One expects a clean check to succeed; the other checks the exact content of the file after the fix. The `files` list spells out exactly which sandbox paths each command is handed.
+Each test writes a file in a temporary sandbox, a little ship all its own. One expects a clean check to succeed; the other checks the exact content of the file after the fix. The `files` list spells out exactly which sandbox paths each command is handed.
 
 Follow this pattern when ye post a custom linter, a lookout of yer own, or contribute a builtin to the standing crew.
 

@@ -28,13 +28,13 @@ Set `HK=0` to slip past hk's installed Git hook launcher for one command, so the
 
 **Type:** boolean · **Unless ye say otherwise:** true in release builds; false in debug builds
 
-Turns the cache of evaluated configuration on or off: hk's copy of the charts, already read. When ye're hunting stale configuration, run `HK_CACHE=0 hk validate`, or clear out hk's cache with `hk cache clear`.
+Turns the cache of evaluated configuration on or off: hk's copy of the charts, already read. When ye're hunting stale configuration, run `HK_CACHE=0 hk validate`, or clear out hk's locker with `hk cache clear`.
 
 ## `HK_CACHE_DIR` {#hk-cache-dir}
 
 **Type:** path · **Unless ye say otherwise:** platform cache directory plus `hk`
 
-The locker below decks where hk keeps cached configuration and other cache files. On Linux that's typically `~/.cache/hk`; on macOS it's typically `~/Library/Caches/hk`.
+hk's locker, where it keeps cached configuration and other cache files. On Linux that's typically `~/.cache/hk`; on macOS it's typically `~/Library/Caches/hk`.
 
 ## `HK_CHECK` {#hk-check}
 
@@ -48,7 +48,7 @@ Orders the crew to inspect the cargo (check commands) instead of mending the can
 
 Lets a hand inspect the cargo before mending it, and skip the mending when the inspection passes. Steps do this when they set `check_first = true` (and another step writes the same files), and always when their `check` and `fix` are the same command, as in steps migrated from pre-commit. Set this to `false` and it's off for both; such a migrated fixer then fails whenever it fixes something, because it exits 1 after fixing.
 
-Some hands check first whatever this order says, because their mending or staging depends on it: a step with `check_diff` in fix mode applies the diff instead of running `fix`, and in a hook that stages its fixes, a step with `check_diff` or `check_list_files` lists the files it would change, so only those are fixed and staged. With the default `stage`, that happens only when one o' the step's files has unstaged changes that hk didn't stow in the hold.
+Some hands check first whatever this order says, because their mending or staging depends on it: a step with `check_diff` in fix mode applies the diff instead of running `fix`, and in a hook that stages its fixes, a step with `check_diff` or `check_list_files` lists the files it would change, so only those are fixed and staged. With the default `stage`, that happens only when one of the step's files has unstaged changes that hk didn't stow in the hold.
 
 ## `HK_CONFIG_DIR` {#hk-config-dir}
 
@@ -102,7 +102,7 @@ Clear the progress output off the deck once a hook finishes successfully. A fail
 
 **Type:** nonnegative integer · **Unless ye say otherwise:** 0 (detect CPU count)
 
-All hands haul at once, and this limits how many hk jobs haul together. For example: `HK_JOBS=4 hk check --all`. Linters can also start their own workers, so raising this value does not always make ye faster.
+All hands haul at once, and this limits how many hk jobs haul together. For example: `HK_JOBS=4 hk check --all`. Linters can also start their own workers, so raising this value does not always make the run faster.
 
 ## `HK_JSON` {#hk-json}
 
@@ -158,7 +158,7 @@ hk v2 always reads its charts with its built-in pklr evaluator. The value `pklr`
 Type: `path`
 Unless ye say otherwise: the platform cache directory with `pklr` appended (`~/.cache/pklr` on Linux, `~/Library/Caches/pklr` on macOS, and `%LOCALAPPDATA%\pklr` on Windows). When the platform cache directory is unavailable, it falls back to `~/.cache/pklr`.
 
-Where the built-in pklr evaluator keeps the Pkl packages it has downloaded, laid up for later voyages. Packages in this cache can be used again after hk's resolved configuration cache is invalidated, in offline mode too.
+Where the built-in pklr evaluator keeps the Pkl packages it has downloaded, laid up in the locker for later runs. Packages in this cache can be used again after hk's resolved configuration cache is invalidated, in offline mode too.
 
 hk reads this one straight from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`: the charts can't set an order that's read before they're opened.
 
@@ -183,14 +183,14 @@ hk reads this one straight from the environment before `hk.pkl` is evaluated, so
 
 **Type:** string · **Unless ye say otherwise:** unset
 
-A URL rewrite for the built-in pklr evaluator, to send it to another port of call. The value has the form `https://source.example/=https://mirror.example/`, and it must be set before evaluation.
+A URL rewrite for the built-in pklr evaluator, so the boats it sends ashore land at another address. The value has the form `https://source.example/=https://mirror.example/`, and it must be set before evaluation.
 
 ## `HK_PKL_OFFLINE` {#hk-pkl-offline}
 
 Type: `bool`
 Unless ye say otherwise: `false`
 
-Keeps the built-in pklr evaluator off the network: no boats sent ashore. Package imports already in `HK_PKL_CACHE_DIR`, along with the package embedded for the running version (see `HK_PKL_EMBEDDED`), stay available; a missing package fails at once, with its URL and cache location.
+Keeps the built-in pklr evaluator off the network: no boats go ashore. Package imports already in `HK_PKL_CACHE_DIR`, along with the package embedded for the running version (see `HK_PKL_EMBEDDED`), stay available; a missing package fails at once, with its URL and cache location.
 
 hk reads this one straight from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
@@ -210,7 +210,7 @@ Skip entire hooks, so the bosun's pipe stays silent for them, as in `HK_SKIP_HOO
 
 **Type:** comma-separated step names · **Unless ye say otherwise:** empty
 
-Skip named steps in any hook, giving those hands shore leave, as in `HK_SKIP_STEPS=eslint hk check`. It answers to `HK_SKIP_STEP` too. Skip lists combine across configuration sources.
+Skip named steps in any hook, so those hands sit this one out, as in `HK_SKIP_STEPS=eslint hk check`. It answers to `HK_SKIP_STEP` too. Skip lists combine across configuration sources.
 
 ## `HK_STAGE` {#hk-stage}
 
@@ -286,4 +286,4 @@ This order runs the other way: hk sets this variable for a hook's `report` comma
 report = "node scripts/report-timings.js"
 ```
 
-The script can read `process.env.HK_REPORT_JSON`. See [timing reports](/logging#a-run-is-slow) for the shape o' the JSON.
+The script can read `process.env.HK_REPORT_JSON`. See [timing reports](/logging#a-run-is-slow) for the shape of the JSON.

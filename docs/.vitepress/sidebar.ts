@@ -86,37 +86,39 @@ export const sidebar: SidebarItem[] = [
 ];
 
 /**
- * The sidebar's words in sea shanty mode, keyed by the English words. Each
- * keeps the English subject in view, so a reader can still find a page by
- * what it is about. Commands keep their names.
+ * The sidebar's words in sea shanty mode, keyed by the English words. A page's
+ * entry is its pirate `#` heading, or, when that heading is long, the
+ * heading's own crew phrase with the English subject in brackets, so a reader
+ * can still find a page by what it is about. Change an entry and the page's
+ * heading together (docs/pirate/STYLE.md). Commands keep their names.
  */
 export const PIRATE_SIDEBAR_TEXT: Record<string, string> = {
   "Start here": "Weigh anchor",
-  "Getting started": "Getting underway",
-  "Migrating to hk v2": "Refitting for hk v2",
+  "Getting started": "Getting under way",
+  "Migrating to hk v2": "Refitting the ship for hk v2",
   "Why hk?": "Why sail with hk?",
-  "Pkl essentials": "Pkl for landlubbers",
-  Guides: "Sailing orders",
-  "Git hooks and stashing": "Hooks and stowing the hold",
+  "Pkl essentials": "Pkl essentials for the chart room",
+  Guides: "Seamanship",
+  "Git hooks and stashing": "Git hooks and stowing the hold",
   "Continuous integration": "The harbour-master (CI)",
-  "mise integration": "Provisioning with mise",
+  "mise integration": "The quartermaster (mise)",
   Troubleshooting: "Foul weather (troubleshooting)",
-  "Coding agents": "Clockwork crew (coding agents)",
+  "Coding agents": "Clockwork hands: coding agents",
   "Configuration examples": "Ships in bottles (examples)",
-  "JavaScript and TypeScript": "A JavaScript and TypeScript sloop",
-  Python: "A Python brig",
-  Monorepo: "A whole fleet (monorepo)",
-  "Custom steps": "Custom-rigged steps",
+  "JavaScript and TypeScript": "A JavaScript and TypeScript ship",
+  Python: "A Python ship",
+  Monorepo: "Monorepo: one ship, many crews",
+  "Custom steps": "Yer own hands (custom steps)",
   Reference: "Charts and tables",
-  Configuration: "Ship's articles (configuration)",
+  Configuration: "Configuration, the ship's charts",
   "Built-in linters": "The standing crew (builtins)",
-  "Environment variables": "Winds and currents (environment)",
-  Glossary: "Sailor's lexicon (glossary)",
-  "CLI commands": "Bosun's calls (CLI)",
+  "Environment variables": "Standing orders (environment variables)",
+  Glossary: "The crew's glossary",
+  "CLI commands": "The bosun's calls (CLI)",
   Project: "The ship's company",
   Benchmarks: "Speed trials (benchmarks)",
-  "About hk": "About the vessel",
-  Contributing: "Signing aboard (contributing)",
+  "About hk": "About hk: the bosun's tale",
+  Contributing: "Signing aboard to contribute",
   "Sea shanty": "The shanty",
 };
 

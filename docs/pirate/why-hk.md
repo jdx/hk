@@ -13,21 +13,21 @@ A read-only check can run alongside any other check: lookouts only look. A forma
 
 For each run of a hook, hk keeps read/write locks on the files each step has been handed:
 
-| The work                             | The lashing       | Who can haul alongside?                |
-| ------------------------------------ | ----------------- | -------------------------------------- |
-| Inspect a file (check)               | Read              | Any other hand reading that file       |
-| Mend a file (fix)                    | Write             | Hands working on different files       |
-| Check or fix cargo that isn't shared | Independent locks | The rest o' the crew, up to the job limit |
+| The work                             | The lashing       | Who can haul alongside?                   |
+| ------------------------------------ | ----------------- | ----------------------------------------- |
+| Inspect a file (check)               | Read              | Any other hand reading that file          |
+| Mend a file (fix)                    | Write             | Hands working on different files          |
+| Check or fix cargo that isn't shared | Independent locks | The rest of the crew, up to the job limit |
 
 This holds only if the steps are charted true. A check must be read-only, and a step must declare every file its commands may touch. A command that changes files it never declared slips its lashings, and hk can't protect ye. Use `depends` or `exclusive` when a tool's reach goes beyond the files it was handed.
 
 ## Work each lookout to its strengths {#use-each-linter-s-capabilities}
 
-A fix holds write locks on its step's files, so two sailmakers who share a sail take it in turns; everyone else keeps hauling. hk's [builtins](/builtins) know quicker ways to work the tools that allow it.
+A fix holds write locks on its step's files, so sailmakers on different files mend at once, and only two who share a sail take it in turns. hk's [builtins](/builtins) know quicker ways to work the tools that allow it.
 
 ### Diff output {#diff-output}
 
-A `check_diff` command writes out a patch and leaves the files be. When fixing, hk runs it and applies the patch itself instead of running `fix`. If the patch won't take, hk runs `fix` instead, or, for a step with no `fix`, the command it runs when checking. When the command declares `effect = "read"`, as most builtins do, hk works out the patch under read locks, so the formatter hauls alongside other steps reading the same files. It takes write locks only on the files the patch changes, and only long enough to apply it. If another hand changed one o' those files in the meantime, hk works out the patch again under write locks. A `check_diff` that declares no read effect holds its write locks the whole way, as any fix does. Builtins such as Ruff's formatter sail this way.
+A `check_diff` command writes out a patch and leaves the files be. When fixing, hk runs it and applies the patch itself instead of running `fix`. If the patch won't take, hk runs `fix` instead, or, for a step with no `fix`, the command it runs when checking. When the command declares `effect = "read"`, as most builtins do, hk works out the patch under read locks, so the formatter hauls alongside other steps reading the same files. It takes write locks only on the files the patch changes, and only long enough to apply it. If another hand changed one of those files in the meantime, hk works out the patch again under write locks. A `check_diff` that declares no read effect holds its write locks the whole way, as any fix does. Builtins such as Ruff's formatter sail this way.
 
 ### Lists of files needing fixes {#lists-of-files-needing-fixes}
 
@@ -37,13 +37,13 @@ A `check_list_files` command calls out which files need mending. When the step c
 
 For other tools, a step can set `check_first = true` to inspect before it mends, and skip the mending when the inspection passes. When files do need mending, the tool runs twice, and in hk's benchmark that cost more than it saved, so it's off unless ye ask for it.
 
-These tactics change how much work the orchestration costs. How fast ye actually sail depends on yer linters, how much cargo they share, how many files changed, and how many CPU cores ye have. See the [benchmarks](/benchmarks) for a workload ye can reproduce, and its limitations.
+These tactics change how much work the orchestration costs. How fast the crew actually hauls depends on yer linters, how much cargo they share, how many files changed, and how many CPU cores ye have. See the [benchmarks](/benchmarks) for a workload ye can reproduce, and its limitations.
 
-## Sail with half a hold {#work-with-partial-commits}
+## Set sail with part of the cargo {#work-with-partial-commits}
 
 When a pre-commit hook uses `stash = "git"`, hk stows yer unstaged changes in the hold for a spell, runs the steps against the staged versions, and brings the stowed work back up afterward.
 
-The unit a linter works on is a **file**, not a staged hunk. Stage one function, and a formatter can still reformat the whole staged version of that file. Stashing keeps unrelated work out o' that version; it does not make the formatter work hunk by hunk.
+The unit a linter works on is a **file**, not a staged hunk. Stage one function, and a formatter can still reformat the whole staged version of that file. Stashing keeps unrelated work out of that version; it does not make the formatter work hunk by hunk.
 
 Read [hooks and stowing the hold](/hooks#stashing-and-partial-commits) for automatic staging, reviewing fixes before ye commit, and what to do if the stowed work won't come back.
 
@@ -60,14 +60,14 @@ hk serves ye well when ye want:
 - The same steps in Git hooks, local checks, and CI.
 - Checks hauling at once, and fixes coordinated over shared files.
 - Reusable configuration with types, imports, and local overrides.
-- Command over how tools are installed, through mise or the package manager ye already use.
+- Command over how tools are brought aboard, through mise or the package manager ye already use.
 
 The price o' passage: a configuration language to learn, and the job of providing yer own tools. File locks keep the hands from colliding; they cannot make peace between formatters with clashing style rules. Choose rules that agree, or use `depends` to set the order yer project needs.
 
 ## Changing ships from another hook manager {#moving-from-another-hook-manager}
 
-Ye can try hk on a branch before changing how yer whole crew works. Write a configuration, run `hk check --all --plan`, then compare its checks and fixes with the workflow ye have now.
+Ye can try hk on a branch before changing how yer shipmates work. Write a configuration, run `hk check --all --plan`, then compare its checks and fixes with the workflow ye have now.
 
 For a pre-commit or prek configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Hooks it knows become hk builtins, and local shell hooks become hk steps. Everything else keeps running through prek or pre-commit, so ye can come aboard now and convert the rest later.
 
-[Set sail with getting started](/getting_started) or browse the [ships in bottles, the configuration examples](/reference/examples/).
+[Get under way with getting started](/getting_started) or browse the [ships in bottles, the configuration examples](/reference/examples/).

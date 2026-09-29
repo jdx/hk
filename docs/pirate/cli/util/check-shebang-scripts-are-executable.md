@@ -11,7 +11,7 @@ sourceHash: 84224633fd72
 - **How to hail it:** `hk util check-shebang-scripts-are-executable <FILES>…`
 - **Effect:** read-only (looks, never touches)
 
-Checks that files with shebangs are executable: a file that flies the colours had best be ready to sail.
+Checks that files with shebangs are executable: a file that flies its colours had best be ready to run.
 
 ## Cargo it takes {#arguments}
 

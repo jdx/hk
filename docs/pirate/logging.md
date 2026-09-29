@@ -1,5 +1,5 @@
 ---
-description: Troubleshooting in heavy weather. Diagnose hands that never turn out, charts that read wrong, missing tools, hook failures, and slow passages.
+description: Troubleshooting in foul weather. Diagnose hands that never turn out, charts that read wrong, missing tools, hook failures, and slow passages.
 sourceHash: bff0d03d0bbb
 ---
 
@@ -44,7 +44,7 @@ hk config explain jobs
 
 `hk validate` checks the Pkl configuration. `hk config dump` shows the settings in force at runtime, not the complete hook and step definitions. `hk config explain` helps ye find what overrode what.
 
-Look for `hk.local.pkl`, a user config, Git settings, and `HK_*` environment variables, any of which can change the course. See [which charts outrank which, configuration precedence](/configuration#configuration-precedence).
+Look for `hk.local.pkl`, a user config, Git settings, and `HK_*` environment variables (the standing orders), any of which can change the course. See [who outranks whom: configuration precedence](/configuration#configuration-precedence).
 
 If the evaluator or the cache be giving ye trouble, bypass the resolved configuration cache and turn on debug logs:
 
@@ -75,7 +75,7 @@ A normal local install spots global hk hooks already rigged and won't duplicate 
 
 ## The hook mends more than ye expected {#a-hook-changes-more-than-expected}
 
-Compare `git diff` with `git diff --cached`. A staged path can still hold unstaged edits, and sailmakers (formatters) mend whole files.
+Compare `git diff` with `git diff --cached`. A staged path can still carry unstaged edits, and sailmakers (formatters) mend whole files.
 
 Use `stash = "git"` to stow the unstaged work in the hold, isolating the staged content before a pre-commit fixer runs. Use `stage = false` with `fail_on_fix = true` to look over the fixes before ye commit. See [hooks and stowing the hold](/hooks).
 

@@ -14,7 +14,7 @@ sourceHash: 1f3641087494
 
 Inspect hk's configuration, the settings the ship sails by.
 
-See hk's effective configuration and where each value hails from. The settings come aboard from several sources, and hk merges them in precedence order, the highest rank first: CLI flags > Environment variables > Git config (local) > Git config (global) > Project config (hk.pkl) > User config (~/.config/hk/config.pkl) > Built-in defaults.
+See hk's effective configuration and where each value hails from. hk merges the settings from several sources in precedence order, the highest rank first: CLI flags > Environment variables > Git config (local) > Git config (global) > Project config (hk.pkl) > User config (~/.config/hk/config.pkl) > Built-in defaults.
 
 ## Flags to fly {#flags}
 

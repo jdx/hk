@@ -9,7 +9,7 @@ What the crew means by hooks, steps, groups, profiles, file locks, stashing, and
 
 ## Builtin: the standing crew {#builtin}
 
-A reusable Pkl step definition that comes with the ship, supplied by hk. It describes how to call on a linter or utility; ye must install the external linter executables separately, for a builtin brings the know-how, not the tool. [Muster the builtins](/builtins).
+A reusable Pkl step definition that comes with the ship, supplied by hk. It describes how to call on a linter or utility; ye must bring the external linter executables aboard separately, for a builtin brings the know-how, not the tool. [Read the crew roster](/builtins).
 
 ## Check: inspecting the cargo {#check}
 
@@ -45,7 +45,7 @@ A unit of step execution. A step may take several hauls, creating multiple jobs 
 
 ## Profile: a watch {#profile}
 
-A label used to enable or disable steps, such as `slow` or `types`: the slow watch, the types watch. Call one on duty with `--profile types` or `HK_PROFILE=types`. A step requires all of its positive profile names: it turns to only when every one of those watches is on duty. [Profiles, the watches](/configuration#profiles).
+A label used to enable or disable steps, such as `slow` or `types`: the slow watch, the types watch. Call one up with `--profile types` or `HK_PROFILE=types`. A step requires all of its positive profile names: it turns to only when every one of those watches is on duty. [Profiles, the watches](/configuration#profiles).
 
 ## Stage: loading cargo aboard {#stage}
 
@@ -59,6 +59,6 @@ Unstaged work, stowed in the hold for a spell. A hook with `stash = "git"` sets 
 
 One hand of the crew: an individual check, formatter, or task within a hook. A step defines its commands, and can select its cargo (files), declare dependencies, and require profiles. [Sign on a hand: define a step](/configuration#define-a-step).
 
-## Workspace: a compartment of the ship {#workspace}
+## Workspace: a cabin of the ship {#workspace}
 
-A project directory found by a marker such as `package.json` or `Cargo.toml`. `workspace_indicator` divides the selected files by compartment, so a step can run once per matching workspace. [Workspaces](/configuration#workspaces).
+A project directory found by a marker such as `package.json` or `Cargo.toml`: a cabin, known by the marker on its door. `workspace_indicator` divides the selected files by cabin, so a step can run once per matching workspace. [Workspaces](/configuration#workspaces).

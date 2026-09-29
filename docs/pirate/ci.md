@@ -5,11 +5,11 @@ sourceHash: 32320c9b5ac6
 
 # Continuous integration: the harbour-master
 
-Use `hk check --all` to run the ship's checks against a checkout. The harbour-master (CI) must install hk and every tool the configured steps call on, just as a sailor's own machine does.
+Use `hk check --all` to run the ship's checks against a checkout. The harbour-master (CI) must bring aboard hk and every tool the configured steps call on, just as a sailor's own machine does.
 
-## One crew at home and for the harbour-master {#share-local-and-ci-checks}
+## One crew at the helm and for the harbour-master {#share-local-and-ci-checks}
 
-As the song has it, the hook, the helm and the harbour-master all muster the self-same crew. Define a `check` hook that reuses yer linter mapping, the same lookouts ye post at home:
+As the song has it, the hook, the helm and the harbour-master all muster the self-same crew. Define a `check` hook that reuses yer linter mapping, the same lookouts ye post at the helm:
 
 ```pkl
 hooks {
@@ -28,7 +28,7 @@ No `hk install` step is needed to call hk directly in CI. Keep check commands re
 
 ## Provision the ship {#set-up-the-environment}
 
-With a committed `mise.toml`, these are the essential orders for the quartermaster in CI:
+With a committed `mise.toml`, these are the essential commands for the quartermaster in CI:
 
 ```sh
 mise install

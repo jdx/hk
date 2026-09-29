@@ -1,6 +1,6 @@
 ---
 title: "hk cache clear"
-description: "Sweep out hk's cache when ye're hunting down stale evaluated configuration."
+description: "Sweep out hk's cache, its locker, when ye're hunting down stale evaluated configuration."
 sourceHash: 0663c9b7f3bd
 ---
 
@@ -9,9 +9,9 @@ sourceHash: 0663c9b7f3bd
 # `hk cache clear`
 
 - **How to hail it:** `hk cache clear`
-- **Effect:** modifies state (lays hands on the cargo)
+- **Effect:** modifies state (it touches, as well as looks)
 
-Clear out the cache directory, hk's own stores rather than yer project's files, and sweep it clean as a scrubbed deck
+Clear out the cache directory, hk's own locker rather than yer project's files, and sweep it clean as a scrubbed deck
 
 ## Flags to fly {#flags}
 
@@ -30,4 +30,4 @@ hk validate
 
 ## Further charts {#learn-more}
 
-[Getting started: set sail](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

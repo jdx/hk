@@ -1,6 +1,6 @@
 ---
 title: "hk check"
-description: "Inspect the cargo of the whole ship, or look one step over before ye send it aloft."
+description: "Inspect the cargo of the whole ship, or look one step over before it runs."
 sourceHash: 9277d5f96337
 ---
 
@@ -32,7 +32,7 @@ Each step runs its check command, which by convention only reports problems: a l
 - **`-W --why [STEP]`** — Show detailed reasons for inclusion/exclusion: why each hand was mustered or left ashore. Pass a step name to focus on one step, or leave the value off to show reasons for all steps. Implies --plan.
 - **`--fail-fast`** — Abort on the first failure: the first squall ends the run
 - **`--files0-from <PATH>`** — Read the exact file list, the cargo manifest, from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
-- **`--format <FORMAT>`** — Select human or machine-readable execution output: a log for a sailor's eyes, or one for machines
+- **`--format <FORMAT>`** — Select human or machine-readable execution output: for a sailor's eyes, or for machines to read
 
   **Choose from:** `human`, `json`, `jsonl`
 
@@ -70,4 +70,4 @@ hk check --plan --json
 
 ## Further charts {#learn-more}
 
-[Getting started: set sail](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
