@@ -48,6 +48,9 @@ export function pirateVariants() {
     .sort();
 }
 
+/** A release's version, with an optional pre-release tag: 2.4.0, 2.5.0-rc.1. Anything else in its place is a real change. */
+const VERSION = String.raw`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?`;
+
 /**
  * The English page with the parts a release rewrites by itself taken out, so
  * a release does not make a variant stale: the version in every `package://`
@@ -57,8 +60,8 @@ export function pirateVariants() {
 export function normalize(text) {
   return text
     .replace(/\r\n/g, "\n")
-    .replace(/(package:\/\/github\.com\/jdx\/hk\/releases\/download\/)v[^/\s]+(\/hk@)[^#\s]+#/g, "$1vX$2X#")
-    .replace(/^\*\*Version:\*\* \S+$/gm, "**Version:** X");
+    .replace(new RegExp(`(package://github\\.com/jdx/hk/releases/download/)v${VERSION}(/hk@)${VERSION}#`, "g"), "$1vX$2X#")
+    .replace(new RegExp(`^\\*\\*Version:\\*\\* ${VERSION}$`, "gm"), "**Version:** X");
 }
 
 /** The hash a variant records for the English page it was written from. */

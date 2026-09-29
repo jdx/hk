@@ -148,6 +148,10 @@ test("a release's version bump does not change what a variant was written from",
   const url = (v) => `amends "package://github.com/jdx/hk/releases/download/v${v}/hk@${v}#/Config.pkl"`;
   assert.equal(normalize(url("2.4.0")), normalize(url("2.10.1")));
   assert.equal(normalize(url("2.4.0")), normalize(url("2.5.0-rc.1")));
+  // Only version-shaped values are a release's doing; any other change counts.
+  assert.notEqual(normalize(url("2.4.0")), normalize(url("latest")));
+  assert.notEqual(normalize(url("2.4.0")), normalize(url("2.4.0").replace("/hk@", "/hk-extra@")));
+  assert.notEqual(normalize("**Version:** 2.4.0\n"), normalize("**Version:** unknown\n"));
   assert.notEqual(normalize(`${url("2.4.0")}\nold`), normalize(`${url("2.4.0")}\nnew`));
   assert.equal(normalize("a\r\nb"), "a\nb");
   assert.equal(normalize("**Version:** 2.4.0\n"), normalize("**Version:** 2.5.0-rc.1\n"));
