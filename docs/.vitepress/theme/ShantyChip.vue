@@ -121,6 +121,27 @@ async function toggle() {
 </script>
 
 <template>
+  <!-- The switch cannot run without JavaScript, and its extras are hidden with
+       it, so the way to the song would be gone. Where scripting is off this
+       plain link takes its place (see the media query below). -->
+  <a class="hk-shanty-chip hk-shanty-fallback" href="/shanty">
+    <span class="hk-shanty-chip-anchor" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="4.5" r="2" />
+        <path
+          d="M12 6.5V21M8.5 10h7M5 14.5c.6 3.6 3.4 6.5 7 6.5s6.4-2.9 7-6.5M3.6 16 5 14.5 6.6 16M17.4 16 19 14.5 20.4 16"
+        />
+      </svg>
+    </span>
+    <span><strong>Yo ho!</strong> Sea shanty: Bound for the Main →</span>
+  </a>
   <button
     type="button"
     role="switch"
@@ -285,6 +306,18 @@ async function toggle() {
 .hk-shanty-chip.is-on .hk-shanty-chip-knob {
   background: var(--vp-button-brand-text);
   transform: translateX(14px);
+}
+/* Shown only where scripting is off; it stands where the switch would. */
+.hk-shanty-fallback {
+  display: none;
+}
+@media (scripting: none) {
+  button.hk-shanty-chip {
+    display: none;
+  }
+  .hk-shanty-fallback {
+    display: flex;
+  }
 }
 @media (forced-colors: active) {
   .hk-shanty-chip-track {
