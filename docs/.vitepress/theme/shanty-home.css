@@ -1,8 +1,8 @@
 /* Sea shanty mode on the landing page: docs/pirate/index.md renders
    HomePage.vue with the crew's words, and this file draws it as a sea chart
    (see shanty-mode.css for the site-wide theme). The rules reach into
-   HomePage.vue, HomeShowreel.vue and ShantyChip.vue, and beat their scoped
-   rules on specificity; the classes starting `hk-sea-` exist only in the
+   HomePage.vue, HomeShowreel.vue and ShantyChip.vue, and ShantyVideo.vue
+   shares the porthole, and beat their scoped rules on specificity; the classes starting `hk-sea-` exist only in the
    pirate page's markup. Every colour comes from the mode's palette, so both
    themes follow it: the chart room by day, the night watch by lamplight.
    showreel/test/shanty-home.test.ts checks the text these tokens carry. */
@@ -35,8 +35,9 @@
 }
 
 /* Type: the display serif for headings and the song's lines, the body face
-   for reading. The landing page's tight sans tracking is too tight for a
-   serif. */
+   for reading. The Fell comes in one weight, so it is set at 400 wherever it
+   is used, and untracked, as the docs set it: the landing page's tight sans
+   tracking is too tight for a serif. */
 :root.shanty-mode .hk-home :is(h1, h2),
 :root.shanty-mode .hk-sea-kicker,
 :root.shanty-mode .hk-sea-voyage li > strong,
@@ -48,9 +49,13 @@
 :root.shanty-mode .hk-doc-links strong {
   font-family: var(--hk-font-display);
 }
+:root.shanty-mode .hk-home :is(h1, h2),
+:root.shanty-mode .hk-sea-voyage li > strong,
+:root.shanty-mode .hk-doc-links strong {
+  font-weight: 400;
+  letter-spacing: 0;
+}
 :root.shanty-mode .hk-home :is(h1, h2) {
-  font-weight: 700;
-  letter-spacing: -0.015em;
   text-wrap: balance;
 }
 /* Set once and inherited, so the display rules above win wherever they
@@ -58,7 +63,10 @@
 :root.shanty-mode .hk-home {
   font-family: var(--hk-font-body, var(--vp-font-family-base));
 }
-.hk-sea-kicker {
+/* The kickers are lines of the song, in brass over the heading they lead
+   into. The rule outranks the sections' own rules for their paragraphs,
+   which would set the workflow's in grey (HomePage.vue's `.hk-workflow p`). */
+:root.shanty-mode .hk-home p.hk-sea-kicker {
   margin: 0 0 6px;
   color: var(--hk-sea-brass);
   font-size: 17px;
@@ -118,7 +126,7 @@
     linear-gradient(to right, color-mix(in srgb, var(--hk-sea-brass) 9%, transparent) 1px, transparent 1px) -1px 0 / 20% 100%,
     linear-gradient(to bottom, color-mix(in srgb, var(--hk-sea-brass) 9%, transparent) 1px, transparent 1px) 0 -1px / 100% 25%;
 }
-/* The rose rises over the articles, its middle on the card's top edge. It is
+/* The rose rises over the charts' card, its middle on the card's top edge. It is
    placed from the grid's own sums: in the art's box (12 px inside the padding
    box), the card column's middle is 44 px of padding, the first column's
    1.08/2.08 share and the 64 px gap, plus half the card column, of the
@@ -170,7 +178,7 @@
   color: var(--hk-sea-brass);
   font-family: var(--hk-font-display);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.16em;
   line-height: 1.3;
   text-transform: uppercase;
@@ -181,10 +189,10 @@
 }
 :root.shanty-mode .hk-hero h1 em {
   color: var(--hk-sea-brass);
-  font-weight: 600;
 }
 :root.shanty-mode .hk-hero .hk-intro {
   max-width: 470px;
+  text-wrap: pretty;
 }
 :root.shanty-mode .hk-home .hk-button {
   border-color: var(--hk-home-rule);
@@ -206,7 +214,7 @@
     inset 0 0 0 4px var(--hk-home-rule);
 }
 
-/* ---- hk.pkl, as the ship's articles -------------------------------------
+/* ---- hk.pkl, as the ship's charts ---------------------------------------
 
    A signed document rather than a window: square corners, a double rule
    around it, and brass corner pieces. */
@@ -373,18 +381,22 @@
 }
 /* A ship's window: a brass bezel lit from the top left, bolted all the way
    round. The glass is the video itself, which keeps its whole frame: the
-   poster and captions have words in them. */
-:root.shanty-mode .hk-sea-reel .hk-showreel-stage {
-  --bezel: 16px;
-  padding: var(--bezel);
-  border-radius: calc(var(--bezel) * 1.9);
+   poster and captions have words in them. The shanty's own page frames its
+   player (ShantyVideo.vue) the same way, and the song alone, where a build
+   has no video, plays in a brass rail. */
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage, .hk-shanty > audio) {
   background: linear-gradient(145deg, var(--hk-home-bezel-light), var(--hk-home-bezel) 42%, var(--hk-home-bezel-dark));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 35%),
     inset 0 -2px 3px rgb(0 0 0 / 25%),
     0 24px 50px -24px rgb(0 0 0 / 45%);
 }
-:root.shanty-mode .hk-sea-reel .hk-showreel-stage::before {
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage) {
+  --bezel: 16px;
+  padding: var(--bezel);
+  border-radius: calc(var(--bezel) * 1.9);
+}
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -400,33 +412,64 @@
     var(--r) left top / var(--bezel) 44px no-repeat space,
     var(--r) right top / var(--bezel) 44px no-repeat space;
 }
-:root.shanty-mode .hk-sea-reel video,
-:root.dark.shanty-mode .hk-sea-reel video {
+:root.shanty-mode :is(.hk-sea-reel, .hk-shanty-stage) video,
+:root.dark.shanty-mode :is(.hk-sea-reel, .hk-shanty-stage) video {
   border-color: rgb(0 0 0 / 45%);
   border-radius: var(--bezel);
   box-shadow: 0 0 0 2px rgb(0 0 0 / 18%);
 }
-:root.shanty-mode .hk-sea-reel .hk-showreel-play {
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-play, .hk-shanty-play) {
   inset: var(--bezel);
   border-radius: var(--bezel);
 }
 /* The player's focus ring would fall on the brass, where it barely shows, so
    it goes round the whole window instead, on the page. */
 @supports selector(:has(*)) {
-  :root.shanty-mode .hk-sea-reel .hk-showreel-stage:has(:focus-visible) {
+  :root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage):has(:focus-visible) {
     outline: 2px solid var(--vp-c-brand-1);
     outline-offset: 4px;
   }
-  :root.shanty-mode .hk-sea-reel :is(video, .hk-showreel-play):focus-visible {
+  :root.shanty-mode :is(.hk-sea-reel, .hk-shanty-stage) :is(video, .hk-showreel-play, .hk-shanty-play):focus-visible {
     outline: none;
   }
 }
-:root.shanty-mode .hk-sea-reel figcaption {
+/* The rail: the player's own panel is set in the chart's paper, inside a
+   band of brass. The panel's parts are Chromium's and WebKit's, each in a
+   rule of its own so other browsers keep the rest; they keep their own
+   controls, in the brass. */
+:root.shanty-mode .hk-shanty > audio {
+  box-sizing: border-box;
+  height: 58px;
+  padding: 6px;
+  border-radius: 29px;
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-enclosure {
+  border-radius: 23px;
+  background-color: var(--vp-c-bg-elv);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-panel {
+  background-color: transparent;
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-current-time-display {
+  color: var(--vp-c-text-1);
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-time-remaining-display {
+  color: var(--vp-c-text-1);
+}
+:root.shanty-mode :is(.hk-sea-reel, .hk-shanty) figcaption {
   margin-top: 16px;
   font-family: var(--hk-font-display);
   font-size: 16px;
   font-style: italic;
   text-align: center;
+}
+:root.shanty-mode .hk-shanty figcaption {
+  color: var(--vp-c-text-2);
+  line-height: 1.5;
+}
+:root.shanty-mode .vp-doc .hk-shanty figcaption a {
+  font-weight: 400;
 }
 
 /* A song sheet: a stave ruled across its head, and the chorus in the
@@ -468,20 +511,25 @@
   padding: 2px 0 2px 18px;
   border-left: 3px double var(--hk-sea-brass);
 }
-/* A line too long for the sheet carries on indented, as verse is set. */
+/* A line too long for the sheet carries on indented, as verse is set. The
+   Fell has no bold, so the chorus's strong lines are marked by colour: the
+   full ink, where the sheet's other words are grey, and the crew's answers
+   brass italics. */
 .hk-sea-chorus span {
   display: block;
   padding-left: 1em;
-  color: var(--vp-c-text-1);
+  color: var(--vp-c-text-2);
   font-size: 19px;
   line-height: 1.5;
   text-indent: -1em;
 }
 .hk-sea-chorus strong {
-  font-weight: 600;
+  color: var(--vp-c-text-1);
+  font-weight: 400;
 }
 .hk-sea-chorus em {
   color: var(--hk-sea-brass);
+  font-style: italic;
   white-space: nowrap;
 }
 .hk-sea-singalong-links {
@@ -659,7 +707,7 @@
   line-height: 1.3;
 }
 
-/* ---- The chart locker ---------------------------------------------------- */
+/* ---- Charts and tables: the reference pages ------------------------------ */
 :root.shanty-mode .hk-doc-links {
   padding-top: 56px;
 }
@@ -677,7 +725,6 @@
 }
 :root.shanty-mode .hk-doc-links strong {
   font-size: 19px;
-  font-weight: 700;
 }
 
 /* ---- The outro: the song ends on the install command --------------------- */
@@ -845,7 +892,7 @@
   :root.shanty-mode .hk-sea-reel {
     padding-bottom: 56px;
   }
-  :root.shanty-mode .hk-sea-reel .hk-showreel-stage {
+  :root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage) {
     --bezel: 10px;
   }
   :root.shanty-mode .hk-sea-reel .hk-sea-singalong {

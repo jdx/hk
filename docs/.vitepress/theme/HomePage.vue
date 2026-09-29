@@ -83,9 +83,10 @@ const RHUMBS = Array.from({ length: 16 }, (_, i) => {
           <template v-else>Git hooks for linters and formatters</template>
         </h1>
         <p v-if="pirate" class="hk-intro">
-          Chart yer checks once, and hk pipes the crew on deck afore every
-          commit, while ye work, or in CI. Independent steps haul in parallel,
-          and a lock on each file takes the strain wherever two hands share one.
+          Chart yer checks once, and hk pipes the crew on deck afore ye set
+          sail, while ye work, or fer the harbour-master in CI. Independent
+          hands haul side by side, and a lock on each shared file takes the
+          strain.
         </p>
         <p v-else class="hk-intro">
           Configure your checks once and run them before commits, while you work,
@@ -94,12 +95,12 @@ const RHUMBS = Array.from({ length: 16 }, (_, i) => {
         </p>
         <div class="hk-actions">
           <a class="hk-button hk-button-primary" :href="to('/getting_started')"
-            ><template v-if="pirate">Set sail</template
+            ><template v-if="pirate">Get under way</template
             ><template v-else>Get started</template>
             <span aria-hidden="true">→</span></a
           >
           <a class="hk-button" :href="to('/reference/examples/')"
-            ><template v-if="pirate">See how other ships be rigged</template
+            ><template v-if="pirate">Browse the ships in bottles</template
             ><template v-else>Explore configurations</template></a
           >
         </div>
@@ -118,7 +119,7 @@ const RHUMBS = Array.from({ length: 16 }, (_, i) => {
           {{
             copyStatus ||
             (pirate
-              ? "mise, the quartermaster, brings hk aboard, or pick another way to sign on."
+              ? "mise, the quartermaster, brings hk aboard, though there be other ways."
               : "Install with mise, or choose another installation method.")
           }}
           <a v-if="!copyStatus" :href="to('/getting_started#installation')"
@@ -130,12 +131,12 @@ const RHUMBS = Array.from({ length: 16 }, (_, i) => {
       <div class="hk-preview">
         <div class="hk-preview-header">
           <span>hk.pkl</span
-          ><span class="hk-preview-label">{{ pirate ? "The articles we sail by" : "One set of steps" }}</span>
+          ><span class="hk-preview-label">{{ pirate ? "The charts we sail by" : "One set of steps" }}</span>
         </div>
         <pre
           class="hk-config"
           role="group"
-          :aria-label="pirate ? 'The ship\'s articles: steps shared by the check, fix, and pre-commit hooks' : 'Example steps shared by the check, fix, and pre-commit hooks'"
+          :aria-label="pirate ? 'The ship\'s charts: steps shared by the check, fix, and pre-commit hooks' : 'Example steps shared by the check, fix, and pre-commit hooks'"
         ><code><span class="hk-code-comment">// Run by check, fix, and pre-commit</span>
 steps {
   [<span class="hk-code-string">"prettier"</span>] = Builtins.prettier
@@ -159,8 +160,8 @@ steps {
             </div>
           </div>
           <p v-if="pirate">
-            Every file hauls in its own lane, all at once. Checks can share a
-            file; a fix makes its file fast until the mending's done.
+            Each file has its own lane, and all hands haul at once. Checks can
+            share a file; a fix makes its file fast until the mending's done.
           </p>
           <p v-else>
             Checks can read a file concurrently; fixes wait for exclusive access.
@@ -169,7 +170,7 @@ steps {
         <a
           class="hk-preview-link"
           :href="to('/getting_started#your-first-configuration')"
-          >{{ pirate ? "Unroll the whole configuration" : "See the complete configuration" }} <span aria-hidden="true">↗</span></a
+          >{{ pirate ? "Unroll the charts in full" : "See the complete configuration" }} <span aria-hidden="true">↗</span></a
         >
       </div>
     </section>
@@ -189,7 +190,7 @@ steps {
             </svg>
           </span>
           <strong><code>git commit</code></strong>
-          <p>Ye christen her, hit return, and she weighs anchor.</p>
+          <p>Ye christen her, hit return, and she makes ready to sail.</p>
         </li>
         <li>
           <span class="hk-sea-mark" aria-hidden="true">
@@ -208,7 +209,7 @@ steps {
             </svg>
           </span>
           <strong>Snug in the hold</strong>
-          <p>hk can stow yer unstaged work below, so the crew sees only the cargo ye ship.</p>
+          <p>hk can stow the cargo left on the dock in the hold, so the crew sees only the cargo loaded aboard.</p>
         </li>
         <li>
           <span class="hk-sea-mark" aria-hidden="true">
@@ -227,8 +228,9 @@ steps {
           </span>
           <strong>Bound for the main</strong>
           <p>
-            The fixes are staged, yer stowed work comes back up, and the commit
-            is made. A squall no fixer can mend hauls her back to port.
+            The fixes are loaded aboard, yer stowed cargo comes up from the
+            hold, and she sets sail. A squall no sailmaker can mend hauls her
+            back to port.
           </p>
         </li>
       </ol>
@@ -251,7 +253,7 @@ steps {
         </svg>
         <h2>{{ pirate ? "Side by side, made fast" : "Parallel execution" }}</h2>
         <p v-if="pirate">
-          Independent hands haul in parallel, even over shared cargo:
+          Independent hands haul at once, even over shared cargo:
           read/write locks make each file fast, so no two collide. Where a tool
           can call out a patch or a list o' files, hk narrows the work that
           needs a file to itself.
@@ -276,8 +278,9 @@ steps {
         </svg>
         <h2>{{ pirate ? "Snug in the hold" : "Partial commits" }}</h2>
         <p v-if="pirate">
-          hk stows yer unstaged work in the hold afore it mends the staged
-          version o' a file, then brings it back up when the hook is done.
+          hk stows the cargo left on the dock in the hold afore it mends the
+          staged version o' a file, then brings it up from the hold when the
+          hook is done.
         </p>
         <p v-else>
           Stash unstaged work before fixing the staged version of a file, then
@@ -301,7 +304,7 @@ steps {
         </svg>
         <h2>{{ pirate ? "The standing crew" : "Linter configuration" }}</h2>
         <p v-if="pirate">
-          Sign on a builtin from the standing crew, or give yer own orders as a
+          Sign on a builtin from the standing crew, or a hand of yer own with a
           shell command. mise, the quartermaster, or yer usual package manager
           provisions the tools.
         </p>
@@ -309,18 +312,18 @@ steps {
           Start with built-in configurations or write a shell command. Use mise
           or your existing package manager to provide the tools.
         </p>
-        <a :href="to('/builtins')">{{ pirate ? "Muster the builtins" : "Browse builtins" }} →</a>
+        <a :href="to('/builtins')">{{ pirate ? "Read the crew roster" : "Browse builtins" }} →</a>
       </article>
     </section>
 
     <section class="hk-workflow" aria-labelledby="workflow-title">
       <div>
         <p v-if="pirate" class="hk-sea-kicker">They steer by the one set of charts</p>
-        <h2 id="workflow-title">{{ pirate ? "One set o' charts, on deck and in CI" : "Run checks locally and in CI" }}</h2>
+        <h2 id="workflow-title">{{ pirate ? "One set o' charts, from the helm to the harbour-master" : "Run checks locally and in CI" }}</h2>
         <p v-if="pirate">
-          Chart yer steps once in Pkl. The hook, the helm and the harbour-master
-          all muster the self-same crew: to check a change, mend yer working
-          tree, or inspect the whole ship.
+          Sign on yer hands once, in Pkl. The hook, the helm and the
+          harbour-master all muster the self-same crew: to inspect a change,
+          mend yer working tree, or inspect the whole ship.
         </p>
         <p v-else>
           Define your steps once in Pkl. Reuse them when you check a change, fix
@@ -344,7 +347,7 @@ steps {
         <div>
           <dt><code>hk check --all</code></dt>
           <dd v-if="pirate" class="hk-sea-call">Who'll haul the halyard?</dd>
-          <dd>{{ pirate ? "The whole ship, fer the harbour-master in CI" : "Check the repository in CI" }}</dd>
+          <dd>{{ pirate ? "The whole o' the cargo, fer the harbour-master" : "Check the repository in CI" }}</dd>
         </div>
         <div>
           <dt><code>hk check --plan</code></dt>
@@ -355,11 +358,11 @@ steps {
     </section>
 
     <section class="hk-doc-links" aria-labelledby="docs-title">
-      <p v-if="pirate" class="hk-sea-kicker">Charts fer every passage</p>
-      <h2 id="docs-title">{{ pirate ? "The chart locker" : "Configuration and reference" }}</h2>
+      <p v-if="pirate" class="hk-sea-kicker">Where to sail next</p>
+      <h2 id="docs-title">{{ pirate ? "Charts and tables" : "Configuration and reference" }}</h2>
       <div>
         <a :href="to('/configuration')"
-          ><strong>{{ pirate ? "Riggin' the ship" : "Configuration" }} <span aria-hidden="true">↗</span></strong
+          ><strong>{{ pirate ? "The ship's charts" : "Configuration" }} <span aria-hidden="true">↗</span></strong
           ><span>{{ pirate ? "Configuration: files, steps, profiles (the watches) and local overrides." : "Files, steps, profiles, and local overrides." }}</span></a
         >
         <a :href="to('/mise_integration')"
@@ -367,8 +370,8 @@ steps {
           ><span>{{ pirate ? "mise integration: the same tools in yer shell and yer Git hooks." : "Consistent tools in your shell and Git hooks." }}</span></a
         >
         <a :href="to('/logging')"
-          ><strong>{{ pirate ? "Readin' the ship's log" : "Troubleshooting" }} <span aria-hidden="true">↗</span></strong
-          ><span>{{ pirate ? "Troubleshooting: why a hand sat out, and what slowed the voyage." : "Explain skipped steps and inspect slow runs." }}</span></a
+          ><strong>{{ pirate ? "Foul weather" : "Troubleshooting" }} <span aria-hidden="true">↗</span></strong
+          ><span>{{ pirate ? "Troubleshooting: why a hand sat this one out, and what slowed the run." : "Explain skipped steps and inspect slow runs." }}</span></a
         >
         <a :href="to('/cli/')"
           ><strong>{{ pirate ? "The bosun's calls" : "CLI reference" }} <span aria-hidden="true">↗</span></strong
@@ -383,7 +386,7 @@ steps {
       <h2 id="outro-title">There's but three words left to say</h2>
       <p class="hk-sea-outro-words"><code>{{ installCommand }}</code></p>
       <p class="hk-sea-outro-last">And we're bound away for the main!</p>
-      <a class="hk-button hk-button-primary" :href="to('/getting_started')">Set sail <span aria-hidden="true">→</span></a>
+      <a class="hk-button hk-button-primary" :href="to('/getting_started')">Get under way <span aria-hidden="true">→</span></a>
       <svg class="hk-sea-ship" viewBox="0 0 160 104" aria-hidden="true">
         <path d="M48 63V16M80 62V4M112 60V14M144 59l15-9M80 4l13 4.5L80 13" />
         <path class="hk-sea-art-fill" d="M113 16q25 18 45 35l-32 6Z" />
