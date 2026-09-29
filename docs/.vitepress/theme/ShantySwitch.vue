@@ -153,6 +153,28 @@ const knob = ref<HTMLElement>();
   background-color: var(--vp-c-bg);
   transform: translateX(18px);
 }
+/* In the mode the switch is brass fitted into the bar, the knob a ring
+   with the anchor struck into it, and the menu's row a slip of the log. */
+:root.shanty-mode .hk-shanty-switch-button.is-on {
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 35%);
+}
+:root.shanty-mode .hk-shanty-switch-button.is-on .hk-shanty-switch-knob {
+  box-shadow:
+    inset 0 0 0 1.5px var(--hk-sea-brass),
+    0 1px 3px rgb(0 0 0 / 30%);
+}
+:root.shanty-mode .hk-shanty-switch.is-screen {
+  border: 1px solid var(--hk-sea-rule);
+  border-radius: 3px;
+  background-color: transparent;
+}
+:root.shanty-mode .hk-shanty-switch-label {
+  color: var(--vp-c-text-1);
+  font-family: var(--hk-font-caps);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
 @keyframes hk-anchor-sway {
   25% {
     transform: rotate(-14deg);
