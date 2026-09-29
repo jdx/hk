@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev",
-    "docs:build": "tsc -p .vitepress/theme/showreel && node .vitepress/theme/showreel/test/run.mjs && node --test .vitepress/social-images.test.mjs && vitepress build && node .vitepress/check-social-images.mjs .vitepress/dist",
+    "docs:build": "tsc -p .vitepress/theme/showreel && node .vitepress/theme/showreel/test/run.mjs && node --test .vitepress/social-images.test.mjs .vitepress/publish-render.test.mjs && vitepress build && node .vitepress/check-social-images.mjs .vitepress/dist",
     "docs:preview": "vitepress preview",
     "eslint": "eslint",
     "shanty:video": "node .vitepress/shanty-video.mjs",
