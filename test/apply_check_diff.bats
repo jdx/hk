@@ -1029,8 +1029,10 @@ EOF
 # Runs a command under a pty, where hk draws its progress in place, and fails
 # if the last frame hk drew still shows a job running: a step's command line
 # and its spinner left on screen once the step is done. CLX_TRACE_LOG records
-# each frame's job tree. Needs util-linux script(1); BSD script takes other
-# arguments.
+# each frame's job tree. The top-level header job (id 0) is ignored: clx skips
+# redrawing a settled frame whose text is unchanged, so its final "done" is
+# never traced even though nothing on screen differs. Needs util-linux
+# script(1); BSD script takes other arguments.
 assert_no_job_left_running_in_pty() {
     if ! script --version 2>/dev/null | grep -q util-linux; then
         skip "needs util-linux script(1) for a pty"
@@ -1041,8 +1043,9 @@ assert_no_job_left_running_in_pty() {
     env -u CI -u GITHUB_ACTION TERM=xterm-256color CLX_TRACE_LOG="$frames" \
         script -q -e -c "$*" /dev/null >/dev/null
     assert_file_not_empty "$frames"
-    run tail -n 1 "$frames"
-    refute_output --partial '"status":"running"'
+    run jq -c '[.jobs[] | select(.id != 0) | recurse(.children[]) | select(.status == "running")]' <(tail -n 1 "$frames")
+    assert_success
+    assert_output '[]'
 }
 
 # A fix hook with one step whose read-only check_diff is $1, and whose fixer
