@@ -70,24 +70,30 @@ export function sourceHash(page) {
 const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
 const HASH_LINE_RE = /^sourceHash:\s*["']?([0-9a-f]*)["']?\s*$/m;
 
-/** The hash a variant recorded, or null when it has none. */
-export function recordedHash(page) {
-  const text = readFileSync(join(DOCS, PIRATE_DIR, page), "utf8");
+/** The hash a page's front matter records, read as text (YAML would read 123456789012 as a number), or null. */
+function hashIn(text) {
   const front = FRONT_MATTER_RE.exec(text);
   return (front && HASH_LINE_RE.exec(front[1])?.[1]) || null;
+}
+
+/** The hash a variant recorded, or null when it has none. */
+export function recordedHash(page) {
+  return hashIn(readFileSync(join(DOCS, PIRATE_DIR, page), "utf8"));
+}
+
+/** A page's text with `sourceHash: <hash>` in its front matter, added or replaced. */
+export function stampText(text, hash) {
+  const line = `sourceHash: ${hash}`;
+  const front = FRONT_MATTER_RE.exec(text);
+  if (!front) return `---\n${line}\n---\n\n${text}`;
+  if (HASH_LINE_RE.test(front[1])) return text.replace(front[0], front[0].replace(HASH_LINE_RE, line));
+  return text.replace(front[0], `---\n${front[1]}\n${line}\n---\n`);
 }
 
 /** Writes the English page's current hash into its variant's front matter. */
 export function stamp(page) {
   const file = join(DOCS, PIRATE_DIR, page);
-  const text = readFileSync(file, "utf8");
-  const line = `sourceHash: ${sourceHash(page)}`;
-  const front = FRONT_MATTER_RE.exec(text);
-  let next;
-  if (!front) next = `---\n${line}\n---\n\n${text}`;
-  else if (HASH_LINE_RE.test(front[1])) next = text.replace(front[0], front[0].replace(HASH_LINE_RE, line));
-  else next = text.replace(front[0], `---\n${front[1]}\n${line}\n---\n`);
-  writeFileSync(file, next);
+  writeFileSync(file, stampText(readFileSync(file, "utf8"), sourceHash(page)));
 }
 
 /**
@@ -210,11 +216,16 @@ const OWN_WORDS = new Set(["title", "description", "sourceHash"]);
 
 const listed = (items) => [...items].map((item) => `    ${JSON.stringify(item)}`).join("\n");
 
-/** The ways a variant falls short of its English page; empty when it keeps everything. */
+/** The ways a page's variant falls short of it; empty when it keeps everything. */
 export async function comparePage(page) {
-  const english = await skeleton(join(DOCS, page));
   const pirateFile = join(DOCS, PIRATE_DIR, page);
   if (!existsSync(pirateFile)) return [`no variant at docs/${PIRATE_DIR}/${page}`];
+  return compareFiles(join(DOCS, page), pirateFile);
+}
+
+/** The ways the variant in `pirateFile` falls short of the English page in `englishFile`. */
+export async function compareFiles(englishFile, pirateFile) {
+  const english = await skeleton(englishFile);
   const pirate = await skeleton(pirateFile);
   const problems = [];
 
@@ -227,7 +238,7 @@ export async function comparePage(page) {
   for (const key of ["title", "description"]) {
     if (english.frontmatter[key] && !pirate.frontmatter[key]) problems.push(`front matter needs its own \`${key}\``);
   }
-  if (!pirate.frontmatter.sourceHash) problems.push("front matter has no `sourceHash`; run `stamp` after writing the page");
+  if (!hashIn(readFileSync(pirateFile, "utf8"))) problems.push("front matter has no `sourceHash`; run `stamp` after writing the page");
 
   if (english.h1 !== pirate.h1) problems.push(`has ${pirate.h1} h1 headings; the English page has ${english.h1}`);
   if (english.headings.join() !== pirate.headings.join()) {
