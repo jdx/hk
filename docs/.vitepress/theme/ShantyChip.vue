@@ -5,7 +5,8 @@ import { useShantyMode } from "./useShantyMode";
 // The landing page's switch for sea shanty mode, in the place mise puts its
 // announcement chip: above the title. It flips the same mode as the switch in
 // the header (useShantyMode.ts): on, the landing page becomes its pirate
-// variant.
+// variant. `pirate` is set there, and the chip speaks as the crew does.
+defineProps<{ pirate?: boolean }>();
 const { on, toggle, sailing } = useShantyMode();
 
 // The server-rendered page has no switch to press: it is space kept open, and
@@ -42,7 +43,7 @@ const anchor = ref<HTMLElement>();
     role="switch"
     :aria-checked="on"
     class="hk-shanty-chip"
-    :class="{ 'is-on': on, 'is-pending': !hydrated, 'is-dropping': dropping }"
+    :class="{ 'is-on': on, 'is-pending': !hydrated, 'is-dropping': dropping, 'is-pirate': pirate }"
     @click="toggle(anchor)"
   >
     <span ref="anchor" class="hk-shanty-chip-anchor" aria-hidden="true">
@@ -60,7 +61,8 @@ const anchor = ref<HTMLElement>();
         />
       </svg>
     </span>
-    <span><strong>Yo ho!</strong> Sea shanty mode</span>
+    <!-- "Avast" is the order to stop: on the pirate page, the switch ends the song. -->
+    <span><strong>{{ pirate ? "Avast!" : "Yo ho!" }}</strong> Sea shanty mode</span>
     <span class="hk-shanty-chip-track" aria-hidden="true"><span class="hk-shanty-chip-knob"></span></span>
   </button>
 </template>
@@ -192,6 +194,27 @@ const anchor = ref<HTMLElement>();
   background: var(--vp-button-brand-text);
   transform: translateX(14px);
 }
+/* On the pirate landing page the chip sits on a sea chart: rimmed in the
+   mode's brass, with a brass disc and track. */
+.hk-shanty-chip.is-pirate {
+  border-color: var(--hk-sea-brass, var(--vp-c-divider));
+  background: var(--vp-c-bg-elv);
+}
+.hk-shanty-chip.is-pirate:hover {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-bg-soft);
+}
+.hk-shanty-chip.is-pirate .hk-shanty-chip-anchor {
+  color: var(--vp-c-bg);
+  background: var(--hk-sea-brass, var(--vp-button-brand-bg));
+}
+.hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-track {
+  border-color: var(--hk-sea-brass, var(--vp-c-brand-1));
+  background: var(--hk-sea-brass, var(--vp-c-brand-1));
+}
+.hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-knob {
+  background: var(--vp-c-bg);
+}
 @media (forced-colors: active) {
   .hk-shanty-chip-track {
     border-color: CanvasText;
@@ -199,11 +222,13 @@ const anchor = ref<HTMLElement>();
   .hk-shanty-chip-knob {
     background: CanvasText;
   }
-  .hk-shanty-chip.is-on .hk-shanty-chip-track {
+  .hk-shanty-chip.is-on .hk-shanty-chip-track,
+  .hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-track {
     border-color: Highlight;
     background: Highlight;
   }
-  .hk-shanty-chip.is-on .hk-shanty-chip-knob {
+  .hk-shanty-chip.is-on .hk-shanty-chip-knob,
+  .hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-knob {
     background: HighlightText;
   }
 }

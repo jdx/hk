@@ -9,13 +9,15 @@ import { describeChapters } from "./showreel/describe";
 import { factsFromBenchmarks, races } from "./showreel/facts";
 
 // The reel is rendered to MP4 files by `mise run docs:showreel` (the docs
-// deploy runs it), so this is a plain video player. A build leaves the section
+// deploy runs it), so this is a plain video player. A build leaves the player
 // out when it has no render to show: no showreel, or with sea shanty mode on,
 // neither video. Only facts.ts, describe.ts and timeline.ts are imported here:
 // they draw nothing, so they are safe to server-render.
 
 // `shanty` is set on the pirate landing page (sea shanty mode), which plays
-// the music video and links to pirate pages.
+// the music video, links to pirate pages and speaks as the crew does. There the
+// section also holds the sing-along card, so it stays when no video was
+// rendered: the song's MP3 is in the repository, so it is always there.
 const props = defineProps<{ shanty?: boolean }>();
 const to = (path: string) => withBase(props.shanty ? `/pirate${path}` : path);
 
@@ -27,8 +29,10 @@ const timed = races(facts).length > 0;
 
 const SHOWREEL_LABEL =
   "hk showreel, about a minute long: what hk does when you run git commit. The fixers from hk.pkl run in parallel, even on the same file, with file locks keeping them from colliding, fixes are staged while your unstaged work is kept, and a commit that cannot be fixed is blocked. Chapters are listed below.";
+const SHOWREEL_LABEL_PIRATE =
+  "The hk showreel, about a minute long: what hk does when ye run git commit. The fixers from hk.pkl haul in parallel, even on the same file, with file locks keepin' them from colliding, the fixes are staged while yer unstaged work is kept, and a commit that can't be fixed is blocked. The chapters are listed below.";
 const SHANTY_LABEL =
-  "Bound for the Main, the music video for the hk sea shanty, about three and a half minutes long. The sung words are on screen, and the lyrics are on the sea shanty page.";
+  "Bound for the Main, the music video fer the hk sea shanty, about three and a half minutes long. The sung words be on screen, and the lyrics be on the shanty's page.";
 
 // What the player plays: the showreel, or with sea shanty mode on, the
 // shanty's music video (shanty-mode.ts). Each is rendered at deploy, so a
@@ -43,7 +47,7 @@ const reel = computed(() => {
       src: shantyFiles.video.src,
       poster: shantyFiles.video.poster,
       chapters: "/bound-for-the-main-chapters.vtt",
-      section: "Music video",
+      section: "The shanty's music video",
       label: SHANTY_LABEL,
       play: "Play Bound for the Main",
     } as const;
@@ -54,8 +58,8 @@ const reel = computed(() => {
       src: showreel.src,
       poster: showreel.poster,
       chapters: "/showreel-chapters.vtt",
-      section: "Showreel",
-      label: SHOWREEL_LABEL,
+      section: props.shanty ? "The showreel" : "Showreel",
+      label: props.shanty ? SHOWREEL_LABEL_PIRATE : SHOWREEL_LABEL,
       play: "Play the hk showreel",
     } as const;
   }
@@ -137,8 +141,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section v-if="reel" class="hk-showreel" :aria-label="reel.section">
-    <figure>
+  <section
+    v-if="reel || shanty"
+    class="hk-showreel"
+    :class="{ 'hk-sea-reel': shanty, 'has-reel': shanty && reel }"
+    :aria-label="reel ? reel.section : 'Sing along'"
+  >
+    <figure v-if="reel">
       <div class="hk-showreel-stage">
         <!-- No autoplay, and nothing downloads until someone presses play. -->
         <video
@@ -175,7 +184,16 @@ onMounted(async () => {
       <ol v-if="reel.kind === 'showreel'" class="sr-only" aria-label="Showreel chapters">
         <li v-for="c in described" :key="c.id">{{ c.label }}: {{ c.text }}</li>
       </ol>
-      <figcaption v-if="reel.kind === 'showreel'">
+      <figcaption v-if="reel.kind === 'showreel' && shanty">
+        What hk does when ye set sail, in about a minute. The captions be on
+        screen, so she plays fine with the sound off.
+        <template v-if="timed">
+          Timings come from the
+          <a :href="to('/benchmarks')">benchmarks</a>.
+        </template>
+        <a v-else :href="to('/why-hk')">How the crew hauls →</a>
+      </figcaption>
+      <figcaption v-else-if="reel.kind === 'showreel'">
         What hk does when you commit, in about a minute. The captions are on
         screen, so it works with the sound off.
         <template v-if="timed">
@@ -184,14 +202,28 @@ onMounted(async () => {
         </template>
         <a v-else :href="to('/why-hk')">How execution works →</a>
       </figcaption>
+      <!-- The music video plays on the pirate page only; the card beside it has the lyrics and the MP3. -->
       <figcaption v-else>
-        Bound for the Main, the hk sea shanty: a commit's voyage through hk,
-        sung by the crew. Turn the sound on; the words are on screen.
-        <a :href="to('/shanty')">Read the lyrics →</a>
-        ·
-        <a :href="withBase(shantyFiles.song)">Download the MP3</a> (3:32).
+        Turn up the sound, matey: the words be on screen, so ye can sing along.
       </figcaption>
     </figure>
+    <div v-if="shanty" class="hk-sea-singalong">
+      <p class="hk-sea-kicker">Sing along, matey</p>
+      <h2>Bound for the Main</h2>
+      <p>The hk sea shanty: one commit's voyage through hk, sung by the whole crew.</p>
+      <blockquote class="hk-sea-chorus">
+        <p>
+          <span><strong>Heave away, haul away, hk!</strong> <em>(Heave ho!)</em></span>
+          <span><strong>All hands haul at once!</strong> <em>(Haul away!)</em></span>
+          <span><strong>For a lock on each file takes the strain,</strong></span>
+          <span><strong>And we're bound away for the main!</strong></span>
+        </p>
+      </blockquote>
+      <p class="hk-sea-singalong-links">
+        <a :href="to('/shanty')">All the verses →</a>
+        <span><a :href="withBase(shantyFiles.song)">Take the MP3 aboard</a> (3:32)</span>
+      </p>
+    </div>
   </section>
 </template>
 
