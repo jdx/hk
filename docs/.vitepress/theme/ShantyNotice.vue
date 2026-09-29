@@ -22,7 +22,7 @@ const english = computed(() => `${englishPath(route.path)}?shanty=0`);
 <template>
   <aside v-if="stale" class="hk-shanty-notice" aria-label="About this page">
     <p>
-      <strong>Arr, this chart be behind the times.</strong> The English page was
+      <strong>Arr, this page be behind the times.</strong> The English page was
       redrawn after this one was inked, so some o' what follows may be out o'
       date.
       <a :href="english">Read the latest English page →</a>

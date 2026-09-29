@@ -23,30 +23,32 @@ export function pirateThemeConfig(version: string): DefaultTheme.Config {
   // A page with no variant keeps its English link.
   const moves = (link: string) => hasVariant(link, missing);
   const to = (link: string) => (moves(link) ? `/${PIRATE_LOCALE}${link}` : link);
+  // The words are STYLE.md's: seamanship for the guides, the charts for the
+  // configuration, the crew for the builtins, and the bosun's calls for the CLI.
   return {
     nav: [
       {
-        text: "Charts",
+        text: "Seamanship",
         link: to("/getting_started"),
         activeMatch: "^/pirate/(getting_started|hooks|ci|mise_integration|logging)",
       },
-      { text: "Rigging", link: to("/configuration") },
+      { text: "Charts", link: to("/configuration") },
       { text: "Crew", link: to("/builtins") },
-      { text: "Orders", link: to("/cli/"), activeMatch: "^/pirate/cli/" },
+      { text: "Calls", link: to("/cli/"), activeMatch: "^/pirate/cli/" },
       { text: `v${version}`, link: "https://github.com/jdx/hk/releases" },
     ],
     sidebar: translateSidebar(sidebar, `/${PIRATE_LOCALE}`, PIRATE_SIDEBAR_TEXT, moves),
     outline: { level: [2, 3], label: "Yer bearings" },
     editLink: {
       pattern: "https://github.com/jdx/hk/edit/main/docs/:path",
-      text: "Mend this chart on GitHub",
+      text: "Mend this page on GitHub",
     },
-    lastUpdated: { text: "Last charted" },
+    lastUpdated: { text: "Last inked" },
     docFooter: { prev: "Astern", next: "Ahead" },
     darkModeSwitchLabel: "Night watch",
     lightModeSwitchTitle: "Hoist the day lamps",
     darkModeSwitchTitle: "Douse the lamps for the night watch",
-    sidebarMenuLabel: "Charts",
+    sidebarMenuLabel: "Compass",
     returnToTopLabel: "Back to the crow's nest",
     skipToContentLabel: "Skip to the cargo",
     externalLinkIcon: false,
