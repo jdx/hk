@@ -47,22 +47,23 @@ jobs:
       # in its headers included, is recorded output kept in the reel's own
       # sources, so a release alone does not render it again. Reusing the
       # video also keeps its versioned URLs stable for link previews, because
-      # two renders of the same inputs are not byte-identical. The tool
-      # versions are read from their lines rather than by hashing all of
-      # aube-lock.yaml, which dependency updates change several times a week;
-      # playwright-core's version also fixes the Chromium revision that draws
-      # the frames.
+      # two renders of the same inputs are not byte-identical. The one tool
+      # version in the key is playwright-core's, which fixes the Chromium
+      # revision that draws the frames. It is read from its line rather than
+      # by hashing all of aube-lock.yaml, which dependency updates change
+      # several times a week. esbuild only bundles the reel's code, so a new
+      # esbuild draws the same frames and does not render again.
       - name: Key the showreel render on its tool versions
         id: showreel-versions
         run: |
           {
-            grep -oE '^  (esbuild|playwright-core)@[^:(]+' aube-lock.yaml | sort -u
+            grep -oE '^  playwright-core@[^:(]+' aube-lock.yaml | sort -u
           } > "$RUNNER_TEMP/showreel-versions"
           cat "$RUNNER_TEMP/showreel-versions"
           echo "hash=$(sha256sum < "$RUNNER_TEMP/showreel-versions" | cut -c1-16)" >> "$GITHUB_OUTPUT"
-      # Only restored here: the trusted build saves a fresh render below, once
-      # the site around it has built. The reel's tests (test/**) are not read
-      # by the render, so changing only them keeps the cached video.
+      # Only restored here: the trusted build saves a fresh render below, as
+      # soon as it is rendered. The reel's tests (test/**) are not read by the
+      # render, so changing only them keeps the cached video.
       - name: Restore the showreel video
         id: showreel
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -103,12 +104,23 @@ jobs:
         if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true'
         timeout-minutes: 30
         run: mise run docs:shanty
-      - name: Build with VitePress
+      # A render is saved as soon as it is made, so a failure later in the job
+      # (the site's build, its checks) does not throw away minutes of
+      # rendering, and the next run reuses it. Only a render that published a
+      # playable video and its poster is kept: the same first bytes the site's
+      # checks read (an MP4's "ftyp" box, a JPEG's FF D8 FF), so a broken
+      # render is never cached for later runs to restore.
+      - name: Check the rendered videos
+        id: rendered
+        if: inputs.trusted && (steps.showreel.outputs.cache-hit != 'true' || steps.shanty.outputs.cache-hit != 'true')
+        working-directory: docs/public
         run: |
-          mise run docs:build
-          touch docs/.vitepress/dist/.nojekyll
+          mp4() { [ "$(head -c 8 "$1" 2>/dev/null | tail -c 4)" = ftyp ]; }
+          jpeg() { [ "$(head -c 3 "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = ffd8ff ]; }
+          if mp4 showreel.mp4 && jpeg showreel-poster.jpg; then echo "showreel=true" >> "$GITHUB_OUTPUT"; fi
+          if mp4 bound-for-the-main.mp4 && jpeg bound-for-the-main-poster.jpg; then echo "shanty=true" >> "$GITHUB_OUTPUT"; fi
       - name: Save the showreel video
-        if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true'
+        if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true' && steps.rendered.outputs.showreel == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -117,13 +129,17 @@ jobs:
             docs/public/showreel-poster.jpg
           key: ${{ steps.showreel.outputs.cache-primary-key }}
       - name: Save the shanty video
-        if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true'
+        if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true' && steps.rendered.outputs.shanty == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             docs/public/bound-for-the-main.mp4
             docs/public/bound-for-the-main-poster.jpg
           key: ${{ steps.shanty.outputs.cache-primary-key }}
+      - name: Build with VitePress
+        run: |
+          mise run docs:build
+          touch docs/.vitepress/dist/.nojekyll
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
