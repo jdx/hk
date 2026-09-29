@@ -57,6 +57,12 @@ const FONTS = [
   { file: "LiberationMono-Bold.ttf", family: "Liberation Mono", weight: "700" },
 ];
 
+/**
+ * A request that cannot be drawn once the video is loaded: thrown so the
+ * browser and any encoder are closed first, then reported as fail() would.
+ */
+class Refusal extends Error {}
+
 function fail(message) {
   console.error(`shanty-video: ${message}`);
   process.exit(2);
@@ -139,6 +145,7 @@ const ph = Math.round(HEIGHT * scale);
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 const partials = [];
 let encoder = null;
+let refused = null;
 try {
   let pageError = null;
   const fonts = FONTS.map((font) => ({ ...font, bytes: readFileSync(resolve(here, "fonts", font.file)).toString("base64") }));
@@ -172,7 +179,7 @@ try {
   const full = await page.evaluate(() => window.video.duration);
   const from = Math.max(0, opts.from ?? 0);
   const until = Math.min(opts.until ?? full, full);
-  if (!(until > from)) fail(`nothing to draw from ${from} to ${until} s (the video is ${full} s)`);
+  if (!(until > from)) throw new Refusal(`nothing to draw from ${from} to ${until} s (the video is ${full} s)`);
 
   /** Draw frame `t` on page `p`, as JPEG or PNG. */
   const frame = (p, t, type, quality) =>
@@ -240,6 +247,11 @@ try {
     console.error(`${times.length} stills in ${((performance.now() - started) / 1000).toFixed(1)} s`);
   } else {
     const fps = opts.fps ?? 60;
+    // The frames the window holds, i / fps from `first`; counted before
+    // ffmpeg starts, so a window too short to hold one starts no encoder.
+    const first = Math.round(from * fps);
+    const total = Math.round(until * fps) - first;
+    if (total <= 0) throw new Refusal(`no frame at ${fps} fps between ${from} and ${until} s`);
     const out = opts.out ?? VIDEO;
     const partial = opts.out ? join(dirname(out), `.${out.split(sep).pop()}.partial`) : join(staging, "bound-for-the-main.mp4");
     mkdirSync(dirname(partial), { recursive: true });
@@ -270,8 +282,6 @@ try {
     ffmpeg.stdin.on("error", (err) => {
       pipeError ??= err;
     });
-    const first = Math.round(from * fps);
-    const total = Math.round(until * fps) - first;
     const pending = new Map();
     let queued = 0;
     for (let i = 0; i < total; i++) {
@@ -304,8 +314,12 @@ try {
       console.log(`Rendered ${VIDEO} and ${POSTER} in ${((performance.now() - started) / 1000).toFixed(0)} s`);
     }
   }
+} catch (err) {
+  if (!(err instanceof Refusal)) throw err;
+  refused = err;
 } finally {
   encoder?.kill("SIGKILL");
   await browser.close();
   for (const p of partials) rmSync(p, { force: true });
 }
+if (refused) fail(refused.message);
