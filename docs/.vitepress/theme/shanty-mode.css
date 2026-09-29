@@ -363,7 +363,8 @@
 /* The sidebar is the ship's log: parchment a shade older, small-capital
    headings with a line of swell after them, and a graduated edge like the
    border of a chart. */
-:root.shanty-mode .VPSidebar {
+:root.shanty-mode .VPSidebar,
+:root.shanty-mode .VPNavBar.has-sidebar .container > .title {
   background-image:
     linear-gradient(var(--hk-sea-rule), var(--hk-sea-rule)),
     linear-gradient(var(--hk-sea-rule), var(--hk-sea-rule)),
