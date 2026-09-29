@@ -5,9 +5,10 @@
 
 import type { DefaultTheme, MarkdownEnv } from "vitepress";
 import type MarkdownIt from "markdown-it";
+import { posix } from "node:path";
 import { englishPages, pirateVariants } from "./pirate-pages.mjs";
 import { PIRATE_SIDEBAR_TEXT, sidebar, translateSidebar } from "./sidebar";
-import { fileKey, hasVariant, pageKey, PIRATE_LOCALE, PIRATE_PREFIX } from "./theme/shanty-mode";
+import { englishPath, fileKey, hasVariant, pageKey, PIRATE_LOCALE, PIRATE_PREFIX, piratePath } from "./theme/shanty-mode";
 
 /** English pages with no pirate variant, as `fileKey`s; normally none. */
 export function missingVariants(): string[] {
@@ -21,16 +22,17 @@ export function pirateThemeConfig(version: string): DefaultTheme.Config {
   const missing = missingVariants();
   // A page with no variant keeps its English link.
   const moves = (link: string) => hasVariant(link, missing);
+  const to = (link: string) => (moves(link) ? `/${PIRATE_LOCALE}${link}` : link);
   return {
     nav: [
       {
         text: "Charts",
-        link: "/pirate/getting_started",
+        link: to("/getting_started"),
         activeMatch: "^/pirate/(getting_started|hooks|ci|mise_integration|logging)",
       },
-      { text: "Rigging", link: "/pirate/configuration" },
-      { text: "Crew", link: "/pirate/builtins" },
-      { text: "Orders", link: "/pirate/cli/", activeMatch: "^/pirate/cli/" },
+      { text: "Rigging", link: to("/configuration") },
+      { text: "Crew", link: to("/builtins") },
+      { text: "Orders", link: to("/cli/"), activeMatch: "^/pirate/cli/" },
       { text: `v${version}`, link: "https://github.com/jdx/hk/releases" },
     ],
     sidebar: translateSidebar(sidebar, `/${PIRATE_LOCALE}`, PIRATE_SIDEBAR_TEXT, moves),
@@ -92,25 +94,60 @@ const CONTAINER_TITLES: Record<string, [string, string]> = {
 
 const isPiratePage = (env: MarkdownEnv) => env.relativePath?.startsWith(PIRATE_PREFIX.slice(1)) === true;
 
+/** Variants whose English page is gone. They are left out of the build (`status` lists them), so a removed page never breaks it. */
+export function orphanedVariants(): string[] {
+  const english = new Set(englishPages());
+  return pirateVariants().filter((page) => !english.has(page));
+}
+
 /**
  * In a pirate page, a link to another page goes to that page's pirate
  * variant. Variants are written with the English page's links (the checks in
- * pirate-pages.mjs compare them), so this moves them under /pirate/ as the
- * page is rendered, before VitePress normalizes them and checks for dead
- * links. A page with no variant, and any file that is not a page, keeps its
- * English link.
+ * pirate-pages.mjs compare them), so this resolves each one as the page is
+ * rendered, before VitePress normalizes it and checks for dead links: to the
+ * variant when there is one, else to the English page. A variant written from
+ * an older English page can still link to a page that has since been
+ * removed; that link becomes plain text, so a change to the English docs
+ * never breaks the build through a stale variant. Links to files that are
+ * not pages, and to other sites, are left alone.
  */
 export function piratePlugin(md: MarkdownIt): void {
-  const variants = new Set(pirateVariants().map(fileKey));
+  const english = new Set(englishPages().map(fileKey));
+  const variants = new Set(pirateVariants().filter((page) => english.has(fileKey(page))).map(fileKey));
+  const unlinked = new WeakSet<object>();
   const linkOpen = md.renderer.rules.link_open!;
+  const linkClose = md.renderer.rules.link_close ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
   md.renderer.rules.link_open = (tokens, idx, options, env: MarkdownEnv, self) => {
-    const href = tokens[idx].attrGet("href");
-    if (isPiratePage(env) && href?.startsWith("/") && !href.startsWith("//") && !href.startsWith(PIRATE_PREFIX)) {
+    const token = tokens[idx];
+    const href = token.attrGet("href");
+    if (isPiratePage(env) && href && !/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) {
       const [, path, rest] = /^([^?#]*)(.*)$/.exec(href)!;
-      if (variants.has(pageKey(path.replace(/\.md$/, "")))) tokens[idx].attrSet("href", `/${PIRATE_LOCALE}${path}${rest}`);
+      const site = posix.resolve(posix.dirname(`/${env.relativePath}`), path) + (path.endsWith("/") && path !== "/" ? "/" : "");
+      const page = englishPath(site);
+      if (!/\.(?!md$|html$)[a-z0-9]+$/i.test(page)) {
+        const key = pageKey(page.replace(/\.md$/, ""));
+        if (variants.has(key)) {
+          token.attrSet("href", piratePath(page) + rest);
+        } else if (english.has(key)) {
+          token.attrSet("href", page + rest);
+        } else {
+          // Find the matching close so it renders as the text's end, not a link's.
+          let depth = 0;
+          for (let j = idx + 1; j < tokens.length; j++) {
+            if (tokens[j].type === "link_open") depth++;
+            else if (tokens[j].type === "link_close" && depth-- === 0) {
+              unlinked.add(tokens[j]);
+              break;
+            }
+          }
+          return "<span>";
+        }
+      }
     }
     return linkOpen(tokens, idx, options, env, self);
   };
+  md.renderer.rules.link_close = (tokens, idx, options, env: MarkdownEnv, self) =>
+    unlinked.has(tokens[idx]) ? "</span>" : linkClose(tokens, idx, options, env, self);
 
   for (const [name, [english, pirate]] of Object.entries(CONTAINER_TITLES)) {
     const rule = `container_${name}_open`;

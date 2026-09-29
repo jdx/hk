@@ -8,7 +8,7 @@ import { defineConfig, type HeadConfig } from "vitepress";
 
 import pklLang from "../pkl.tmLanguage.json";
 import { isCurrent, PIRATE_DIR } from "./pirate-pages.mjs";
-import { missingVariants, piratePlugin, pirateSearch, pirateThemeConfig } from "./pirate";
+import { missingVariants, orphanedVariants, piratePlugin, pirateSearch, pirateThemeConfig } from "./pirate";
 import { sidebar } from "./sidebar";
 import { prePaintScript as shantyModeScript, SHANTY_CLASS } from "./theme/shanty-mode";
 const configDir = dirname(fileURLToPath(import.meta.url));
@@ -48,9 +48,10 @@ export default defineConfig({
   lang: "en-US",
   lastUpdated: true,
   appearance: "dark",
-  // Included reference fragments are not standalone pages, and the pirate
-  // pages' style guide is for their writers.
-  srcExclude: ["gen/**", `${PIRATE_DIR}/STYLE.md`],
+  // Included reference fragments are not standalone pages, the pirate pages'
+  // style guide is for their writers, and a pirate variant whose English page
+  // is gone is not built (pirate-pages.mjs `status` lists it).
+  srcExclude: ["gen/**", `${PIRATE_DIR}/STYLE.md`, ...orphanedVariants().map((page) => `${PIRATE_DIR}/${page}`)],
   sitemap: {
     hostname: siteUrl,
     // Search engines get the English pages; the pirate ones are for fun.

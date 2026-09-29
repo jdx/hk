@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { withBase } from "vitepress";
-import { nextTick, onMounted, ref } from "vue";
+import { useData, withBase } from "vitepress";
+import { computed, nextTick, onMounted, ref } from "vue";
 import { data } from "../shanty.data";
+import { PIRATE_LOCALE } from "./shanty-mode";
 
 // The shanty's music video, rendered to an MP4 by `mise run docs:shanty` (the
 // docs deploy runs it), so this is a plain player; builds without a render
@@ -27,6 +28,12 @@ function play() {
 onMounted(() => {
   hydrated.value = true;
 });
+
+// On the pirate variant of the shanty's page (sea shanty mode), the landing
+// page plays this video rather than the showreel, so the caption names the
+// showreel without linking to it.
+const { localeIndex } = useData();
+const pirate = computed(() => localeIndex.value === PIRATE_LOCALE);
 </script>
 
 <template>
@@ -70,12 +77,20 @@ onMounted(() => {
       <a :href="withBase(data.song)">Download the song</a>.
     </audio>
     <figcaption>
-      <template v-if="data.video">
+      <template v-if="data.video && pirate">
+        Each verse plays its part o' hk's showreel in time with the song, and
+        the words be on screen.
+      </template>
+      <template v-else-if="data.video">
         Each verse plays its part of the
         <a :href="withBase('/')">showreel</a> in time with the song, and the
         words are on screen.
       </template>
-      <a :href="withBase(data.song)">Download the song</a> (MP3, 3:32).
+      <a :href="withBase(data.song)"
+        ><template v-if="pirate">Download the song, fer singin' ashore</template
+        ><template v-else>Download the song</template></a
+      >
+      (MP3, 3:32).
     </figcaption>
   </figure>
 </template>
