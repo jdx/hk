@@ -106,11 +106,17 @@ audio {
   display: block;
   width: 100%;
 }
+/* The poster holds the title in the middle of the frame, so the glyph sits
+   below the subtitle, at the foot of the frame. The padding is a share of the
+   frame's width, stopped 48 px short of the frame's height on the narrowest
+   frames so the glyph stays inside; HomeShowreel.vue's music video does the
+   same. */
 .hk-shanty-play {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  place-items: start center;
+  padding-top: min(41%, calc(56.25% - 48px));
   border-radius: 10px;
   cursor: pointer;
 }

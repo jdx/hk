@@ -1,6 +1,15 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 import HomeShowreel from "./HomeShowreel.vue";
+import ShantyChip from "./ShantyChip.vue";
+import {
+  browserStorage,
+  paintShanty,
+  rememberShanty,
+  stripShantyParam,
+  TURNING_CLASS,
+  wantsShanty,
+} from "./shanty-mode";
 
 const installCommand = "mise use hk";
 const copyStatus = ref("");
@@ -20,15 +29,45 @@ async function copyInstall() {
 }
 
 onUnmounted(() => clearTimeout(copyTimer));
+
+// Sea shanty mode (shanty-mode.ts). The page is server-rendered with the mode
+// off, so a visit that wants it on turns it on after mount, never in setup:
+// reading the URL or storage while hydrating would render a different page
+// than the server sent. A script in <head> has already themed <html> by then.
+const shanty = ref(false);
+function setShanty(next: boolean, remember = true) {
+  shanty.value = next;
+  paintShanty(document.documentElement, next);
+  if (!remember) return;
+  rememberShanty(next, browserStorage());
+  // A `?shanty` link has done its job; left in the address it would turn the
+  // mode back on at the next reload, whatever the visitor chose since.
+  const search = stripShantyParam(location.search);
+  if (search !== location.search) {
+    history.replaceState(history.state, "", location.pathname + search + location.hash);
+  }
+}
+onMounted(() => setShanty(wantsShanty(location.search, browserStorage()), false));
+// The mode is the landing page's. Leaving restores the docs' own theme; the
+// visitor's choice stays in storage for the next visit.
+onUnmounted(() => {
+  paintShanty(document.documentElement, false);
+  document.documentElement.classList.remove(TURNING_CLASS);
+});
 </script>
 
 <template>
   <div class="hk-home">
     <section class="hk-hero" aria-labelledby="hero-title">
       <div class="hk-hero-copy">
+        <ShantyChip :model-value="shanty" @update:model-value="setShanty" />
         <h1 id="hero-title">
           Git hooks for linters and formatters
         </h1>
+        <p class="hk-sea-only hk-sea-line">
+          Heave away, haul away, hk!
+          <a href="/shanty">Sing along →</a>
+        </p>
         <p class="hk-intro">
           Configure your checks once and run them before commits, while you work,
           or in CI. hk runs independent steps in parallel and coordinates changes
@@ -36,7 +75,9 @@ onUnmounted(() => clearTimeout(copyTimer));
         </p>
         <div class="hk-actions">
           <a class="hk-button hk-button-primary" href="/getting_started"
-            >Get started <span aria-hidden="true">→</span></a
+            ><span class="hk-sea-hide">Get started</span
+            ><span class="hk-sea-only">Set sail</span>
+            <span aria-hidden="true">→</span></a
           >
           <a class="hk-button" href="/reference/examples/"
             >Explore configurations</a
@@ -107,11 +148,12 @@ steps {
       </div>
     </section>
 
-    <!-- Full width under the hero; left out of builds without a render. -->
-    <HomeShowreel />
+    <!-- Full width under the hero; left out of builds without a render to show. -->
+    <HomeShowreel :shanty="shanty" />
 
     <section class="hk-principles" aria-label="How hk works">
       <article>
+        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">All hands haul at once</div>
         <h2>Parallel execution</h2>
         <p>
           Read/write locks coordinate overlapping steps. Diff and file-list
@@ -120,6 +162,7 @@ steps {
         <a href="/why-hk">How execution works →</a>
       </article>
       <article>
+        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">Snug in the hold</div>
         <h2>Partial commits</h2>
         <p>
           Stash unstaged work before fixing the staged version of a file, then
@@ -128,6 +171,7 @@ steps {
         <a href="/hooks#stashing-and-partial-commits">Understand stashing →</a>
       </article>
       <article>
+        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">All muster the self-same crew</div>
         <h2>Linter configuration</h2>
         <p>
           Start with built-in configurations or write a shell command. Use mise
@@ -139,6 +183,7 @@ steps {
 
     <section class="hk-workflow" aria-labelledby="workflow-title">
       <div>
+        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">They steer by the one set of charts</div>
         <h2 id="workflow-title">Run checks locally and in CI</h2>
         <p>
           Define your steps once in Pkl. Reuse them when you check a change, fix
@@ -152,23 +197,28 @@ steps {
         <div>
           <dt><code>hk check</code></dt>
           <dd>Check modified files</dd>
+          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">Who'll check the cargo?</dd>
         </div>
         <div>
           <dt><code>hk fix</code></dt>
           <dd>Apply available fixes</dd>
+          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">Who'll mend the canvas?</dd>
         </div>
         <div>
           <dt><code>hk check --all</code></dt>
           <dd>Check the repository in CI</dd>
+          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">Who'll haul the halyard?</dd>
         </div>
         <div>
           <dt><code>hk check --plan</code></dt>
           <dd>Preview which steps will run</dd>
+          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">And where are we bound?</dd>
         </div>
       </dl>
     </section>
 
     <section class="hk-doc-links" aria-labelledby="docs-title">
+      <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">Bound away for the main</div>
       <h2 id="docs-title">Configuration and reference</h2>
       <div>
         <a href="/configuration"
@@ -189,20 +239,6 @@ steps {
         >
       </div>
     </section>
-
-    <aside class="hk-shanty" aria-label="Sea shanty">
-      <a href="/shanty">
-        <span class="hk-shanty-copy">
-          <span class="hk-shanty-eyebrow">Sea shanty</span>
-          <strong>Bound for the Main</strong>
-          <span
-            >A commit's voyage through hk, sung by the crew, with a music video
-            made from the showreel.</span
-          >
-        </span>
-        <span class="hk-shanty-go">Watch and sing along →</span>
-      </a>
-    </aside>
   </div>
 </template>
 
@@ -508,50 +544,6 @@ steps {
   color: var(--vp-c-text-2);
   font-size: 14px;
 }
-.hk-shanty {
-  margin-top: 40px;
-}
-.hk-shanty a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px 32px;
-  padding: 24px 28px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-  background: var(--vp-c-bg-soft);
-}
-.hk-shanty a:hover {
-  border-color: var(--vp-c-brand-1);
-}
-.hk-shanty-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.hk-shanty-eyebrow {
-  color: var(--vp-c-brand-1);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.hk-shanty strong {
-  font-size: 21px;
-  font-weight: 650;
-  letter-spacing: -0.025em;
-}
-.hk-shanty-copy > span:last-child {
-  color: var(--vp-c-text-2);
-  font-size: 15px;
-  line-height: 1.6;
-}
-.hk-shanty-go {
-  flex: none;
-  color: var(--vp-c-brand-1);
-  font-size: 14px;
-  font-weight: 500;
-}
 @media (max-width: 959px) {
   .hk-hero {
     gap: 32px;
@@ -605,14 +597,6 @@ steps {
   }
   .hk-doc-links {
     padding-top: 32px;
-  }
-  .hk-shanty {
-    margin-top: 32px;
-  }
-  .hk-shanty a {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 20px;
   }
 }
 </style>
