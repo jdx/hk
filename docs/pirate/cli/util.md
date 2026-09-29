@@ -9,7 +9,7 @@ sourceHash: 770e0a8726ce
 # `hk util`
 
 - **How to hail it:** `hk util <SUBCOMMAND>`
-- **Effect:** read-only (looks, never touches)
+- **Effect:** read-only for this call itself, which only lists the lesser calls. Some of them mend the cargo in place; each one's page gives its own effect.
 
 Utility commands for file operations: the ship's tool chest for working the cargo.
 
