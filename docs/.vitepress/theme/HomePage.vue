@@ -189,6 +189,20 @@ steps {
         >
       </div>
     </section>
+
+    <aside class="hk-shanty" aria-label="Sea shanty">
+      <a href="/shanty">
+        <span class="hk-shanty-copy">
+          <span class="hk-shanty-eyebrow">Sea shanty</span>
+          <strong>Bound for the Main</strong>
+          <span
+            >A commit's voyage through hk, sung by the crew, with a music video
+            made from the showreel.</span
+          >
+        </span>
+        <span class="hk-shanty-go">Watch and sing along →</span>
+      </a>
+    </aside>
   </div>
 </template>
 
@@ -494,6 +508,50 @@ steps {
   color: var(--vp-c-text-2);
   font-size: 14px;
 }
+.hk-shanty {
+  margin-top: 40px;
+}
+.hk-shanty a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 32px;
+  padding: 24px 28px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+}
+.hk-shanty a:hover {
+  border-color: var(--vp-c-brand-1);
+}
+.hk-shanty-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hk-shanty-eyebrow {
+  color: var(--vp-c-brand-1);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.hk-shanty strong {
+  font-size: 21px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.hk-shanty-copy > span:last-child {
+  color: var(--vp-c-text-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.hk-shanty-go {
+  flex: none;
+  color: var(--vp-c-brand-1);
+  font-size: 14px;
+  font-weight: 500;
+}
 @media (max-width: 959px) {
   .hk-hero {
     gap: 32px;
@@ -547,6 +605,14 @@ steps {
   }
   .hk-doc-links {
     padding-top: 32px;
+  }
+  .hk-shanty {
+    margin-top: 32px;
+  }
+  .hk-shanty a {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
   }
 }
 </style>
