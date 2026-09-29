@@ -386,6 +386,13 @@
     180px 180px;
   background-repeat: no-repeat, no-repeat, no-repeat, repeat;
 }
+/* Only from 960px does the title stand over the sidebar (and so need its
+   paper); below that it is part of the bar and keeps the bar's own grain. */
+@media (max-width: 959px) {
+  :root.shanty-mode .VPNavBar.has-sidebar .container > .title {
+    background: none;
+  }
+}
 :root.shanty-mode .VPSidebar .curtain {
   background: transparent;
 }
