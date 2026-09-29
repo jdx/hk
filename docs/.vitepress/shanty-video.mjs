@@ -247,10 +247,14 @@ try {
     console.error(`${times.length} stills in ${((performance.now() - started) / 1000).toFixed(1)} s`);
   } else {
     const fps = opts.fps ?? 60;
-    // The frames the window holds, i / fps from `first`; counted before
-    // ffmpeg starts, so a window too short to hold one starts no encoder.
-    const first = Math.round(from * fps);
-    const total = Math.round(until * fps) - first;
+    // The frames the window holds: those whose times, i / fps, fall in
+    // [from, until), each end rounded up to the grid, less a hair so a time
+    // on it (0.1 s is 3.0000000000000004 frames at 30 fps) stays on it.
+    // Counted before ffmpeg starts, so a window that holds none starts no
+    // encoder.
+    const frameAt = (t) => Math.ceil(t * fps - 1e-6);
+    const first = frameAt(from);
+    const total = frameAt(until) - first;
     if (total <= 0) throw new Refusal(`no frame at ${fps} fps between ${from} and ${until} s`);
     const out = opts.out ?? VIDEO;
     const partial = opts.out ? join(dirname(out), `.${out.split(sep).pop()}.partial`) : join(staging, "bound-for-the-main.mp4");
@@ -263,7 +267,8 @@ try {
       [
         "-y", "-loglevel", "error",
         "-f", "image2pipe", "-framerate", String(fps), "-c:v", "mjpeg", "-i", "pipe:0",
-        "-ss", String(from), "-t", String(until - from), "-i", SONG,
+        // The song from the first frame's time, so a draft keeps its sync.
+        "-ss", String(first / fps), "-t", String(total / fps), "-i", SONG,
         "-map", "0:v", "-map", "1:a",
         "-c:v", "libx264", "-preset", "slow", "-crf", "23",
         "-profile:v", "high", "-level:v", "4.2", "-pix_fmt", "yuv420p",
