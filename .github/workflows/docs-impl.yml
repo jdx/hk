@@ -96,31 +96,29 @@ jobs:
           sudo apt-get install -y -q ffmpeg
           (cd docs && aube install && aube exec playwright-core install --with-deps chromium-headless-shell)
           (cd docs && aube run typecheck && SHOWREEL_REQUIRE_CHROMIUM=1 aube run test:showreel)
+      # Each render is checked and saved as soon as it is made, so a failure
+      # later in the job (the other render, the site's build, its checks)
+      # does not throw away minutes of rendering, and the next run reuses it.
+      # Only a render that published playable videos and a poster is kept: the
+      # same first bytes the site's checks read (an MP4's "ftyp" box, a JPEG's
+      # FF D8 FF), so a broken render is never cached for later runs to
+      # restore. The 120 fps showreel is optional, and checked when present.
       - name: Render the showreel video
         if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true'
         timeout-minutes: 30
         run: mise run docs:showreel
-      - name: Render the shanty video
-        if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true'
-        timeout-minutes: 30
-        run: mise run docs:shanty
-      # A render is saved as soon as it is made, so a failure later in the job
-      # (the site's build, its checks) does not throw away minutes of
-      # rendering, and the next run reuses it. Only a render that published a
-      # playable video and its poster is kept: the same first bytes the site's
-      # checks read (an MP4's "ftyp" box, a JPEG's FF D8 FF), so a broken
-      # render is never cached for later runs to restore.
-      - name: Check the rendered videos
-        id: rendered
-        if: inputs.trusted && (steps.showreel.outputs.cache-hit != 'true' || steps.shanty.outputs.cache-hit != 'true')
+      - name: Check the showreel render
+        id: showreel-render
+        if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true'
         working-directory: docs/public
         run: |
           mp4() { [ "$(head -c 8 "$1" 2>/dev/null | tail -c 4)" = ftyp ]; }
           jpeg() { [ "$(head -c 3 "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = ffd8ff ]; }
-          if mp4 showreel.mp4 && jpeg showreel-poster.jpg; then echo "showreel=true" >> "$GITHUB_OUTPUT"; fi
-          if mp4 bound-for-the-main.mp4 && jpeg bound-for-the-main-poster.jpg; then echo "shanty=true" >> "$GITHUB_OUTPUT"; fi
+          if mp4 showreel.mp4 && jpeg showreel-poster.jpg && { [ ! -e showreel-120.mp4 ] || mp4 showreel-120.mp4; }; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Save the showreel video
-        if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true' && steps.rendered.outputs.showreel == 'true'
+        if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true' && steps.showreel-render.outputs.ok == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -128,8 +126,22 @@ jobs:
             docs/public/showreel.mp4
             docs/public/showreel-poster.jpg
           key: ${{ steps.showreel.outputs.cache-primary-key }}
+      - name: Render the shanty video
+        if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true'
+        timeout-minutes: 30
+        run: mise run docs:shanty
+      - name: Check the shanty render
+        id: shanty-render
+        if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true'
+        working-directory: docs/public
+        run: |
+          mp4() { [ "$(head -c 8 "$1" 2>/dev/null | tail -c 4)" = ftyp ]; }
+          jpeg() { [ "$(head -c 3 "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = ffd8ff ]; }
+          if mp4 bound-for-the-main.mp4 && jpeg bound-for-the-main-poster.jpg; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Save the shanty video
-        if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true' && steps.rendered.outputs.shanty == 'true'
+        if: inputs.trusted && steps.shanty.outputs.cache-hit != 'true' && steps.shanty-render.outputs.ok == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |

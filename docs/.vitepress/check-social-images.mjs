@@ -146,7 +146,23 @@ for (const file of walk(root).filter((file) => file.endsWith(".html"))) {
   } else {
     assert.equal(meta(html, "og:type"), "website", `Wrong og:type: ${file}`);
     assert.equal(videoTags.length, 0, `Unexpected og:video tags in ${file}`);
-    if (offer && !(offer.fallback && existsSync(join(root, offer.fallback)))) {
+    const fallback = offer?.fallback && offers.find((o) => o.video === offer.fallback && o.bytes);
+    if (fallback) {
+      // With no music video, sea shanty mode's landing page plays the
+      // showreel, which must be the deployed one, with its poster.
+      const player = html.match(/<video\b[^>]*\ssrc="([^"]*)"/);
+      assert.equal(
+        player?.[1],
+        `/${fallback.video}?v=${version(fallback.bytes)}`,
+        `${offer.label} does not play the deployed ${fallback.video}`,
+      );
+      const posterSrc = html.match(/<video\b[^>]*\sposter="([^"]*)"/);
+      assert.equal(
+        posterSrc?.[1],
+        `/${fallback.poster}?v=${version(fallback.posterBytes)}`,
+        `${offer.label}'s poster is not the deployed ${fallback.poster}`,
+      );
+    } else if (offer) {
       assert.doesNotMatch(
         html,
         /<video\b/,
