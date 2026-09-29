@@ -68,7 +68,7 @@ const anchor = ref<HTMLElement>();
     :class="{ 'is-on': on, 'is-pending': !hydrated, 'is-dropping': dropping, 'is-pirate': pirate }"
     @pointerenter="warmShantyFonts"
     @focus="warmShantyFonts"
-    @click="toggle(anchor, '.hk-shanty-chip')"
+    @click="toggle(anchor, 'button.hk-shanty-chip')"
   >
     <span ref="anchor" class="hk-shanty-chip-anchor" aria-hidden="true">
       <svg

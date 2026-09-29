@@ -149,6 +149,17 @@ export function fileKey(relativePath: string): string {
   return relativePath.replace(/(^|\/)index\.md$/, "$1").replace(/\.md$/, "");
 }
 
+/**
+ * How two paths relate: the same page ("same"), a page and its other version
+ * ("other"), or different pages (null). Paths with and without `.html` or
+ * `index` name the same page: VitePress keeps a route's path as it was asked
+ * for, while the address bar may show either.
+ */
+export function relation(a: string, b: string): "same" | "other" | null {
+  if (pageKey(a) !== pageKey(b)) return null;
+  return isPiratePath(a) === isPiratePath(b) ? "same" : "other";
+}
+
 /** Whether an English page has a pirate variant, given the pages that do not. */
 export function hasVariant(pathname: string, missing: readonly string[]): boolean {
   return !missing.includes(pageKey(pathname));

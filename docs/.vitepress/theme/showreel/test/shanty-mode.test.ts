@@ -23,6 +23,7 @@ import {
   prePaintScript,
   readChoice,
   reelKind,
+  relation,
   routeFor,
   SHANTY_CLASS,
   SHANTY_KEY,
@@ -208,6 +209,18 @@ test("paths and Markdown files name the same page", () => {
   assert.equal(hasVariant("/hooks.html", ["hooks"]), false);
   assert.equal(hasVariant("/cli/", ["cli/"]), false);
   assert.equal(hasVariant("/cli/check.html", ["cli/"]), true);
+});
+
+test("a page, its other version, and other pages, with or without .html", () => {
+  assert.equal(relation("/hooks.html", "/hooks"), "same");
+  assert.equal(relation("/pirate/hooks.html", "/pirate/hooks"), "same");
+  assert.equal(relation("/pirate/hooks.html", "/hooks"), "other");
+  assert.equal(relation("/hooks", "/pirate/hooks.html"), "other");
+  assert.equal(relation("/cli/", "/cli/index.html"), "same");
+  assert.equal(relation("/pirate/", "/"), "other");
+  assert.equal(relation("/pirate/", "/index.html"), "other");
+  assert.equal(relation("/hooks.html", "/ci.html"), null);
+  assert.equal(relation("/pirate/hooks.html", "/pirate/ci"), null);
 });
 
 test("links from pirate pages go to variants where there are any", () => {

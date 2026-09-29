@@ -10,12 +10,12 @@ import {
   announcement,
   browserStorage,
   type Choice,
-  englishPath,
   isPiratePath,
   modeOn,
   paintShanty,
   paramState,
   readChoice,
+  relation,
   routeFor,
   SHANTY_KEY,
   stripShantyParam,
@@ -94,13 +94,13 @@ export function installShantyMode(app: { router: Router }): void {
   router.onBeforePageLoad = async (href) => {
     if ((await onBeforePageLoad?.(href)) === false) return false;
     const url = new URL(href, location.href);
-    const shown = router?.route.path ?? "";
+    const related = relation(url.pathname, router?.route.path ?? "");
     // Moving between entries of the page on screen (its anchors) stays put.
-    if (steering || url.pathname === shown) return;
+    if (steering || related === "same") return;
     const choice = paramState(url.search);
     if (choice !== null) {
       setVisit(choice);
-    } else if (englishPath(url.pathname) === englishPath(shown)) {
+    } else if (related === "other") {
       // Back from a page to its own variant (after "Read the latest English
       // page", say) is the visitor choosing that variant again.
       setVisit(isPiratePath(url.pathname));

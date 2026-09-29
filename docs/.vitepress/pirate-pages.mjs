@@ -57,7 +57,7 @@ export function pirateVariants() {
 export function normalize(text) {
   return text
     .replace(/\r\n/g, "\n")
-    .replace(/(package:\/\/github\.com\/jdx\/hk\/releases\/download\/)v[0-9.]+(\/hk@)[0-9.]+#/g, "$1vX$2X#")
+    .replace(/(package:\/\/github\.com\/jdx\/hk\/releases\/download\/)v[^/\s]+(\/hk@)[^#\s]+#/g, "$1vX$2X#")
     .replace(/^\*\*Version:\*\* \S+$/gm, "**Version:** X");
 }
 
