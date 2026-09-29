@@ -2,7 +2,7 @@
 // becomes its pirate page, and that docs/pirate/cli is what it generates.
 
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -109,6 +109,12 @@ test("headings keep their anchors: custom ones, repeated ones, and untranslated 
   assert.equal(body, "## Flags to fly {#flags}\n\n## Flags to fly {#flags-1}\n\n## Setup {#set-up}\n\n## Other\n");
 });
 
+test("a translated h1 keeps the English anchor too", () => {
+  const { body } = translatePage("# CLI reference\n\n## Flags\n", "index.md", { lines: { "# CLI reference": "# The bosun's calls", "## Flags": "## Flags to fly" } });
+  assert.equal(body, "# The bosun's calls {#cli-reference}\n\n## Flags to fly {#flags}\n");
+  assert.equal(translatePage("# `hk check`\n", "check.md", {}).body, "# `hk check`\n", "an untranslated h1 is left as it is");
+});
+
 test("heading words may bring the English anchor, and no other", () => {
   const withAnchor = { lines: { "## Flags": "## Flags to fly {#flags}" } };
   assert.equal(translatePage("## Flags\n\n## Flags\n", "x.md", withAnchor).body, "## Flags to fly {#flags}\n\n## Flags to fly {#flags-1}\n");
@@ -181,9 +187,13 @@ test("generating writes a page per English page and removes the rest", () => {
 
 test("docs/pirate/cli is what pirate-cli.mjs generates (run `aube run pirate:cli` after editing docs/pirate/cli.json)", () => {
   const words = readWords();
-  for (const page of cliPages()) {
+  const pages = cliPages();
+  for (const page of pages) {
     // Read as the generator reads its input, whatever line endings the checkout uses.
     const onDisk = readFileSync(join(DOCS, "pirate/cli", page), "utf8").replace(/\r\n/g, "\n");
     assert.equal(onDisk, pirateCliPage(page, words).text, page);
   }
+  // And no page is left for a command whose English page is gone.
+  const pirate = globSync("**/*.md", { cwd: join(DOCS, "pirate/cli") }).map((p) => p.split("\\").join("/"));
+  assert.deepEqual(pirate.filter((page) => !pages.includes(page)).sort(), [], "pirate CLI pages with no English page");
 });

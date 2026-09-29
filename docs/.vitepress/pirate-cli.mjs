@@ -223,8 +223,9 @@ export function translatePage(english, page, words) {
         );
       }
       const pirate = anchored ? said.slice(0, anchored.index) : said;
-      // An h1 needs no anchor, and English words keep their own.
-      body.push(hashes.length === 1 || (pirate === `${hashes} ${text}` && !custom) ? pirate : `${pirate} {#${id}}`);
+      // Translated words carry the English anchor, an h1's included (VitePress
+      // anchors every level); English words keep their own.
+      body.push(pirate === `${hashes} ${text}` && !custom ? pirate : `${pirate} {#${id}}`);
       continue;
     }
     body.push(line.trim() ? say(line) : line);
