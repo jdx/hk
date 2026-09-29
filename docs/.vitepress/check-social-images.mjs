@@ -1,6 +1,7 @@
 // Verify the built HTML references real, page-specific PNG previews, that only
 // the homepage and the shanty's page offer their rendered videos (the
-// showreel, the music video) as og:video, and that their players play the
+// showreel, the music video) as og:video, with sea shanty mode's landing and
+// shanty pages offering the music video, and that their players play the
 // files deployed with them.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -31,9 +32,14 @@ const version = (file) =>
 // The pages that offer a rendered video, each present only when its render
 // ran before the build (`mise run docs:showreel`, `mise run docs:shanty`),
 // with the poster its player shows until someone presses play.
+// Sea shanty mode's landing page plays the music video, or the showreel in a
+// build that rendered only the showreel; only the music video is its og:video.
+const shantyOffer = { name: "the music video", video: "bound-for-the-main.mp4", poster: "bound-for-the-main-poster.jpg" };
 const offers = [
   { page: "index.html", label: "The homepage", name: "the showreel", video: "showreel.mp4", poster: "showreel-poster.jpg" },
-  { page: "shanty.html", label: "The shanty's page", name: "the music video", video: "bound-for-the-main.mp4", poster: "bound-for-the-main-poster.jpg" },
+  { page: "shanty.html", label: "The shanty's page", ...shantyOffer },
+  { page: "pirate/index.html", label: "The pirate landing page", ...shantyOffer, fallback: "showreel.mp4" },
+  { page: "pirate/shanty.html", label: "The pirate shanty page", ...shantyOffer },
 ].map((o) => {
   const file = join(root, o.video);
   const bytes = existsSync(file) ? readFileSync(file) : null;
@@ -140,7 +146,23 @@ for (const file of walk(root).filter((file) => file.endsWith(".html"))) {
   } else {
     assert.equal(meta(html, "og:type"), "website", `Wrong og:type: ${file}`);
     assert.equal(videoTags.length, 0, `Unexpected og:video tags in ${file}`);
-    if (offer) {
+    const fallback = offer?.fallback && offers.find((o) => o.video === offer.fallback && o.bytes);
+    if (fallback) {
+      // With no music video, sea shanty mode's landing page plays the
+      // showreel, which must be the deployed one, with its poster.
+      const player = html.match(/<video\b[^>]*\ssrc="([^"]*)"/);
+      assert.equal(
+        player?.[1],
+        `/${fallback.video}?v=${version(fallback.bytes)}`,
+        `${offer.label} does not play the deployed ${fallback.video}`,
+      );
+      const posterSrc = html.match(/<video\b[^>]*\sposter="([^"]*)"/);
+      assert.equal(
+        posterSrc?.[1],
+        `/${fallback.poster}?v=${version(fallback.posterBytes)}`,
+        `${offer.label}'s poster is not the deployed ${fallback.poster}`,
+      );
+    } else if (offer) {
       assert.doesNotMatch(
         html,
         /<video\b/,
@@ -166,7 +188,7 @@ if (showreel.bytes && video120) {
     `No script plays ${src}`,
   );
 }
-const rendered = offers.filter((o) => o.bytes).map((o) => o.name);
+const rendered = [...new Set(offers.filter((o) => o.bytes).map((o) => o.name))];
 console.log(
   `Checked images and social metadata for ${posts} documentation pages${rendered.length ? `, with ${rendered.join(" and ")}` : ""}.`,
 );
