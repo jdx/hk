@@ -7,8 +7,10 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type HeadConfig } from "vitepress";
 
 import pklLang from "../pkl.tmLanguage.json";
+import { isCurrent, PIRATE_DIR } from "./pirate-pages.mjs";
+import { missingVariants, piratePlugin, pirateSearch, pirateThemeConfig } from "./pirate";
 import { sidebar } from "./sidebar";
-import { prePaintScript as shantyModeScript } from "./theme/shanty-mode";
+import { prePaintScript as shantyModeScript, SHANTY_CLASS } from "./theme/shanty-mode";
 const configDir = dirname(fileURLToPath(import.meta.url));
 const cargoToml = readFileSync(resolve(configDir, "../../Cargo.toml"), "utf8");
 const versionMatch = cargoToml.match(
@@ -25,9 +27,8 @@ const siteDescription =
 // Link previews that play video (Discord, iMessage, Telegram) use a page's
 // rendered video through og:video: the showreel on the homepage, the music
 // video on the shanty's page. X ignores og:video and keeps the large image
-// card. Builds without a render leave the tags out. The landing page's sea
-// shanty mode swaps its video only in the browser, so a link preview always
-// gets the showreel.
+// card. Builds without a render leave the tags out. The pirate landing page
+// is sea shanty mode's, so it shares the music video.
 function videoTags(src: string | undefined): [string, Record<string, string>][] {
   if (!src) return [];
   const url = `${siteUrl}${src}`;
@@ -47,10 +48,28 @@ export default defineConfig({
   lang: "en-US",
   lastUpdated: true,
   appearance: "dark",
-  // Included reference fragments are not standalone pages.
-  srcExclude: ["gen/**"],
+  // Included reference fragments are not standalone pages, and the pirate
+  // pages' style guide is for their writers.
+  srcExclude: ["gen/**", `${PIRATE_DIR}/STYLE.md`],
   sitemap: {
     hostname: siteUrl,
+    // Search engines get the English pages; the pirate ones are for fun.
+    transformItems: (items) => items.filter((item) => !item.url.startsWith(`${PIRATE_DIR}/`)),
+  },
+  // Sea shanty mode (theme/shanty-mode.ts) is a second locale: every English
+  // page has a pirate variant under /pirate/, with the interface's words from
+  // pirate.ts. Neither locale has a label, so VitePress shows no language
+  // menu; the header's switch moves between them.
+  locales: {
+    root: { label: "", lang: "en-US" },
+    [PIRATE_DIR]: {
+      label: "",
+      lang: "en-x-pirate",
+      link: `/${PIRATE_DIR}/`,
+      description:
+        "Git hooks fer linters and formatters, sung by the crew: hk runs yer steps in parallel, lashes shared files so no two hands collide, and stows unstaged work safe in the hold.",
+      themeConfig: pirateThemeConfig(latestVersion),
+    },
   },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
@@ -76,6 +95,7 @@ export default defineConfig({
     },
     search: {
       provider: "local",
+      options: { locales: { [PIRATE_DIR]: pirateSearch } },
     },
     outline: { level: [2, 3], label: "On this page" },
   },
@@ -87,6 +107,7 @@ export default defineConfig({
         tokens[idx].attrSet("v-pre", "");
         return defaultCodeInline(tokens, idx, options, env, self);
       };
+      piratePlugin(md);
     },
     languages: [
       {
@@ -99,6 +120,10 @@ export default defineConfig({
     ],
   },
   head: [
+    // Before anything paints: a visitor who chose sea shanty mode goes to the
+    // pirate variant of the page they opened, and a themed page never
+    // flashes plain.
+    ["script", {}, shantyModeScript(missingVariants())],
     [
       "script",
       {},
@@ -165,11 +190,27 @@ export default defineConfig({
     ["link", { rel: "manifest", href: "/site.webmanifest" }],
     ["meta", { name: "theme-color", content: "#101a23" }],
   ],
+  transformPageData(pageData) {
+    // A pirate page written from an older English page says so, and links to
+    // the English one (theme/ShantyNotice.vue).
+    const prefix = `${PIRATE_DIR}/`;
+    if (pageData.relativePath.startsWith(prefix)) {
+      pageData.frontmatter.pirateStale = !isCurrent(pageData.relativePath.slice(prefix.length));
+    }
+  },
+  transformHtml(html, _id, { pageData }) {
+    // Pirate pages are themed from the first byte, with or without JavaScript.
+    if (!pageData.relativePath.startsWith(`${PIRATE_DIR}/`)) return html;
+    return html.replace(/<html(?![^>]*\bclass=)/, `<html class="${SHANTY_CLASS}"`);
+  },
   transformHead({ pageData, title, description, siteConfig }) {
+    const pirate = pageData.relativePath.startsWith(`${PIRATE_DIR}/`);
     const heading =
       pageData.relativePath === "index.md"
         ? "Fast git hooks and project linting"
-        : pageData.title || "hk";
+        : pageData.relativePath === `${PIRATE_DIR}/index.md`
+          ? "Git hooks, sung by the crew"
+          : pageData.title || "hk";
     const card = socialCard(heading);
     writeSocialCard(siteConfig.outDir, card);
     const image = new URL(card.path, `${siteUrl}/`).toString();
@@ -180,18 +221,17 @@ export default defineConfig({
     const video = videoTags(
       pageData.relativePath === "index.md"
         ? showreelFiles()?.src
-        : pageData.relativePath === "shanty.md"
+        : ["shanty.md", `${PIRATE_DIR}/index.md`, `${PIRATE_DIR}/shanty.md`].includes(pageData.relativePath)
           ? shantyFiles().video?.src
           : undefined,
     );
 
-    // Themes the landing page before its first paint for a visitor who chose
-    // sea shanty mode; no other page has the mode.
-    const shantyMode: HeadConfig[] =
-      pageData.relativePath === "index.md" ? [["script", {}, shantyModeScript]] : [];
+    // The pirate pages repeat the English ones in other words; search
+    // engines index the English pages only.
+    const robots: HeadConfig[] = pirate ? [["meta", { name: "robots", content: "noindex, follow" }]] : [];
 
     return [
-      ...shantyMode,
+      ...robots,
       [
         "meta",
         {

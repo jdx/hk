@@ -1,15 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { useData } from "vitepress";
+import { computed, onUnmounted, ref } from "vue";
 import HomeShowreel from "./HomeShowreel.vue";
 import ShantyChip from "./ShantyChip.vue";
-import {
-  browserStorage,
-  paintShanty,
-  rememberShanty,
-  stripShantyParam,
-  TURNING_CLASS,
-  wantsShanty,
-} from "./shanty-mode";
+import { PIRATE_LOCALE } from "./shanty-mode";
 
 const installCommand = "mise use hk";
 const copyStatus = ref("");
@@ -30,43 +24,26 @@ async function copyInstall() {
 
 onUnmounted(() => clearTimeout(copyTimer));
 
-// Sea shanty mode (shanty-mode.ts). The page is server-rendered with the mode
-// off, so a visit that wants it on turns it on after mount, never in setup:
-// reading the URL or storage while hydrating would render a different page
-// than the server sent. A script in <head> has already themed <html> by then.
-const shanty = ref(false);
-function setShanty(next: boolean, remember = true) {
-  shanty.value = next;
-  paintShanty(document.documentElement, next);
-  if (!remember) return;
-  rememberShanty(next, browserStorage());
-  // A `?shanty` link has done its job; left in the address it would turn the
-  // mode back on at the next reload, whatever the visitor chose since.
-  const search = stripShantyParam(location.search);
-  if (search !== location.search) {
-    history.replaceState(history.state, "", location.pathname + search + location.hash);
-  }
-}
-onMounted(() => setShanty(wantsShanty(location.search, browserStorage()), false));
-// The mode is the landing page's. Leaving restores the docs' own theme; the
-// visitor's choice stays in storage for the next visit.
-onUnmounted(() => {
-  paintShanty(document.documentElement, false);
-  document.documentElement.classList.remove(TURNING_CLASS);
-});
+// The landing page serves both locales: docs/index.md, and docs/pirate/index.md
+// for sea shanty mode (shanty-mode.ts), which the server renders as it is, so
+// its words and links are the pirate ones from the first byte.
+const { localeIndex } = useData();
+const pirate = computed(() => localeIndex.value === PIRATE_LOCALE);
+/** A link to a page, in this landing page's locale. */
+const to = (path: string) => (pirate.value ? `/${PIRATE_LOCALE}${path}` : path);
 </script>
 
 <template>
   <div class="hk-home">
     <section class="hk-hero" aria-labelledby="hero-title">
       <div class="hk-hero-copy">
-        <ShantyChip :model-value="shanty" @update:model-value="setShanty" />
+        <ShantyChip />
         <h1 id="hero-title">
           Git hooks for linters and formatters
         </h1>
-        <p class="hk-sea-only hk-sea-line">
+        <p v-if="pirate" class="hk-sea-line">
           Heave away, haul away, hk!
-          <a href="/shanty">Sing along →</a>
+          <a :href="to('/shanty')">Sing along →</a>
         </p>
         <p class="hk-intro">
           Configure your checks once and run them before commits, while you work,
@@ -74,12 +51,12 @@ onUnmounted(() => {
           to shared files.
         </p>
         <div class="hk-actions">
-          <a class="hk-button hk-button-primary" href="/getting_started"
-            ><span class="hk-sea-hide">Get started</span
-            ><span class="hk-sea-only">Set sail</span>
+          <a class="hk-button hk-button-primary" :href="to('/getting_started')"
+            ><template v-if="pirate">Set sail</template
+            ><template v-else>Get started</template>
             <span aria-hidden="true">→</span></a
           >
-          <a class="hk-button" href="/reference/examples/"
+          <a class="hk-button" :href="to('/reference/examples/')"
             >Explore configurations</a
           >
         </div>
@@ -99,7 +76,7 @@ onUnmounted(() => {
             copyStatus ||
             "Install with mise, or choose another installation method."
           }}
-          <a v-if="!copyStatus" href="/getting_started#installation"
+          <a v-if="!copyStatus" :href="to('/getting_started#installation')"
             >All options →</a
           >
         </p>
@@ -142,54 +119,54 @@ steps {
         </div>
         <a
           class="hk-preview-link"
-          href="/getting_started#your-first-configuration"
+          :href="to('/getting_started#your-first-configuration')"
           >See the complete configuration <span aria-hidden="true">↗</span></a
         >
       </div>
     </section>
 
     <!-- Full width under the hero; left out of builds without a render to show. -->
-    <HomeShowreel :shanty="shanty" />
+    <HomeShowreel :shanty="pirate" />
 
     <section class="hk-principles" aria-label="How hk works">
       <article>
-        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">All hands haul at once</div>
+        <div v-if="pirate" class="hk-sea-kicker" aria-hidden="true">All hands haul at once</div>
         <h2>Parallel execution</h2>
         <p>
           Read/write locks coordinate overlapping steps. Diff and file-list
           checks let hk narrow the work that needs an exclusive lock.
         </p>
-        <a href="/why-hk">How execution works →</a>
+        <a :href="to('/why-hk')">How execution works →</a>
       </article>
       <article>
-        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">Snug in the hold</div>
+        <div v-if="pirate" class="hk-sea-kicker" aria-hidden="true">Snug in the hold</div>
         <h2>Partial commits</h2>
         <p>
           Stash unstaged work before fixing the staged version of a file, then
           restore it after the hook finishes.
         </p>
-        <a href="/hooks#stashing-and-partial-commits">Understand stashing →</a>
+        <a :href="to('/hooks#stashing-and-partial-commits')">Understand stashing →</a>
       </article>
       <article>
-        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">All muster the self-same crew</div>
+        <div v-if="pirate" class="hk-sea-kicker" aria-hidden="true">All muster the self-same crew</div>
         <h2>Linter configuration</h2>
         <p>
           Start with built-in configurations or write a shell command. Use mise
           or your existing package manager to provide the tools.
         </p>
-        <a href="/builtins">Browse builtins →</a>
+        <a :href="to('/builtins')">Browse builtins →</a>
       </article>
     </section>
 
     <section class="hk-workflow" aria-labelledby="workflow-title">
       <div>
-        <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">They steer by the one set of charts</div>
+        <div v-if="pirate" class="hk-sea-kicker" aria-hidden="true">They steer by the one set of charts</div>
         <h2 id="workflow-title">Run checks locally and in CI</h2>
         <p>
           Define your steps once in Pkl. Reuse them when you check a change, fix
           your working tree, or validate the whole repository.
         </p>
-        <a href="/getting_started#checking-and-fixing-code"
+        <a :href="to('/getting_started#checking-and-fixing-code')"
           >Learn the workflow →</a
         >
       </div>
@@ -197,43 +174,43 @@ steps {
         <div>
           <dt><code>hk check</code></dt>
           <dd>Check modified files</dd>
-          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">Who'll check the cargo?</dd>
+          <dd v-if="pirate" class="hk-sea-bridge" aria-hidden="true">Who'll check the cargo?</dd>
         </div>
         <div>
           <dt><code>hk fix</code></dt>
           <dd>Apply available fixes</dd>
-          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">Who'll mend the canvas?</dd>
+          <dd v-if="pirate" class="hk-sea-bridge" aria-hidden="true">Who'll mend the canvas?</dd>
         </div>
         <div>
           <dt><code>hk check --all</code></dt>
           <dd>Check the repository in CI</dd>
-          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">Who'll haul the halyard?</dd>
+          <dd v-if="pirate" class="hk-sea-bridge" aria-hidden="true">Who'll haul the halyard?</dd>
         </div>
         <div>
           <dt><code>hk check --plan</code></dt>
           <dd>Preview which steps will run</dd>
-          <dd class="hk-sea-only hk-sea-bridge" aria-hidden="true">And where are we bound?</dd>
+          <dd v-if="pirate" class="hk-sea-bridge" aria-hidden="true">And where are we bound?</dd>
         </div>
       </dl>
     </section>
 
     <section class="hk-doc-links" aria-labelledby="docs-title">
-      <div class="hk-sea-only hk-sea-kicker" aria-hidden="true">Bound away for the main</div>
+      <div v-if="pirate" class="hk-sea-kicker" aria-hidden="true">Bound away for the main</div>
       <h2 id="docs-title">Configuration and reference</h2>
       <div>
-        <a href="/configuration"
+        <a :href="to('/configuration')"
           ><strong>Configuration <span aria-hidden="true">↗</span></strong
           ><span>Files, steps, profiles, and local overrides.</span></a
         >
-        <a href="/mise_integration"
+        <a :href="to('/mise_integration')"
           ><strong>mise integration <span aria-hidden="true">↗</span></strong
           ><span>Consistent tools in your shell and Git hooks.</span></a
         >
-        <a href="/logging"
+        <a :href="to('/logging')"
           ><strong>Troubleshooting <span aria-hidden="true">↗</span></strong
           ><span>Explain skipped steps and inspect slow runs.</span></a
         >
-        <a href="/cli/"
+        <a :href="to('/cli/')"
           ><strong>CLI reference <span aria-hidden="true">↗</span></strong
           ><span>Every command, argument, and flag.</span></a
         >

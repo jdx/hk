@@ -1,0 +1,101 @@
+/* Sea shanty mode on the landing page (docs/pirate/index.md renders
+   HomePage.vue with its pirate words; see shanty-mode.css for the site-wide
+   theme). These rules reach into HomePage.vue and HomeShowreel.vue, whose
+   scoped styles they beat on specificity. */
+
+.hk-sea-kicker,
+.hk-sea-line,
+.hk-sea-bridge {
+  font-family: var(--hk-font-display);
+  font-style: italic;
+}
+.hk-sea-kicker {
+  margin: 0;
+  color: var(--hk-sea-brass);
+  font-size: 15px;
+  line-height: 1.4;
+}
+:root.shanty-mode .hk-sea-kicker + h2 {
+  margin-top: 4px;
+}
+.hk-sea-line {
+  margin: 16px 0 0;
+  color: var(--vp-c-text-1);
+  font-size: 20px;
+  line-height: 1.4;
+}
+.hk-sea-line a {
+  color: var(--vp-c-brand-1);
+  font-style: normal;
+  font-family: var(--vp-font-family-base);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.hk-sea-bridge {
+  flex-basis: 100%;
+  margin: 0;
+}
+/* Beats the commands list's own `dd` colour and size. */
+:root.shanty-mode .hk-commands dd.hk-sea-bridge {
+  color: var(--hk-sea-brass);
+  font-size: 14px;
+}
+
+/* Serif display type. The landing page's tight sans tracking is too tight
+   for it. These beat the components' scoped rules on specificity. */
+:root.shanty-mode .hk-hero h1,
+:root.shanty-mode .hk-principles h2,
+:root.shanty-mode .hk-workflow h2,
+:root.shanty-mode .hk-doc-links h2 {
+  font-family: var(--hk-font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* A line of swell in brass where the sections' hairlines run. Both ends of
+   the tile sit at mid-height, so it repeats without a seam. */
+:root.shanty-mode .hk-principles,
+:root.shanty-mode .hk-workflow,
+:root.shanty-mode .hk-doc-links {
+  position: relative;
+  border-top-color: transparent;
+}
+:root.shanty-mode :is(.hk-principles, .hk-workflow, .hk-doc-links)::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: 0;
+  left: 0;
+  height: 8px;
+  background: var(--hk-sea-brass);
+  opacity: 0.55;
+  pointer-events: none;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='8' viewBox='0 0 24 8'%3E%3Cpath d='M0 4Q6 0 12 4T24 4' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='8' viewBox='0 0 24 8'%3E%3Cpath d='M0 4Q6 0 12 4T24 4' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: 24px 8px;
+  mask-size: 24px 8px;
+}
+
+/* A brass frame on the config card and the video, then their usual shadow. */
+:root.shanty-mode .hk-preview {
+  box-shadow:
+    0 0 0 4px var(--vp-c-bg),
+    0 0 0 5px var(--hk-sea-brass),
+    0 20px 60px rgb(0 0 0 / 8%);
+}
+:root.shanty-mode .hk-showreel video {
+  box-shadow:
+    0 0 0 4px var(--vp-c-bg),
+    0 0 0 5px var(--hk-sea-brass),
+    0 20px 60px rgb(0 0 0 / 8%);
+}
+:root.dark.shanty-mode .hk-showreel video {
+  box-shadow:
+    0 0 0 4px var(--vp-c-bg),
+    0 0 0 5px var(--hk-sea-brass),
+    0 30px 80px -40px #000,
+    0 14px 32px -22px rgb(0 0 0 / 70%);
+}

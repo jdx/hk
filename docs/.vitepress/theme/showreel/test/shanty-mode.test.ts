@@ -1,5 +1,5 @@
-// The landing page's sea shanty mode: its state rules, the script that applies
-// it before the first paint, and the palette that shanty-mode.css gives it.
+// Sea shanty mode: its state rules, the script that applies them before the
+// first paint, and the palette that shanty-mode.css gives the site.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -8,14 +8,22 @@ import { test } from "node:test";
 import vm from "node:vm";
 import {
   announcement,
+  arrive,
+  englishPath,
+  fileKey,
+  hasVariant,
+  isPiratePath,
+  pageKey,
   paintShanty,
   paramState,
+  piratePath,
   prePaintScript,
   reelKind,
   rememberShanty,
   SHANTY_CLASS,
   SHANTY_KEY,
   stripShantyParam,
+  themedAfterNavigation,
   wantsShanty,
 } from "../../shanty-mode";
 import { REPO } from "./repo";
@@ -143,17 +151,114 @@ test("the player shows the music video only where one was rendered", () => {
 });
 
 test("the switch announces its new state", () => {
-  assert.equal(announcement(true, true), "Sea shanty mode on. The music video is below.");
-  assert.equal(announcement(true, false), "Sea shanty mode on.");
-  assert.equal(announcement(false, true), "Sea shanty mode off.");
+  assert.equal(announcement(true), "Sea shanty mode on. This page is now in pirate.");
+  assert.equal(announcement(true, false), "Sea shanty mode on. This page has no pirate version yet.");
+  assert.equal(announcement(false), "Sea shanty mode off.");
   assert.equal(announcement(false, false), "Sea shanty mode off.");
 });
 
-/** Runs the pre-paint script as a browser would; returns whether it turned the mode on. */
-function prePaint(search: string, stored: string | null, blocked = false): boolean {
+test("a page and its pirate variant map onto each other", () => {
+  const pairs: [string, string][] = [
+    ["/", "/pirate/"],
+    ["/hooks.html", "/pirate/hooks.html"],
+    ["/hooks", "/pirate/hooks"],
+    ["/cli/", "/pirate/cli/"],
+    ["/cli/run/pre-commit.html", "/pirate/cli/run/pre-commit.html"],
+    ["/reference/examples/", "/pirate/reference/examples/"],
+  ];
+  for (const [english, pirate] of pairs) {
+    assert.equal(piratePath(english), pirate);
+    assert.equal(englishPath(pirate), english);
+    assert.equal(piratePath(pirate), pirate, "a pirate path stays put");
+    assert.equal(englishPath(english), english, "an English path stays put");
+    assert.equal(isPiratePath(pirate), true, pirate);
+    assert.equal(isPiratePath(english), false, english);
+  }
+  assert.equal(englishPath("/pirate"), "/");
+  for (const other of ["/pirates.html", "/piratey/", "/shanty.html", "/cli/pirate/"]) assert.equal(isPiratePath(other), false, other);
+});
+
+test("paths and Markdown files name the same page", () => {
+  const cases: [string[], string, string][] = [
+    // paths, Markdown file, key
+    [["/", "/index.html", "/pirate/", "/pirate/index.html"], "index.md", ""],
+    [["/hooks", "/hooks.html", "/pirate/hooks.html"], "hooks.md", "hooks"],
+    [["/cli/", "/cli/index.html", "/pirate/cli/"], "cli/index.md", "cli/"],
+    [["/cli/run/pre-commit.html"], "cli/run/pre-commit.md", "cli/run/pre-commit"],
+  ];
+  for (const [paths, file, key] of cases) {
+    assert.equal(fileKey(file), key, file);
+    for (const path of paths) assert.equal(pageKey(path), key, path);
+  }
+  assert.equal(hasVariant("/hooks.html", []), true);
+  assert.equal(hasVariant("/hooks.html", ["hooks"]), false);
+  assert.equal(hasVariant("/cli/", ["cli/"]), false);
+  assert.equal(hasVariant("/cli/check.html", ["cli/"]), true);
+});
+
+/** Locations a page load can start from. */
+const LOCATIONS = [
+  "/",
+  "/index.html",
+  "/hooks.html",
+  "/hooks",
+  "/cli/",
+  "/ci.html",
+  "/pirate/",
+  "/pirate/hooks.html",
+  "/pirate/ci.html",
+].flatMap((pathname) =>
+  ["", "?shanty", "?shanty=0", "?a=1&shanty=off&b=2", "?a=1"].flatMap((search) =>
+    ["", "#file-selection"].map((hash) => ({ pathname, search, hash })),
+  ),
+);
+/** English pages without a variant in these tests. */
+const MISSING = ["ci"];
+
+test("a page load goes to the pirate variant only when the visitor wants the mode", () => {
+  const on = store({ [SHANTY_KEY]: "1" });
+  const off = store();
+  assert.deepEqual(arrive({ pathname: "/hooks.html", search: "", hash: "" }, off, MISSING), { redirect: null, themed: false });
+  assert.deepEqual(arrive({ pathname: "/hooks.html", search: "", hash: "#x" }, on, MISSING), { redirect: "/pirate/hooks.html#x", themed: true });
+  assert.deepEqual(arrive({ pathname: "/", search: "?shanty", hash: "" }, off, MISSING), { redirect: "/pirate/", themed: true });
+  assert.deepEqual(arrive({ pathname: "/hooks.html", search: "?a=1&shanty&b=2", hash: "" }, off, MISSING), {
+    redirect: "/pirate/hooks.html?a=1&b=2",
+    themed: true,
+  });
+  assert.deepEqual(arrive({ pathname: "/hooks.html", search: "?shanty=0", hash: "" }, on, MISSING), { redirect: null, themed: false });
+  // No variant: the English page stays, themed.
+  assert.deepEqual(arrive({ pathname: "/ci.html", search: "", hash: "" }, on, MISSING), { redirect: null, themed: true });
+  // A pirate page is the mode, whatever was saved, until the URL says otherwise.
+  assert.deepEqual(arrive({ pathname: "/pirate/hooks.html", search: "", hash: "" }, off, MISSING), { redirect: null, themed: true });
+  assert.deepEqual(arrive({ pathname: "/pirate/hooks.html", search: "?shanty=no", hash: "#x" }, on, MISSING), {
+    redirect: "/hooks.html#x",
+    themed: false,
+  });
+  // Blocked storage is a visitor who never chose.
+  assert.deepEqual(arrive({ pathname: "/hooks.html", search: "", hash: "" }, store({ [SHANTY_KEY]: "1" }, true), MISSING), {
+    redirect: null,
+    themed: false,
+  });
+});
+
+test("after a navigation, pirate pages and untranslated pages with the mode on are themed", () => {
+  assert.equal(themedAfterNavigation("/pirate/hooks.html", false, MISSING), true);
+  assert.equal(themedAfterNavigation("/hooks.html", true, MISSING), false, "it will be taken to its variant");
+  assert.equal(themedAfterNavigation("/ci.html", true, MISSING), true);
+  assert.equal(themedAfterNavigation("/ci.html", false, MISSING), false);
+});
+
+/** Runs the pre-paint script as a browser would; returns where it went and whether it themed the page. */
+function prePaint(
+  where: { pathname: string; search: string; hash: string },
+  stored: string | null,
+  missing: string[],
+  blocked = false,
+): { redirect: string | null; themed: boolean } {
   const classes = new Set<string>();
+  let redirect: string | null = null;
   const sandbox: Record<string, unknown> = {
-    location: { search },
+    location: { ...where, replace: (to: string) => void (redirect = to) },
     document: { documentElement: { classList: { add: (c: string) => classes.add(c) } } },
   };
   Object.defineProperty(sandbox, "localStorage", {
@@ -162,25 +267,25 @@ function prePaint(search: string, stored: string | null, blocked = false): boole
       return { getItem: (key: string) => (key === SHANTY_KEY ? stored : null) };
     },
   });
-  vm.runInNewContext(prePaintScript, sandbox);
-  return classes.has(SHANTY_CLASS);
+  vm.runInNewContext(prePaintScript(missing), sandbox);
+  // A redirect leaves the page before it paints: whether it is themed does not matter.
+  return { redirect, themed: redirect === null ? classes.has(SHANTY_CLASS) : isPiratePath(redirect) };
 }
 
-test("the pre-paint script reaches the same answer as wantsShanty", () => {
-  for (const [search] of PARAMS) {
+test("the pre-paint script reaches the same answer as arrive", () => {
+  for (const where of LOCATIONS) {
     for (const stored of [null, "1", "0"]) {
-      assert.equal(prePaint(search, stored), wantsShanty(search, store(stored ? { [SHANTY_KEY]: stored } : {})), `${JSON.stringify(search)} stored=${stored}`);
+      for (const blocked of [false, true]) {
+        const expected = arrive(where, blocked ? store(stored ? { [SHANTY_KEY]: stored } : {}, true) : store(stored ? { [SHANTY_KEY]: stored } : {}), MISSING);
+        assert.deepEqual(prePaint(where, stored, MISSING, blocked), expected, `${JSON.stringify(where)} stored=${stored} blocked=${blocked}`);
+      }
     }
   }
 });
 
-test("the pre-paint script survives blocked storage", () => {
-  assert.equal(prePaint("", "1", true), false);
-  assert.equal(prePaint("?shanty", null, true), true);
-});
-
 test("the pre-paint script can sit inside a <script> element", () => {
-  assert.ok(!prePaintScript.includes("</"));
+  assert.ok(!prePaintScript(["a", "b/"]).includes("</"));
+  assert.ok(!prePaintScript([]).includes("</"));
 });
 
 /** Reads the custom properties declared in the first block for `selector`. */

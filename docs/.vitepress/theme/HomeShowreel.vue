@@ -14,7 +14,10 @@ import { factsFromBenchmarks, races } from "./showreel/facts";
 // neither video. Only facts.ts, describe.ts and timeline.ts are imported here:
 // they draw nothing, so they are safe to server-render.
 
+// `shanty` is set on the pirate landing page (sea shanty mode), which plays
+// the music video and links to pirate pages.
 const props = defineProps<{ shanty?: boolean }>();
+const to = (path: string) => withBase(props.shanty ? `/pirate${path}` : path);
 
 const facts = factsFromBenchmarks(data);
 const described = describeChapters(facts);
@@ -30,8 +33,8 @@ const SHANTY_LABEL =
 // What the player plays: the showreel, or with sea shanty mode on, the
 // shanty's music video (shanty-mode.ts). Each is rendered at deploy, so a
 // build can have either, both or neither, and the player never offers one that
-// is not there. The mode is off while the page is server-rendered and
-// hydrated, so the page starts as the showreel and swaps once it is mounted.
+// is not there. The pirate landing page is its own page, so the server
+// renders it with the music video already in place.
 const reel = computed(() => {
   const kind = reelKind(props.shanty === true, { showreel: showreel !== null, video: shantyFiles.video !== null });
   if (kind === "shanty" && shantyFiles.video) {
@@ -177,14 +180,14 @@ onMounted(async () => {
         screen, so it works with the sound off.
         <template v-if="timed">
           Timings come from the
-          <a :href="withBase('/benchmarks')">benchmarks</a>.
+          <a :href="to('/benchmarks')">benchmarks</a>.
         </template>
-        <a v-else :href="withBase('/why-hk')">How execution works →</a>
+        <a v-else :href="to('/why-hk')">How execution works →</a>
       </figcaption>
       <figcaption v-else>
         Bound for the Main, the hk sea shanty: a commit's voyage through hk,
         sung by the crew. Turn the sound on; the words are on screen.
-        <a :href="withBase('/shanty')">Read the lyrics →</a>
+        <a :href="to('/shanty')">Read the lyrics →</a>
         ·
         <a :href="withBase(shantyFiles.song)">Download the MP3</a> (3:32).
       </figcaption>
