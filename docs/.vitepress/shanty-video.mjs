@@ -37,6 +37,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { chromium } from "playwright-core";
+import { publishRender } from "./publish-render.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = resolve(here, "../public");
@@ -314,8 +315,7 @@ try {
       const time = await page.evaluate(() => Shanty.POSTER_TIME);
       writeFileSync(posterPartial, bytes(await frame(0, time, "image/jpeg", 0.9)));
       if (pageError) throw pageError;
-      renameSync(partial, VIDEO);
-      renameSync(posterPartial, POSTER);
+      publishRender({ video: { from: partial, to: VIDEO }, poster: { from: posterPartial, to: POSTER } });
       console.log(`Rendered ${VIDEO} and ${POSTER} in ${((performance.now() - started) / 1000).toFixed(0)} s`);
     }
   }
