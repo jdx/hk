@@ -33,8 +33,8 @@ const english = computed(() => `${englishPath(route.path)}?shanty=0`);
   <aside v-else-if="untranslated" class="hk-shanty-notice" aria-label="About this page">
     <p>
       <strong>{{ untranslated === 1 ? "One line here be" : `${untranslated} lines here be` }} still in plain English:</strong>
-      they be new since the crew last sang this call, so the English words
-      stand for now.
+      {{ untranslated === 1 ? "it be" : "they be" }} new since the crew last
+      sang this call, so the English words stand for now.
     </p>
   </aside>
   <aside v-else-if="!pirate" class="hk-shanty-notice is-untranslated" aria-label="About this page">
