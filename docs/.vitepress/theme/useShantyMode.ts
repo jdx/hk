@@ -110,6 +110,9 @@ export function installShantyMode(app: { router: Router }): void {
     if (to === null) return;
     const position = (history.state as { scrollPosition?: number } | null)?.scrollPosition;
     redirected = href;
+    // The entry becomes the page it is shown as. VitePress's go() pushes an
+    // entry only when its target differs from the address, which this has
+    // just made the same, so history keeps its length and Back its place.
     history.replaceState(history.state, "", to);
     void router?.go(to).then(() => {
       if (position) window.scrollTo(0, position);
