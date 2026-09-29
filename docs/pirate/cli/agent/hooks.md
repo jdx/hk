@@ -1,0 +1,37 @@
+---
+title: "hk agent hooks"
+description: "Print a hook or task snippet for ye to look over and merge into yer host configuration."
+sourceHash: fc26c29aed97
+---
+
+<!-- Pirate variant of docs/cli/agent/hooks.md; see docs/pirate/STYLE.md. -->
+
+# `hk agent hooks`
+
+- **How to hail it:** `hk agent hooks <--target <TARGET>>`
+- **Effect:** read-only (looks, never touches)
+
+Print a hook configuration for an agent (a clockwork hand) or an editor
+
+## Flags to fly {#flags}
+
+- **`--target <TARGET>`** — The agent or editor to write the hook configuration for
+
+  **Choose from:** `codex`, `claude-code`, `vscode`
+
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+Print a hook or task snippet, then look it over and merge it into yer host configuration.
+
+```sh
+hk agent hooks --target claude-code
+hk agent hooks --target vscode
+```
+
+## Further charts {#learn-more}
+
+[Coding agents: the clockwork hands](/agents) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

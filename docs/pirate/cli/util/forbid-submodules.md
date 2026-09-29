@@ -1,0 +1,37 @@
+---
+title: "hk util forbid-submodules"
+description: "Search the whole ship, or narrow the check to the paths ye name."
+sourceHash: 7cd8caee2cb9
+---
+
+<!-- Pirate variant of docs/cli/util/forbid-submodules.md; see docs/pirate/STYLE.md. -->
+
+# `hk util forbid-submodules`
+
+- **How to hail it:** `hk util forbid-submodules [PATHS]…`
+- **Effect:** read-only (looks, never touches)
+
+Checks that the repository contains no git submodules: no other vessel riding inside this one.
+
+## Cargo it takes {#arguments}
+
+- **`[PATHS]…`** — The paths to check. Name none, and it checks the whole repository.
+
+## Flags to fly {#flags}
+
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+Check the whole ship, or narrow the check to specific paths.
+
+```sh
+hk util forbid-submodules
+hk util forbid-submodules vendor
+```
+
+## Further charts {#learn-more}
+
+[Built-in linters and utilities: the standing crew](/builtins) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

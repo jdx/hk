@@ -1,0 +1,116 @@
+---
+title: "CLI reference: the bosun's calls"
+description: "Every call the bosun can pipe: the commands, options, and examples of the hk CLI."
+sourceHash: 21c3f76e09b4
+---
+
+<!-- Pirate variant of docs/cli/index.md; see docs/pirate/STYLE.md. -->
+
+# CLI reference: the bosun's calls
+
+_The hook, the helm and the harbour-master all muster the self-same crew._ Run the same configured steps locally, in Git hooks, and in CI.
+
+| What ye're after                                       | The call                                                  |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| Fit out a ship (set up a project)                      | [hk init](/cli/init) and [hk install](/cli/install)       |
+| Inspect or mend the cargo (check or fix code)          | [hk check](/cli/check) and [hk fix](/cli/fix)             |
+| Pipe up a named hook (run a named hook)                | [hk run](/cli/run)                                        |
+| Look over the charts (inspect configuration)           | [hk config](/cli/config) and [hk validate](/cli/validate) |
+| Put a hand through its drills (test a step definition) | [hk test](/cli/test)                                      |
+| Sign on a clockwork hand (integrate a coding agent)    | [hk agent](/cli/agent) and [hk mcp](/cli/mcp)             |
+| Use the file checks hk carries aboard                  | [hk util](/cli/util)                                      |
+
+New hand? Start with [getting started](/getting_started) for a setup from stem to stern. Each call's own flags are listed on its page; the flags below fly on every call.
+
+**How to hail it:** `hk [FLAGS] <SUBCOMMAND>`
+
+**Version:** 2.4.0
+
+## Flags flown on every call {#global-flags}
+
+- **`--cd <DIRECTORY>`** — Run as if hk was started in this directory, as though it came aboard there
+- **`-j --jobs <JOBS>`** — Number of jobs to run in parallel: how many hands haul at once
+- **`-p --profile <PROFILE>`** — Profiles to enable or disable, the watches ye call on deck or stand down. Prefix a profile with ! to disable it, e.g. --profile slow --profile !fast
+- **`-s --slow`** — Shorthand for --profile=slow: call up the slow watch
+- **`-v --verbose`** — Enable verbose (debug) output, a fuller ship's log. Pass it twice for trace output
+- **`-n --no-progress`** — Disable progress output
+- **`-q --quiet`** — Quiet on deck: suppress non-essential output (info messages, progress indicators). Diagnostics for failed steps are still shown
+- **`--silent`** — Silent running: suppress all output except errors. Warnings are suppressed too
+- **`--trace`** — Enable tracing spans and performance diagnostics
+- **`--json`** — Output in JSON format
+
+## Flags to fly {#flags}
+
+- **`--format <FORMAT>`** — Select human or machine-readable execution output: a log for a sailor's eyes, or one for machines
+
+  **Choose from:** `human`, `json`, `jsonl`
+
+  **Unless ye say otherwise:** `human`
+
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+- **`-V --version`** — Print the version aboard
+
+## Lesser calls {#subcommands}
+
+- [`hk agent <SUBCOMMAND>`](/cli/agent.md)
+- [`hk agent hooks <--target <TARGET>>`](/cli/agent/hooks.md)
+- [`hk agent instructions <--target <TARGET>>`](/cli/agent/instructions.md)
+- [`hk agent mcp <--target <TARGET>>`](/cli/agent/mcp.md)
+- [`hk builtins`](/cli/builtins.md)
+- [`hk cache clear`](/cli/cache/clear.md)
+- [`hk check [FLAGS] [FILES]…`](/cli/check.md)
+- [`hk completion [--install] [--force] <SHELL>`](/cli/completion.md)
+- [`hk config <SUBCOMMAND>`](/cli/config.md)
+- [`hk config dump [--format <FORMAT>]`](/cli/config/dump.md)
+- [`hk config explain <KEY>`](/cli/config/explain.md)
+- [`hk config get <KEY>`](/cli/config/get.md)
+- [`hk config sources`](/cli/config/sources.md)
+- [`hk fix [FLAGS] [FILES]…`](/cli/fix.md)
+- [`hk init [FLAGS]`](/cli/init.md)
+- [`hk install [FLAGS]`](/cli/install.md)
+- [`hk mcp [--root <PATH>]`](/cli/mcp.md)
+- [`hk migrate <SUBCOMMAND>`](/cli/migrate.md)
+- [`hk migrate pre-commit [FLAGS]`](/cli/migrate/pre-commit.md)
+- [`hk run [FLAGS] [FILES]… <SUBCOMMAND>`](/cli/run.md)
+- [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
+- [`hk run post-checkout [FLAGS] <ARGS>…`](/cli/run/post-checkout.md)
+- [`hk run post-commit [FLAGS] [FILES]…`](/cli/run/post-commit.md)
+- [`hk run post-merge [FLAGS] <IS_SQUASH> [FILES]…`](/cli/run/post-merge.md)
+- [`hk run post-rewrite [FLAGS] <COMMAND> [FILES]…`](/cli/run/post-rewrite.md)
+- [`hk run pre-commit [FLAGS] [FILES]…`](/cli/run/pre-commit.md)
+- [`hk run pre-push [FLAGS] [ARGS]…`](/cli/run/pre-push.md)
+- [`hk run pre-rebase [FLAGS] <ARGS>…`](/cli/run/pre-rebase.md)
+- [`hk run prepare-commit-msg [FLAGS] <ARGS>…`](/cli/run/prepare-commit-msg.md)
+- [`hk sponsors`](/cli/sponsors.md)
+- [`hk test [FLAGS]`](/cli/test.md)
+- [`hk uninstall [--global]`](/cli/uninstall.md)
+- [`hk util <SUBCOMMAND>`](/cli/util.md)
+- [`hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`](/cli/util/check-added-large-files.md)
+- [`hk util check-byte-order-marker [-d --diff] <FILES>…`](/cli/util/check-byte-order-marker.md)
+- [`hk util check-case-conflict <FILES>…`](/cli/util/check-case-conflict.md)
+- [`hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`](/cli/util/check-conventional-commit.md)
+- [`hk util check-executables-have-shebangs <FILES>…`](/cli/util/check-executables-have-shebangs.md)
+- [`hk util check-merge-conflict [--assume-in-merge] <FILES>…`](/cli/util/check-merge-conflict.md)
+- [`hk util check-shebang-scripts-are-executable <FILES>…`](/cli/util/check-shebang-scripts-are-executable.md)
+- [`hk util check-symlinks <FILES>…`](/cli/util/check-symlinks.md)
+- [`hk util destroyed-symlinks [FILES]…`](/cli/util/destroyed-symlinks.md)
+- [`hk util detect-private-key <FILES>…`](/cli/util/detect-private-key.md)
+- [`hk util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…`](/cli/util/end-of-file-fixer.md)
+- [`hk util fix-byte-order-marker <FILES>…`](/cli/util/fix-byte-order-marker.md)
+- [`hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`](/cli/util/fix-smart-quotes.md)
+- [`hk util forbid-submodules [PATHS]…`](/cli/util/forbid-submodules.md)
+- [`hk util format-diff [--no-stdin] <FILES>… <-- COMMAND>…`](/cli/util/format-diff.md)
+- [`hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`](/cli/util/mixed-line-ending.md)
+- [`hk util no-commit-to-branch [--branch <BRANCH>]`](/cli/util/no-commit-to-branch.md)
+- [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)
+- [`hk util python-debug-statements <FILES>…`](/cli/util/python-debug-statements.md)
+- [`hk util sarif-diff [--findings-exit-code <CODE>] <-- COMMAND>…`](/cli/util/sarif-diff.md)
+- [`hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`](/cli/util/trailing-whitespace.md)
+- [`hk validate`](/cli/validate.md)
+- [`hk version`](/cli/version.md)
+
+<!-- hk documentation examples -->
+
+## Further charts {#learn-more}
+
+[Getting started: set sail](/getting_started) · [Troubleshooting: the ship's log](/logging)

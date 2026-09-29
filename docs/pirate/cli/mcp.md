@@ -1,0 +1,32 @@
+---
+title: "hk mcp"
+description: "Open the STDIO MCP server for clockwork hands, moored to a fixed project root. Configure yer host to launch this command."
+sourceHash: 096fabe1edec
+---
+
+<!-- Pirate variant of docs/cli/mcp.md; see docs/pirate/STYLE.md. -->
+
+# `hk mcp`
+
+- **How to hail it:** `hk mcp [--root <PATH>]`
+
+Run an MCP server for coding agents, the clockwork hands, over standard input/output
+
+## Flags to fly {#flags}
+
+- **`--root <PATH>`** — Keep hk tools within this project root; they sail no further (defaults to the current directory)
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+Start the STDIO MCP server moored to a fixed project root. Configure yer host to launch this command.
+
+```sh
+hk mcp --root /absolute/path/to/project
+```
+
+## Further charts {#learn-more}
+
+[Coding agents: the clockwork hands](/agents) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
