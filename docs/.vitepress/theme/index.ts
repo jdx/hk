@@ -8,6 +8,7 @@ import ShantyVideo from "./ShantyVideo.vue";
 import { initBanner } from "./banner";
 import { data as starsData } from "../stars.data";
 import "./style.css";
+import "./shanty-mode.css";
 
 export default {
   extends: DefaultTheme,

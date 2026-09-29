@@ -4,10 +4,11 @@ import { showreelFiles } from "./showreel.data";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitepress";
+import { defineConfig, type HeadConfig } from "vitepress";
 
 import pklLang from "../pkl.tmLanguage.json";
 import { sidebar } from "./sidebar";
+import { prePaintScript as shantyModeScript } from "./theme/shanty-mode";
 const configDir = dirname(fileURLToPath(import.meta.url));
 const cargoToml = readFileSync(resolve(configDir, "../../Cargo.toml"), "utf8");
 const versionMatch = cargoToml.match(
@@ -24,7 +25,9 @@ const siteDescription =
 // Link previews that play video (Discord, iMessage, Telegram) use a page's
 // rendered video through og:video: the showreel on the homepage, the music
 // video on the shanty's page. X ignores og:video and keeps the large image
-// card. Builds without a render leave the tags out.
+// card. Builds without a render leave the tags out. The landing page's sea
+// shanty mode swaps its video only in the browser, so a link preview always
+// gets the showreel.
 function videoTags(src: string | undefined): [string, Record<string, string>][] {
   if (!src) return [];
   const url = `${siteUrl}${src}`;
@@ -182,7 +185,13 @@ export default defineConfig({
           : undefined,
     );
 
+    // Themes the landing page before its first paint for a visitor who chose
+    // sea shanty mode; no other page has the mode.
+    const shantyMode: HeadConfig[] =
+      pageData.relativePath === "index.md" ? [["script", {}, shantyModeScript]] : [];
+
     return [
+      ...shantyMode,
       [
         "meta",
         {
