@@ -363,7 +363,8 @@
 /* The sidebar is the ship's log: parchment a shade older, small-capital
    headings with a line of swell after them, and a graduated edge like the
    border of a chart. */
-:root.shanty-mode .VPSidebar {
+:root.shanty-mode .VPSidebar,
+:root.shanty-mode .VPNavBar.has-sidebar .container > .title {
   background-image:
     linear-gradient(var(--hk-sea-rule), var(--hk-sea-rule)),
     linear-gradient(var(--hk-sea-rule), var(--hk-sea-rule)),
@@ -384,6 +385,13 @@
     4px 100%,
     180px 180px;
   background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+}
+/* Only from 960px does the title stand over the sidebar (and so need its
+   paper); below that it is part of the bar and keeps the bar's own grain. */
+@media (max-width: 959px) {
+  :root.shanty-mode .VPNavBar.has-sidebar .container > .title {
+    background: none;
+  }
 }
 :root.shanty-mode .VPSidebar .curtain {
   background: transparent;
