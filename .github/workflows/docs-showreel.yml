@@ -1,12 +1,14 @@
 name: docs showreel
 
-# The landing-page showreel's tests, its Chromium ones included: the pixel
+# The landing-page showreel's tests, the Chromium ones included: the pixel
 # checks that each scene starts and ends on its handoff frame, the logo's, and
-# the race scene's empty captions band. The lint job's docs build runs the
-# reel's tests without a browser, which skips these, and the docs deploy runs
-# them only when it renders a new video on main. Here they run on the pull
-# request that changes the reel, before a failure can block a deploy, along
-# with a short draft render and a preview, which no test covers.
+# the race scene's empty captions band. With them run the shanty music
+# video's, which plays the reel's scenes: every frame of it draws, and its
+# words fit. The lint job's docs build runs these tests without a browser,
+# which skips the Chromium ones, and the docs deploy runs them only when it
+# renders a new video on main. Here they run on the pull request that changes
+# the reel or the shanty, before a failure can block a deploy, along with
+# short draft renders and previews of both, which no test covers.
 
 on:
   pull_request:
@@ -14,6 +16,8 @@ on:
       - "docs/.vitepress/theme/showreel/**"
       - "docs/.vitepress/showreel-video.mjs"
       - "docs/.vitepress/showreel-frames.mjs"
+      - "docs/.vitepress/shanty-video.mjs"
+      - "docs/public/bound-for-the-main.mp3"
       - "docs/.vitepress/fonts/**"
       - "docs/package.json"
       - "aube-lock.yaml"
@@ -25,6 +29,8 @@ on:
       - "docs/.vitepress/theme/showreel/**"
       - "docs/.vitepress/showreel-video.mjs"
       - "docs/.vitepress/showreel-frames.mjs"
+      - "docs/.vitepress/shanty-video.mjs"
+      - "docs/public/bound-for-the-main.mp3"
       - "docs/.vitepress/fonts/**"
       - "docs/package.json"
       - "aube-lock.yaml"
@@ -77,3 +83,5 @@ jobs:
           sudo apt-get install -y -q ffmpeg
           node .vitepress/showreel-video.mjs --out "$RUNNER_TEMP/draft.mp4" --fps 60 --until 2
           node .vitepress/showreel-frames.mjs --all --times 0,40.25 --scale 0.25 --out "$RUNNER_TEMP/frames"
+          node .vitepress/shanty-video.mjs --out "$RUNNER_TEMP/shanty.mp4" --fps 30 --from 28 --until 30
+          node .vitepress/shanty-video.mjs --stills "$RUNNER_TEMP/shanty" --times 10,166.2 --scale 0.25

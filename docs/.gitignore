@@ -6,3 +6,6 @@ gen
 public/showreel-120.mp4
 public/showreel.mp4
 public/showreel-poster.jpg
+# Rendered by `mise run docs:shanty`; the docs deploy renders them fresh.
+public/bound-for-the-main.mp4
+public/bound-for-the-main-poster.jpg

@@ -176,17 +176,19 @@ function peelAngle(s: number, p: number, phi: number, curl: number): number {
 function integrate(angle: (s: number) => number, anchor: number, at: { x: number; z: number }): Sample[] {
   const out: Sample[] = new Array(COLS + 1);
   const a = clamp(anchor, 0, STRIP.w);
+  // The first column at or past the anchor. Both runs split on it, so an
+  // anchor a hair past a column still gives every column a sample.
+  const first = Math.ceil(a / COL - 1e-9);
   // Flat from the anchor to the far end.
-  for (let j = COLS; j >= 0; j--) {
+  for (let j = COLS; j >= first; j--) {
     const s = j * COL;
-    if (s < a) break;
     out[j] = { x: at.x + (s - a), z: at.z, th: 0 };
   }
   // Bent from the anchor back to the free end.
   let x = at.x;
   let z = at.z;
   let s = a;
-  for (let j = Math.ceil(a / COL - 1e-9) - 1; j >= 0; j--) {
+  for (let j = first - 1; j >= 0; j--) {
     const s1 = j * COL;
     // A sub-step from s back to s1, at its middle's angle.
     const th = angle((s + s1) / 2);

@@ -232,3 +232,81 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("built-page checks offer the music video as og:video on the shanty's page", () => {
+  const dir = mkdtempSync(join(tmpdir(), "shanty-validation-"));
+  const home = socialCard("Fast git hooks and project linting");
+  const shanty = socialCard("Bound for the Main");
+  const video = Buffer.concat([Buffer.from([0, 0, 0, 16]), Buffer.from("ftypisom0060")]);
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+  const version = (file) =>
+    createHash("sha256").update(file).digest("hex").slice(0, 12);
+  const src = `/bound-for-the-main.mp4?v=${version(video)}`;
+  const poster = `/bound-for-the-main-poster.jpg?v=${version(jpeg)}`;
+  const page = (title, heading, card, { type = "website", extra = "" } = {}) => `
+    <meta property="og:type" content="${type}">${extra}
+    <meta property="og:title" content="${title} | hk">
+    <meta name="twitter:title" content="${title} | hk">
+    <meta property="og:description" content="Description">
+    <meta name="twitter:description" content="Description">
+    <meta property="og:image" content="https://example.com/${card.path}">
+    <meta name="twitter:image" content="https://example.com/${card.path}">
+    <meta property="og:image:alt" content="${heading} — hk docs">
+    <meta name="twitter:image:alt" content="${heading} — hk docs">
+    <meta name="twitter:card" content="summary_large_image">`;
+  const tags = (url) => `
+    <meta property="og:video" content="${url}">
+    <meta property="og:video:secure_url" content="${url}">
+    <meta property="og:video:type" content="video/mp4">
+    <meta property="og:video:width" content="1920">
+    <meta property="og:video:height" content="1080">`;
+  const shantyWith = (url) =>
+    page("Bound for the Main", "Bound for the Main", shanty, { type: "video.other", extra: tags(url) }) +
+    `<video src="${src}" poster="${poster}" controls></video>`;
+  const check = () =>
+    spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL("./check-social-images.mjs", import.meta.url)),
+        dir,
+      ],
+      { encoding: "utf8" },
+    );
+  const expectFailure = (pattern) => {
+    const result = check();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, pattern);
+  };
+  try {
+    writeSocialCard(dir, home);
+    writeSocialCard(dir, shanty);
+    writeFileSync(join(dir, "bound-for-the-main.mp4"), video);
+    writeFileSync(join(dir, "bound-for-the-main-poster.jpg"), jpeg);
+    writeFileSync(join(dir, "index.html"), page("Home", "Fast git hooks and project linting", home));
+    writeFileSync(join(dir, "shanty.html"), shantyWith(`https://example.com${src}`));
+    const valid = check();
+    assert.equal(valid.status, 0, valid.stderr);
+    assert.match(valid.stdout, /with the music video/);
+
+    writeFileSync(join(dir, "shanty.html"), shantyWith("https://example.com/bound-for-the-main.mp4?v=0123456789ab"));
+    expectFailure(/og:video is not the deployed bound-for-the-main\.mp4/);
+
+    // Without a render the page plays the song alone: a website, no player.
+    rmSync(join(dir, "bound-for-the-main.mp4"));
+    writeFileSync(join(dir, "shanty.html"), shantyWith(`https://example.com${src}`));
+    expectFailure(/Wrong og:type/);
+    writeFileSync(
+      join(dir, "shanty.html"),
+      page("Bound for the Main", "Bound for the Main", shanty) + `<video src="${src}" controls></video>`,
+    );
+    expectFailure(/The shanty's page has a player but no bound-for-the-main\.mp4/);
+    writeFileSync(
+      join(dir, "shanty.html"),
+      page("Bound for the Main", "Bound for the Main", shanty) + `<audio src="/bound-for-the-main.mp3" controls></audio>`,
+    );
+    const without = check();
+    assert.equal(without.status, 0, without.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

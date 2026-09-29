@@ -1,4 +1,5 @@
 import { socialCard, writeSocialCard } from "./social-images.mjs";
+import { shantyFiles } from "./shanty.data";
 import { showreelFiles } from "./showreel.data";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -20,13 +21,13 @@ const siteUrl = "https://hk.jdx.dev";
 const siteDescription =
   "Fast, language-agnostic git hooks and project linting with parallel execution, automatic fixes, file locking, and shareable Pkl configuration.";
 
-// Link previews that play video (Discord, iMessage, Telegram) use the rendered
-// showreel through og:video; X ignores og:video and keeps the large image card.
-// Builds without a render leave the tags out.
-function showreelVideoTags(): [string, Record<string, string>][] {
-  const showreel = showreelFiles();
-  if (!showreel) return [];
-  const url = `${siteUrl}${showreel.src}`;
+// Link previews that play video (Discord, iMessage, Telegram) use a page's
+// rendered video through og:video: the showreel on the homepage, the music
+// video on the shanty's page. X ignores og:video and keeps the large image
+// card. Builds without a render leave the tags out.
+function videoTags(src: string | undefined): [string, Record<string, string>][] {
+  if (!src) return [];
+  const url = `${siteUrl}${src}`;
   return [
     ["meta", { property: "og:video", content: url }],
     ["meta", { property: "og:video:secure_url", content: url }],
@@ -130,8 +131,8 @@ export default defineConfig({
     ],
     // OpenGraph
     ["meta", { property: "og:site_name", content: "hk" }],
-    // og:type is set per page in transformHead: with a rendered showreel, the
-    // homepage is a video.other.
+    // og:type is set per page in transformHead: with a rendered video, the
+    // homepage and the shanty's page are a video.other.
     ["meta", { property: "og:locale", content: "en_US" }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
@@ -173,8 +174,13 @@ export default defineConfig({
     const url = `${siteUrl}/${pageData.relativePath}`
       .replace(/index\.md$/, "")
       .replace(/\.md$/, ".html");
-    const video =
-      pageData.relativePath === "index.md" ? showreelVideoTags() : [];
+    const video = videoTags(
+      pageData.relativePath === "index.md"
+        ? showreelFiles()?.src
+        : pageData.relativePath === "shanty.md"
+          ? shantyFiles().video?.src
+          : undefined,
+    );
 
     return [
       [
