@@ -1,0 +1,32 @@
+---
+title: "hk sponsors"
+description: "Call the roll of the sponsors who back hk and its sister open source tools."
+sourceHash: 7bb47fdba06c
+---
+
+<!-- Pirate variant of docs/cli/sponsors.md; see docs/pirate/STYLE.md. -->
+
+# `hk sponsors`
+
+- **How to hail it:** `hk sponsors`
+- **Effect:** read-only (looks, never touches)
+
+Show the companies sponsoring hk and the jdx.dev open source tools: the patrons who help keep the fleet afloat.
+
+## Flags to fly {#flags}
+
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+List the sponsors supporting hk and its sister open source tools.
+
+```sh
+hk sponsors
+```
+
+## Further charts {#learn-more}
+
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

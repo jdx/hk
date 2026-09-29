@@ -1,0 +1,36 @@
+---
+title: "hk util detect-private-key"
+description: "Search the files ye hand over for the private-key markers hk recognizes."
+sourceHash: 5eef6bc02fc1
+---
+
+<!-- Pirate variant of docs/cli/util/detect-private-key.md; see docs/pirate/STYLE.md. -->
+
+# `hk util detect-private-key`
+
+- **How to hail it:** `hk util detect-private-key <FILES>…`
+- **Effect:** read-only (looks, never touches)
+
+Detects private keys in files, so the keys to the strongroom don't sail off with the cargo.
+
+## Cargo it takes {#arguments}
+
+- **`<FILES>…`** — The files to check
+
+## Flags to fly {#flags}
+
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+Check the files ye hand over for recognized private-key markers.
+
+```sh
+hk util detect-private-key config/example.env
+```
+
+## Further charts {#learn-more}
+
+[Built-in linters and utilities: the standing crew](/builtins) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

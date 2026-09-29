@@ -1,0 +1,39 @@
+---
+title: "hk util end-of-file-fixer"
+description: "Inspect first, or call for the canvas to be mended in place, but only when ye ask outright."
+sourceHash: d625acd19e1b
+---
+
+<!-- Pirate variant of docs/cli/util/end-of-file-fixer.md; see docs/pirate/STYLE.md. -->
+
+# `hk util end-of-file-fixer`
+
+- **How to hail it:** `hk util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…`
+- **Effect:** modifies state (it touches, as well as looks)
+
+Checks for missing final newlines, and mends them if ye ask.
+
+## Cargo it takes {#arguments}
+
+- **`<FILES>…`** — The files to inspect or mend (check/fix)
+
+## Flags to fly {#flags}
+
+- **`-d --diff`** — Write out a diff of the change. Cannot be used with `fix`.
+- **`-f --fix`** — Mend files so each ends with exactly one newline
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+Inspect first, or ask outright for the fix to be made in place.
+
+```sh
+hk util end-of-file-fixer README.md
+hk util end-of-file-fixer --fix README.md
+```
+
+## Further charts {#learn-more}
+
+[Built-in linters and utilities: the standing crew](/builtins) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

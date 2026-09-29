@@ -153,6 +153,7 @@ It depends on separately published crates for shared functionality:
 - Edit generated reference content at its source: `pkl/Config.pkl`, `settings.toml`, builtin definitions, and Rust CLI help comments.
 - `scripts/enrich-cli-docs.py` adds maintained examples after CLI reference generation.
 - Example pages include `docs/public/*.pkl` directly. Validate them with `scripts/generate-examples.sh` in the mise environment.
+- Every page has a sea shanty mode variant at `docs/pirate/<page>.md`, written to `docs/pirate/STYLE.md`. Changing an English page makes its variant stale, which never fails the build; `aube run pirate status` (from `docs/`) lists stale variants, and `aube run pirate check <page>` verifies one after it is rewritten and stamped.
 
 ### Key Design Patterns
 

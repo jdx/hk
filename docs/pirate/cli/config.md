@@ -1,0 +1,44 @@
+---
+title: "hk config"
+description: "Look over the runtime settings hk sails by and where each one hails from. For which hooks and steps get picked, use hk check --plan."
+sourceHash: 1f3641087494
+---
+
+<!-- Pirate variant of docs/cli/config.md; see docs/pirate/STYLE.md. -->
+
+# `hk config`
+
+- **How to hail it:** `hk config <SUBCOMMAND>`
+- **Also answers to:** `cfg`
+- **Effect:** read-only (looks, never touches)
+
+Inspect hk's configuration, the settings the ship sails by.
+
+See hk's effective configuration and where each value hails from. hk merges the settings from several sources in precedence order, the highest rank first: CLI flags > Environment variables > Git config (local) > Git config (global) > Project config (hk.pkl) > User config (~/.config/hk/config.pkl) > Built-in defaults.
+
+## Flags to fly {#flags}
+
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+## Lesser calls {#subcommands}
+
+- [`hk config dump [--format <FORMAT>]`](/cli/config/dump.md)
+- [`hk config explain <KEY>`](/cli/config/explain.md)
+- [`hk config get <KEY>`](/cli/config/get.md)
+- [`hk config sources`](/cli/config/sources.md)
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+Look over the runtime settings in force and where each one hails from. For which hooks and steps get picked, ye want the passage plan: use hk check --plan instead.
+
+```sh
+hk config dump
+hk config get jobs
+hk config explain jobs
+```
+
+## Further charts {#learn-more}
+
+[Configuration guide: the ship's charts](/configuration) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)

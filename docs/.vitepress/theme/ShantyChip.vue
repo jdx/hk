@@ -1,15 +1,13 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref } from "vue";
-import { data as shantyFiles } from "../shanty.data";
-import { data as showreel } from "../showreel.data";
-import { announcement, reelKind, TURNING_CLASS } from "./shanty-mode";
+import { onMounted, onUnmounted, ref, watch } from "vue";
+import { useShantyMode, warmShantyFonts } from "./useShantyMode";
 
 // The landing page's switch for sea shanty mode, in the place mise puts its
-// announcement chip: above the title. It owns no state. It asks HomePage to
-// flip it, which paints <html> and remembers the choice (see shanty-mode.ts).
-
-const props = defineProps<{ modelValue: boolean }>();
-const emit = defineEmits<{ "update:modelValue": [value: boolean] }>();
+// announcement chip: above the title. It flips the same mode as the switch in
+// the header (useShantyMode.ts): on, the landing page becomes its pirate
+// variant. `pirate` is set there, and the chip speaks as the crew does.
+defineProps<{ pirate?: boolean }>();
+const { on, toggle, sailing } = useShantyMode();
 
 // The server-rendered page has no switch to press: it is space kept open, and
 // it appears once the page can act on a press, so nothing dead is on screen
@@ -19,112 +17,31 @@ onMounted(() => {
   hydrated.value = true;
 });
 
-// What a screen reader hears after the flip, cleared a few seconds later.
-const status = ref("");
-let statusTimer: ReturnType<typeof setTimeout> | undefined;
-function announce(on: boolean) {
-  clearTimeout(statusTimer);
-  const hasVideo = reelKind(true, { showreel: showreel !== null, video: shantyFiles.video !== null }) === "shanty";
-  status.value = announcement(on, hasVideo);
-  statusTimer = setTimeout(() => {
-    status.value = "";
-  }, 4000);
-}
-
-// The anchor drops into its disc once, when the mode turns on. It is a state of
-// its own, not a look of `.is-on`: that would replay whenever hover or focus
-// left the chip, and lose to the hover sway at the moment of switching on.
+// The anchor drops into its disc once, when the mode turns on: the pirate
+// landing page is a new page, so this chip is new too, and it takes its cue
+// from the ship setting sail. It is a state of its own, not a look of
+// `.is-on`: that would replay whenever hover or focus left the chip, and lose
+// to the hover sway at the moment of switching on.
 const dropping = ref(false);
 let dropTimer: ReturnType<typeof setTimeout> | undefined;
-function drop() {
+watch(sailing, (now) => {
+  if (!now) return;
   dropping.value = true;
   clearTimeout(dropTimer);
   dropTimer = setTimeout(() => {
     dropping.value = false;
   }, 800);
-}
-
-// The ship sails across the foot of the screen once, after the mode turns on.
-const sailing = ref(false);
-let shipTimer: ReturnType<typeof setTimeout> | undefined;
-function sail() {
-  sailing.value = true;
-  clearTimeout(shipTimer);
-  // The animation's end clears it; this is for a browser that never runs it.
-  shipTimer = setTimeout(() => {
-    sailing.value = false;
-  }, 4000);
-}
-
-onUnmounted(() => {
-  clearTimeout(statusTimer);
-  clearTimeout(shipTimer);
-  clearTimeout(dropTimer);
 });
+onUnmounted(() => clearTimeout(dropTimer));
 
-// The new page is revealed by a circle growing from the anchor. Browsers
-// without view transitions, and visitors who ask for less motion, get the
-// flip at once, with no ship. Nothing waits on a timer: the state flips
-// inside the transition's callback.
 const anchor = ref<HTMLElement>();
-let busy = false;
-
-async function toggle() {
-  if (busy) return;
-  const next = !props.modelValue;
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduced || typeof document.startViewTransition !== "function") {
-    emit("update:modelValue", next);
-    announce(next);
-    if (next) drop();
-    return;
-  }
-
-  busy = true;
-  const root = document.documentElement;
-  const box = anchor.value?.getBoundingClientRect();
-  const x = box ? box.left + box.width / 2 : innerWidth / 2;
-  const y = box ? box.top + box.height / 2 : 0;
-  const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-  let flipped = false;
-  const flip = () => {
-    if (flipped) return;
-    flipped = true;
-    emit("update:modelValue", next);
-  };
-  root.classList.add(TURNING_CLASS);
-  try {
-    const transition = document.startViewTransition(async () => {
-      flip();
-      await nextTick();
-    });
-    await transition.ready;
-    root.animate(
-      { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
-      { duration: 850, easing: "cubic-bezier(0.4, 0, 0.2, 1)", pseudoElement: "::view-transition-new(root)" },
-    );
-    await transition.finished;
-  } catch {
-    // A skipped transition (a hidden tab) still ran its callback; make sure.
-    flip();
-  } finally {
-    root.classList.remove(TURNING_CLASS);
-    busy = false;
-  }
-  announce(next);
-  // The page is frozen while a transition runs, so these join after it.
-  if (next) {
-    drop();
-    sail();
-  }
-}
 </script>
 
 <template>
-  <!-- The switch cannot run without JavaScript, and its extras are hidden with
-       it, so the way to the song would be gone. Where scripting is off this
-       plain link takes its place (see the media query below). -->
-  <a class="hk-shanty-chip hk-shanty-fallback" href="/shanty">
+  <!-- The switch cannot run without JavaScript. Where scripting is off this
+       plain link takes its place (see the media query below): the pirate
+       pages need no JavaScript, so it goes into the mode, or back out of it. -->
+  <a class="hk-shanty-chip hk-shanty-fallback" :class="{ 'is-pirate': pirate }" :href="pirate ? '/' : '/pirate/'">
     <span class="hk-shanty-chip-anchor" aria-hidden="true">
       <svg
         viewBox="0 0 24 24"
@@ -140,15 +57,18 @@ async function toggle() {
         />
       </svg>
     </span>
-    <span><strong>Yo ho!</strong> Sea shanty: Bound for the Main →</span>
+    <span v-if="pirate"><strong>Avast!</strong> Back to plain English →</span>
+    <span v-else><strong>Yo ho!</strong> Sea shanty mode →</span>
   </a>
   <button
     type="button"
     role="switch"
-    :aria-checked="modelValue"
+    :aria-checked="on"
     class="hk-shanty-chip"
-    :class="{ 'is-on': modelValue, 'is-pending': !hydrated, 'is-dropping': dropping }"
-    @click="toggle"
+    :class="{ 'is-on': on, 'is-pending': !hydrated, 'is-dropping': dropping, 'is-pirate': pirate }"
+    @pointerenter="warmShantyFonts"
+    @focus="warmShantyFonts"
+    @click="toggle(anchor, 'button.hk-shanty-chip')"
   >
     <span ref="anchor" class="hk-shanty-chip-anchor" aria-hidden="true">
       <svg
@@ -165,19 +85,10 @@ async function toggle() {
         />
       </svg>
     </span>
-    <span><strong>Yo ho!</strong> Sea shanty mode</span>
+    <!-- "Avast" is the order to stop: on the pirate page, the switch ends the song. -->
+    <span><strong>{{ pirate ? "Avast!" : "Yo ho!" }}</strong> Sea shanty mode</span>
     <span class="hk-shanty-chip-track" aria-hidden="true"><span class="hk-shanty-chip-knob"></span></span>
   </button>
-  <p class="visually-hidden" role="status">{{ status }}</p>
-  <div v-if="sailing" class="hk-ship" aria-hidden="true" @animationend.self="sailing = false">
-    <svg viewBox="0 0 56 48" fill="currentColor">
-      <path d="M28 4v31" fill="none" stroke="currentColor" stroke-width="2" />
-      <path d="M30 7 49 31H30Z" />
-      <path d="M26 11 9 31h17Z" opacity=".75" />
-      <path d="M28 4l9 3-9 3Z" />
-      <path d="M5 34h46l-8 10H13Z" />
-    </svg>
-  </div>
 </template>
 
 <style scoped>
@@ -307,6 +218,27 @@ async function toggle() {
   background: var(--vp-button-brand-text);
   transform: translateX(14px);
 }
+/* On the pirate landing page the chip sits on a sea chart: rimmed in the
+   mode's brass, with a brass disc and track. */
+.hk-shanty-chip.is-pirate {
+  border-color: var(--hk-sea-brass, var(--vp-c-divider));
+  background: var(--vp-c-bg-elv);
+}
+.hk-shanty-chip.is-pirate:hover {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-bg-soft);
+}
+.hk-shanty-chip.is-pirate .hk-shanty-chip-anchor {
+  color: var(--vp-c-bg);
+  background: var(--hk-sea-brass, var(--vp-button-brand-bg));
+}
+.hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-track {
+  border-color: var(--hk-sea-brass, var(--vp-c-brand-1));
+  background: var(--hk-sea-brass, var(--vp-c-brand-1));
+}
+.hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-knob {
+  background: var(--vp-c-bg);
+}
 /* Shown only where scripting is off; it stands where the switch would. */
 .hk-shanty-fallback {
   display: none;
@@ -326,11 +258,13 @@ async function toggle() {
   .hk-shanty-chip-knob {
     background: CanvasText;
   }
-  .hk-shanty-chip.is-on .hk-shanty-chip-track {
+  .hk-shanty-chip.is-on .hk-shanty-chip-track,
+  .hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-track {
     border-color: Highlight;
     background: Highlight;
   }
-  .hk-shanty-chip.is-on .hk-shanty-chip-knob {
+  .hk-shanty-chip.is-on .hk-shanty-chip-knob,
+  .hk-shanty-chip.is-pirate.is-on .hk-shanty-chip-knob {
     background: HighlightText;
   }
 }
@@ -338,39 +272,6 @@ async function toggle() {
 @media (max-width: 359px) {
   .hk-shanty-chip {
     border-radius: 18px;
-  }
-}
-
-/* Off screen until it sails, so a browser without animations shows nothing.
-   Below the announcement banner, which sits at 1001. */
-.hk-ship {
-  position: fixed;
-  bottom: 14vh;
-  left: 0;
-  z-index: 40;
-  width: 56px;
-  color: var(--hk-sea-brass);
-  pointer-events: none;
-  transform: translateX(-100px);
-  animation: hk-sail 3.2s linear forwards;
-}
-.hk-ship svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  animation: hk-bob 0.8s ease-in-out 4 alternate;
-}
-@keyframes hk-sail {
-  to {
-    transform: translateX(calc(100vw + 100px));
-  }
-}
-@keyframes hk-bob {
-  from {
-    transform: rotate(-3deg);
-  }
-  to {
-    transform: rotate(3deg);
   }
 }
 </style>

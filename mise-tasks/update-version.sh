@@ -22,4 +22,10 @@ if [[ -n "$files" ]]; then
     done
 fi
 
+# The CLI reference's pirate variant repeats the version its English page
+# was generated with (docs/pirate/STYLE.md).
+if [[ -f docs/pirate/cli/index.md ]]; then
+    "$SED" -i "s|^\*\*Version:\*\* .*|**Version:** $VERSION|" docs/pirate/cli/index.md
+fi
+
 git add .

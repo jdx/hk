@@ -1,0 +1,33 @@
+---
+title: "hk validate"
+description: "Read the chosen charts through without sending a lookout aloft: evaluate the selected configuration without running its linter commands."
+sourceHash: 7d9aa3000259
+---
+
+<!-- Pirate variant of docs/cli/validate.md; see docs/pirate/STYLE.md. -->
+
+# `hk validate`
+
+- **How to hail it:** `hk validate`
+- **Effect:** read-only (looks, never touches)
+
+Validate the config file: make sure the ship's charts are true.
+
+## Flags to fly {#flags}
+
+- **`-h --help`** — Print help, for when ye've lost yer bearings
+
+<!-- hk documentation examples -->
+
+## Tales from the deck {#examples}
+
+Evaluate the selected configuration without running its linter commands: the charts are read, and no lookout goes aloft.
+
+```sh
+hk validate
+HK_FILE=./hk.local.pkl hk validate
+```
+
+## Further charts {#learn-more}
+
+[Getting started: get under way](/getting_started) · [Troubleshooting: the ship's log](/logging) · [All the bosun's calls](/cli/)
