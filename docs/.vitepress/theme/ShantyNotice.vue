@@ -5,15 +5,18 @@ import { englishPath, isPiratePath } from "./shanty-mode";
 
 // A note above a page in sea shanty mode that is not the whole story: a pirate
 // page written from an older English page (the build marks it, see
-// pirate-pages.mjs), or an English page shown in the mode because it has no
-// pirate variant yet. The second is in every English page and shown only by
-// the mode's class, which the pre-paint script sets: were it rendered once
-// the saved choice is read, it would push the page down after it loads.
+// pirate-pages.mjs), a generated CLI page with lines the crew has no words for
+// yet (pirate-cli.mjs counts them), or an English page shown in the mode
+// because it has no pirate variant yet. The last is in every English page and
+// shown only by the mode's class, which the pre-paint script sets: were it
+// rendered once the saved choice is read, it would push the page down after it
+// loads.
 const { frontmatter } = useData();
 const route = useRoute();
 
 const pirate = computed(() => isPiratePath(route.path));
 const stale = computed(() => pirate.value && frontmatter.value.pirateStale === true);
+const untranslated = computed(() => (pirate.value ? Number(frontmatter.value.pirateUntranslated) || 0 : 0));
 // `?shanty=0` makes this visit English (shanty-mode.ts), so the English page
 // stays English, in this tab or a new one, until the switch is used.
 const english = computed(() => `${englishPath(route.path)}?shanty=0`);
@@ -26,6 +29,13 @@ const english = computed(() => `${englishPath(route.path)}?shanty=0`);
       redrawn after this one was inked, so some o' what follows may be out o'
       date.
       <a :href="english">Read the latest English page →</a>
+    </p>
+  </aside>
+  <aside v-else-if="untranslated" class="hk-shanty-notice" aria-label="About this page">
+    <p>
+      <strong>{{ untranslated === 1 ? "One line here be" : `${untranslated} lines here be` }} still in plain English:</strong>
+      {{ untranslated === 1 ? "it be" : "they be" }} new since the crew last
+      sang this call, so the English words stand for now.
     </p>
   </aside>
   <aside v-else-if="!pirate" class="hk-shanty-notice is-untranslated" aria-label="About this page">
