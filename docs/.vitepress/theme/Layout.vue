@@ -5,6 +5,7 @@ import EndevSponsors from "./EndevSponsors.vue";
 import ShantyNotice from "./ShantyNotice.vue";
 import ShantyOverlay from "./ShantyOverlay.vue";
 import ShantySwitch from "./ShantySwitch.vue";
+import ShantyWaves from "./ShantyWaves.vue";
 
 const { Layout } = DefaultTheme;
 </script>
@@ -21,6 +22,7 @@ const { Layout } = DefaultTheme;
       <ShantyNotice />
     </template>
     <template #layout-bottom>
+      <ShantyWaves />
       <EndevSponsors />
       <EndevFooter />
       <ShantyOverlay />

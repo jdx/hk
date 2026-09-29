@@ -7,14 +7,15 @@ import { useShantyMode } from "./useShantyMode";
 // A note above a page in sea shanty mode that is not the whole story: a pirate
 // page written from an older English page (the build marks it, see
 // pirate-pages.mjs), or an English page shown in the mode because it has no
-// pirate variant yet.
+// pirate variant yet. The second is in every English page and shown only by
+// the mode's class, which the pre-paint script sets: were it rendered once
+// the saved choice is read, it would push the page down after it loads.
 const { frontmatter } = useData();
 const route = useRoute();
-const { on, readEnglish } = useShantyMode();
+const { readEnglish } = useShantyMode();
 
 const pirate = computed(() => isPiratePath(route.path));
 const stale = computed(() => pirate.value && frontmatter.value.pirateStale === true);
-const untranslated = computed(() => !pirate.value && on.value);
 const english = computed(() => englishPath(route.path));
 </script>
 
@@ -27,7 +28,7 @@ const english = computed(() => englishPath(route.path));
       <a :href="english" @click.prevent="readEnglish">Read the latest English page →</a>
     </p>
   </aside>
-  <aside v-else-if="untranslated" class="hk-shanty-notice" aria-label="About this page">
+  <aside v-else-if="!pirate" class="hk-shanty-notice is-untranslated" aria-label="About this page">
     <p>
       <strong>No pirate hand has inked this page yet,</strong> so here it be in
       plain English.
@@ -37,24 +38,53 @@ const english = computed(() => englishPath(route.path));
 
 <style scoped>
 .hk-shanty-notice {
-  margin: 0 0 24px;
-  padding: 12px 16px;
-  border: 1px solid var(--hk-sea-brass, var(--vp-c-divider));
-  border-radius: 8px;
-  background: var(--vp-c-bg-soft);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin: 0 0 32px;
+  padding: 12px 18px 12px 14px;
+  border: 1px solid var(--hk-sea-rule, var(--vp-c-divider));
+  border-radius: 3px;
+  background-color: var(--vp-c-bg-soft);
+  background-image: var(--hk-grain);
+  box-shadow: 0 12px 24px -18px var(--hk-sea-shade, rgb(0 0 0 / 30%));
   color: var(--vp-c-text-2);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
+}
+.hk-shanty-notice.is-untranslated {
+  display: none;
+}
+:root.shanty-mode .hk-shanty-notice.is-untranslated {
+  display: flex;
+}
+/* A message in a bottle. */
+.hk-shanty-notice::before {
+  content: "";
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  background-color: var(--hk-sea-brass, currentColor);
+  -webkit-mask: var(--hk-art-bottle) center / contain no-repeat;
+  mask: var(--hk-art-bottle) center / contain no-repeat;
 }
 .hk-shanty-notice p {
   margin: 0;
+  font-style: italic;
 }
 .hk-shanty-notice strong {
   color: var(--vp-c-text-1);
+  font-weight: 600;
 }
 .hk-shanty-notice a {
   color: var(--vp-c-brand-1);
+  font-style: normal;
   font-weight: 500;
   white-space: nowrap;
+}
+@media (forced-colors: active) {
+  .hk-shanty-notice::before {
+    display: none;
+  }
 }
 </style>

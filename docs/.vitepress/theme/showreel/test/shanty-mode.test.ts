@@ -372,6 +372,45 @@ for (const [name, t] of Object.entries(PALETTES)) {
   test(`${name}: brass and borders are legible`, () => {
     assert.ok(contrast(at("--hk-sea-brass"), at("--vp-c-bg")) >= 4.5, `${name}: brass on bg`);
     assert.ok(contrast(at("--vp-c-border"), at("--vp-c-bg")) >= 3, `${name}: border on bg`);
+    // The sidebar's headings are brass on the sidebar's parchment, and the X
+    // that marks the page you are on is a mark, so 3:1.
+    assert.ok(contrast(at("--hk-sea-brass"), at("--vp-c-bg-alt")) >= 4.5, `${name}: brass on bg-alt`);
+    for (const surface of ["--vp-c-bg", "--vp-c-bg-alt"]) {
+      assert.ok(contrast(at("--hk-sea-mark"), at(surface)) >= 3, `${name}: mark on ${surface}`);
+    }
+  });
+
+  test(`${name}: each kind of note reads on its own paper`, () => {
+    const bg = at("--vp-c-bg");
+    for (const kind of ["tip", "info", "warning", "danger"]) {
+      const paper = at(`--hk-sea-${kind}-bg`, bg);
+      for (const text of [`--hk-sea-${kind}`, "--vp-c-text-1", "--vp-c-text-2"]) {
+        const ratio = contrast(at(text), paper);
+        assert.ok(ratio >= 4.5, `${name}: ${text} on the ${kind} note is ${ratio.toFixed(2)}:1`);
+      }
+    }
+  });
+
+  test(`${name}: code, stamps and signposts keep AA contrast`, () => {
+    const bg = at("--vp-c-bg");
+    const card = at("--vp-code-block-bg");
+    // Inline code is brand teal on its stamp; a code card's language is brass.
+    assert.ok(contrast(at("--vp-c-brand-1"), at("--vp-code-bg", bg)) >= 4.5, `${name}: inline code on its stamp`);
+    assert.ok(contrast(at("--hk-sea-brass"), card) >= 4.5, `${name}: brass on a code card`);
+    // The Shiki colours the docs use, with the two shanty-mode.css replaces.
+    const shiki =
+      name === "light"
+        ? ["#24292e", "#032f62", "#005cc5", "#6f42c1", "#6a737d", t["--hk-sea-code-red"]]
+        : ["#e1e4e8", "#9ecbff", "#f97583", "#79b8ff", "#b392f0", "#dbedff", t["--hk-sea-code-comment"]];
+    for (const token of shiki) {
+      const ratio = contrast(color(token), card);
+      assert.ok(ratio >= 4.5, `${name}: code colour ${token} on a code card is ${ratio.toFixed(2)}:1`);
+    }
+    // The signposts at a page's foot: brass "Astern" over a brand-teal title.
+    for (const text of ["--hk-sea-brass", "--vp-c-brand-1"]) {
+      const ratio = contrast(at(text), at("--hk-sea-post"));
+      assert.ok(ratio >= 4.5, `${name}: ${text} on a signpost is ${ratio.toFixed(2)}:1`);
+    }
   });
 }
 
