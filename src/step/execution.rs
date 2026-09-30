@@ -371,7 +371,11 @@ impl Step {
                                         }
                                         // Apply where the check_diff command ran.
                                         let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                        match step.apply_diff_output(stdout, dir.as_deref()) {
+                                        let applied = {
+                                            let _diff_guard = job.lock_diff(&ctx).await?;
+                                            step.apply_diff_output(stdout, dir.as_deref())
+                                        };
+                                        match applied {
                                             Ok(true) => {
                                                 if step.check_after_diff {
                                                     debug!(
@@ -647,16 +651,20 @@ impl Step {
                 let git = ctx.hook_ctx.git.lock().await;
                 lock_files.extend(racy_hook_files(ctx, &git, &lock_files));
             }
-            let (_flocks, git) = loop {
+            let (_flocks, _diff_guard, git) = loop {
                 let lock_vec = lock_files.iter().cloned().collect_vec();
                 let flocks = ctx.hook_ctx.file_locks.read_locks(&lock_vec).await;
+                // Patches can write outside their job's declared inputs. Keep
+                // shared access through status and the coalesced staging queue.
+                // Drop all guards before retrying with additional file locks.
+                let diff_guard = ctx.hook_ctx.diff_lock.read().await;
                 let git = ctx.hook_ctx.git.lock().await;
                 if !ctx.hook_ctx.should_stage {
-                    break (flocks, git);
+                    break (flocks, diff_guard, git);
                 }
                 let racy = racy_hook_files(ctx, &git, &lock_files);
                 if racy.is_empty() {
-                    break (flocks, git);
+                    break (flocks, diff_guard, git);
                 }
                 trace!("{self}: more racily clean files to lock: {racy:?}");
                 lock_files.extend(racy);

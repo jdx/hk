@@ -21,6 +21,7 @@ REDIRECT = re.compile(r"(>>|>)\s*(['\"]?)([^\s'\"]*\.pkl)\2")
 TEST = re.compile(r'^\s*@test\s+["\']([^"\']+)["\']\s*\{')
 FUNCTION = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{")
 SHELL_EXPANSIONS = {
+    "$check_after_diff": "true",
     "$first_effect": "read",
     "$check_diff_effect": "read",
     "$second_effect": "write",

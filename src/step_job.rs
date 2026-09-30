@@ -5,7 +5,7 @@ use crate::{
     step::{CommandEffect, RunType},
 };
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
-use tokio::sync::OwnedSemaphorePermit;
+use tokio::sync::{OwnedRwLockWriteGuard, OwnedSemaphorePermit};
 
 use crate::{env, step::Step, step_context::StepContext, step_locks::StepLocks, tera};
 use std::{path::PathBuf, sync::Arc};
@@ -230,8 +230,21 @@ impl StepJob {
             Some(semaphore) => semaphore,
             None => ctx.hook_ctx.semaphore().await,
         };
-        self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore));
+        // Wait for file locks and a job slot before taking shared access, so
+        // a waiting command cannot hold up an active patch transaction.
+        let command_guard = ctx.hook_ctx.diff_lock.clone().read_owned().await;
+        self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore, command_guard));
         Ok(true)
+    }
+
+    /// Exclude commands, staging, and other patches through apply and rollback.
+    /// Never acquire more file locks while holding this exclusive guard.
+    pub async fn lock_diff(&mut self, ctx: &StepContext) -> Result<OwnedRwLockWriteGuard<()>> {
+        let StepJobStatus::Started(locks) = &mut self.status else {
+            eyre::bail!("cannot apply diff for a job that has not started");
+        };
+        locks.release_command_guard();
+        Ok(ctx.hook_ctx.diff_lock.clone().write_owned().await)
     }
 
     pub fn status_finished(&mut self) -> Result<()> {

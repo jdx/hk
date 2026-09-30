@@ -17,7 +17,7 @@ use std::{
 };
 use tokio::{
     signal,
-    sync::{Mutex, OwnedSemaphorePermit, Semaphore},
+    sync::{Mutex, OwnedSemaphorePermit, RwLock, Semaphore},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -353,6 +353,9 @@ type CommandEffectsByStep = IndexMap<String, Vec<(String, Option<CommandEffect>)
 
 pub struct HookContext {
     pub file_locks: FileRwLocks,
+    /// Commands and staging share access; patch apply/rollback requires exclusive access
+    /// because a patch can touch paths outside its job's input-file locks.
+    pub diff_lock: Arc<RwLock<()>>,
     pub git: Arc<Mutex<Git>>,
     pub groups: Vec<StepGroup>,
     pub tctx: crate::tera::Context,
@@ -431,6 +434,7 @@ impl HookContext {
         }
         Self {
             file_locks: FileRwLocks::new(files),
+            diff_lock: Arc::new(RwLock::new(())),
             git,
             hk_progress,
             total_jobs: StdMutex::new(groups.iter().map(|g| g.steps.len()).sum()),
