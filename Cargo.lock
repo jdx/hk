@@ -527,9 +527,9 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "ensembler"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2031ada4211eca1eadecc1dabc64d93896980fda95ac0f74eeb006daac3b97b6"
+checksum = "8d1e0243be323a30974bfffd1ac9567099f31d7601958d731b76ec0f2606b542"
 dependencies = [
  "aho-corasick",
  "clx",
