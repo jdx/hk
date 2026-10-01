@@ -5,7 +5,7 @@
 > created it, opened a PR that fixes it, or have already had a contribution merged into hk.
 > Everyone else is not allowed to, including with lightly edited, reviewed, or disclosed model
 > output. Doing this is an instant ban across all of jdx's projects. See
-> [Community Participation](https://hk.jdx.dev/contributing#community-participation).
+> [contributing guide](https://hk.jdx.dev/contributing).
 
 Read the [contributing guide](docs/contributing.md) for review expectations, development setup, and how to add a builtin. It is also available on the [documentation website](https://hk.jdx.dev/contributing).
 
