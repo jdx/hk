@@ -20,7 +20,6 @@ use ensembler::CmdLineRunner;
 use eyre::WrapErr;
 use itertools::Itertools;
 use std::path::PathBuf;
-use std::process::Stdio;
 
 use super::command::argv_runner;
 use super::expr_env::eval_condition;
@@ -368,10 +367,10 @@ impl Step {
 
         if self.interactive {
             clx::progress::pause();
-            cmd = cmd
-                .stdin(Stdio::inherit())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit());
+            // Inherits the terminal and stays in hk's process group, so TUIs
+            // (helix, fzf, gimoji) can enter raw mode instead of being stopped by
+            // SIGTTOU/SIGTTIN in a background group.
+            cmd = cmd.interactive(true);
         }
         // Git invokes hooks from the work-tree root, so GIT_DIR alone is
         // sufficient until hk scopes a step to a subdirectory. Make the root
