@@ -1,5 +1,12 @@
 # Contributing to hk
 
+> [!CAUTION]
+> **AI replies to Discussions and Issues are restricted.** Only use AI to reply to a thread if you
+> created it, opened a PR that fixes it, or have already had a contribution merged into hk.
+> Everyone else is not allowed to, including with lightly edited, reviewed, or disclosed model
+> output. Doing this is an instant ban across all of jdx's projects. See
+> [Community Participation](https://hk.jdx.dev/contributing#community-participation).
+
 Read the [contributing guide](docs/contributing.md) for review expectations, development setup, and how to add a builtin. It is also available on the [documentation website](https://hk.jdx.dev/contributing).
 
 To get a checkout ready:

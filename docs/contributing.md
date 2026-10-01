@@ -4,6 +4,21 @@ description: Set up hk for development, run focused checks, edit generated docum
 
 # Contributing
 
+::: danger AI replies to Discussions and Issues are restricted
+You may only use AI to reply to a [Discussion](https://github.com/jdx/hk/discussions) or [Issue](https://github.com/jdx/hk/issues) if you
+created it, you opened a PR that fixes it, or you have already had a contribution merged into
+hk. Everyone else is not allowed to use AI to reply. This is a growing problem, and **doing it is
+an instant ban across all of jdx's projects.**
+
+This includes raw, lightly edited, reviewed, and disclosed model output. Adding an "AI-assisted"
+footer does not make an AI reply acceptable on its own. If you are running an agent, make sure it
+does not post to threads you are not allowed to reply to, and never let it sweep through many
+threads at once.
+:::
+
+If you are allowed to use AI to reply, review and verify anything before posting it, and disclose
+that AI contributed.
+
 Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
 
 ## Review expectations
