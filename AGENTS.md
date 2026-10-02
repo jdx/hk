@@ -16,7 +16,7 @@ This file provides guidance to AI coding agents when working with code in this r
 - Permitted replies may be AI-assisted. The user must review and verify the reply before it is posted.
 - Creating a new Discussion or Issue with AI assistance is fine and is not restricted. The user should review it first, and it needs the AI disclosure below.
 
-When you do post AI-contributed GitHub content, append the disclosure described in this file's GitHub Interactions section (if present) or `*AI-assisted — Tool: <tool>; model: <provider>/<model>; version: <version-or-unavailable>.*`.
+When you post AI-contributed GitHub content, including a new Discussion or Issue, a reply, or a PR description or comment, append this disclosure: `*AI-assisted — Tool: <tool>; model: <provider>/<model>; version: <version-or-unavailable>.*` Use the exact model and version identifiers exposed by the runtime, never guessed values, and `unavailable` when one is not exposed.
 
 ## Conventional Commits
 
@@ -264,7 +264,7 @@ requirements.
 ## GitHub Interactions
 
 When AI contributes GitHub content—including a pull request description, review, pull request
-comment, or discussion post—append this disclosure:
+comment, discussion post, or issue—append this disclosure:
 
 `*AI-assisted — Tool: <tool>; model: <provider>/<model>; version: <version-or-unavailable>.*`
 
