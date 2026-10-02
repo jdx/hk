@@ -90,5 +90,5 @@
 
 - [Benchmarks](https://hk.jdx.dev/benchmarks.html): This benchmark compares hk, lefthook, pre-commit, and prek on everyday tasks: fixing files, checking a repository, and running pre-commit hooks on a large and a small commit.
 - [About hk](https://hk.jdx.dev/about.html): hk is a Git hook manager and project linting tool built by @jdx. It is written in Rust and released under the MIT license.
-- [Contributing](https://hk.jdx.dev/contributing.html): You may only use AI to reply to a Discussion or Issue if you created it, you opened a PR that fixes it, or you have already had a contribution, attributed to your GitHub account, merged into the…
+- [Contributing](https://hk.jdx.dev/contributing.html): AI replies to Discussions and Issues are restricted, and breaking the rule is an instant ban across all of jdx's projects.
 - [Sea shanty](https://hk.jdx.dev/shanty.html): A sea shanty about the hk git hook manager
