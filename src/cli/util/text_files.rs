@@ -9,7 +9,7 @@
 use crate::Result;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::{self, File};
-use std::io::{self, Read};
+use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Condvar, Mutex, mpsc};
 
@@ -135,7 +135,8 @@ where
 
 /// Read the bytes that decide whether a file of `len` bytes is text: the first
 /// 8 KiB, which must contain no NUL byte and be valid UTF-8. A multibyte
-/// character cut off by the end of the probe doesn't count against the file.
+/// character cut off by the end of the probe doesn't count against the file
+/// if the bytes right after the probe complete it.
 /// Returns `None` for a binary file.
 pub(super) fn read_text_probe(file: &mut File, len: u64) -> Result<Option<Vec<u8>>> {
     let mut head = vec![0; TEXT_PROBE_BYTES.min(len) as usize];
@@ -144,10 +145,28 @@ pub(super) fn read_text_probe(file: &mut File, len: u64) -> Result<Option<Vec<u8
         return Ok(None);
     }
     if let Err(err) = std::str::from_utf8(&head) {
-        // An incomplete character at the very end of a truncated probe is
-        // completed by the rest of the file; anything else is not UTF-8.
-        let truncated = (head.len() as u64) < len;
-        if err.error_len().is_some() || !truncated {
+        // An incomplete character at the very end of a truncated probe must be
+        // completed by the bytes right after the probe; anything else is not
+        // UTF-8.
+        if err.error_len().is_some() {
+            return Ok(None);
+        }
+        let tail = &head[err.valid_up_to()..];
+        let width = match tail[0] {
+            0xF0.. => 4,
+            0xE0.. => 3,
+            _ => 2,
+        };
+        let missing = width - tail.len();
+        if (head.len() as u64) >= len || (len - head.len() as u64) < missing as u64 {
+            return Ok(None);
+        }
+        let mut character = [0; 4];
+        character[..tail.len()].copy_from_slice(tail);
+        file.read_exact(&mut character[tail.len()..width])?;
+        // Leave the file positioned just after the probe for the caller.
+        file.seek(SeekFrom::Current(-(missing as i64)))?;
+        if std::str::from_utf8(&character[..width]).is_err() {
             return Ok(None);
         }
     }
@@ -280,6 +299,38 @@ mod tests {
         let len = content.len() as u64;
         let probe = read_text_probe(&mut File::open(&path).unwrap(), len).unwrap();
         assert_eq!(probe.unwrap().len(), TEXT_PROBE_BYTES as usize);
+    }
+
+    fn probe_of(bytes: &[u8]) -> Option<Vec<u8>> {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("f.txt");
+        fs::write(&path, bytes).unwrap();
+        let mut file = File::open(&path).unwrap();
+        let probe = read_text_probe(&mut file, bytes.len() as u64).unwrap();
+        if let Some(head) = probe.clone() {
+            // The rest of the file is still readable from the probe's end.
+            let text = read_rest_to_string(&mut file, head).unwrap();
+            assert_eq!(text.as_bytes(), bytes);
+        }
+        probe
+    }
+
+    #[test]
+    fn probe_rejects_a_split_char_the_following_bytes_do_not_complete() {
+        let mut bytes = vec![b'a'; TEXT_PROBE_BYTES as usize - 1];
+        bytes.extend_from_slice(&[0xC3, 0xFF]);
+        assert!(probe_of(&bytes).is_none());
+        // A 4-byte character whose continuation is cut short by ASCII.
+        let mut bytes = vec![b'a'; TEXT_PROBE_BYTES as usize - 2];
+        bytes.extend_from_slice(&[0xF0, 0x9F, 0x41, 0x42, 0x43]);
+        assert!(probe_of(&bytes).is_none());
+    }
+
+    #[test]
+    fn probe_accepts_a_four_byte_char_split_at_the_probe_end() {
+        let mut bytes = vec![b'a'; TEXT_PROBE_BYTES as usize - 1];
+        bytes.extend_from_slice("😀 tail\n".as_bytes());
+        assert_eq!(probe_of(&bytes).unwrap().len(), TEXT_PROBE_BYTES as usize);
     }
 
     #[test]
