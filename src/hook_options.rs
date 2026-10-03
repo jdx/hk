@@ -305,7 +305,7 @@ impl HookOptions {
                     return Ok(());
                 }
                 let hook_names: Vec<&str> = config.hooks.keys().map(|s| s.as_str()).collect();
-                let msg = if !Config::project_config_exists() {
+                let msg = if hook_names.is_empty() && !config.project_config_loaded {
                     format!(
                         "Hook '{name}' not found: no hk.pkl in this directory or any parent. Run `hk init` to create one."
                     )

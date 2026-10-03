@@ -572,7 +572,7 @@ TOML
 @test "hk init with nothing detected prints next steps" {
     run hk init
     assert_success
-    assert_output --partial "No linters detected"
+    assert_output --partial "No linters"
     assert_output --partial "hk check --all"
 }
 
@@ -611,4 +611,67 @@ PKL
     run hk run nothere
     assert_failure
     assert_output --partial "Hook 'nothere' not found. Defined hooks: pre-commit"
+}
+
+@test "hk init --interactive on an existing hk.pkl warns without needing a terminal" {
+    hk init
+    run hk init --interactive </dev/null
+    assert_success
+    assert_output --partial "already exists"
+    refute_output --partial "needs a terminal"
+}
+
+@test "an undefined hook from the user config lists hooks instead of suggesting init" {
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["a"] { check = "true" }
+        }
+    }
+}
+PKL
+    run hk run nothere
+    assert_failure
+    assert_output --partial "Defined hooks: pre-push"
+    refute_output --partial "hk init"
+}
+
+@test "an undefined hook is explained from a subdirectory of the project" {
+    cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["a"] { check = "true" }
+        }
+    }
+}
+PKL
+    mkdir sub
+    cd sub
+    run hk run nothere
+    assert_failure
+    assert_output --partial "Defined hooks: pre-commit"
+    refute_output --partial "hk init"
+}
+
+@test "hk install explains a config with only check and fix hooks" {
+    cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        enabled = false
+        steps {
+            ["a"] { check = "true" }
+        }
+    }
+}
+PKL
+    run hk install
+    assert_success
+    assert_output --partial "no installable hooks are enabled"
+    refute_output --partial "Add steps"
 }

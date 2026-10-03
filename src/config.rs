@@ -303,12 +303,15 @@ impl Config {
         if let Some(path) = Self::find_project_config(&paths) {
             let mut config = Self::load_config_cached(path)?;
             config.apply_implicit_root_dir()?;
+            config.project_config_loaded = true;
             return Ok(config);
         }
         if env::HK_FILE.is_none()
             && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
         {
-            return Ok(Self::read(&path, true)?.0);
+            let mut config = Self::read(&path, true)?.0;
+            config.project_config_loaded = true;
+            return Ok(config);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
@@ -1212,6 +1215,10 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     pub path: PathBuf,
+    /// True when a project config file (not just the built-in default or the
+    /// user-level config) was found and loaded.
+    #[serde(skip)]
+    pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
     pub fail_fast: Option<bool>,
