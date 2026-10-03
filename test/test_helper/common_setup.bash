@@ -38,6 +38,14 @@ _common_setup() {
         git config --global user.name "Test User"
     fi
 
+    # Keep git from spawning detached background maintenance (auto gc,
+    # commit-graph, bitmaps). It can still be writing under .git/objects when
+    # teardown runs `rm -rf`, which then fails with "No such file or directory"
+    # on maintenance.lock or bitmap-ref-tips_* and fails an otherwise passing
+    # test. HOME is the temp dir, so this only affects the test's repos.
+    git config --global maintenance.auto false
+    git config --global gc.auto 0
+
     git init .
 
     # Add hk to PATH (assuming it's installed)
