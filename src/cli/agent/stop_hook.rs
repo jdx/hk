@@ -166,10 +166,83 @@ fn truncate(text: &str) -> String {
     out
 }
 
+/// Parses hk's JSON result, or, when the capture was cut off (see `MAX_CAPTURED_BYTES`),
+/// whatever complete values precede the cut. The scanner tracks JSON strings and nesting,
+/// remembers the last point where a value was complete, and closes the open containers
+/// there, so a long step `output` cut mid-string costs only that field.
+fn parse_result(text: &str) -> Option<Value> {
+    if let Ok(value) = serde_json::from_str::<Value>(text) {
+        return Some(value);
+    }
+    let bytes = text.as_bytes();
+    // Per open container: `{` or `[`, and for objects whether a key is expected next.
+    let mut stack: Vec<(u8, bool)> = Vec::new();
+    let mut safe: Option<(usize, Vec<u8>)> = None;
+    let mut mark = |end: usize, stack: &[(u8, bool)]| {
+        safe = Some((end, stack.iter().map(|(kind, _)| *kind).collect()));
+    };
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'"' => {
+                let mut j = i + 1;
+                loop {
+                    match bytes.get(j) {
+                        None => break,
+                        Some(b'\\') => j += 2,
+                        Some(b'"') => break,
+                        Some(_) => j += 1,
+                    }
+                }
+                if j >= bytes.len() {
+                    break; // cut off inside a string
+                }
+                match stack.last_mut() {
+                    Some((b'{', expect_key)) if *expect_key => *expect_key = false,
+                    _ => mark(j + 1, &stack),
+                }
+                i = j + 1;
+            }
+            kind @ (b'{' | b'[') => {
+                stack.push((kind, kind == b'{'));
+                i += 1;
+            }
+            b'}' | b']' => {
+                stack.pop()?;
+                mark(i + 1, &stack);
+                i += 1;
+            }
+            b',' => {
+                if let Some((b'{', expect_key)) = stack.last_mut() {
+                    *expect_key = true;
+                }
+                i += 1;
+            }
+            b':' | b' ' | b'\n' | b'\r' | b'\t' => i += 1,
+            _ => {
+                // number or literal: complete only when a delimiter follows it
+                let start = i;
+                while i < bytes.len() && !b",]} \n\r\t".contains(&bytes[i]) {
+                    i += 1;
+                }
+                if i < bytes.len() && start < i {
+                    mark(i, &stack);
+                }
+            }
+        }
+    }
+    let (end, open) = safe?;
+    let mut repaired = text[..end].to_string();
+    for kind in open.iter().rev() {
+        repaired.push(if *kind == b'{' { '}' } else { ']' });
+    }
+    serde_json::from_str(&repaired).ok()
+}
+
 /// Build a short, human-readable explanation from the child's JSON result and stderr.
 fn diagnose(stdout: &str, stderr: &str, code: Option<i32>) -> String {
     let mut lines = vec![];
-    if let Ok(result) = serde_json::from_str::<Value>(stdout) {
+    if let Some(result) = parse_result(stdout) {
         for key in ["failure", "reason"] {
             if let Some(text) = result.get(key).and_then(Value::as_str) {
                 lines.push(text.trim().to_string());
@@ -314,6 +387,36 @@ mod tests {
         let reason = diagnose(out, "", Some(1));
         assert!(reason.contains("--safe refused to run: x"));
         assert!(reason.contains("f.rs: bad (a)"));
+    }
+
+    #[test]
+    fn a_result_cut_off_inside_a_huge_step_output_still_explains_the_failure() {
+        let big = "x".repeat(2 * MAX_CAPTURED_BYTES);
+        let document = serde_json::json!({
+            "status": "failed",
+            "failure": "--safe refused to run: probe is unknown",
+            "steps": [
+                {"name": "ok", "status": "succeeded", "diagnostics": [], "output": "fine"},
+                {"name": "lint", "status": "failed", "diagnostics": [], "output": big},
+            ],
+        });
+        let pretty = serde_json::to_string_pretty(&document).unwrap();
+        assert!(pretty.len() > 2 * MAX_CAPTURED_BYTES);
+        // Cut mid-string, as the capture limit does.
+        let head = &pretty[..MAX_CAPTURED_BYTES];
+        assert!(serde_json::from_str::<Value>(head).is_err());
+        let reason = diagnose(head, "", Some(1));
+        assert!(reason.contains("--safe refused to run: probe is unknown"));
+        assert!(reason.contains("lint failed"), "{reason}");
+    }
+
+    #[test]
+    fn truncated_results_are_repaired_at_the_last_complete_value() {
+        let value = parse_result(r#"{"a":1,"b":[{"c":"d"},{"e":"unfinished"#).unwrap();
+        assert_eq!(value, serde_json::json!({"a": 1, "b": [{"c": "d"}]}));
+        let value = parse_result(r#"{"a":"x","b":12"#).unwrap();
+        assert_eq!(value, serde_json::json!({"a": "x"}));
+        assert!(parse_result("not json").is_none());
     }
 
     #[test]
