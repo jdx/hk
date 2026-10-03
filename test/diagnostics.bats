@@ -354,3 +354,71 @@ EOF
     assert_success
     assert_output $'cancelled\ttrue'
 }
+
+write_workspace_config() {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["vet"] {
+                glob = "**/*.mod"
+                workspace_indicator = "module.toml"
+                dir = "{{workspace}}"
+                check = "printf 'src/main.c:2:4: warning: first line [W1]\\\\n../shared/util.c:7:1: error: second [W2]\\\\n' >&2; exit 1"
+                diagnostic_format = "gcc"
+                diagnostic_tool = "cc"
+            }
+        }
+    }
+}
+EOF
+    mkdir -p services/api services/web
+    touch services/api/module.toml services/web/module.toml
+    echo a > services/api/a.mod
+    echo b > services/web/b.mod
+    git add .
+    git commit -m init
+}
+
+@test "diagnostics from a step run in a workspace are relative to the repository root" {
+    write_workspace_config
+
+    run hk check --all --sarif diagnostics.sarif
+    assert_failure
+    run jq -r '[.runs[0].results[] | .locations[0].physicalLocation.artifactLocation.uri] | unique | .[]' diagnostics.sarif
+    assert_success
+    # Each module reports under its own directory, with `..` resolved.
+    assert_line 'services/api/src/main.c'
+    assert_line 'services/web/src/main.c'
+    assert_line 'services/shared/util.c'
+    refute_line --partial '..'
+    assert_equal "${#lines[@]}" 3
+}
+
+@test "structured output rebases paths for a step with an explicit dir" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["compiler"] {
+                dir = "sub/pkg"
+                check = "printf './main.c:2:4: warning: first line [W1]\\\\n' >&2; exit 1"
+                diagnostic_format = "gcc"
+            }
+        }
+    }
+}
+EOF
+    mkdir -p sub/pkg
+    touch sub/pkg/main.c
+    git add .
+    git commit -m init
+
+    run bash -c "hk --format json check --all 2>/dev/null"
+    assert_failure
+    run jq -r '.steps[0].diagnostics[0].path' <<<"$output"
+    assert_success
+    assert_output 'sub/pkg/main.c'
+}
