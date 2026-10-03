@@ -568,3 +568,47 @@ TOML
     run grep -F '[tasks.pre-commit]' mise.toml
     assert_success
 }
+
+@test "hk init with nothing detected prints next steps" {
+    run hk init
+    assert_success
+    assert_output --partial "No linters detected"
+    assert_output --partial "hk check --all"
+}
+
+@test "hk init --interactive fails early without a terminal" {
+    run hk init --interactive </dev/null
+    assert_failure
+    assert_output --partial "needs a terminal"
+    [ ! -f hk.pkl ]
+}
+
+@test "hk check explains a missing hk.pkl" {
+    run hk check
+    assert_failure
+    assert_output --partial "no hk.pkl"
+    assert_output --partial "hk init"
+}
+
+@test "hk check explains an hk.pkl without steps" {
+    hk init
+    run hk check
+    assert_failure
+    assert_output --partial "defines no steps or hooks"
+}
+
+@test "an undefined hook lists the defined hooks" {
+    cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["a"] { check = "true" }
+        }
+    }
+}
+PKL
+    run hk run nothere
+    assert_failure
+    assert_output --partial "Hook 'nothere' not found. Defined hooks: pre-commit"
+}

@@ -2,6 +2,7 @@ mod detector;
 mod generator;
 mod picker;
 
+use std::io::IsTerminal;
 use std::path::PathBuf;
 
 use crate::{Result, env};
@@ -32,6 +33,14 @@ impl Init {
     pub async fn run(&self) -> Result<()> {
         let hk_file = PathBuf::from("hk.pkl");
         let version = env!("CARGO_PKG_VERSION");
+
+        // The picker needs a terminal; fail before writing anything.
+        if self.interactive && !(std::io::stdin().is_terminal() && std::io::stderr().is_terminal())
+        {
+            return Err(eyre!(
+                "`hk init --interactive` needs a terminal to prompt for linters; run it in a terminal or drop `-i` to auto-detect"
+            ));
+        }
 
         // Handle mise.toml generation first (independent of hk.pkl)
         if *env::HK_MISE || self.mise {
@@ -69,6 +78,14 @@ impl Init {
             info!("Detected: {}", summary);
         }
         info!("Created hk.pkl");
+        if detections.is_empty() && !self.interactive {
+            info!("No linters detected, so hk.pkl has no steps yet.");
+            info!(
+                "Next: add steps to hk.pkl (see https://hk.jdx.dev/configuration), then run `hk check --all`"
+            );
+        } else {
+            info!("Next: run `hk check --all` to try it, then `hk install` to set up hooks");
+        }
 
         Ok(())
     }

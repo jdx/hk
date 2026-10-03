@@ -305,10 +305,25 @@ impl HookOptions {
                     return Ok(());
                 }
                 let hook_names: Vec<&str> = config.hooks.keys().map(|s| s.as_str()).collect();
-                let msg = if let Some(suggestion) = xx::suggest::did_you_mean(name, &hook_names) {
-                    format!("Hook '{}' not found. {}", name, suggestion)
+                let msg = if !Config::project_config_exists() {
+                    format!(
+                        "Hook '{name}' not found: no hk.pkl in this directory or any parent. Run `hk init` to create one."
+                    )
+                } else if hook_names.is_empty() {
+                    format!(
+                        "Hook '{name}' not found: {} defines no steps or hooks. Add steps to it (see https://hk.jdx.dev/configuration) or re-run `hk init --force` to detect linters.",
+                        config.path.display()
+                    )
+                } else if let Some(suggestion) = xx::suggest::did_you_mean(name, &hook_names) {
+                    format!(
+                        "Hook '{name}' not found. {suggestion} Defined hooks: {}",
+                        hook_names.join(", ")
+                    )
                 } else {
-                    format!("Hook '{}' not found", name)
+                    format!(
+                        "Hook '{name}' not found. Defined hooks: {}",
+                        hook_names.join(", ")
+                    )
                 };
                 Err(eyre::eyre!("{}", msg))
             }

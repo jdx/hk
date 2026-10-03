@@ -110,7 +110,9 @@ impl Install {
                     "no hooks configured in hk.pkl — removed {removed} previously-installed hk hook(s) and did not install any new ones"
                 );
             } else {
-                warn!("no hooks configured in hk.pkl — nothing to install");
+                warn!(
+                    "no hooks configured in hk.pkl — nothing to install. Add steps to hk.pkl first (`hk init --force` re-detects linters)"
+                );
             }
             return Ok(());
         }
