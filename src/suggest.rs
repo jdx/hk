@@ -22,7 +22,10 @@ where
     I: IntoIterator<Item = &'a str>,
 {
     let lower = name.to_lowercase();
-    let limit = (name.chars().count() / 3).max(1);
+    // Two edits for anything longer than a few characters; one for short names,
+    // where two edits would match unrelated words.
+    let len = name.chars().count();
+    let limit = if len <= 3 { 1 } else { (len / 3).max(2) };
     candidates
         .into_iter()
         .filter(|c| *c != name)
@@ -53,6 +56,7 @@ mod tests {
         assert_eq!(did_you_mean("chek", names), Some("check"));
         assert_eq!(did_you_mean("Prettier", names), Some("prettier"));
         assert_eq!(did_you_mean("prettyer", names), Some("prettier"));
+        assert_eq!(did_you_mean("trial", ["trivy"]), Some("trivy"));
         assert_eq!(did_you_mean("trial", names), None);
         assert_eq!(did_you_mean("check", names), None);
         assert_eq!(did_you_mean("x", names), None);
