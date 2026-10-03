@@ -168,3 +168,34 @@ kill9_then_recover() {
     wait "$pid" || true
     assert_changes_restored
 }
+
+# hk dies right after creating its stash entry, before the journal records it.
+# The entry's message carries hk's pid, so the next run still finds it.
+crash_before_record() {
+    local use_libgit2="$1"
+    write_config
+    prepare_repo
+    run env HK_DEBUG_KILL_BEFORE_JOURNAL_RECORD=1 HK_LIBGIT2="$use_libgit2" hk run pre-commit
+    assert_failure
+    # The changes are stranded in the stash and the journal names nothing
+    assert_equal "$(cat file.txt)" "staged"
+    assert_file_exists "$JOURNAL"
+    run grep -c '"commit"' "$JOURNAL"
+    assert_output 0
+    commit="$(git stash list --format=%H)"
+    [ -n "$commit" ]
+    run git stash list --format=%gs
+    assert_output --regexp "hk: [0-9]+-"
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_output --partial "git stash apply $commit"
+    assert_file_exists "$JOURNAL"
+    assert_equal "$(git stash list --format=%H)" "$commit"
+}
+
+@test "a stash made just before hk is killed is reported by the next run (libgit2)" {
+    crash_before_record 1
+}
+
+@test "a stash made just before hk is killed is reported by the next run (shell git)" {
+    crash_before_record 0
+}

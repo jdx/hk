@@ -233,7 +233,9 @@ fn message_pid(subject: &str) -> Option<u32> {
     rest.split('-').next()?.parse().ok()
 }
 
-/// Whether a stash subject is the intent-to-add entry's, which has no pid.
+/// Whether a stash subject is the fixed `hk: intent-to-add files` message that
+/// earlier hk versions gave that entry, which has no pid. Current hk gives it
+/// a per-run message like every other entry.
 fn is_intent_to_add(subject: &str) -> bool {
     const INTENT_TO_ADD: &str = "hk: intent-to-add files";
     stash_message(subject) == INTENT_TO_ADD
@@ -610,7 +612,38 @@ mod tests {
     }
 
     #[test]
+    fn empty_journal_is_never_discarded_while_its_pid_has_an_entry() {
+        // libgit2 prefixes the message with `On <branch>: `, git with `On <branch>: ` too
+        for subject in [
+            "On main: hk: 4242-1a2b-0",
+            "On feature/x: hk: 4242-1a2b-3 (intent-to-add files)",
+            "WIP on main: hk: 4242-ff-1",
+        ] {
+            let j = journal();
+            assert!(j.entries.is_empty());
+            assert_eq!(
+                decide(&j, &[row("new", subject)], true),
+                Action::Report {
+                    reason: ReportReason::UnrecordedEntry,
+                    commits: vec!["new".into()]
+                },
+                "{subject}"
+            );
+        }
+        // Nothing of this pid's is there: safe to discard
+        let stash = [row("x", "On main: hk: 99-1-0"), row("y", "On main: wip")];
+        assert!(matches!(
+            decide(&journal(), &stash, true),
+            Action::Discard(_)
+        ));
+    }
+
+    #[test]
     fn message_pid_reads_hks_per_run_message() {
+        assert_eq!(
+            message_pid("On main: hk: 4242-1f-3 (intent-to-add files)"),
+            Some(4242)
+        );
         assert_eq!(message_pid("On main: hk: 4242-1f-3"), Some(4242));
         assert_eq!(message_pid("hk: 4242-1f-3"), Some(4242));
         assert_eq!(message_pid("WIP on main: hk: 7-1f-3"), Some(7));

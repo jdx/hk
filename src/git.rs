@@ -1002,8 +1002,6 @@ struct IntentToAddStash {
     paths: Vec<PathBuf>,
 }
 
-const INTENT_TO_ADD_STASH_MESSAGE: &str = "hk: intent-to-add files";
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
@@ -1893,7 +1891,7 @@ impl Git {
                 let saved = if index_has_intent_to_add(repo) {
                     Err(git2::Error::from_str("the index has intent-to-add entries"))
                 } else {
-                    repo.stash_save(&sig, "hk", Some(flags))
+                    repo.stash_save(&sig, &unique_stash_message(), Some(flags))
                 };
                 match saved {
                     // libgit2 returns the id of the entry it created
@@ -1997,6 +1995,7 @@ impl Git {
         let index_commit = git_read(["commit-tree", &index_tree, "-p", "HEAD", "-m", "index"])?
             .trim()
             .to_string();
+        let message = unique_stash_message();
         let commit = git_read([
             "commit-tree",
             &worktree_tree,
@@ -2005,11 +2004,11 @@ impl Git {
             "-p",
             &index_commit,
             "-m",
-            "hk",
+            message.as_str(),
         ])?
         .trim()
         .to_string();
-        git_cmd(["stash", "store", "-m", "hk", &commit])
+        git_cmd(["stash", "store", "-m", message.as_str(), &commit])
             .run()
             .wrap_err("failed to stash reverted files")?;
         self.stash_commit = Some(commit.clone());
@@ -2106,6 +2105,7 @@ impl Git {
             "untracked files",
         ])?;
         let index = git_read(["commit-tree", head_tree.trim(), "-p", "HEAD", "-m", "index"])?;
+        let message = format!("{} (intent-to-add files)", unique_stash_message());
         let commit = git_read([
             "commit-tree",
             head_tree.trim(),
@@ -2116,11 +2116,11 @@ impl Git {
             "-p",
             untracked.trim(),
             "-m",
-            INTENT_TO_ADD_STASH_MESSAGE,
+            message.as_str(),
         ])?
         .trim()
         .to_string();
-        git_cmd(["stash", "store", "-m", INTENT_TO_ADD_STASH_MESSAGE, &commit])
+        git_cmd(["stash", "store", "-m", message.as_str(), &commit])
             .run()
             .wrap_err("failed to stash intent-to-add files")?;
         debug!("stashed intent-to-add files {paths:?} in {commit}");
@@ -2282,6 +2282,8 @@ impl Git {
     }
 
     fn journal_record(&mut self, commit: &str, kind: StashKind) {
+        #[cfg(debug_assertions)]
+        die_for_test("HK_DEBUG_KILL_BEFORE_JOURNAL_RECORD");
         if let Some(journal) = &mut self.journal
             && let Err(err) = journal.record(commit, kind)
         {
@@ -3373,6 +3375,21 @@ fn parse_stash_entries(list: &str) -> Vec<StashEntry> {
 
 /// What `git stash push` prints, with `LC_ALL=C`, when it stashed nothing.
 const NOTHING_TO_STASH: &str = "No local changes to save";
+
+/// Debug builds only: kills hk the way SIGKILL would when the named variable
+/// is set, so tests can hit the window between a stash being created and the
+/// journal recording it.
+#[cfg(debug_assertions)]
+fn die_for_test(var: &str) {
+    if std::env::var_os(var).is_some() {
+        #[cfg(unix)]
+        // SAFETY: raising SIGKILL on ourselves has no memory-safety effect
+        unsafe {
+            libc::raise(libc::SIGKILL);
+        }
+        std::process::abort();
+    }
+}
 
 /// A stash message no other process will use, so hk's entry is recognizable
 /// in the stash list that every worktree shares.
