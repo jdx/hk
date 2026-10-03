@@ -1,7 +1,6 @@
+use super::git_exec_bit::{executable_flags, file_mode_enabled};
 use crate::Result;
 use std::fs;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 #[derive(Debug, usage_rs::Args)]
@@ -16,8 +15,16 @@ impl CheckShebangScriptsAreExecutable {
     pub async fn run(&self) -> Result<()> {
         let mut found_issues = false;
 
-        for file_path in &self.files {
-            if has_shebang(file_path)? && !is_executable(file_path)? {
+        let mut any_tracked = false;
+        let mut any_untracked = false;
+        let flags = executable_flags(&self.files)?;
+        for (file_path, flag) in self.files.iter().zip(flags) {
+            if flag.executable == Some(false) && has_shebang(file_path)? {
+                if flag.tracked {
+                    any_tracked = true;
+                } else {
+                    any_untracked = true;
+                }
                 println!(
                     "{}: has a shebang but is not marked executable",
                     file_path.display()
@@ -28,30 +35,29 @@ impl CheckShebangScriptsAreExecutable {
 
         if found_issues {
             println!();
-            println!("If it is supposed to be executable, run `chmod +x <file>`.");
+            println!("If it is supposed to be executable:");
+            if any_tracked {
+                println!(
+                    "  - tracked files: run `git update-index --chmod=+x <file>` (git records the mode, not the filesystem)"
+                );
+            }
+            if any_untracked {
+                if cfg!(unix) && file_mode_enabled() {
+                    println!(
+                        "  - untracked files: run `chmod +x <file>`, then `git add <file>` (or `git add` first, then `git update-index --chmod=+x <file>`)"
+                    );
+                } else {
+                    // The filesystem bit is not honored here, so git may still record 100644.
+                    println!(
+                        "  - untracked files: run `git add <file>`, then `git update-index --chmod=+x <file>`"
+                    );
+                }
+            }
             println!("If not, remove the shebang.");
             return Err(eyre::eyre!("Non-executable files with shebangs found"));
         }
 
         Ok(())
-    }
-}
-
-fn is_executable(path: &PathBuf) -> Result<bool> {
-    let metadata = fs::metadata(path)?;
-
-    if metadata.is_dir() {
-        return Ok(true);
-    }
-
-    #[cfg(unix)]
-    {
-        Ok(metadata.permissions().mode() & 0o111 != 0)
-    }
-
-    #[cfg(not(unix))]
-    {
-        Ok(true)
     }
 }
 
@@ -65,8 +71,6 @@ fn has_shebang(path: &PathBuf) -> Result<bool> {
 mod tests {
     use super::*;
     use std::fs;
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -99,31 +103,5 @@ mod tests {
         fs::write(file.path(), b"\x7fELF\x02\x01\x01\x00").unwrap();
 
         assert!(!has_shebang(&file.path().to_path_buf()).unwrap());
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_is_executable() {
-        let file = NamedTempFile::new().unwrap();
-        fs::write(file.path(), b"#!/bin/bash\necho hello").unwrap();
-
-        let mut perms = fs::metadata(file.path()).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(file.path(), perms).unwrap();
-
-        assert!(is_executable(&file.path().to_path_buf()).unwrap());
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_not_executable() {
-        let file = NamedTempFile::new().unwrap();
-        fs::write(file.path(), b"#!/bin/bash\necho hello").unwrap();
-
-        let mut perms = fs::metadata(file.path()).unwrap().permissions();
-        perms.set_mode(0o644);
-        fs::set_permissions(file.path(), perms).unwrap();
-
-        assert!(!is_executable(&file.path().to_path_buf()).unwrap());
     }
 }
