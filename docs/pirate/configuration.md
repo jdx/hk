@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: eaeee6c42cf0
+sourceHash: f61db30645ad
 ---
 
 # Configuration, the ship's charts
@@ -341,6 +341,9 @@ Mind these rules for joining the charts together:
   run in `pre-commit` or `fix`; add it to every event where it should run.
 - Set hook-wide behaviour such as `fix`, `stash`, `stage`, and `report` in the
   root config, the master chart. Subprojects bring steps and their local environment.
+- A subproject's `skip_steps` name its own steps and groups, and skip only those. Other
+  top-level settings in a subproject config, such as `exclude`, `fail_fast`, or `profiles`,
+  have no effect; hk warns that they are ignored. Set them in the root config.
 - Subprojects are loaded one level deep. A `subprojects` declaration inside a
   subproject config is ignored, with a warning.
 - A subproject's literal `dir` is relative to that subproject. Templated workspace
