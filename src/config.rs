@@ -1734,16 +1734,23 @@ mod tests {
     }
 
     #[test]
-    fn validate_compiles_globs_with_the_steps_dir() {
-        let mut globby = step("lint");
-        globby.dir = Some("foo[".into());
-        globby.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+    fn validate_compiles_globs_relative_to_the_steps_dir() {
+        // Globs match paths relative to `dir`, so glob characters in the
+        // directory's name are literal and never make a pattern invalid.
+        let mut bracketed = step("lint");
+        bracketed.dir = Some("foo[".into());
+        bracketed.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        config_with_steps(vec![bracketed]).validate().unwrap();
+
+        let mut bad_glob = step("lint");
+        bad_glob.dir = Some("foo".into());
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
         let err = format!(
             "{:#}",
-            config_with_steps(vec![globby]).validate().unwrap_err()
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
         );
         assert!(
-            err.contains("Step 'lint'") && err.contains("invalid glob '*'"),
+            err.contains("Step 'lint'") && err.contains("invalid glob 'src/[abc'"),
             "{err}"
         );
     }
