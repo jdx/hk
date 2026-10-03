@@ -286,10 +286,10 @@ fn options_doc(step: &serde_json::Value) -> Option<String> {
         }
     }
     for key in ["exclude", "stage"] {
-        if let Some(value) = step.get(key) {
-            if let Some(pkl) = pkl_value(value) {
-                opts.push(inline_code(&format!("{key} = {pkl}")));
-            }
+        if let Some(value) = step.get(key)
+            && let Some(pkl) = pkl_value(value)
+        {
+            opts.push(inline_code(&format!("{key} = {pkl}")));
         }
     }
     (!opts.is_empty()).then(|| opts.join(", "))
