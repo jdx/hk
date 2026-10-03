@@ -13,6 +13,7 @@ use crate::{Result, glob};
 use dashmap::DashMap;
 use indexmap::IndexSet;
 use itertools::Itertools;
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -214,9 +215,17 @@ impl Step {
             self.filter_selector(&files, self.glob.as_ref(), self.types.as_deref())?
         };
         if let Some(pattern) = self.exclude.as_ref().filter(|pattern| !pattern.is_empty()) {
-            // Use get_pattern_matches consistently for excludes too
+            // Use get_pattern_matches consistently for excludes too. A glob
+            // naming a directory (`vendor`) also excludes its contents, as
+            // the global `exclude` does.
+            let pattern = match pattern {
+                Pattern::Globs(globs) => {
+                    Cow::Owned(Pattern::Globs(glob::expand_directory_excludes(globs)))
+                }
+                regex => Cow::Borrowed(regex),
+            };
             let excluded: HashSet<_> =
-                glob::get_pattern_matches(pattern, &files, self.dir_prefix())?
+                glob::get_pattern_matches(&pattern, &files, self.dir_prefix())?
                     .into_iter()
                     .collect();
             files.retain(|f| !excluded.contains(f));
