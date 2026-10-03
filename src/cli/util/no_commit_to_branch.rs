@@ -38,13 +38,16 @@ fn get_current_branch() -> Result<Option<String>> {
 fn get_current_branch_in(dir: &Path) -> Result<Option<String>> {
     // Use symbolic-ref instead of rev-parse to work in repos without commits
     let output = Command::new("git")
-        .args(["symbolic-ref", "--quiet", "--short", "HEAD"])
+        .args(["symbolic-ref", "--quiet", "HEAD"])
         .current_dir(dir)
         .output()?;
 
     if output.status.success() {
-        let branch = String::from_utf8(output.stdout)?.trim().to_string();
-        return Ok(Some(branch));
+        // Take the full ref: `--short` prints `heads/main` when a tag named
+        // `main` also exists, which would bypass the protected-branch check.
+        let full = String::from_utf8(output.stdout)?.trim().to_string();
+        let branch = full.strip_prefix("refs/heads/").unwrap_or(&full);
+        return Ok(Some(branch.to_string()));
     }
 
     // A detached HEAD is expected during operations such as interactive rebases.
@@ -97,6 +100,31 @@ mod tests {
         git(dir.path(), &["checkout", "-q", "--detach", "HEAD"]);
 
         assert_eq!(get_current_branch_in(dir.path()).unwrap(), None);
+    }
+
+    #[test]
+    fn test_get_current_branch_with_tag_sharing_branch_name() {
+        let dir = tempfile::tempdir().unwrap();
+        git(dir.path(), &["init", "-q", "-b", "main"]);
+        git(
+            dir.path(),
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "initial",
+            ],
+        );
+        git(dir.path(), &["tag", "main"]);
+
+        assert_eq!(
+            get_current_branch_in(dir.path()).unwrap(),
+            Some("main".to_string())
+        );
     }
 
     #[test]

@@ -24,6 +24,7 @@ SHELL_EXPANSIONS = {
     "$check_after_diff": "true",
     "$first_effect": "read",
     "$check_diff_effect": "read",
+    "$check_effect": "read",
     "$second_effect": "write",
     "$oversized": "x",
     "$stash_method": "git",
