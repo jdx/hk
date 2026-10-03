@@ -419,16 +419,7 @@ impl HkMcpServer {
         };
         let _ = stdout_task.await;
         let _ = stderr_task.await;
-        let (diff, diff_error) = match diff_baseline {
-            Ok(before) => match snapshot_tree(&root).await {
-                Ok(after) => match git_diff(&root, &before, &after).await {
-                    Ok(diff) => (diff, None),
-                    Err(error) => (CapturedDiff::default(), Some(error)),
-                },
-                Err(error) => (CapturedDiff::default(), Some(error)),
-            },
-            Err(error) => (CapturedDiff::default(), Some(error)),
-        };
+        let (diff, diff_error) = capture_run_diff(&root, diff_baseline).await;
         let mut state = self.state.lock().await;
         let Some(run) = state.runs.iter_mut().find(|run| run.id == id) else {
             return;
@@ -457,13 +448,7 @@ impl HkMcpServer {
                 run.error = Some(format!("failed to wait for hk: {error}"));
             }
         }
-        if let Some(error) = diff_error {
-            let diff_error = format!("failed to capture diff: {error}");
-            run.error = Some(match run.error.take() {
-                Some(existing) => format!("{existing}; {diff_error}"),
-                None => diff_error,
-            });
-        }
+        record_diff_error(run, diff_error);
         state.cleanup();
     }
 
@@ -1176,16 +1161,36 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
     } else {
         run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
     }
-    run_git(root, &["add", "-A"], Some(&temp_index)).await?;
+    // Store the worktree bytes as they are: no CRLF conversion, and no clean filters
+    // (those come from attributes, which are read from the empty tree instead). Only
+    // paths under `root` are re-read, so changes elsewhere in the repository cannot
+    // show up in the diff. Git older than 2.40 lacks `--attr-source`.
+    let raw = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"];
+    let mut with_attr_source = raw.to_vec();
+    let attr_source = format!("--attr-source={EMPTY_TREE}");
+    with_attr_source.push(&attr_source);
+    with_attr_source.extend(["add", "-A", "--", "."]);
+    if run_git(root, &with_attr_source, Some(&temp_index))
+        .await
+        .is_err()
+    {
+        let mut without = raw.to_vec();
+        without.extend(["add", "-A", "--", "."]);
+        run_git(root, &without, Some(&temp_index)).await?;
+    }
     let tree = run_git(root, &["write-tree"], Some(&temp_index)).await?;
     Ok(String::from_utf8_lossy(&tree).trim().to_string())
 }
+
+/// Git's well-known empty tree, which always exists.
+const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 async fn diff_tree_bytes(
     root: &Path,
     before: &str,
     after: &str,
     attributes: Option<&Path>,
+    ignore_repo_attributes: bool,
 ) -> Result<(Vec<u8>, bool), String> {
     let mut command = Command::new("git");
     command.arg("-C").arg(root);
@@ -1194,12 +1199,17 @@ async fn diff_tree_bytes(
         setting.push(attributes);
         command.arg("-c").arg(setting);
     }
+    if ignore_repo_attributes {
+        command.arg(format!("--attr-source={EMPTY_TREE}"));
+    }
     let mut child = command
         .args([
             "diff-tree",
             "-p",
             "--binary",
             "--no-ext-diff",
+            "--no-textconv",
+            "--relative",
             before,
             after,
         ])
@@ -1252,24 +1262,63 @@ async fn diff_tree_bytes(
 /// other encodings) is regenerated with every file encoded as a base64 binary patch so
 /// no bytes are altered and the result still applies with `git apply`.
 async fn git_diff(root: &Path, before: &str, after: &str) -> Result<CapturedDiff, String> {
-    let (bytes, truncated) = diff_tree_bytes(root, before, after, None).await?;
-    let (bytes, truncated) = match std::str::from_utf8(&bytes) {
-        Ok(_) => (bytes, truncated),
+    let (bytes, truncated) = diff_tree_bytes(root, before, after, None, false).await?;
+    if let Some(text) = utf8_patch(&bytes, truncated) {
+        return Ok(CapturedDiff { text, truncated });
+    }
+    let temp_dir = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let attributes = temp_dir.path().join("attributes");
+    std::fs::write(&attributes, "* -diff\n").map_err(|error| error.to_string())?;
+    // Repository attributes override `core.attributesFile`, so ignore them too.
+    let (bytes, truncated) =
+        match diff_tree_bytes(root, before, after, Some(&attributes), true).await {
+            Ok(result) => result,
+            Err(_) => diff_tree_bytes(root, before, after, Some(&attributes), false).await?,
+        };
+    match utf8_patch(&bytes, truncated) {
+        Some(text) => Ok(CapturedDiff { text, truncated }),
+        None => Err("the patch is not valid UTF-8 even as a binary patch".into()),
+    }
+}
+
+/// The patch as text when it is valid UTF-8; a capture cut off mid-character keeps the
+/// complete characters before the cut.
+fn utf8_patch(bytes: &[u8], truncated: bool) -> Option<String> {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => Some(text.to_string()),
         Err(error) if truncated && error.error_len().is_none() => {
-            let valid = error.valid_up_to();
-            (bytes[..valid].to_vec(), truncated)
+            Some(String::from_utf8_lossy(&bytes[..error.valid_up_to()]).into_owned())
         }
-        Err(_) => {
-            let temp_dir = tempfile::tempdir().map_err(|error| error.to_string())?;
-            let attributes = temp_dir.path().join("attributes");
-            std::fs::write(&attributes, "* -diff\n").map_err(|error| error.to_string())?;
-            diff_tree_bytes(root, before, after, Some(&attributes)).await?
-        }
-    };
-    Ok(CapturedDiff {
-        text: String::from_utf8_lossy(&bytes).into_owned(),
-        truncated,
-    })
+        Err(_) => None,
+    }
+}
+
+/// Diffs the working tree against the snapshot taken before a run. A failure is
+/// returned beside an empty diff so the run can report it.
+async fn capture_run_diff(
+    root: &Path,
+    baseline: Result<String, String>,
+) -> (CapturedDiff, Option<String>) {
+    let result = async {
+        let before = baseline?;
+        let after = snapshot_tree(root).await?;
+        git_diff(root, &before, &after).await
+    }
+    .await;
+    match result {
+        Ok(diff) => (diff, None),
+        Err(error) => (CapturedDiff::default(), Some(error)),
+    }
+}
+
+fn record_diff_error(run: &mut RunRecord, error: Option<String>) {
+    if let Some(error) = error {
+        let diff_error = format!("failed to capture diff: {error}");
+        run.error = Some(match run.error.take() {
+            Some(existing) => format!("{existing}; {diff_error}"),
+            None => diff_error,
+        });
+    }
 }
 
 #[cfg(test)]
@@ -1460,7 +1509,7 @@ mod tests {
         std::fs::write(&patch, &diff.text).unwrap();
         std::fs::remove_file(root.join("latin1.txt")).unwrap();
         std::fs::remove_file(root.join("blob.bin")).unwrap();
-        git_in(root, &["apply", "run.patch"]);
+        git_in(root, &["-c", "core.autocrlf=false", "apply", "run.patch"]);
         assert_eq!(
             std::fs::read(root.join("latin1.txt")).unwrap(),
             b"caf\xe9\n"
@@ -1479,6 +1528,69 @@ mod tests {
             .await
             .unwrap_err();
         assert!(error.contains("diff-tree"));
+    }
+
+    #[tokio::test]
+    async fn diff_from_a_subdirectory_root_stays_inside_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        let root = repo.join("app");
+        std::fs::create_dir(&root).unwrap();
+        let baseline = snapshot_tree(&root).await.unwrap();
+
+        std::fs::write(root.join("inside.txt"), "in\n").unwrap();
+        std::fs::write(repo.join("outside.txt"), "out\n").unwrap();
+        let after = snapshot_tree(&root).await.unwrap();
+        let diff = git_diff(&root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+++ b/inside.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("outside.txt"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn diff_keeps_worktree_bytes_despite_line_ending_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        git_in(root, &["config", "core.autocrlf", "true"]);
+        std::fs::write(root.join(".gitattributes"), "*.txt text eol=lf\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("crlf.txt"), b"a\r\nb\r\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+a\r\n"), "{:?}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn capture_failures_are_attached_to_the_run() {
+        let directory = tempfile::tempdir().unwrap();
+        let (diff, error) = capture_run_diff(directory.path(), Err("no baseline".into())).await;
+        assert!(diff.text.is_empty());
+        let mut run = test_run("failed-diff", "succeeded", Vec::new());
+        record_diff_error(&mut run, error);
+        assert_eq!(
+            run.error.as_deref(),
+            Some("failed to capture diff: no baseline")
+        );
+        run.error = Some("hk failed".into());
+        record_diff_error(&mut run, Some("again".into()));
+        assert_eq!(
+            run.error.as_deref(),
+            Some("hk failed; failed to capture diff: again")
+        );
+        record_diff_error(&mut run, None);
+        assert!(run.error.unwrap().ends_with("again"));
+    }
+
+    #[test]
+    fn utf8_patch_rejects_invalid_bytes_but_trims_a_truncated_character() {
+        assert_eq!(utf8_patch("é".as_bytes(), false).as_deref(), Some("é"));
+        assert_eq!(utf8_patch(&"é".as_bytes()[..1], true).as_deref(), Some(""));
+        assert!(utf8_patch(b"caf\xe9\n", false).is_none());
+        assert!(utf8_patch(b"caf\xe9\n", true).is_none());
     }
 
     #[test]
