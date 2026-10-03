@@ -283,5 +283,6 @@ min_hk_version = "v999.0.0{{typo}}"
 hooks { ["check"] { steps { ["a"] { check = "true" } } } }
 EOF
     run hk validate
+    assert_success
     assert_output --partial "ignoring min_hk_version"
 }
