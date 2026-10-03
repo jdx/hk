@@ -52,7 +52,9 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
     //   `squash! <msg>` and `amend! <msg>`; they are meant to be squashed away.
     // - `git merge` uses `Merge branch '<name>'`, `Merge remote-tracking branch '<name>'`,
     //   `Merge tag '<name>'`, `Merge commit '<sha>'` and, for octopus merges,
-    //   `Merge branches '<a>' and '<b>'`;
+    //   `Merge branches '<a>' and '<b>'`, `Merge tags '<a>' and '<b>'`;
+    //   all of them quote the ref, so the quote is part of the prefix and user-written
+    //   titles such as `Merge branches together` are still validated;
     //   GitHub merge commits use `Merge pull request #<n> from <ref>`.
     // - `git revert` uses `Revert "<original title>"`.
     //
@@ -62,11 +64,13 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
         "fixup! ",
         "squash! ",
         "amend! ",
-        "Merge branch ",
-        "Merge branches ",
-        "Merge tag ",
-        "Merge commit ",
-        "Merge remote-tracking branch ",
+        "Merge branch '",
+        "Merge branches '",
+        "Merge tag '",
+        "Merge tags '",
+        "Merge commit '",
+        "Merge remote-tracking branch '",
+        "Merge remote-tracking branches '",
         "Merge pull request ",
         "Revert \"",
     ]
@@ -299,6 +303,11 @@ mod tests {
             "Merge tag 'v1.0.0'",
             "Merge commit 'abc1234'",
             "Merge branches 'a' and 'b'",
+            "Merge branches 'a', 'b' and 'c' into main",
+            "Merge tags 'v1' and 'v2' into main",
+            "Merge remote-tracking branches 'origin/a' and 'origin/b'",
+            "Merge commit 'abc1234'; commit 'def5678' into main",
+            "Merge branch 'a', tag 'v1' into main",
             "Merge pull request #123 from jdx/feature",
             "Revert \"feat: add thing\"",
             "Revert \"Revert \"feat: add thing\"\"",
@@ -315,7 +324,12 @@ mod tests {
         for title in [
             "Merged stuff",
             "Merge stuff",
+            "Merge branches together",
             "Merge branchesx 'a'",
+            "Merge branch together",
+            "Merge tag together",
+            "Merge commit message",
+            "Merge remote-tracking branch fixes",
             "Merge tags together",
             "Merge commits together",
             "Merge tag",

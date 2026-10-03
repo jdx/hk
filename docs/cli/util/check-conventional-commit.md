@@ -12,7 +12,7 @@ description: "Validate a file containing a commit message."
 
 Check that a commit message follows the Conventional Commits format
 
-Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation, as do titles git generates itself: `Merge branch `, `Merge branches `, `Merge tag `, `Merge commit `, `Merge remote-tracking branch `, `Merge pull request `, and `Revert "`.
+Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation, as do titles git generates itself: `Merge branch '`, `Merge branches '`, `Merge tag '`, `Merge tags '`, `Merge commit '`, `Merge remote-tracking branch '`, `Merge remote-tracking branches '`, `Merge pull request `, and `Revert "`.
 
 ## Arguments
 
