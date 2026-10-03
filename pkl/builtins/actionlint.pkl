@@ -25,14 +25,14 @@ const actionlint = new Config.Step {
     }
     local const badWorkflow =
       """
-        on:
-          push:
-            branch: main
-        jobs:
-          test:
-            runs-on: ubuntu-latest
-            steps:
-              - run: echo "Pass"
+      on:
+        push:
+          branch: main
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          steps:
+            - run: echo "Pass"
       """
     ["check bad file"] = testMaker.checkFail(badWorkflow, 1)
     ["check bad file reports diagnostics"] =
