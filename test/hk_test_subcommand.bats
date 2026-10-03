@@ -207,7 +207,7 @@ PKL
     run hk test
     assert_failure
     assert_output --partial "not ok - viewer :: diff"
-    assert_output --partial "check_diff exited 1 but its output did not apply with \`git apply\`"
+    assert_output --partial "check_diff exited 1 but hk could not apply its output as a patch"
 }
 
 @test "hk test diff tests rerun check after the patch for check_after_diff" {

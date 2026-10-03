@@ -176,7 +176,7 @@ jobs:
           # allows setup and two full attempts at the selected timeout.
           timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
-          command: mise run --skip-deps test:bats:libgit2
+          command: scripts/ci_attempt_notice "bats (libgit2)" mise run --skip-deps test:bats:libgit2
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -246,7 +246,7 @@ jobs:
           # allows setup and two full attempts at the selected timeout.
           timeout_minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
-          command: mise run --skip-deps test:bats:nolibgit2
+          command: scripts/ci_attempt_notice "bats (nolibgit2)" mise run --skip-deps test:bats:nolibgit2
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -317,7 +317,7 @@ jobs:
           # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
           # build, so the retry is here for genuine flakes.
           max_attempts: 2
-          command: mise run --skip-deps test:bats:nogit
+          command: scripts/ci_attempt_notice "bats (nogit)" mise run --skip-deps test:bats:nogit
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -426,15 +426,9 @@ jobs:
       - name: Run Pester e2e tests
         run: |
           $env:PKL_PATH = "${{ github.workspace }}/pkl"
-          # Run only basic tests that don't require pkl to avoid hangs
-          ./e2e-win/run.ps1 -TestName "*version*"
-          ./e2e-win/run.ps1 -TestName "*help*"
-          # Regression test for discussion #823 (cmd.exe {{files}} quoting)
-          ./e2e-win/run.ps1 -TestName "*{{files}} template*"
-          # Regression test for discussion #1220 (structured argv npm shims)
-          ./e2e-win/run.ps1 -TestName "*structured argv resolves*"
-          # Regression tests for issue #1534 (stash CRLF restoration)
-          ./e2e-win/run.ps1 -TestName "*stash line endings*"
+          # Runs every Pester case under e2e-win/ (a new case is picked up
+          # automatically; name filters here silently skipped cases before).
+          ./e2e-win/run.ps1
   final:
     permissions: {}
     needs:

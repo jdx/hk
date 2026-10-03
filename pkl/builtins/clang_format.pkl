@@ -4,6 +4,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "C/C++ formatter"
+  project_indicators {
+    new { file = ".clang-format" }
+    new { file = "_clang-format" }
+  }
 }
 clang_format = new Config.Step {
   glob =
