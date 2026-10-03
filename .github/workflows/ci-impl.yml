@@ -176,7 +176,7 @@ jobs:
           # allows setup and two full attempts at the selected timeout.
           timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
-          command: mise run --skip-deps test:bats:libgit2
+          command: scripts/ci_attempt_notice "bats (libgit2)" mise run --skip-deps test:bats:libgit2
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -246,7 +246,7 @@ jobs:
           # allows setup and two full attempts at the selected timeout.
           timeout_minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
-          command: mise run --skip-deps test:bats:nolibgit2
+          command: scripts/ci_attempt_notice "bats (nolibgit2)" mise run --skip-deps test:bats:nolibgit2
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -317,7 +317,7 @@ jobs:
           # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
           # build, so the retry is here for genuine flakes.
           max_attempts: 2
-          command: mise run --skip-deps test:bats:nogit
+          command: scripts/ci_attempt_notice "bats (nogit)" mise run --skip-deps test:bats:nogit
       - name: Publish builtin test timings
         if: always()
         run: |
