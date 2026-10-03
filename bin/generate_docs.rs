@@ -137,6 +137,10 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
                 return command_text(value);
             }
 
+            if let Some(script) = script_text(command) {
+                return Some(script);
+            }
+
             command.get("argv").and_then(|argv| {
                 argv.as_array()?
                     .iter()
@@ -152,6 +156,92 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Pick the script a `Script` command runs: the POSIX one (`other`, then
+/// `linux`, then `macos`), falling back to `windows` when it is the only one.
+fn script_text(command: &serde_json::Map<String, serde_json::Value>) -> Option<String> {
+    ["other", "linux", "macos", "windows"]
+        .iter()
+        .filter_map(|key| command.get(*key)?.as_str())
+        .find(|script| !script.trim().is_empty())
+        .map(|script| script.trim_end().to_string())
+}
+
+fn string_list(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        serde_json::Value::String(s) => vec![s.clone()],
+        serde_json::Value::Array(arr) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect(),
+        _ => vec![],
+    }
+}
+
+fn code_list(items: &[String]) -> String {
+    items
+        .iter()
+        .map(|item| inline_code(item))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Describe one file selector: a `glob`, `types`, or both (which must both match).
+fn selector_doc(selector: &serde_json::Value) -> Option<String> {
+    let glob = selector.get("glob").map(string_list).unwrap_or_default();
+    let types = selector.get("types").map(string_list).unwrap_or_default();
+    match (glob.is_empty(), types.is_empty()) {
+        (true, true) => None,
+        (false, true) => Some(code_list(&glob)),
+        (true, false) => Some(format!("{} files", code_list(&types))),
+        (false, false) => Some(format!(
+            "{} that are {} files",
+            code_list(&glob),
+            code_list(&types)
+        )),
+    }
+}
+
+/// The files a builtin runs on, from `glob`/`types` or `match_any`.
+fn files_doc(step: &serde_json::Value) -> Option<String> {
+    if let Some(selectors) = step.get("match_any").and_then(|v| v.as_array()) {
+        let parts: Vec<String> = selectors.iter().filter_map(selector_doc).collect();
+        if !parts.is_empty() {
+            return Some(parts.join("; or "));
+        }
+    }
+    selector_doc(step)
+}
+
+/// One compact line of the options a builtin sets away from their defaults.
+fn options_doc(step: &serde_json::Value) -> Option<String> {
+    let mut opts = Vec::new();
+    for key in [
+        "batch",
+        "exclusive",
+        "check_after_diff",
+        "allow_binary",
+        "allow_symlinks",
+    ] {
+        if step.get(key).and_then(|v| v.as_bool()) == Some(true) {
+            opts.push(inline_code(&format!("{key} = true")));
+        }
+    }
+    for key in ["workspace_indicator", "dir", "shell"] {
+        if let Some(value) = step.get(key).and_then(|v| v.as_str()) {
+            opts.push(inline_code(&format!("{key} = {value:?}")));
+        }
+    }
+    for key in ["exclude", "stage"] {
+        if let Some(value) = step.get(key) {
+            let items = string_list(value);
+            if !items.is_empty() {
+                opts.push(inline_code(&format!("{key} = {items:?}")));
+            }
+        }
+    }
+    (!opts.is_empty()).then(|| opts.join(", "))
 }
 
 fn shell_quote(arg: &str) -> String {
@@ -314,21 +404,8 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                 md.push_str(&format!("{}\n\n", info.description));
             }
 
-            // Show glob pattern(s)
-            if let Some(glob) = info.step.get("glob") {
-                let glob_str = match glob {
-                    serde_json::Value::String(s) => format!("`{}`", s),
-                    serde_json::Value::Array(arr) => arr
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| format!("`{}`", s))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    _ => String::new(),
-                };
-                if !glob_str.is_empty() {
-                    md.push_str(&format!("- **Glob:** {}\n", glob_str));
-                }
+            if let Some(files) = files_doc(&info.step) {
+                md.push_str(&format!("- **Files:** {files}\n"));
             }
 
             push_command_doc(&mut md, &info.step, "check", "Check");
@@ -340,6 +417,10 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                 "Check (list files)",
             );
             push_command_doc(&mut md, &info.step, "fix", "Fix");
+
+            if let Some(options) = options_doc(&info.step) {
+                md.push_str(&format!("- **Options:** {options}\n"));
+            }
 
             md.push('\n');
         }
@@ -436,6 +517,57 @@ mod tests {
         assert_eq!(
             md,
             "- **Check:**\n\n  ```sh\n  first line\n  second line\n  ```\n"
+        );
+    }
+
+    #[test]
+    fn command_text_unwraps_scripts() {
+        let command = json!({
+            "command": {"windows": "", "other": "set -e\ntool {{ files }}\n"},
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("set -e\ntool {{ files }}")
+        );
+        assert_eq!(
+            command_text(&json!({"windows": "tool.exe"})).as_deref(),
+            Some("tool.exe")
+        );
+    }
+
+    #[test]
+    fn files_doc_renders_globs_types_and_match_any() {
+        assert_eq!(
+            files_doc(&json!({"glob": ["**/*.py", "**/*.pyi"]})).as_deref(),
+            Some("`**/*.py`, `**/*.pyi`")
+        );
+        assert_eq!(
+            files_doc(&json!({"types": ["python"]})).as_deref(),
+            Some("`python` files")
+        );
+        assert_eq!(
+            files_doc(&json!({"glob": "*.md", "types": ["text"]})).as_deref(),
+            Some("`*.md` that are `text` files")
+        );
+        assert_eq!(
+            files_doc(&json!({"match_any": [{"glob": ["**/*.sh"]}, {"types": ["sh", "bash"]}]}))
+                .as_deref(),
+            Some("`**/*.sh`; or `sh`, `bash` files")
+        );
+        assert_eq!(files_doc(&json!({})), None);
+    }
+
+    #[test]
+    fn options_doc_lists_only_non_defaults() {
+        assert_eq!(options_doc(&json!({"batch": false, "exclude": []})), None);
+        assert_eq!(
+            options_doc(
+                &json!({"batch": true, "workspace_indicator": "go.mod", "stage": ["go.sum"]})
+            )
+            .as_deref(),
+            Some(r#"`batch = true`, `workspace_indicator = "go.mod"`, `stage = ["go.sum"]`"#)
         );
     }
 
