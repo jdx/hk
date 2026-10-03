@@ -139,6 +139,7 @@ Warning tags to suppress. Allows hiding specific warning messages that you don't
 
 Available warning tags:
 - `missing-profiles`: Suppresses warnings about steps being skipped due to missing profiles
+- `local-config-replaces-shared`: Suppresses the warning that `hk.local.pkl` does not amend the shared `hk.pkl`, so it replaces it
 
 Example: `HK_HIDE_WARNINGS=missing-profiles`
 

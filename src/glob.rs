@@ -9,10 +9,6 @@ pub fn get_matches<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Result<Vec<P
     get_matches_with_options(glob, files, false)
 }
 
-pub fn get_matches_strict<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Result<Vec<PathBuf>> {
-    get_matches_with_options(glob, files, true)
-}
-
 /// Compile one glob with the options the runtime matchers use.
 fn build_glob(glob: &str, literal_separator: bool) -> Result<globset::Glob> {
     let mut builder = GlobBuilder::new(glob);
@@ -23,30 +19,16 @@ fn build_glob(glob: &str, literal_separator: bool) -> Result<globset::Glob> {
     Ok(builder.build()?)
 }
 
-/// The globs `get_pattern_matches` compiles for `globs`: with a `dir` each is
-/// prefixed with it and matched strictly.
-fn pattern_globs(globs: &[String], dir: Option<&str>) -> (Vec<String>, bool) {
-    match dir {
-        Some(dir) => (
-            globs
-                .iter()
-                .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                .collect(),
-            true,
-        ),
-        None => (globs.to_vec(), false),
-    }
-}
-
 /// Check that a step pattern compiles exactly as `get_pattern_matches` will
 /// compile it, so a bad glob or regex is reported when the config loads instead
 /// of when a step first filters files.
 pub fn validate_pattern(pattern: &Pattern, dir: Option<&str>) -> std::result::Result<(), String> {
     match pattern {
         Pattern::Globs(globs) => {
-            let (compiled, strict) = pattern_globs(globs, dir);
-            for (glob, original) in compiled.iter().zip(globs) {
-                build_glob(glob, strict).map_err(|e| format!("invalid glob '{original}': {e}"))?;
+            // With a dir, globs match paths relative to it, strictly.
+            for glob in globs {
+                build_glob(glob, dir.is_some())
+                    .map_err(|e| format!("invalid glob '{glob}': {e}"))?;
             }
         }
         Pattern::Regex { pattern, .. } => {
@@ -80,50 +62,100 @@ pub fn get_pattern_matches<P: AsRef<Path>>(
     files: &[P],
     dir: Option<&str>,
 ) -> Result<Vec<PathBuf>> {
-    // Pre-filter files by dir if specified
-    let files_vec: Vec<PathBuf> = if let Some(dir) = dir {
-        files
-            .iter()
-            .map(|f| f.as_ref())
-            .filter(|f| f.starts_with(dir))
-            .map(|f| f.to_path_buf())
-            .collect()
-    } else {
-        files.iter().map(|f| f.as_ref().to_path_buf()).collect()
-    };
-
+    let files = files.iter().map(|f| f.as_ref());
     match pattern {
         Pattern::Globs(globs) => {
-            // When dir is set, prefix globs with the directory and use strict matching
-            if dir.is_some() {
-                let (dir_globs, _) = pattern_globs(globs, dir);
-                // Use strict matching (literal_separator=true) to ensure proper path semantics
-                get_matches_strict(&dir_globs, &files_vec)
-            } else {
-                get_matches(globs, &files_vec)
+            // With a dir, match each file's path relative to it with strict
+            // matching (literal_separator=true) to ensure proper path
+            // semantics. Prefixing the globs with `dir` instead would read
+            // glob metacharacters in the directory's name (`[`, `{`) as part
+            // of the pattern.
+            let mut gb = GlobSetBuilder::new();
+            for g in globs {
+                gb.add(build_glob(g, dir.is_some())?);
             }
+            let set = gb.build()?;
+            Ok(files
+                .filter(|f| match dir {
+                    // A file named like the directory itself is not inside it.
+                    Some(dir) => f
+                        .strip_prefix(dir)
+                        .is_ok_and(|rel| !rel.as_os_str().is_empty() && set.is_match(rel)),
+                    None => set.is_match(f),
+                })
+                .map(Path::to_path_buf)
+                .collect())
         }
         Pattern::Regex { pattern, .. } => {
             let re = Regex::new(pattern)?;
-            let matches = files_vec
-                .iter()
-                .filter(|f| {
+            Ok(files
+                .filter_map(|f| {
                     // For regex patterns, if dir is set, match against the path relative to dir
-                    let path_to_match = if let Some(dir) = dir {
-                        f.strip_prefix(dir).unwrap_or(f.as_path())
-                    } else {
-                        f.as_path()
+                    let path_to_match = match dir {
+                        Some(dir) => f.strip_prefix(dir).ok()?,
+                        None => f,
                     };
-
-                    if let Some(path_str) = path_to_match.to_str() {
-                        re.is_match(path_str)
-                    } else {
-                        false
-                    }
+                    re.is_match(path_to_match.to_str()?)
+                        .then(|| f.to_path_buf())
                 })
-                .map(|f| f.to_path_buf())
-                .collect_vec();
-            Ok(matches)
+                .collect())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn globs(patterns: &[&str]) -> Pattern {
+        Pattern::Globs(patterns.iter().map(|p| p.to_string()).collect())
+    }
+
+    fn matches(patterns: &[&str], files: &[&str], dir: Option<&str>) -> Vec<String> {
+        get_pattern_matches(&globs(patterns), files, dir)
+            .unwrap()
+            .into_iter()
+            .map(|f| f.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn dir_scoped_globs_match_relative_to_the_dir() {
+        let files = [
+            "src/a.rs",
+            "src/sub/b.rs",
+            "src/c.txt",
+            "other/d.rs",
+            "srcx/e.rs",
+        ];
+        assert_eq!(matches(&["*.rs"], &files, Some("src")), ["src/a.rs"]);
+        assert_eq!(
+            matches(&["**/*.rs"], &files, Some("src")),
+            ["src/a.rs", "src/sub/b.rs"]
+        );
+        assert_eq!(matches(&["*.rs"], &files, Some("src/")), ["src/a.rs"]);
+    }
+
+    #[test]
+    fn dir_names_with_glob_metacharacters_are_literal() {
+        let files = ["app[1]/a.txt", "app1/a.txt", "{x,y}/a.txt", "x/a.txt"];
+        assert_eq!(
+            matches(&["*.txt"], &files, Some("app[1]")),
+            ["app[1]/a.txt"]
+        );
+        assert_eq!(matches(&["*.txt"], &files, Some("{x,y}")), ["{x,y}/a.txt"]);
+    }
+
+    #[test]
+    fn a_path_equal_to_the_dir_is_not_inside_it() {
+        assert!(matches(&["*"], &["src"], Some("src")).is_empty());
+    }
+
+    #[test]
+    fn unscoped_globs_keep_loose_separator_matching() {
+        assert_eq!(
+            matches(&["*.rs"], &["a.rs", "sub/b.rs"], None),
+            ["a.rs", "sub/b.rs"]
+        );
     }
 }

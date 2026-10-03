@@ -106,6 +106,24 @@ impl Context {
         self
     }
 
+    /// Returns a clone of this context where `files` and `workspace_files` are
+    /// re-quoted with [`ShellType::quote_display`], so commands rendered from it
+    /// for users never contain hk's internal cmd.exe percent placeholder. Text
+    /// that merely looks like the placeholder elsewhere is left alone.
+    pub fn for_user(&self, shell_type: ShellType) -> Self {
+        let mut ctx = self.clone();
+        for (list, joined) in [
+            ("files_list", "files"),
+            ("workspace_files_list", "workspace_files"),
+        ] {
+            if let Some(items) = self.string_list(list) {
+                let quoted = items.iter().map(|f| shell_type.quote_display(f)).join(" ");
+                ctx.insert(joined, &quoted);
+            }
+        }
+        ctx
+    }
+
     /// Returns a clone of this context where `files` and `workspace_files`
     /// are truncated to "first_file …" when there is more than one file.
     /// Used to render the human-readable progress message — keeps the
@@ -261,6 +279,23 @@ mod tests {
         assert_eq!(
             ctx.for_display().string_list("files_list"),
             Some(vec!["a b.txt".to_string(), "…".to_string()])
+        );
+    }
+
+    #[test]
+    fn for_user_hides_cmd_percent_placeholder_only_in_files() {
+        let mut ctx = Context::default();
+        ctx.with_files(ShellType::Cmd, &["100%.txt"]);
+        assert_eq!(
+            ctx.ctx.get("files").and_then(|v| v.as_str()),
+            Some("\"100%HK_CMD_PERCENT%.txt\"")
+        );
+        assert_eq!(
+            ctx.for_user(ShellType::Cmd)
+                .ctx
+                .get("files")
+                .and_then(|v| v.as_str()),
+            Some("\"100%.txt\"")
         );
     }
 }
