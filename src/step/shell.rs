@@ -44,13 +44,6 @@ pub fn with_cmd_percent(mut env: Vec<(String, String)>, enabled: bool) -> Vec<(S
     env
 }
 
-/// Rewrites the internal `%HK_CMD_PERCENT%` placeholder to a plain `%` so
-/// commands shown to users (progress, "To fix, run") work when copied into a
-/// shell where the variable is not set. Never use this for executed commands.
-pub fn user_facing(command: &str) -> String {
-    command.replace(&format!("%{CMD_PERCENT_VAR}%"), "%")
-}
-
 impl ShellType {
     /// Quote a string appropriately for this shell type.
     ///
@@ -65,6 +58,18 @@ impl ShellType {
     ///
     /// A properly quoted string for the target shell
     pub fn quote(&self, s: &str) -> String {
+        self.quote_impl(s, false)
+    }
+
+    /// Like [`quote`](Self::quote), but for text shown to users. cmd.exe gets a
+    /// plain `%` instead of the internal `%HK_CMD_PERCENT%` placeholder, since
+    /// the variable is only defined in the child hk spawns, not in the shell
+    /// where a suggested command might be copied.
+    pub fn quote_display(&self, s: &str) -> String {
+        self.quote_impl(s, true)
+    }
+
+    fn quote_impl(&self, s: &str, display: bool) -> String {
         match self {
             ShellType::Bash | ShellType::Zsh => s.quoted(shell_quote::Bash),
             ShellType::Fish => s.quoted(shell_quote::Fish),
@@ -76,9 +81,12 @@ impl ShellType {
                 //   named `100%.txt` arrived as `100%%.txt`. cmd expands variables in a
                 //   single pass, so the injected variable yields a literal `%` that is
                 //   never re-expanded. The runner defines it for cmd.exe steps.
-                let escaped = s
-                    .replace('%', &format!("%{CMD_PERCENT_VAR}%"))
-                    .replace('"', "\"\"");
+                let percent = if display {
+                    "%".to_string()
+                } else {
+                    format!("%{CMD_PERCENT_VAR}%")
+                };
+                let escaped = s.replace('%', &percent).replace('"', "\"\"");
                 format!("\"{}\"", escaped)
             }
             ShellType::PowerShell => {
@@ -130,10 +138,11 @@ mod tests {
     }
 
     #[test]
-    fn user_facing_hides_placeholder() {
+    fn quote_display_hides_placeholder() {
+        assert_eq!(ShellType::Cmd.quote_display("100%.txt"), "\"100%.txt\"");
         assert_eq!(
-            user_facing(&ShellType::Cmd.quote("100%.txt")),
-            "\"100%.txt\""
+            ShellType::Bash.quote_display("a b"),
+            ShellType::Bash.quote("a b")
         );
     }
 }

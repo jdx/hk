@@ -221,8 +221,11 @@ impl Step {
         // progress message; this keeps the command shape and one
         // concrete example path visible without unbounded expansion.
         let run_for_display = run_cmd
-            .render(&tctx.for_display(), self.prefix.as_ref())
-            .map(|command| super::shell::user_facing(&command.display(self.shell_type())))
+            .render(
+                &tctx.for_user(self.shell_type()).for_display(),
+                self.prefix.as_ref(),
+            )
+            .map(|command| command.display_user(self.shell_type()))
             .unwrap_or_else(|_| run_cmd.to_string());
         let rendered_command = run_cmd
             .render(&tctx, self.prefix.as_ref())
@@ -497,7 +500,13 @@ impl Step {
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
                 }
-                return Err(err).wrap_err(run);
+                // Show the command as a user could run it, not hk's internal
+                // cmd.exe placeholder.
+                let shown = run_cmd
+                    .render(&tctx.for_user(self.shell_type()), self.prefix.as_ref())
+                    .map(|command| command.display_user(self.shell_type()))
+                    .unwrap_or(run);
+                return Err(err).wrap_err(shown);
             }
         }
         ctx.decrement_job_count();

@@ -603,6 +603,20 @@ impl RenderedCommand {
                 .join(" "),
         }
     }
+
+    /// Like [`display`](Self::display) for text shown to users: argv quoting
+    /// never exposes hk's internal cmd.exe placeholder. Shell scripts are
+    /// returned verbatim.
+    pub(crate) fn display_user(&self, shell_type: super::ShellType) -> String {
+        match self {
+            Self::Shell(script) => script.clone(),
+            Self::Argv(argv) => argv
+                .iter()
+                .map(|arg| shell_type.quote_display(arg))
+                .collect::<Vec<_>>()
+                .join(" "),
+        }
+    }
 }
 
 impl FromStr for Command {
@@ -669,6 +683,24 @@ impl<'a> CheckFirstCmd<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_user_keeps_literal_placeholder_text_and_hides_injected_one() {
+        let shell = RenderedCommand::Shell("echo %HK_CMD_PERCENT%".to_string());
+        assert_eq!(
+            shell.display_user(crate::step::ShellType::Bash),
+            "echo %HK_CMD_PERCENT%"
+        );
+        let argv = RenderedCommand::Argv(vec!["type".to_string(), "100%.txt".to_string()]);
+        assert_eq!(
+            argv.display_user(crate::step::ShellType::Cmd),
+            "\"type\" \"100%.txt\""
+        );
+        assert_eq!(
+            argv.display(crate::step::ShellType::Cmd),
+            "\"type\" \"100%HK_CMD_PERCENT%.txt\""
+        );
+    }
 
     #[test]
     fn command_spec_deserializes_shell_script_and_argv_commands() {

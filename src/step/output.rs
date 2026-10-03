@@ -150,13 +150,15 @@ impl Step {
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace
         let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
-        let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
+        let suggest_ctx = temp_job
+            .tctx(&ctx.hook_ctx.tctx)
+            .for_user(self.shell_type());
         if let Some(fix_cmd) = self
             .run_cmd(RunType::Fix)
             .filter(|command| !command.is_empty())
             && let Ok(rendered) = fix_cmd.render(&suggest_ctx, self.prefix.as_ref())
         {
-            let rendered = super::shell::user_facing(&rendered.display(self.shell_type()));
+            let rendered = rendered.display_user(self.shell_type());
             let should_use_hk_fix =
                 rendered.contains('\n') || rendered.chars().count() > MAX_INLINE_FIX_COMMAND_CHARS;
             if should_use_hk_fix {
