@@ -1943,15 +1943,8 @@ impl Hook {
                     "files.exclude: patterns from settings/CLI: {:?}",
                     all_excludes
                 );
-                let mut expanded_excludes = Vec::new();
-                for exclude in &all_excludes {
-                    expanded_excludes.push(exclude.clone());
-                    // If the pattern doesn't contain glob characters, also add patterns for directory contents
-                    if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
-                        expanded_excludes.push(format!("{}/*", exclude));
-                        expanded_excludes.push(format!("{}/**", exclude));
-                    }
-                }
+                // A pattern naming a directory also excludes the directory's contents
+                let expanded_excludes = glob::expand_directory_excludes(&all_excludes);
                 debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
                 exclude_files.extend(glob::get_matches(&expanded_excludes, &match_paths)?);
             }

@@ -27,6 +27,7 @@ SHELL_EXPANSIONS = {
     "$check_effect": "read",
     "$second_effect": "write",
     "$oversized": "x",
+    "$step_exclude": 'exclude = List("vendor")',
     "$stash_method": "git",
     "$method": "git",
     "$(pwd)": "/tmp/hk-apple-pkl",
