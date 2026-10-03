@@ -34,6 +34,14 @@ hk --version
 
 Prebuilt binaries are also available from [GitHub releases](https://github.com/jdx/hk/releases). hk uses the built-in [pklr evaluator](/pkl_introduction#evaluators) by default, so you do not need to install the Pkl CLI.
 
+hk's GitHub releases are immutable and carry GitHub release attestations. To check that a downloaded binary is exactly what was published for that release, use the [GitHub CLI](https://cli.github.com/) (2.81 or newer):
+
+```sh
+gh release verify-asset v2.4.0 hk-x86_64-unknown-linux-gnu.tar.gz --repo jdx/hk
+```
+
+`gh release verify v2.4.0 --repo jdx/hk` checks the release itself. Verification confirms that the file came from the release; it does not review what the release contains.
+
 ## Project setup
 
 From the root of your repository, generate a configuration:
