@@ -158,14 +158,58 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
     }
 }
 
-/// Pick the script a `Script` command runs: the POSIX one (`other`, then
-/// `linux`, then `macos`), falling back to `windows` when it is the only one.
+/// Render a `Script` command. A script with only `other` set is shown as that
+/// script. Otherwise each platform variant is labelled, and an empty variant is
+/// kept visible as a platform where nothing runs.
 fn script_text(command: &serde_json::Map<String, serde_json::Value>) -> Option<String> {
-    ["other", "linux", "macos", "windows"]
+    const PLATFORMS: [(&str, &str); 4] = [
+        ("linux", "Linux"),
+        ("macos", "macOS"),
+        ("windows", "Windows"),
+        ("other", "other platforms"),
+    ];
+    let variants: Vec<(&str, &str)> = PLATFORMS
         .iter()
-        .filter_map(|key| command.get(*key)?.as_str())
-        .find(|script| !script.trim().is_empty())
-        .map(|script| script.trim_end().to_string())
+        .filter_map(|(key, label)| Some((*label, command.get(*key)?.as_str()?)))
+        .collect();
+    match variants.as_slice() {
+        [] => None,
+        [("other platforms", script)] => {
+            (!script.trim().is_empty()).then(|| script.trim_end().to_string())
+        }
+        _ => Some(
+            variants
+                .iter()
+                .map(|(label, script)| {
+                    if script.trim().is_empty() {
+                        format!("# {label}: nothing runs")
+                    } else {
+                        format!("# {label}:\n{}", script.trim_end())
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
+    }
+}
+
+/// Render a string or list-of-strings option as a Pkl value, chosen by the
+/// JSON type: a string stays a quoted string, a list becomes `List(...)`.
+/// Regex items keep the `/pattern/` display form.
+fn pkl_value(value: &serde_json::Value) -> Option<String> {
+    let quote = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| format!("{s:?}"));
+    match value {
+        serde_json::Value::String(s) => Some(quote(s)),
+        serde_json::Value::Array(arr) => {
+            let items: Vec<String> = arr
+                .iter()
+                .flat_map(string_list)
+                .map(|item| quote(&item))
+                .collect();
+            (!items.is_empty()).then(|| format!("List({})", items.join(", ")))
+        }
+        _ => None,
+    }
 }
 
 /// Flatten a glob string, a list of globs, or a Regex object
@@ -243,9 +287,8 @@ fn options_doc(step: &serde_json::Value) -> Option<String> {
     }
     for key in ["exclude", "stage"] {
         if let Some(value) = step.get(key) {
-            let items = string_list(value);
-            if !items.is_empty() {
-                opts.push(inline_code(&format!("{key} = {items:?}")));
+            if let Some(pkl) = pkl_value(value) {
+                opts.push(inline_code(&format!("{key} = {pkl}")));
             }
         }
     }
@@ -673,7 +716,7 @@ mod tests {
     #[test]
     fn command_text_unwraps_scripts() {
         let command = json!({
-            "command": {"windows": "", "other": "set -e\ntool {{ files }}\n"},
+            "command": {"other": "set -e\ntool {{ files }}\n"},
             "effect": "read"
         });
 
@@ -683,7 +726,7 @@ mod tests {
         );
         assert_eq!(
             command_text(&json!({"windows": "tool.exe"})).as_deref(),
-            Some("tool.exe")
+            Some("# Windows:\ntool.exe")
         );
     }
 
@@ -717,7 +760,33 @@ mod tests {
                 &json!({"batch": true, "workspace_indicator": "go.mod", "stage": ["go.sum"]})
             )
             .as_deref(),
-            Some(r#"`batch = true`, `workspace_indicator = "go.mod"`, `stage = ["go.sum"]`"#)
+            Some(r#"`batch = true`, `workspace_indicator = "go.mod"`, `stage = List("go.sum")`"#)
+        );
+    }
+
+    #[test]
+    fn options_doc_keeps_strings_quoted_and_lists_as_pkl() {
+        assert_eq!(
+            options_doc(&json!({"exclude": "**/.terraform/**"})).as_deref(),
+            Some(r#"`exclude = "**/.terraform/**"`"#)
+        );
+        assert_eq!(
+            options_doc(&json!({"exclude": ["deps/**/*", "tmp/**/*"]})).as_deref(),
+            Some(r#"`exclude = List("deps/**/*", "tmp/**/*")`"#)
+        );
+    }
+
+    #[test]
+    fn command_text_labels_platform_scripts() {
+        let command = json!({"command": {"windows": "", "other": "tool {{ files }}"}});
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("# Windows: nothing runs\n# other platforms:\ntool {{ files }}")
+        );
+        let command = json!({"linux": "a", "macos": "b\n"});
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("# Linux:\na\n# macOS:\nb")
         );
     }
 
