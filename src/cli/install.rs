@@ -110,8 +110,14 @@ impl Install {
                 warn!(
                     "no hooks configured in hk.pkl — removed {removed} previously-installed hk hook(s) and did not install any new ones"
                 );
+            } else if config.hooks.is_empty() {
+                warn!(
+                    "no hooks configured in hk.pkl — nothing to install. Add steps to hk.pkl first (`hk init --force` re-detects linters)"
+                );
             } else {
-                warn!("no hooks configured in hk.pkl — nothing to install");
+                warn!(
+                    "no installable hooks are enabled in hk.pkl — only `check`/`fix` or disabled hooks are defined, so nothing to install. Enable a hook such as `pre-commit` (see https://hk.jdx.dev/configuration)"
+                );
             }
             return Ok(());
         }
@@ -172,7 +178,10 @@ fn local_path_fallback(use_mise: bool) -> Option<PathBuf> {
     }
     let exe = std::env::current_exe().ok()?;
     let hk = stable_hk_path(&exe, std::env::var_os("PATH"));
-    hk.parent().map(Path::to_path_buf)
+    let dir = hk.parent()?;
+    // Shims are written as text; a directory name that is not valid UTF-8
+    // would be altered, so leave the fallback out rather than point it wrong.
+    dir.to_str().is_some().then(|| dir.to_path_buf())
 }
 
 /// A path to the running hk that survives upgrades.
@@ -195,7 +204,11 @@ fn stable_hk_path(exe: &Path, path_var: Option<OsString>) -> PathBuf {
             continue;
         }
         let candidate = dir.join(name);
-        if candidate.canonicalize().is_ok_and(|real| real == exe_real) {
+        // The binary's own (versioned) directory on PATH is not a stable
+        // link: only a symlink to it survives the version being removed.
+        let is_link =
+            std::fs::symlink_metadata(&candidate).is_ok_and(|meta| meta.file_type().is_symlink());
+        if is_link && candidate.canonicalize().is_ok_and(|real| real == exe_real) {
             return candidate;
         }
     }
@@ -800,6 +813,10 @@ mod tests {
         let bin = dir.path().join("bin");
         std::fs::create_dir_all(&bin).unwrap();
         std::os::unix::fs::symlink(&exe, bin.join("hk")).unwrap();
+        // The binary's own directory earlier on PATH is not a stable link.
+        let versioned = exe.parent().unwrap().to_path_buf();
+        let path = std::env::join_paths([versioned, bin.clone()]).unwrap();
+        assert_eq!(stable_hk_path(&exe, Some(path)), bin.join("hk"));
         // A different hk earlier on PATH is not this binary and is skipped.
         let elsewhere = dir.path().join("elsewhere");
         std::fs::create_dir_all(&elsewhere).unwrap();

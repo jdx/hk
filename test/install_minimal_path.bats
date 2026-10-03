@@ -45,8 +45,12 @@ teardown() {
 }
 
 @test "local config hook finds hk with a minimal PATH" {
-    git_version="$(git --version | awk '{print $3}')"
-    if ! printf '2.54\n%s\n' "$git_version" | sort -V -C; then
+    local version major minor
+    version="$(git version | awk '{print $3}')"
+    major="${version%%.*}"
+    minor="${version#*.}"
+    minor="${minor%%.*}"
+    if [ "$major" -lt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -lt 54 ]; }; then
         skip "needs Git 2.54+ for config-based hooks"
     fi
     hk install

@@ -297,3 +297,40 @@ SH
     cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/expected-index"
     assert_equal "$(git stash list)" ""
 }
+
+# A step that leaves a staged non-UTF-8 file alone has no output to merge with
+# the unstaged text edit, so restoring must not fail on the binary input.
+@test "git stash restores unstaged text over a staged binary file a fixer did not change" {
+    cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps {
+      ["fixer"] {
+        glob = "file.dat"
+        fix = "true"
+      }
+    }
+  }
+}
+PKL
+    printf 'base\n' > file.dat
+    git add .
+    git commit -m init
+    for use_libgit2 in 1 0; do
+        printf '\000\377\n' > file.dat
+        git add file.dat
+        printf 'unstaged text\n' > file.dat
+        git write-tree > "$TEST_TEMP_DIR/index"
+
+        run env HK_LIBGIT2="$use_libgit2" hk run pre-commit
+        assert_success
+        assert_equal "$(cat file.dat)" 'unstaged text'
+        git write-tree > "$TEST_TEMP_DIR/index-after"
+        cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/index-after"
+        assert_equal "$(git stash list)" ""
+        git checkout -q -- file.dat
+    done
+}

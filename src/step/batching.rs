@@ -273,6 +273,23 @@ impl Step {
     }
 }
 
+impl Step {
+    /// Check if this step has any file filters configured.
+    ///
+    /// Used to determine if an empty file list means "no matching files"
+    /// versus "run on all files".
+    pub(crate) fn has_filters(&self) -> bool {
+        self.glob.is_some()
+            || self.match_any.is_some()
+            || self.dir_prefix().is_some()
+            || self
+                .exclude
+                .as_ref()
+                .is_some_and(|pattern| !pattern.is_empty())
+            || self.types.is_some()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -483,22 +500,5 @@ mod tests {
 
         assert!(err.to_string().contains("file.txt"));
         assert!(err.to_string().contains("100-byte command-line limit"));
-    }
-}
-
-impl Step {
-    /// Check if this step has any file filters configured.
-    ///
-    /// Used to determine if an empty file list means "no matching files"
-    /// versus "run on all files".
-    pub(crate) fn has_filters(&self) -> bool {
-        self.glob.is_some()
-            || self.match_any.is_some()
-            || self.dir_prefix().is_some()
-            || self
-                .exclude
-                .as_ref()
-                .is_some_and(|pattern| !pattern.is_empty())
-            || self.types.is_some()
     }
 }

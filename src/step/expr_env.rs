@@ -4,6 +4,7 @@
 //! in step configurations. Supports custom functions like `exec()` for
 //! running shell commands during condition evaluation.
 
+use std::process::{Command, ExitStatus, Output, Stdio};
 use std::sync::LazyLock;
 
 /// Default expression evaluation context.
@@ -12,15 +13,36 @@ pub static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::defa
 /// Expression environment with custom functions.
 ///
 /// Currently provides:
-/// - `exec(command)` - Execute a shell command and return its stdout
+/// - `exec(command)` - Execute a shell command and return its stdout. A
+///   command that exits non-zero, or prints output that is not UTF-8, is an
+///   error.
+/// - `exec_ok(command)` - Execute a shell command and return whether it exited
+///   with status 0. Use it in conditions: `exec_ok('test -f check.js')`.
 /// - `env(name)` - Return an environment variable, or an empty string when unset
 pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::new();
 
     env.add_function("exec", |c| {
-        let out = xx::process::sh(c.args[0].as_string().unwrap())
-            .map_err(|e| expr::Error::ExprError(e.to_string()))?;
-        Ok(expr::Value::String(out))
+        let script = shell_script_arg("exec", &c.args)?;
+        let output = run_shell(script, Stdio::piped())?;
+        if !output.status.success() {
+            return Err(expr::Error::ExprError(format!(
+                "exec({script:?}) {}; use exec_ok() to test whether a command succeeds",
+                describe_failure(output.status)
+            )));
+        }
+        let stdout = String::from_utf8(output.stdout).map_err(|_| {
+            expr::Error::ExprError(format!(
+                "exec({script:?}) printed output that is not valid UTF-8; use exec_ok() if only its exit status matters"
+            ))
+        })?;
+        Ok(expr::Value::String(stdout))
+    });
+
+    env.add_function("exec_ok", |c| {
+        let script = shell_script_arg("exec_ok", &c.args)?;
+        let output = run_shell(script, Stdio::null())?;
+        Ok(expr::Value::Bool(output.status.success()))
     });
 
     env.add_function("env", |c| {
@@ -37,6 +59,35 @@ pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
 
     env
 });
+
+/// The single string argument of `exec()` and `exec_ok()`.
+fn shell_script_arg<'a>(name: &str, args: &'a [expr::Value]) -> expr::Result<&'a str> {
+    let script = match args {
+        [arg] => arg.as_string(),
+        _ => None,
+    };
+    script.ok_or_else(|| {
+        expr::Error::ExprError(format!("{name}() expects exactly one string argument"))
+    })
+}
+
+fn run_shell(script: &str, stdout: Stdio) -> expr::Result<Output> {
+    Command::new("sh")
+        .arg("-c")
+        .arg(script)
+        .stdin(Stdio::inherit())
+        .stdout(stdout)
+        .stderr(Stdio::inherit())
+        .output()
+        .map_err(|e| expr::Error::ExprError(format!("failed to run `sh -c {script}`: {e}")))
+}
+
+fn describe_failure(status: ExitStatus) -> String {
+    match status.code() {
+        Some(code) => format!("exited with code {code}"),
+        None => "was terminated by a signal".to_string(),
+    }
+}
 
 /// Evaluate an hk condition while preserving expr-lang v1 string behavior.
 ///
@@ -156,6 +207,75 @@ mod tests {
             eval_condition("'ITWORKS\n' == 'ITWORKS\\n'", &EXPR_CTX).unwrap(),
             expr::Value::Bool(true)
         );
+    }
+
+    #[test]
+    fn exec_returns_stdout() {
+        assert_eq!(
+            eval_condition("exec('printf hi')", &EXPR_CTX).unwrap(),
+            expr::Value::String("hi".to_string())
+        );
+    }
+
+    #[test]
+    fn exec_reports_a_failing_command_as_an_error() {
+        let error = eval_condition("exec('exit 3')", &EXPR_CTX).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("exited with code 3"), "{message}");
+        assert!(message.contains("exec_ok()"), "{message}");
+    }
+
+    #[test]
+    fn exec_rejects_missing_and_non_string_arguments_without_panicking() {
+        for expression in ["exec()", "exec(1)", "exec('a', 'b')"] {
+            let error = eval_condition(expression, &EXPR_CTX).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("exec() expects exactly one string argument"),
+                "unexpected error for {expression}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn exec_rejects_output_that_is_not_utf8_without_panicking() {
+        let error = eval_condition(r#"exec(`printf '\377'`)"#, &EXPR_CTX).unwrap_err();
+        assert!(error.to_string().contains("not valid UTF-8"), "{error}");
+    }
+
+    #[test]
+    fn exec_ok_reports_the_exit_status_as_a_bool() {
+        assert_eq!(
+            eval_condition("exec_ok('true')", &EXPR_CTX).unwrap(),
+            expr::Value::Bool(true)
+        );
+        assert_eq!(
+            eval_condition("exec_ok('exit 1')", &EXPR_CTX).unwrap(),
+            expr::Value::Bool(false)
+        );
+        // Output, including bytes that are not UTF-8, is ignored.
+        assert_eq!(
+            eval_condition(r#"exec_ok(`printf '\377'; exit 2`)"#, &EXPR_CTX).unwrap(),
+            expr::Value::Bool(false)
+        );
+        assert_eq!(
+            eval_condition("!exec_ok('test -f definitely-missing-file')", &EXPR_CTX).unwrap(),
+            expr::Value::Bool(true)
+        );
+    }
+
+    #[test]
+    fn exec_ok_rejects_missing_and_non_string_arguments() {
+        for expression in ["exec_ok()", "exec_ok(1)"] {
+            let error = eval_condition(expression, &EXPR_CTX).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("exec_ok() expects exactly one string argument"),
+                "unexpected error for {expression}: {error}"
+            );
+        }
     }
 
     #[test]

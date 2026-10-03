@@ -5,6 +5,11 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "YAML formatter"
+  project_indicators {
+    new { file = ".yamlfmt" }
+    new { file = ".yamlfmt.yaml" }
+    new { file = ".yamlfmt.yml" }
+  }
 }
 yamlfmt = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
