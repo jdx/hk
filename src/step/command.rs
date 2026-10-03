@@ -97,9 +97,10 @@ fn is_batch_file(path: &Path) -> bool {
         })
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
-fn batch_runner(program: &Path, args: &[String]) -> Result<CmdLineRunner> {
-    reject_batch_newlines(program, args)?;
+/// Build the command line `cmd.exe /d /s /c` receives for a batch file: the
+/// program and every argument caret-escaped (twice for npm shims), wrapped in
+/// the outer quotes `/s` strips.
+fn batch_command_line(program: &Path, args: &[String]) -> String {
     let program = program.to_string_lossy().replace('/', "\\");
     let normalized = program.to_ascii_lowercase();
     // npm shims forward `%*` through a second cmd.exe parse, so metacharacters
@@ -110,10 +111,36 @@ fn batch_runner(program: &Path, args: &[String]) -> Result<CmdLineRunner> {
         command.push(' ');
         command.push_str(&escape_cmd_arg(arg, double_escape));
     }
+    format!("\"{command}\"")
+}
+
+/// Length, in UTF-16 units (what cmd.exe's command-line limit counts), of the
+/// command line hk hands to `cmd.exe` when `argv[0]` resolves to a `.cmd` or
+/// `.bat` file. `None` when it runs as a plain executable, whose argv goes to
+/// `CreateProcess` unchanged.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn batch_command_line_len(
+    argv: &[String],
+    cwd: &Path,
+    path: Option<&str>,
+    pathext: Option<&str>,
+) -> Option<usize> {
+    let program = resolve_batch_file(argv.first()?, cwd, path, pathext)?;
+    Some(
+        batch_command_line(&program, &argv[1..])
+            .encode_utf16()
+            .count(),
+    )
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn batch_runner(program: &Path, args: &[String]) -> Result<CmdLineRunner> {
+    reject_batch_newlines(program, args)?;
+    let command_line = batch_command_line(program, args);
     Ok(
         CmdLineRunner::new_direct(std::env::var_os("COMSPEC").unwrap_or_else(|| "cmd.exe".into()))
             .args(["/d", "/s", "/c"])
-            .raw_arg(format!("\"{command}\"")),
+            .raw_arg(command_line),
     )
 }
 
@@ -185,6 +212,35 @@ mod tests {
         assert_eq!(
             escape_cmd_arg("amp&percent%caret^", true),
             "^^^\"amp^^^&percent^^^%caret^^^^^^^\""
+        );
+    }
+
+    #[test]
+    fn measures_the_cmd_exe_line_of_a_batch_shim() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("node_modules").join(".bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("tool.cmd"), "@echo off\r\n").unwrap();
+        let argv = vec![
+            "tool".to_string(),
+            "a.txt".to_string(),
+            "b c.txt".to_string(),
+        ];
+        let path = bin.to_str().unwrap();
+
+        let len = batch_command_line_len(&argv, dir.path(), Some(path), Some(".cmd")).unwrap();
+
+        // npm shims get every metacharacter's caret doubled.
+        let line = batch_command_line(&bin.join("tool.cmd"), &argv[1..]);
+        assert_eq!(len, line.encode_utf16().count());
+        assert!(line.contains("^^^\"a.txt^^^\""), "{line}");
+
+        // A plain executable is not wrapped in cmd.exe.
+        std::fs::write(bin.join("plain.exe"), "").unwrap();
+        let argv = vec!["plain".to_string(), "a.txt".to_string()];
+        assert_eq!(
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd")),
+            None
         );
     }
 
