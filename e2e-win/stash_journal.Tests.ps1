@@ -56,7 +56,8 @@ hooks {
 
             # Output goes outside the repository: untracked files in it would be stashed, or
             # keep the worktree from counting as clean when the next run recovers
-            $outDir = $TestDrive
+            $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('hk-sj-' + [System.Guid]::NewGuid())
+            New-Item -ItemType Directory -Path $outDir | Out-Null
             $hk = Start-Process -FilePath hk -ArgumentList 'run', 'pre-commit' -PassThru -NoNewWindow `
                 -RedirectStandardOutput (Join-Path $outDir 'hk-out.txt') -RedirectStandardError (Join-Path $outDir 'hk-err.txt')
             for ($i = 0; $i -lt 200 -and -not (Test-Path (Join-Path $gitDir 'started')); $i++) {
@@ -87,6 +88,7 @@ hooks {
                 ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
             Set-Location $script:originalPath
             Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+            if ($outDir) { Remove-Item -Path $outDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
     }
 }
