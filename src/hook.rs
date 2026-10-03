@@ -1833,6 +1833,18 @@ impl Hook {
                 .collect()
         };
 
+        // hk passes paths to steps as strings, so it cannot select a file whose
+        // name is not valid UTF-8, whichever way it was named or listed.
+        let non_utf8 = files.iter().filter(|f| f.to_str().is_none()).collect_vec();
+        if !non_utf8.is_empty() {
+            crate::git::warn_non_utf8_paths(
+                non_utf8
+                    .iter()
+                    .map(|p| (p.as_os_str().as_encoded_bytes().to_vec(), format!("{p:?}"))),
+            );
+            files.retain(|f| f.to_str().is_some());
+        }
+
         // Strip leading "./" from all paths for consistent matching
         files = files
             .into_iter()
