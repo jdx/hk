@@ -37,7 +37,7 @@ After every timed sample, [tak](https://github.com/jdx/tak) checks that the resu
 
 ## Tool configurations
 
-Each configuration uses the tool's fastest setting that cannot cause overlapping writes. hk coordinates fixers with file locks and the builtin type checkers declare that they may write cache files, so under `hk fix` they hold write locks like the fixers (under `hk check` every step holds read locks). pre-commit and prek give each batch different files. lefthook and prek also run read-only work concurrently.
+Each configuration uses the tool's fastest setting that cannot cause overlapping writes. hk runs its steps in parallel and uses file locks to keep them from colliding. In fix runs the type checkers also take write locks, because mypy and tsc declare that their commands write caches. pre-commit and prek give each batch different files. lefthook and prek also run read-only work concurrently.
 
 | Tool | Fixing | Checking |
 | --- | --- | --- |

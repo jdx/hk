@@ -1038,20 +1038,33 @@ EOF
     [ -e 1.alone ] || [ -e 2.alone ]
 }
 
+# Prints the current time in seconds with millisecond precision. `date +%s%N`
+# is not available on macOS.
+write_span_helpers() {
+    cat <<'SCRIPT' > now.sh
+#!/bin/bash
+perl -MTime::HiRes=time -e 'printf "%.3f\n", time'
+SCRIPT
+    chmod +x now.sh
+}
+
 @test "a read-only check-only step does not run while a fixer writes the same file" {
+    write_span_helpers
+    # Each side records when its command ran, start and end, so an overlap
+    # anywhere in either window is caught whichever of them goes first.
     cat <<'SCRIPT' > checker.sh
 #!/bin/bash
-sleep 0.5
-[ -e fixer.running ] && touch overlapped
-touch checker.ran
+start=$(./now.sh)
+sleep 1
+echo "$start $(./now.sh)" > checker.span
 exit 0
 SCRIPT
     cat <<'SCRIPT' > fixer.sh
 #!/bin/bash
-touch fixer.running
-sleep 1.5
+start=$(./now.sh)
+sleep 1
 echo fixed > "$1"
-rm -f fixer.running
+echo "$start $(./now.sh)" > fixer.span
 SCRIPT
     chmod +x checker.sh fixer.sh
     cat <<EOF > hk.pkl
@@ -1076,9 +1089,59 @@ EOF
 
     run hk fix test.txt
     assert_success
-    [ -e checker.ran ]
-    # The checker never started inside the fixer's write lock.
-    [ ! -e overlapped ]
+    [ -e checker.span ]
+    [ -e fixer.span ]
+    # The two windows are disjoint: one ended before the other started.
+    run awk 'NR==FNR { cs=$1; ce=$2; next } { fs=$1; fe=$2 } END { exit !(ce <= fs || fe <= cs) }' checker.span fixer.span
+    assert_success
+    run cat test.txt
+    assert_output "fixed"
+}
+
+@test "a read-only check that depends on a fixer sees the fixed file while another reader holds it" {
+    cat <<'SCRIPT' > reader.sh
+#!/bin/bash
+sleep 1
+exit 0
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo fixed > "$1"
+SCRIPT
+    cat <<'SCRIPT' > verify.sh
+#!/bin/bash
+[ "$(cat "$1")" = "fixed" ]
+SCRIPT
+    chmod +x reader.sh fixer.sh verify.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["reader"] {
+                glob = List("*.txt")
+                check = new CommandSpec { command = "./reader.sh"; effect = "read" }
+            }
+            ["fixer"] {
+                glob = List("*.txt")
+                fix = "./fixer.sh {{files}}"
+            }
+            ["verify"] {
+                glob = List("*.txt")
+                depends = List("fixer")
+                check = new CommandSpec { command = "./verify.sh {{files}}"; effect = "read" }
+            }
+        }
+    }
+}
+EOF
+    echo "line" > test.txt
+
+    # `verify` shares read locks with `reader`, but `depends` still makes it
+    # wait for the fixer, so it never sees the file before the fix.
+    run hk fix test.txt
+    assert_success
     run cat test.txt
     assert_output "fixed"
 }

@@ -4,6 +4,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "Swift style and conventions"
+  project_indicators {
+    new { file = ".swiftlint.yml" }
+    new { file = ".swiftlint.yaml" }
+  }
 }
 swiftlint = new Config.Step {
   glob = "**/*.swift"

@@ -423,7 +423,7 @@ Override the hook's strategy for saving unstaged work.
 - `patch-file`: Currently an alias for the Git stash implementation.
 - `none`: Leave unstaged work in place; fixes may then include unstaged edits in a staged file.
 
-Without an override, use the hook's `stash` value, which defaults to `none`. `hk init` explicitly sets `git` for pre-commit.
+Without an override, use the hook's `stash` value, which defaults to `none`. The `pre-commit` hook that hk builds from top-level `steps` (the setup `hk init` creates) uses `git`.
 """
 
 [stash_untracked]

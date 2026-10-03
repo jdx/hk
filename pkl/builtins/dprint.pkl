@@ -4,6 +4,12 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "Pluggable code formatter"
+  project_indicators {
+    new { file = "dprint.json" }
+    new { file = "dprint.jsonc" }
+    new { file = ".dprint.json" }
+    new { file = ".dprint.jsonc" }
+  }
 }
 dprint = new Config.Step {
   types = List("text")

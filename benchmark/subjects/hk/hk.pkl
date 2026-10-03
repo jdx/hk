@@ -19,10 +19,9 @@ steps {
   ["shfmt"] = Builtins.shfmt
   ["trailing-whitespace"] = Builtins.trailing_whitespace
   ["newlines"] = Builtins.newlines
-  // Type checkers change no files other than their caches, which the builtins
-  // declare with `effect = "write"`. Under `hk fix` they therefore hold write
-  // locks on every file a step's glob matches, so they never read a file a
-  // fixer is writing.
+  // Type checkers change no files. In fix runs hk still takes write locks on
+  // every file a step's glob matches, because the builtins declare that mypy
+  // and tsc write caches, so they never read a file a fixer is writing.
   ["mypy"] = Builtins.mypy
   ["tsc"] = (Builtins.tsc) {
     // tsc also reads tsconfig.json, which the jq fixer can rewrite.
