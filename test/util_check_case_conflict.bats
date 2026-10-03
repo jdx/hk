@@ -168,3 +168,35 @@ HK
     assert_output --partial "README.md"
     assert_output --partial "readme.md"
 }
+
+@test "util check-case-conflict - builtin detects conflicting binary files" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
+    cat > hk.pkl <<HK
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["case-conflict"] = Builtins.check_case_conflict
+        }
+    }
+}
+HK
+
+    # Commit the config first so the changeset holds only binary files, which
+    # hk's default binary filter would otherwise skip entirely.
+    git add hk.pkl
+    git commit -m "Add config"
+    printf 'a\0b' > Image.png
+    printf 'c\0d' > image.png
+    git add -A
+
+    run hk check
+    assert_failure
+    assert_output --partial "Image.png"
+    assert_output --partial "image.png"
+}
