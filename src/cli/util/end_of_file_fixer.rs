@@ -8,8 +8,9 @@ use std::path::{Path, PathBuf};
 
 /// Check for and optionally fix missing final newlines
 ///
-/// The newline added or kept is the file's most frequent line ending, so a
-/// CRLF file ends with CRLF and trailing blank CRLF lines are removed.
+/// A missing final newline is added as the file's most frequent line ending,
+/// so a CRLF file gets CRLF. Trailing blank lines, LF or CRLF, are removed. A
+/// file that already ends with exactly one newline is left as it is.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct EndOfFileFixer {

@@ -98,19 +98,31 @@ fn lines(content: &str) -> impl Iterator<Item = (&str, &str)> {
     })
 }
 
+/// A line without its trailing spaces and tabs, and its terminator. Spaces
+/// and tabs between a stray `\r` and a bare `\n` are trailing whitespace too:
+/// the `\r` is then part of a CRLF terminator, which keeps the fix one pass.
+fn fix_line<'a>(body: &'a str, terminator: &'a str) -> (&'a str, &'a str) {
+    let body = body.trim_end_matches([' ', '\t']);
+    match (terminator, body.strip_suffix('\r')) {
+        ("\n", Some(body)) => (body.trim_end_matches([' ', '\t']), "\r\n"),
+        _ => (body, terminator),
+    }
+}
+
 /// Check if a file has trailing whitespace
 fn has_trailing_whitespace(path: &Path) -> Result<bool> {
     let Some(content) = read_text(path)? else {
         return Ok(false);
     };
-    Ok(lines(&content).any(|(body, _)| body.ends_with([' ', '\t'])))
+    Ok(lines(&content).any(|(body, terminator)| fix_line(body, terminator) != (body, terminator)))
 }
 
 /// Strip spaces and tabs before each line's terminator, keeping the terminator
 fn strip_trailing_whitespace(original: &str) -> String {
     let mut fixed = String::with_capacity(original.len());
     for (body, terminator) in lines(original) {
-        fixed.push_str(body.trim_end_matches([' ', '\t']));
+        let (body, terminator) = fix_line(body, terminator);
+        fixed.push_str(body);
         fixed.push_str(terminator);
     }
     fixed
@@ -351,6 +363,13 @@ mod tests {
         // A form feed or a lone carriage return is not trailing whitespace.
         assert_eq!(strip_trailing_whitespace("a\x0c\nb\r"), "a\x0c\nb\r");
         assert_eq!(strip_trailing_whitespace("a \rb \n"), "a \rb\n");
+    }
+
+    #[test]
+    fn test_fix_spaces_around_a_stray_cr_in_one_pass() {
+        let fixed = strip_trailing_whitespace("x   \r \ny\n");
+        assert_eq!(fixed, "x\r\ny\n");
+        assert_eq!(strip_trailing_whitespace(&fixed), fixed);
     }
 
     #[test]

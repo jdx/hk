@@ -181,6 +181,18 @@ HK
     assert_equal "$(od -An -c mixed.txt | tr -s ' ')" "$(printf 'a\r\nb\nc\r\nd' | od -An -c | tr -s ' ')"
 }
 
+@test "util trailing-whitespace - spaces around a stray CR are fixed in one pass" {
+    printf "x   \r \ny\n" > stray.txt
+
+    run hk util trailing-whitespace --fix stray.txt
+    assert_success
+
+    run hk util trailing-whitespace stray.txt
+    assert_success
+    refute_output
+    assert_equal "$(od -An -c stray.txt | tr -s ' ')" "$(printf 'x\r\ny\n' | od -An -c | tr -s ' ')"
+}
+
 @test "util trailing-whitespace - only strips spaces and tabs" {
     printf "form\fgap\f\nlone cr\r" > odd.txt
 
