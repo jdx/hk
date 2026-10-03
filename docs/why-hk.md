@@ -22,7 +22,7 @@ This relies on accurate step definitions. A check must be read-only, and a step 
 
 ## Use each linter’s capabilities
 
-A fix holds write locks on its step’s files, so fixers that share files run one at a time. A step that only has a `check` command declaring `effect = "read"` changes no files, so even under `hk fix` it holds read locks and runs alongside other steps that read the same files; it still waits for a fixer that writes them. A check that does not declare a read effect, such as the builtin type checkers, whose caches may be written, holds write locks. hk’s [builtins](/builtins) describe more efficient ways to run tools when they support them.
+Fixers on different files run at the same time. A fix holds write locks on its step’s files, so only fixers that share files run one at a time. A step that only has a `check` command declaring `effect = "read"` changes no files, so even under `hk fix` it holds read locks and runs alongside other steps that read the same files; it still waits for a fixer that writes them. A check that does not declare a read effect, such as the builtin type checkers, whose caches may be written, holds write locks. hk’s [builtins](/builtins) describe more efficient ways to run tools when they support them.
 
 ### Diff output
 
