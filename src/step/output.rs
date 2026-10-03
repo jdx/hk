@@ -156,7 +156,7 @@ impl Step {
             .filter(|command| !command.is_empty())
             && let Ok(rendered) = fix_cmd.render(&suggest_ctx, self.prefix.as_ref())
         {
-            let rendered = rendered.display(self.shell_type());
+            let rendered = super::shell::user_facing(&rendered.display(self.shell_type()));
             let should_use_hk_fix =
                 rendered.contains('\n') || rendered.chars().count() > MAX_INLINE_FIX_COMMAND_CHARS;
             if should_use_hk_fix {

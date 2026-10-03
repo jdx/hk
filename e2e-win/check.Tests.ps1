@@ -228,6 +228,8 @@ hooks {
             $output = hk check --all 2>&1 | Out-String
             $LASTEXITCODE | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
             $output | Should -Not -Match 'cannot find the file'
+            $output | Should -Match '(?m)^one\s*$' -Because "100%.txt contents should be printed; output:`n$output"
+            $output | Should -Match '(?m)^two\s*$' -Because "a%PATH%b.txt contents should be printed; output:`n$output"
         } finally {
             Set-Location $script:originalPath
             Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue

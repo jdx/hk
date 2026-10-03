@@ -222,7 +222,7 @@ impl Step {
         // concrete example path visible without unbounded expansion.
         let run_for_display = run_cmd
             .render(&tctx.for_display(), self.prefix.as_ref())
-            .map(|command| command.display(self.shell_type()))
+            .map(|command| super::shell::user_facing(&command.display(self.shell_type())))
             .unwrap_or_else(|_| run_cmd.to_string());
         let rendered_command = run_cmd
             .render(&tctx, self.prefix.as_ref())
@@ -360,13 +360,6 @@ impl Step {
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
             .stderr_to_progress(true);
-        if cfg!(windows)
-            && matches!(rendered_command, RenderedCommand::Shell(_))
-            && matches!(self.shell_type(), ShellType::Cmd)
-        {
-            // Referenced by `ShellType::Cmd::quote` to emit a literal `%`.
-            cmd = cmd.env(super::shell::CMD_PERCENT_VAR, "%");
-        }
         if let Some(stdin) = &self.stdin {
             let rendered_stdin = tera::render(stdin, &tctx)?;
             cmd = cmd.stdin_string(rendered_stdin);
@@ -401,7 +394,10 @@ impl Step {
                 }
             }
         }
-        for (key, value) in rendered_env {
+        let reserve_cmd_percent = cfg!(windows)
+            && matches!(rendered_command, RenderedCommand::Shell(_))
+            && matches!(self.shell_type(), ShellType::Cmd);
+        for (key, value) in super::shell::with_cmd_percent(rendered_env, reserve_cmd_percent) {
             cmd = cmd.env(key, value);
         }
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);

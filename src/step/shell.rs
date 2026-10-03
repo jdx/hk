@@ -33,6 +33,24 @@ pub enum ShellType {
 /// Environment variable holding a literal `%` for cmd.exe quoting.
 pub const CMD_PERCENT_VAR: &str = "HK_CMD_PERCENT";
 
+/// Reserves `HK_CMD_PERCENT` for hk when `enabled`: drops any user definition
+/// (names are case-insensitive on Windows) and appends hk's value last so it
+/// always wins. `ShellType::Cmd::quote` relies on it expanding to a literal `%`.
+pub fn with_cmd_percent(mut env: Vec<(String, String)>, enabled: bool) -> Vec<(String, String)> {
+    if enabled {
+        env.retain(|(key, _)| !key.eq_ignore_ascii_case(CMD_PERCENT_VAR));
+        env.push((CMD_PERCENT_VAR.to_string(), "%".to_string()));
+    }
+    env
+}
+
+/// Rewrites the internal `%HK_CMD_PERCENT%` placeholder to a plain `%` so
+/// commands shown to users (progress, "To fix, run") work when copied into a
+/// shell where the variable is not set. Never use this for executed commands.
+pub fn user_facing(command: &str) -> String {
+    command.replace(&format!("%{CMD_PERCENT_VAR}%"), "%")
+}
+
 impl ShellType {
     /// Quote a string appropriately for this shell type.
     ///
@@ -90,6 +108,32 @@ mod tests {
         assert_eq!(
             ShellType::Cmd.quote("a%PATH%\"b"),
             "\"a%HK_CMD_PERCENT%PATH%HK_CMD_PERCENT%\"\"b\""
+        );
+    }
+
+    #[test]
+    fn cmd_percent_overrides_user_definitions() {
+        let env = vec![
+            ("A".to_string(), "1".to_string()),
+            ("hk_cmd_percent".to_string(), "evil".to_string()),
+            (CMD_PERCENT_VAR.to_string(), "x".to_string()),
+        ];
+        let out = with_cmd_percent(env.clone(), true);
+        assert_eq!(
+            out,
+            vec![
+                ("A".to_string(), "1".to_string()),
+                (CMD_PERCENT_VAR.to_string(), "%".to_string()),
+            ]
+        );
+        assert_eq!(with_cmd_percent(env.clone(), false), env);
+    }
+
+    #[test]
+    fn user_facing_hides_placeholder() {
+        assert_eq!(
+            user_facing(&ShellType::Cmd.quote("100%.txt")),
+            "\"100%.txt\""
         );
     }
 }
