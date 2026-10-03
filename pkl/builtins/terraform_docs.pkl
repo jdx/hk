@@ -7,6 +7,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terraform module documentation generator"
+  project_indicators {
+    new { file = ".terraform-docs.yml" }
+    new { file = ".terraform-docs.yaml" }
+  }
 }
 terraform_docs = new Config.Step {
   glob = List("**/*.tf", "**/*.tofu", "**/.terraform.lock.hcl")

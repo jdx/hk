@@ -2036,8 +2036,8 @@ impl Git {
                     }
                 }
 
-                // Avoid excessive memory usage on very large files by short-circuiting
-                // the merge logic when no fixer output exists for the path.
+                // Above this size, the stashed worktree is restored from the stash
+                // rather than from the text read before stashing.
                 const LARGE_STASH_FILE_BYTES: usize = 1_000_000; // 1 MiB
 
                 let patch_hint = self
@@ -2164,29 +2164,41 @@ impl Git {
                         continue;
                     }
                     let work_ref = format!("{}:{}", stash_ref, path_str);
-                    let work_size = git_cmd_silent(["cat-file", "-s", &work_ref])
-                        .read()
-                        .ok()
-                        .and_then(|size| size.trim().parse::<usize>().ok());
-                    if work_size.unwrap_or(0) >= LARGE_STASH_FILE_BYTES && !has_fixer {
+                    // No step touched this path, so no step output merges with
+                    // the stashed edits: restore the stashed worktree as it was.
+                    // This is the common case, so it costs one git process.
+                    if !has_fixer {
+                        let work_bytes =
+                            match read_worktree_blob(std::ffi::OsStr::new(&work_ref), &path) {
+                                Ok(bytes) => bytes,
+                                Err(err) => {
+                                    warn!(
+                                        "failed to read worktree snapshot for {}: {err:?}",
+                                        display_path(&path)
+                                    );
+                                    restoration_failed = true;
+                                    continue;
+                                }
+                            };
+                        // Prefer the text read before stashing, which keeps
+                        // the exact bytes on disk, unless the file is large
+                        // or is not text
+                        let saved = self
+                            .saved_worktree
+                            .as_ref()
+                            .and_then(|saved| saved.get(&path))
+                            .filter(|text| {
+                                text.len() < LARGE_STASH_FILE_BYTES
+                                    && std::str::from_utf8(&work_bytes).is_ok()
+                            });
+                        let contents = saved.map_or(work_bytes.as_slice(), |text| text.as_bytes());
                         debug!(
-                            "manual-unstash: large file without fixer; restoring worktree snapshot directly path={} size={}",
+                            "manual-unstash: no step changed the path; restoring worktree snapshot directly path={}",
                             display_path(&path),
-                            work_size.unwrap_or(0)
                         );
-                        if let Ok(bytes) =
-                            read_worktree_blob(std::ffi::OsStr::new(&work_ref), &path)
-                        {
-                            if let Err(err) = xx::file::write(&path, &bytes) {
-                                warn!(
-                                    "failed to write large worktree snapshot for {}: {err:?}",
-                                    display_path(&path)
-                                );
-                                restoration_failed = true;
-                            }
-                        } else {
+                        if let Err(err) = xx::file::write(&path, contents) {
                             warn!(
-                                "failed to read large worktree snapshot for {}",
+                                "failed to write worktree snapshot for {}: {err:?}",
                                 display_path(&path)
                             );
                             restoration_failed = true;
@@ -2334,9 +2346,32 @@ impl Git {
                                 Some(String::from_utf8(std::fs::read(&path)?)?)
                             } else {
                                 match fixer_map.get(&path) {
-                                    Some((_, object)) => Some(String::from_utf8(
-                                        read_worktree_blob(std::ffi::OsStr::new(object), &path)?,
-                                    )?),
+                                    Some((_, object)) => {
+                                        let bytes = read_worktree_blob(
+                                            std::ffi::OsStr::new(object),
+                                            &path,
+                                        )?;
+                                        match String::from_utf8(bytes) {
+                                            Ok(text) => Some(text),
+                                            Err(err) => {
+                                                // Staged contents that no step
+                                                // changed have nothing to
+                                                // merge, so the stashed
+                                                // worktree is restored as it
+                                                // is. A step's own non-text
+                                                // output is not dropped.
+                                                let mut staged =
+                                                    OsString::from(format!("{stash_ref}^2:"));
+                                                staged.push(path.as_os_str());
+                                                let unchanged = read_worktree_blob(&staged, &path)
+                                                    .is_ok_and(|staged| staged == err.as_bytes());
+                                                if !unchanged {
+                                                    return Err(err.into());
+                                                }
+                                                None
+                                            }
+                                        }
+                                    }
                                     None => None,
                                 }
                             }
