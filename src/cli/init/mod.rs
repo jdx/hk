@@ -2,6 +2,7 @@ mod detector;
 mod generator;
 mod picker;
 
+use std::io::IsTerminal;
 use std::path::PathBuf;
 
 use crate::{Result, env};
@@ -33,13 +34,27 @@ impl Init {
         let hk_file = PathBuf::from("hk.pkl");
         let version = env!("CARGO_PKG_VERSION");
 
+        // An existing hk.pkl makes a repeat init harmless: the picker never
+        // opens, so that case wins over the terminal check below.
+        let skip_existing = hk_file.exists() && !self.force;
+
+        // The picker needs a terminal; fail before writing anything.
+        if self.interactive
+            && !skip_existing
+            && !(std::io::stdin().is_terminal() && std::io::stderr().is_terminal())
+        {
+            return Err(eyre!(
+                "`hk init --interactive` needs a terminal to prompt for linters; run it in a terminal or drop `-i` to auto-detect"
+            ));
+        }
+
         // Handle mise.toml generation first (independent of hk.pkl)
         if *env::HK_MISE || self.mise {
             self.write_mise_toml()?;
         }
 
         // Check if file exists and handle --force flag
-        if hk_file.exists() && !self.force {
+        if skip_existing {
             warn!("hk.pkl already exists, run with --force to overwrite");
             return Ok(());
         }
@@ -48,12 +63,12 @@ impl Init {
         let project_root = std::env::current_dir()?;
         let detections = detector::detect_builtins(&project_root);
 
-        let hook_content = if self.interactive {
+        let (hook_content, has_steps) = if self.interactive {
             // Interactive mode: let user pick from all builtins
             self.run_interactive(&detections, version)?
         } else {
             // Auto mode (default): use detected builtins or fall back to template
-            self.run_auto(&detections, version)
+            (self.run_auto(&detections, version), !detections.is_empty())
         };
 
         // Write the file
@@ -69,11 +84,23 @@ impl Init {
             info!("Detected: {}", summary);
         }
         info!("Created hk.pkl");
+        if !has_steps {
+            info!("No linters selected or detected, so hk.pkl has no steps yet.");
+            info!(
+                "Next: add steps to hk.pkl (see https://hk.jdx.dev/configuration), then run `hk check --all`"
+            );
+        } else {
+            info!("Next: run `hk check --all` to try it, then `hk install` to set up hooks");
+        }
 
         Ok(())
     }
 
-    fn run_interactive(&self, detections: &[detector::Detection], version: &str) -> Result<String> {
+    fn run_interactive(
+        &self,
+        detections: &[detector::Detection],
+        version: &str,
+    ) -> Result<(String, bool)> {
         // Print detection info
         if !detections.is_empty() {
             info!("Scanning project...");
@@ -89,7 +116,7 @@ impl Init {
         let builtins = picker::pick_builtins(detections)?;
 
         if builtins.is_empty() {
-            return Ok(generator::generate_default_template(version));
+            return Ok((generator::generate_default_template(version), false));
         }
 
         // Let user pick hooks
@@ -102,7 +129,7 @@ impl Init {
             hooks
         };
 
-        Ok(generator::generate_pkl(&builtins, &hooks, version))
+        Ok((generator::generate_pkl(&builtins, &hooks, version), true))
     }
 
     fn run_auto(&self, detections: &[detector::Detection], version: &str) -> String {

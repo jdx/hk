@@ -15,7 +15,8 @@ local linters = new Mapping<String, Step | Group> {
   ["cargo-clippy"] = (Builtins.cargo_clippy) {
     profiles = List("slow")
     check = new CommandSpec {
-      command = "cargo clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
+      command =
+        "cargo clippy --manifest-path {{workspace_indicator}} --quiet --all-targets -- -D warnings"
       effect = "write"
     }
   }

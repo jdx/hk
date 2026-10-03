@@ -1,6 +1,6 @@
 ---
 description: Sign on hands of yer own. Define yer own check and fix commands, put them through their paces, and add conditions or platform-specific scripts.
-sourceHash: 37aaa40586e8
+sourceHash: 24c70cd106e1
 ---
 
 # Custom steps: signing on yer own hands
@@ -29,10 +29,10 @@ Follow this pattern when ye post a custom linter, a lookout of yer own, or contr
 
 ## Only when the wind's right: add a condition {#add-a-condition}
 
-Conditions are written in expression syntax. To call on a shell test, wrap it in `exec`:
+Conditions are written in expression syntax. To haul the step only when a shell test succeeds, wrap it in `exec_ok`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
 
 This fragment assumes a POSIX shell aboard. `condition` is evaluated for each job; use `step_condition` to evaluate it just once for the step.

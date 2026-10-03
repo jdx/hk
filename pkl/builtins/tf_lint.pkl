@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terraform linter"
+  project_indicators {
+    new { file = ".tflint.hcl" }
+  }
 }
 tf_lint = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tofu")
