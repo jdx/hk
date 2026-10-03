@@ -49,6 +49,8 @@ EXPECTED_FAILURES = {
     ("pkl_config_errors.bats", "missing amends declaration shows helpful error"),
     ("pkl_config_errors.bats", "invalid module URI shows helpful error"),
     ("pkl_config_errors.bats", "pkl file with syntax errors shows original error"),
+    ("pkl_config_errors.bats", "syntax error in hk.pkl reports file, line and column once"),
+    ("pkl_config_errors.bats", "syntax error in an imported file is blamed on that file"),
     ("top_level_exclude.bats", "top-level exclude - invalid regex fails validation"),
     ("validate.bats", "validate warns about a misspelled property"),
     ("validate.bats", "validate names the step for an invalid exclude regex"),
