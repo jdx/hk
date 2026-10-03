@@ -669,4 +669,40 @@ mod tests {
             .collect();
         assert_eq!(paths, ["a/x.go", "b/x.go", "y.go"]);
     }
+
+    #[test]
+    fn json_segments_are_parsed_separately_not_concatenated() {
+        let eslint = |file: &str| {
+            format!(
+                r#"[{{"filePath":"{file}","messages":[{{"severity":2,"message":"bad","line":1,"column":1}}]}}]"#
+            )
+        };
+        let sarif = |file: &str| {
+            format!(
+                r#"{{"version":"2.1.0","runs":[{{"results":[{{"ruleId":"R1","level":"warning","message":{{"text":"p"}},"locations":[{{"physicalLocation":{{"artifactLocation":{{"uri":"{file}"}},"region":{{"startLine":1}}}}}}]}}]}}]}}"#
+            )
+        };
+        for (format, make) in [
+            (
+                DiagnosticFormat::EslintJson,
+                &eslint as &dyn Fn(&str) -> String,
+            ),
+            (DiagnosticFormat::Sarif, &sarif),
+        ] {
+            let (a, b) = (make("x.js"), make("y.js"));
+            let parsed = parse_segments(
+                format,
+                "s",
+                "t",
+                [(Some("pkg/a"), a.as_str()), (Some("pkg/b"), b.as_str())],
+            );
+            assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+            let paths: Vec<_> = parsed
+                .diagnostics
+                .iter()
+                .map(|d| d.path.as_deref().unwrap())
+                .collect();
+            assert_eq!(paths, ["pkg/a/x.js", "pkg/b/y.js"]);
+        }
+    }
 }
