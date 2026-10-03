@@ -1575,13 +1575,17 @@ impl Git {
         job.prop("message", "Fetching unstaged files");
         job.set_status(ProgressStatus::Running);
 
-        // Hardened detection of worktree-only changes (including partially staged files)
+        // `status` already lists every path with changes in the worktree, read
+        // with the index refreshed, so no further `git diff`, `git ls-files` or
+        // `git status` scan is needed to find what to stash.
         let mut files_to_stash: BTreeSet<PathBuf> = BTreeSet::new();
         // Intent-to-add entries whose files exist, which git diffs as added to
         // the worktree
-        let mut intent_to_add: Vec<PathBuf> = vec![];
-        // 1) git diff --name-status (worktree vs index)
-        {
+        let mut intent_to_add: BTreeSet<PathBuf> = status.intent_to_add_files.clone();
+        // A path that is not valid UTF-8 is left out of the status, which only
+        // records that something needs stashing. Intent-to-add files are set
+        // aside whatever their names, so look for those with `git diff`.
+        if status.skipped_unstaged {
             let args: Vec<OsString> = vec![
                 "diff".into(),
                 "--name-status".into(),
@@ -1591,69 +1595,27 @@ impl Git {
                 "--no-ext-diff".into(),
                 "--ignore-submodules".into(),
             ];
-            // Paths that are not valid UTF-8 are left out of the status, which
-            // records that they need stashing. Intent-to-add files are set
-            // aside whatever their names.
             let out = git_read_bytes(args).unwrap_or_default();
-            for (status, name) in out.split(|&b| b == 0).tuples() {
-                if name.is_empty() {
-                    continue;
-                }
-                if status == b"A" {
+            for (kind, name) in out.split(|&b| b == 0).tuples() {
+                if kind == b"A" && !name.is_empty() {
                     let p = path_from_raw(name);
                     if path_exists(&p) {
-                        intent_to_add.push(p);
-                    }
-                }
-                if let Ok(name) = std::str::from_utf8(name) {
-                    let p = PathBuf::from(name);
-                    if p.exists() {
-                        files_to_stash.insert(p);
+                        intent_to_add.insert(p);
                     }
                 }
             }
         }
-        // 2) git ls-files -m (modified in worktree)
-        {
-            let args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
-            let (paths, _) = git_read_paths(args).unwrap_or_default();
-            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
-        }
-        // 3) Parse porcelain to catch nuanced mixed states.
-        // We only look at worktree-side markers (M/T/R), so untracked entries
-        // are irrelevant here. Skip the untracked scan entirely when
-        // HK_STASH_UNTRACKED=false to avoid scanning a huge worktree (see #860).
-        {
-            let untracked_arg = if *env::HK_STASH_UNTRACKED {
-                "--untracked-files=all"
-            } else {
-                "--untracked-files=no"
-            };
-            let args: Vec<OsString> = vec![
-                "status".into(),
-                "--porcelain".into(),
-                "--no-renames".into(),
-                untracked_arg.into(),
-                "-z".into(),
-            ];
-            let out = git_read_bytes(args).unwrap_or_default();
-            for entry in out.split(|&b| b == 0).filter(|s| s.len() > 3) {
-                // worktree side has changes
-                if matches!(entry[1], b'M' | b'T' | b'R')
-                    && let Ok(path) = std::str::from_utf8(&entry[3..])
-                {
-                    let p = PathBuf::from(path);
-                    if p.exists() {
-                        files_to_stash.insert(p);
-                    }
-                }
-            }
-        }
-        // 4) Union with computed status for safety
+        let intent_to_add: Vec<PathBuf> = intent_to_add.into_iter().collect();
+        // `git diff` lists unmerged paths as changed; the status classifies them
+        // separately
+        files_to_stash.extend(status.unmerged_files.iter().cloned());
         for p in status.unstaged_files.iter() {
             files_to_stash.insert(p.clone());
         }
-        // 5) When HK_STASH_UNTRACKED=true, also include untracked files
+        // An empty intent-to-add file counts as staged, not unstaged. Setting
+        // the intent-to-add files aside removes them from the set again.
+        files_to_stash.extend(intent_to_add.iter().cloned());
+        // When HK_STASH_UNTRACKED=true, also include untracked files
         if *env::HK_STASH_UNTRACKED {
             for p in status.untracked_files.iter() {
                 files_to_stash.insert(p.clone());
@@ -3246,6 +3208,10 @@ pub(crate) struct GitStatus {
     /// libgit2 leave this empty.
     #[serde(skip)]
     pub intent_to_add_files: BTreeSet<PathBuf>,
+    /// Paths with unresolved merge conflicts that exist. Statuses classified
+    /// like libgit2 list them as unstaged as well.
+    #[serde(skip)]
+    pub unmerged_files: BTreeSet<PathBuf>,
 }
 
 impl GitStatus {
@@ -3284,6 +3250,7 @@ impl GitStatus {
         self.unstaged_renamed_files
             .extend(other.unstaged_renamed_files);
         self.intent_to_add_files.extend(other.intent_to_add_files);
+        self.unmerged_files.extend(other.unmerged_files);
     }
 
     /// Classifies entries of `git status --porcelain=v2`.
@@ -3294,10 +3261,14 @@ impl GitStatus {
                 index,
                 worktree,
                 path,
+                unmerged,
                 ..
             } = entry;
             let exists = path_exists(&path);
             let is_modified = |c: u8| matches!(c, b'M' | b'T' | b'A' | b'R' | b'C');
+            if unmerged && exists {
+                status.unmerged_files.insert(path.clone());
+            }
 
             // Only consider staged files that still exist in the worktree to avoid AD cases
             if is_modified(index) && worktree != b'D' && exists {
@@ -3330,8 +3301,9 @@ impl GitStatus {
                 status.untracked_files.insert(path.clone());
             }
             // git reports an intent-to-add file as added to the worktree, or
-            // as the new path of a worktree rename
-            if index == b' ' && matches!(worktree, b'A' | b'R') && exists {
+            // as the new path of a worktree rename. Its index side is `D` when
+            // HEAD has a file at that path.
+            if matches!(index, b' ' | b'D') && matches!(worktree, b'A' | b'R') && exists {
                 status.intent_to_add_files.insert(path.clone());
             }
             // Track modified files only if the path exists
@@ -3371,9 +3343,16 @@ impl GitStatus {
             if entry.unmerged {
                 if exists {
                     status.staged_files.insert(path.clone());
+                    status.unmerged_files.insert(path.clone());
                     status.unstaged_files.insert(path);
                 }
                 continue;
+            }
+            // An intent-to-add file replacing one in HEAD reads as a deleted
+            // index entry, so the arm below, which needs an empty index side,
+            // does not see it
+            if entry.index == b'D' && matches!(entry.worktree, b'A' | b'R') && exists {
+                status.intent_to_add_files.insert(path.clone());
             }
             let (index, worktree) = match (entry.index, entry.worktree) {
                 // libgit2 reports an intent-to-add entry as added to the index
@@ -3827,6 +3806,7 @@ mod tests {
         );
         assert!(status.unstaged_renamed_files.is_empty());
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(status.unmerged_files, paths(d, &["conflict.txt"]));
         assert_eq!(
             status.intent_to_add_files,
             paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
@@ -3859,6 +3839,7 @@ mod tests {
         assert_eq!(status.unstaged_deleted_files, paths(d, &["gone.txt"]));
         assert_eq!(status.unstaged_renamed_files, paths(d, &["ita_moved.txt"]));
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(status.unmerged_files, paths(d, &["conflict.txt"]));
         assert_eq!(
             status.intent_to_add_files,
             paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
@@ -3885,6 +3866,24 @@ mod tests {
             assert!(status.unstaged_files.is_empty());
             assert_eq!(status.unstaged_deleted_files, paths(d, &["a.txt"]));
             assert_eq!(status.untracked_files, paths(d, &["b.txt"]));
+        }
+    }
+
+    #[test]
+    fn test_porcelain_status_intent_to_add_replacing_a_committed_file() {
+        // `git rm --cached a.txt`, then `git add -N a.txt`: the index drops
+        // the committed entry, and the worktree adds the new one
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        std::fs::write(d.join("a.txt"), "x").unwrap();
+        let a = "a".repeat(40);
+        let output = format!(
+            "1 DA N... 100644 000000 100644 {a} {a} {}/a.txt\0",
+            d.display()
+        );
+        let entries = || parse(output.as_bytes());
+        for status in [libgit2(entries()), GitStatus::from_entries(entries())] {
+            assert_eq!(status.intent_to_add_files, paths(d, &["a.txt"]));
         }
     }
 
