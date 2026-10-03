@@ -38,6 +38,11 @@ use crate::{
     version,
 };
 
+/// Set once a hook has already logged the error it is about to return, so
+/// `main` does not print it a second time.
+pub static ERROR_REPORTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 #[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
 #[strum(serialize_all = "kebab-case")]
 pub enum SkipReason {
@@ -1686,6 +1691,8 @@ impl Hook {
             });
             if !is_script_failed {
                 error!("{self}: hook finished with error: {err:?}");
+                // main would print this same error again on exit.
+                ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
             }
         } else {
             debug!("{self}: hook finished successfully");

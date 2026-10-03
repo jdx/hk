@@ -47,6 +47,9 @@ fn truncate_progress_message(s: &str, max_chars: usize) -> String {
     console::truncate_str(s, max_chars, "…").into_owned()
 }
 
+/// Exit status POSIX shells use when the command to run is not found.
+const COMMAND_NOT_FOUND_EXIT_CODE: i32 = 127;
+
 impl Step {
     pub fn commands_for_jobs<'a>(
         &'a self,
@@ -486,8 +489,12 @@ impl Step {
                         true, // is a failure
                     );
 
-                    // If we're in check mode and a fix command exists, collect a helpful suggestion
-                    self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    // If we're in check mode and a fix command exists, collect a helpful
+                    // suggestion. Skip it when the check never ran (the shell exits 127
+                    // for a missing tool): the files were not found to need fixing.
+                    if e.3.status.code() != Some(COMMAND_NOT_FOUND_EXIT_CODE) {
+                        self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    }
                 }
                 if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
