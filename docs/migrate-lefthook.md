@@ -61,22 +61,22 @@ hk renders commands as [Tera](https://keats.github.io/tera/) templates, so a pla
 
 ## Conditions
 
-lefthook's `skip: [merge]` has no built-in in hk. Write the condition yourself. `step_condition` is an expression, and `exec(...)` returns the command's standard output, untrimmed:
+lefthook's `skip: [merge]` has no built-in in hk. Write the condition yourself. `step_condition` is an expression, and `exec_ok(...)` is true when a shell command exits with status 0:
 
 ```pkl
 ["lint"] {
   // Skip while a merge is in progress
-  step_condition = "exec('git rev-parse -q --verify MERGE_HEAD || true') == ''"
+  step_condition = "!exec_ok('git rev-parse -q --verify MERGE_HEAD')"
   check = "make lint"
 }
 ["release-notes"] {
   // Run only on main
-  step_condition = "trim(exec('git branch --show-current')) == 'main'"
+  step_condition = "exec_ok('test \"$(git branch --show-current)\" = main')"
   check = "make release-notes"
 }
 ```
 
-Make the command exit 0 and compare its output. If the command exits non-zero, hk reports that the condition could not be evaluated and the step still runs. See [conditions and Git status](/configuration#conditions-and-git-status).
+Use `exec_ok` to test whether a command succeeds. `exec(...)` returns a command's output instead, and a command that exits non-zero makes `exec` fail the hook. See [conditions and Git status](/configuration#conditions-and-git-status).
 
 ## Commands and skipping
 
