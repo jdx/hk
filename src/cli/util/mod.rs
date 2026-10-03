@@ -12,6 +12,7 @@ mod end_of_file_fixer;
 mod fix_smart_quotes;
 mod forbid_submodules;
 mod format_diff;
+mod git_exec_bit;
 mod mixed_line_ending;
 mod no_commit_to_branch;
 mod python_check_ast;
@@ -62,7 +63,10 @@ enum UtilCommands {
     /// Check that a commit message follows the Conventional Commits format
     ///
     /// Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits
-    /// created for `git rebase --autosquash`) skip validation.
+    /// created for `git rebase --autosquash`) skip validation, as do titles git
+    /// generates itself: `Merge branch '`, `Merge branches '`, `Merge tag '`,
+    /// `Merge tags '`, `Merge commit '`, `Merge remote-tracking branch '`,
+    /// `Merge remote-tracking branches '`, `Merge pull request `, and `Revert "`.
     CheckConventionalCommit(CheckConventionalCommit),
     /// Check that executable files have shebangs
     CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),

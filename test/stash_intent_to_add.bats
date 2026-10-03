@@ -363,18 +363,17 @@ PKL
     printf 'echo hi\n' > a.sh
     git add hk.pkl a.sh
     git commit -m "init"
-    # The worktree matches HEAD, so the stash sets nothing aside for a.sh,
-    # which still has unstaged changes; the step must check it before fixing
-    printf 'echo staged\n' > a.sh
-    git add a.sh
-    printf 'echo hi\n' > a.sh
+    # The worktree has the same contents as HEAD and only the index has the
+    # new mode, so the stash sets nothing aside for a.sh, which still has an
+    # unstaged change; the step must check it before fixing
+    git update-index --chmod=+x a.sh
     printf 'new\n' > new.txt
     git add -N new.txt
 
     run hk run pre-commit
     assert_success
-    run git show :a.sh
-    assert_output "echo staged"
+    run git ls-files -s a.sh
+    assert_output --partial "100755"
     run cat a.sh
     assert_output "echo hi"
     run git status --porcelain
