@@ -13,7 +13,6 @@ COMMAND_FIELDS = ("check", "check_list_files", "check_diff", "fix")
 HEADER = """\
 // THIS FILE IS GENERATED: Run 'mise run pkl:gen' to generate.
 
-import* "builtins/*.pkl" as Builtins
 import "Config.pkl" as Config
 
 /// Indicator for detecting if a builtin is relevant to a project
@@ -75,13 +74,16 @@ def validate_effect_coverage():
 
 
 def main():
-    # Generate pkl/Builtins.pkl
+    # Generate pkl/Builtins.pkl. Each builtin is imported by its own literal
+    # `import("...")` expression instead of one `import*` glob: evaluating a
+    # glob import evaluates every module it matches, so a config using one
+    # builtin used to pay for all of them.
     with open("pkl/Builtins.pkl", "w", newline="\n") as f:
         f.write(HEADER)
         for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             identifier = filename.replace("-", "_")
-            f.write(f'{identifier} = Builtins["builtins/{filename}.pkl"].{identifier}\n')
+            f.write(f'{identifier} = import("builtins/{filename}.pkl").{identifier}\n')
 
         f.write("\n// Internal inventory used by builtin tests and documentation generation.\n")
         f.write("all = new Mapping<String, Config.Step> {\n")

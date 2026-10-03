@@ -280,6 +280,29 @@ impl StepJob {
         self.requested_run_type == RunType::Fix
             && !self.diffs_under_read_locks()
             && !self.rechecks_under_read_locks()
+            && !self.checks_under_read_locks()
+    }
+
+    /// Whether this job, in fix mode, runs only the step's `check` and that
+    /// command declares `effect = "read"`: a check-only step such as a type
+    /// checker. It changes no files, so steps reading the same files run
+    /// alongside it; a fixer writing one of them still excludes it.
+    ///
+    /// Anything that could make the step write stays on write locks: a `fix`
+    /// command, `check_diff` that fix mode applies (those take the read-lock
+    /// path in [`Self::diffs_under_read_locks`], which relocks for the patch),
+    /// and running `check` first as a prelude to `fix`.
+    fn checks_under_read_locks(&self) -> bool {
+        self.requested_run_type == RunType::Fix
+            && self.run_type == RunType::Fix
+            && !self.check_first
+            && self.step.fix.is_none()
+            && !self.step.applies_check_diff()
+            && self
+                .step
+                .check
+                .as_ref()
+                .is_some_and(|check| check.effect() == Some(CommandEffect::Read))
     }
 
     /// Whether this job is rerunning a read-only `check` after applying a
@@ -417,5 +440,73 @@ mod lock_mode_tests {
     fn a_recheck_that_may_write_keeps_write_locks() {
         let step = step_with_check(serde_json::json!({"command": "check", "effect": "write"}));
         assert!(recheck_job(step).takes_write_locks());
+    }
+
+    fn fix_job(step: Step) -> StepJob {
+        StepJob::new(Arc::new(step), vec![], RunType::Fix)
+    }
+
+    fn command(effect: &str) -> crate::step::Command {
+        serde_json::from_value(serde_json::json!({"command": "cmd", "effect": effect})).unwrap()
+    }
+
+    fn check_only(effect: &str) -> Step {
+        Step {
+            check: Some(command(effect)),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_read_only_check_only_step_takes_read_locks_in_fix_mode() {
+        assert!(!fix_job(check_only("read")).takes_write_locks());
+    }
+
+    #[test]
+    fn a_check_only_step_that_may_write_keeps_write_locks() {
+        assert!(fix_job(check_only("write")).takes_write_locks());
+        assert!(fix_job(check_only("destructive")).takes_write_locks());
+    }
+
+    #[test]
+    fn a_check_without_a_declared_effect_keeps_write_locks() {
+        let step = Step {
+            check: Some("cmd".parse().unwrap()),
+            ..Default::default()
+        };
+        assert!(fix_job(step).takes_write_locks());
+    }
+
+    #[test]
+    fn a_step_with_a_fix_command_keeps_write_locks() {
+        let step = Step {
+            fix: Some(command("write")),
+            ..check_only("read")
+        };
+        assert!(fix_job(step).takes_write_locks());
+    }
+
+    #[test]
+    fn a_check_that_check_diff_replaces_in_fix_mode_keeps_write_locks() {
+        // Without `fix`, fix mode applies `check_diff`; the check never runs.
+        let step = Step {
+            check_diff: Some(command("write")),
+            ..check_only("read")
+        };
+        assert!(fix_job(step).takes_write_locks());
+    }
+
+    #[test]
+    fn a_read_only_check_running_first_keeps_write_locks() {
+        let mut job = fix_job(check_only("read"));
+        job.check_first = true;
+        job.run_type = RunType::Check;
+        assert!(job.takes_write_locks());
+    }
+
+    #[test]
+    fn a_check_in_check_mode_takes_read_locks() {
+        let job = StepJob::new(Arc::new(check_only("write")), vec![], RunType::Check);
+        assert!(!job.takes_write_locks());
     }
 }
