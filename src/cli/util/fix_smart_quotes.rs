@@ -190,22 +190,33 @@ fn replace_smart_quotes_in(path: &Path, chunk_size: usize) -> Result<()> {
 
     // Write through symlinks: replace the target, not the link itself.
     let target = fs::canonicalize(path)?;
-    let perms = fs::metadata(&target)?.permissions();
+    rewrite_target(&target, chunk_size)
+}
+
+/// Pass 2. The temp file replaces `target` only if the file is still entirely
+/// UTF-8 and this pass actually replaced a quote. If another process cleaned the
+/// file (or retargeted a symlink) since pass 1, the temp file is dropped and the
+/// target keeps its inode, metadata and hard links.
+fn rewrite_target(target: &Path, chunk_size: usize) -> Result<()> {
+    let perms = fs::metadata(target)?.permissions();
     let dir = target.parent().unwrap_or_else(|| Path::new("."));
     let mut tmpfile = NamedTempFile::new_in(dir)?;
     let mut out = BufWriter::new(tmpfile.as_file_mut());
-    let utf8 = for_each_chunk(&target, chunk_size, |s| {
-        out.write_all(fix_quotes(s).as_bytes())?;
+    let mut changed = false;
+    let utf8 = for_each_chunk(target, chunk_size, |s| {
+        let fixed = fix_quotes(s);
+        changed = changed || fixed != s;
+        out.write_all(fixed.as_bytes())?;
         Ok(())
     })?;
     out.flush()?;
     drop(out);
-    if !utf8 {
+    if !utf8 || !changed {
         return Ok(());
     }
     tmpfile.as_file().sync_all()?;
     fs::set_permissions(tmpfile.path(), perms)?;
-    tmpfile.persist(&target).map_err(|e| e.error)?;
+    tmpfile.persist(target).map_err(|e| e.error)?;
 
     Ok(())
 }
@@ -505,6 +516,24 @@ mod tests {
         })
         .unwrap();
         assert!(loaded && diff.unwrap().contains("+\"q\""));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_pass_two_on_a_file_cleaned_since_the_scan_keeps_the_inode() {
+        use std::os::unix::fs::MetadataExt;
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), "already clean").unwrap();
+        let before = fs::metadata(file.path()).unwrap();
+
+        rewrite_target(file.path(), CHUNK_SIZE).unwrap();
+
+        let after = fs::metadata(file.path()).unwrap();
+        assert_eq!(
+            (before.ino(), before.mtime_nsec()),
+            (after.ino(), after.mtime_nsec())
+        );
+        assert_eq!(fs::read(file.path()).unwrap(), b"already clean");
     }
 
     #[test]
