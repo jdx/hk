@@ -1929,7 +1929,9 @@ impl Git {
                     "failed to check out the staged contents, and restoring the reverted files failed ({restore_err}); their contents are kept in {stash_ref}"
                 ));
             }
-            let _ = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run();
+            if let Err(err) = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run() {
+                warn!("failed to drop stash {stash_ref} of reverted files: {err:?}");
+            }
             return Err(err).wrap_err("failed to check out the staged contents");
         }
         debug!("stashed reverted files {reverted:?} in {commit}");
