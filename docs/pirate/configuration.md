@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: ac28bc853631
+sourceHash: a8a2b465c991
 ---
 
 # Configuration, the ship's charts
@@ -159,7 +159,7 @@ large file lists.
 
 ### Shell commands on Windows {#shell-commands-on-windows}
 
-On Windows, a string command runs through `cmd.exe` unless the hand sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few of the standing crew (builtins) are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `typos`, and `yq`. Every other builtin sails as it is.
+On Windows, a string command runs through `cmd.exe` unless the hand sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few of the standing crew (builtins) are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `typos`, and `yq`. `just_format` also needs a POSIX shell, with `xargs`, and `nix_fmt` has no Windows commands. Other builtins sail as they are.
 
 To run one of them, set its `shell` to a POSIX shell, such as the `sh` that comes aboard with Git for Windows. A value that contains quotes is split the way a POSIX shell would split it, so a path with spaces can be quoted:
 
@@ -171,12 +171,15 @@ To run one of them, set its `shell` to a POSIX shell, such as the `sh` that come
 
 If `sh` is already on the `PATH`, `shell = "sh -o errexit -c"` is enough. Keep `-o errexit -c`: it is what hk uses on other platforms, and the scripts rely on it.
 
-`go_imports` also carries a structured `fix`, which can't sail with `shell`. Swap it for a string command too:
+`go_imports` also carries a structured `fix`, which can't sail with `shell`. Swap it for a string command too, keeping its write effect:
 
 ```pkl
 ["go_imports"] = (Builtins.go_imports) {
     shell = "sh -o errexit -c"
-    fix = "goimports -w {{files}}"
+    fix = new CommandSpec {
+        command = "goimports -w {{files}}"
+        effect = "write"
+    }
 }
 ```
 
@@ -377,11 +380,13 @@ including per-directory mise environments and locally installed Node tools.
 
 ### Reading the weather: conditions and Git status {#conditions-and-git-status}
 
-A hand reads the weather before it hauls. `condition` is an expression evaluated for each job of a step. `step_condition` is evaluated once per step. Shell commands need an explicit `exec(...)` call:
+A hand reads the weather before it hauls. `condition` is an expression evaluated for each job of a step. `step_condition` is evaluated once per step. To haul a step only when a shell command succeeds, wrap it in `exec_ok(...)`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
+
+`exec_ok(command)` is true when the command exits with status 0 and false otherwise. `exec(command)` returns the command's standard output as a string, for comparisons such as `exec('git branch --show-current') == 'main\n'`. Use `exec` for its output, not to test success: a command that exits non-zero, or prints output that is not valid UTF-8, makes `exec` fail the hook, and a string result never skips a step.
 
 The `git` object gives ye common status checks without calling on Git itself:
 
