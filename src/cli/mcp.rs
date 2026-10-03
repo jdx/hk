@@ -1067,17 +1067,25 @@ fn apply_jsonl_event(run: &mut RunRecord, line: &[u8]) {
 }
 
 fn consume_jsonl_events(run: &mut RunRecord, bytes: &[u8]) {
+    // Only the new bytes can contain a newline that is not yet consumed, so a
+    // huge single-line event is neither rescanned nor copied on every read.
+    let mut search = run.stdout_event_buffer.len();
     run.stdout_event_buffer.extend_from_slice(bytes);
-    let buffer = std::mem::take(&mut run.stdout_event_buffer);
+    let mut buffer = std::mem::take(&mut run.stdout_event_buffer);
     let mut start = 0;
-    while let Some(newline) = buffer[start..].iter().position(|byte| *byte == b'\n') {
-        let line = &buffer[start..start + newline];
-        start += newline + 1;
+    while let Some(newline) = buffer[search..].iter().position(|byte| *byte == b'\n') {
+        let end = search + newline;
+        let line = &buffer[start..end];
         if !line.iter().all(u8::is_ascii_whitespace) {
             apply_jsonl_event(run, line);
         }
+        start = end + 1;
+        search = start;
     }
-    run.stdout_event_buffer = buffer[start..].to_vec();
+    if start > 0 {
+        buffer.drain(..start);
+    }
+    run.stdout_event_buffer = buffer;
 }
 
 async fn read_output<R>(state: Arc<Mutex<McpState>>, id: String, mut reader: R, stdout: bool)
@@ -1563,6 +1571,19 @@ mod tests {
         assert_eq!(result["steps"][0]["name"], "cargo-check");
         assert_eq!(result["steps"][0]["status"], "running");
         assert!(!run.saw_run_completed);
+    }
+
+    #[test]
+    fn events_split_across_many_reads_are_applied_once_complete() {
+        let mut run = test_run("split", "running", Vec::new());
+        let event = br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}"#;
+        for chunk in event.chunks(7) {
+            consume_jsonl_events(&mut run, chunk);
+            assert!(run.result.is_none());
+        }
+        consume_jsonl_events(&mut run, b"\n{\"partial\":");
+        assert_eq!(run.result.as_ref().unwrap()["status"], "running");
+        assert_eq!(run.stdout_event_buffer, b"{\"partial\":");
     }
 
     #[test]
