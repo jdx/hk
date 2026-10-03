@@ -229,6 +229,42 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn argv_report(argv: &[&str]) -> Command {
+        Command::Argv(crate::step::ArgvCommand {
+            argv: argv.iter().map(|arg| arg.to_string()).collect(),
+        })
+    }
+
+    #[test]
+    fn report_argv_without_an_executable_is_a_config_error() {
+        for argv in [&[][..], &[""], &["  ", "x"]] {
+            let report = argv_report(argv);
+            let err = validate_report_command(&report).unwrap_err().to_string();
+            assert!(
+                err.contains("must contain an executable"),
+                "{argv:?}: {err}"
+            );
+            assert!(report_runner(&report).is_err(), "{argv:?}");
+        }
+        assert!(validate_report_command(&argv_report(&["true"])).is_ok());
+    }
+
+    #[test]
+    fn report_hook_init_rejects_an_empty_argv() {
+        let mut hook = Hook {
+            report: Some(argv_report(&[])),
+            ..Hook::default()
+        };
+        let err = hook.init("check").unwrap_err().to_string();
+        assert!(err.contains("hook `check`: report:"), "{err}");
+    }
+
+    #[test]
+    fn report_argv_is_displayed_and_runs_directly() {
+        let (_, shown) = report_runner(&argv_report(&["echo", "a b"])).unwrap();
+        assert_eq!(shown, "echo a b");
+    }
+
     #[test]
     fn normalize_lexically_resolves_dot_segments() {
         let cases = [
@@ -626,6 +662,10 @@ impl HookContext {
 impl Hook {
     pub fn init(&mut self, hook_name: &str) -> Result<()> {
         self.name = hook_name.to_string();
+        if let Some(report) = &self.report {
+            validate_report_command(report)
+                .map_err(|err| eyre::eyre!("hook `{hook_name}`: report: {err}"))?;
+        }
         for (name, step_or_group) in self.steps.iter_mut() {
             step_or_group.init(name)?;
             // Merge hook-level env into steps (step-level env takes precedence)
@@ -1654,15 +1694,18 @@ impl Hook {
         if let Some(report) = &self.report
             && let Ok(json) = hook_ctx.timing.to_json_string()
         {
-            let (mut cmd, run) = report_runner(report);
-            cmd = cmd.env("HK_REPORT_JSON", json);
-            let pr = ProgressJobBuilder::new()
-                .body("report: {{message}}")
-                .prop("message", &run)
-                .start();
-            cmd = cmd.with_pr(pr);
-            if let Err(err) = cmd.execute().await {
-                warn!("Report command failed: {err}");
+            match report_runner(report) {
+                Ok((cmd, run)) => {
+                    let pr = ProgressJobBuilder::new()
+                        .body("report: {{message}}")
+                        .prop("message", &run)
+                        .start();
+                    let cmd = cmd.env("HK_REPORT_JSON", json).with_pr(pr);
+                    if let Err(err) = cmd.execute().await {
+                        warn!("Report command failed: {err}");
+                    }
+                }
+                Err(err) => warn!("Report command failed: {err}"),
             }
         }
         // Emit collected fix suggestions at the end (after progress bars and summaries)
@@ -2065,14 +2108,17 @@ fn build_skip_steps(settings: &Settings, opts: &HookOptions) -> IndexMap<String,
 ///
 /// Like before `report` accepted structured commands, the command is not
 /// rendered as a template: `HK_REPORT_JSON` carries the data.
-fn report_runner(report: &Command) -> (ensembler::CmdLineRunner, String) {
+fn report_runner(report: &Command) -> Result<(ensembler::CmdLineRunner, String)> {
     match report {
         Command::Spec(spec) => report_runner(&spec.command),
         Command::Argv(command) => {
-            let mut argv = command.argv.iter();
-            let program = argv.next().cloned().unwrap_or_default();
-            let cmd = ensembler::CmdLineRunner::new(&program).args(argv);
-            (cmd, command.argv.join(" "))
+            validate_report_command(report)?;
+            // The same launcher step argv commands use, so a Windows `.cmd` or
+            // `.bat` executable gets batch-file handling and arguments are not
+            // re-parsed by `cmd.exe`.
+            let cwd = std::env::current_dir()?;
+            let cmd = crate::step::argv_runner(&command.argv, &cwd, None, None)?;
+            Ok((cmd, command.argv.join(" ")))
         }
         Command::Shell(script) => {
             let run = script.to_string();
@@ -2081,8 +2127,22 @@ fn report_runner(report: &Command) -> (ensembler::CmdLineRunner, String) {
                 .arg("errexit")
                 .arg("-c")
                 .arg(&run);
-            (cmd, run)
+            Ok((cmd, run))
         }
+    }
+}
+
+/// Rejects a structured `report` argv without an executable, as step commands do.
+fn validate_report_command(report: &Command) -> Result<()> {
+    match report {
+        Command::Spec(spec) => validate_report_command(&spec.command),
+        Command::Argv(command) => {
+            if command.argv.first().is_none_or(|exe| exe.trim().is_empty()) {
+                eyre::bail!("structured argv command must contain an executable");
+            }
+            Ok(())
+        }
+        Command::Shell(_) => Ok(()),
     }
 }
 

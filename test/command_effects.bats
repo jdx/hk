@@ -282,13 +282,12 @@ EOF
     assert_output "write"
 }
 
-write_report_config() {
-    local report="$1"
-    cat <<EOF2 > hk.pkl
+@test "safe mode rejects a hook report with no declared effect" {
+    cat <<'EOF2' > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
-        report = $report
+        report = "rm -f a.txt"
         steps {
             ["known"] {
                 check = new CommandSpec {
@@ -303,10 +302,6 @@ EOF2
     touch input.txt a.txt
     git add .
     git commit -m init
-}
-
-@test "safe mode rejects a hook report with no declared effect" {
-    write_report_config '"rm -f a.txt"'
 
     run hk check --all --safe
     assert_failure
@@ -316,7 +311,25 @@ EOF2
 }
 
 @test "safe mode rejects a destructive hook report" {
-    write_report_config 'new CommandSpec { command = "rm -f a.txt"; effect = "destructive" }'
+    cat <<'EOF2' > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = "rm -f a.txt"; effect = "destructive" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
 
     run hk check --all --safe
     assert_failure
@@ -326,7 +339,25 @@ EOF2
 }
 
 @test "safe mode runs a hook report that declares a read effect" {
-    write_report_config 'new CommandSpec { command = "echo \"$HK_REPORT_JSON\" > report-ran"; effect = "read" }'
+    cat <<'EOF2' > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = "echo \"$HK_REPORT_JSON\" > report-ran"; effect = "read" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
 
     run hk check --all --safe
     assert_success
@@ -334,15 +365,78 @@ EOF2
 }
 
 @test "hook report accepts a structured argv command with an effect" {
-    write_report_config 'new CommandSpec { command = new Command { argv = List("touch", "report-ran") }; effect = "write" }'
+    cat <<'EOF2' > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = new Command { argv = List("touch", "report-ran") }; effect = "write" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
 
     run hk check --all --safe
     assert_success
     assert_file_exists report-ran
 }
 
+@test "hook report rejects a structured argv command with no executable" {
+    cat <<'EOF2' > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = new Command { argv = List() }; effect = "write" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+
+    run hk check --all --safe
+    assert_failure
+    assert_output --partial "report: structured argv command must contain an executable"
+    assert_file_not_exists known-ran
+}
+
 @test "plain string hook report still runs outside safe mode" {
-    write_report_config '"touch report-ran"'
+    cat <<'EOF2' > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = "touch report-ran"
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
 
     run hk check --all
     assert_success
