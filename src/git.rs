@@ -78,34 +78,88 @@ const OPERATION_STATE_FILES: [&str; 7] = [
     "AUTO_MERGE",
 ];
 
-/// The contents of the files in [`OPERATION_STATE_FILES`] that exist.
-fn snapshot_operation_state() -> Vec<(PathBuf, Vec<u8>)> {
-    OPERATION_STATE_FILES
-        .iter()
-        .filter_map(|name| {
-            let path = git_cmd_silent(["rev-parse", "--git-path", name])
-                .read()
-                .ok()
-                .map(|path| PathBuf::from(path.trim_end_matches('\n')))?;
-            let contents = std::fs::read(&path).ok()?;
-            Some((path, contents))
-        })
-        .collect()
+/// The directory with the todo list of a multi-commit cherry-pick or revert,
+/// which holds files such as `todo`, `head` and `opts`.
+const SEQUENCER_DIR: &str = "sequencer";
+
+/// The files that record an operation in progress, with their contents.
+type OperationState = Vec<(PathBuf, Vec<u8>)>;
+
+fn git_path(name: &str) -> Result<PathBuf> {
+    let path = git_read(["rev-parse", "--git-path", name])
+        .wrap_err_with(|| format!("failed to find {name} in the git directory"))?;
+    Ok(PathBuf::from(path.trim_end_matches('\n')))
+}
+
+/// Reads the files under `dir`, which may be missing.
+fn read_state_dir(dir: &std::path::Path, state: &mut OperationState) -> Result<()> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err).wrap_err_with(|| format!("failed to read {}", dir.display())),
+    };
+    for entry in entries {
+        let path = entry?.path();
+        if path.is_dir() {
+            read_state_dir(&path, state)?;
+        } else {
+            let contents = std::fs::read(&path)
+                .wrap_err_with(|| format!("failed to read {}", path.display()))?;
+            state.push((path, contents));
+        }
+    }
+    Ok(())
+}
+
+/// The contents of the files in [`OPERATION_STATE_FILES`] and the sequencer
+/// directory that exist. A file that exists but cannot be read is an error,
+/// because stashing could then lose it.
+fn snapshot_operation_state() -> Result<OperationState> {
+    let mut state = Vec::new();
+    for name in OPERATION_STATE_FILES {
+        let path = git_path(name)?;
+        match std::fs::read(&path) {
+            Ok(contents) => state.push((path, contents)),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(err).wrap_err_with(|| {
+                    format!(
+                        "failed to read {}, which the stash could delete",
+                        path.display()
+                    )
+                });
+            }
+        }
+    }
+    read_state_dir(&git_path(SEQUENCER_DIR)?, &mut state)?;
+    Ok(state)
 }
 
 /// Writes back the files of [`snapshot_operation_state`] that are now missing.
-fn restore_operation_state(state: Vec<(PathBuf, Vec<u8>)>) {
+/// Fails if one cannot be written, since the commit that finishes the
+/// operation would then be a different one.
+fn restore_operation_state(state: OperationState) -> Result<()> {
+    let mut failed = Vec::new();
     for (path, contents) in state {
         if path.exists() {
             continue;
         }
-        match std::fs::write(&path, contents) {
+        let written = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, contents));
+        match written {
             Ok(()) => debug!("restored {}, which the stash deleted", path.display()),
-            Err(err) => warn!(
-                "failed to restore {}, which the stash deleted: {err:?}",
-                path.display()
-            ),
+            Err(err) => failed.push(format!("{}: {err}", path.display())),
         }
+    }
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(eyre!(
+            "failed to restore the state of the operation in progress that the stash deleted: {}",
+            failed.join("; ")
+        ))
     }
 }
 
@@ -1589,10 +1643,18 @@ impl Git {
         paths: Option<&[PathBuf]>,
         status: &GitStatus,
     ) -> Result<Option<StashType>> {
-        let state = snapshot_operation_state();
+        // Refuse to stash when the state cannot be saved, since the stash
+        // would delete it
+        let state = snapshot_operation_state()?;
         let result = self.push_stash_inner(paths, status);
-        restore_operation_state(state);
-        result
+        let restored = restore_operation_state(state);
+        match (result, restored) {
+            (Ok(stash), Ok(())) => Ok(stash),
+            (Err(err), restored) => Err(with_restore_error(err, restored)),
+            (Ok(_), Err(err)) => Err(err.wrap_err(
+                "your unstaged changes are kept in the stash entry hk created (`git stash list`)",
+            )),
+        }
     }
 
     fn push_stash_inner(
