@@ -37,10 +37,11 @@ Prebuilt binaries are also available from [GitHub releases](https://github.com/j
 hk's GitHub releases are immutable and carry GitHub release attestations. To check that a downloaded binary is exactly what was published for that release, use the [GitHub CLI](https://cli.github.com/) (2.81 or newer):
 
 ```sh
-gh release verify-asset v2.4.0 hk-x86_64-unknown-linux-gnu.tar.gz --repo jdx/hk
+VERSION=v2.4.0 # replace with the tag of your downloaded release
+gh release verify-asset "$VERSION" hk-x86_64-unknown-linux-gnu.tar.gz --repo jdx/hk
 ```
 
-`gh release verify v2.4.0 --repo jdx/hk` checks the release itself. Verification confirms that the file came from the release; it does not review what the release contains.
+`gh release verify "$VERSION" --repo jdx/hk` checks the release itself. Verification confirms that the file came from the release; it does not review what the release contains.
 
 ## Project setup
 

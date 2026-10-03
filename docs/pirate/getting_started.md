@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: 9e0f5d54eeca
+sourceHash: 223d6d9ff73a
 ---
 
 # Getting under way
@@ -38,10 +38,11 @@ Prebuilt binaries are also waiting at [GitHub releases](https://github.com/jdx/h
 hk's GitHub releases are immutable and carry GitHub release attestations. To check that a binary ye hauled down is exactly what was published for that release, use the [GitHub CLI](https://cli.github.com/) (2.81 or newer):
 
 ```sh
-gh release verify-asset v2.4.0 hk-x86_64-unknown-linux-gnu.tar.gz --repo jdx/hk
+VERSION=v2.4.0 # replace with the tag of your downloaded release
+gh release verify-asset "$VERSION" hk-x86_64-unknown-linux-gnu.tar.gz --repo jdx/hk
 ```
 
-`gh release verify v2.4.0 --repo jdx/hk` checks the release itself. Verification confirms that the file came from the release; it does not review what the release contains.
+`gh release verify "$VERSION" --repo jdx/hk` checks the release itself. Verification confirms that the file came from the release; it does not review what the release contains.
 
 ## Rigging the ship {#project-setup}
 
