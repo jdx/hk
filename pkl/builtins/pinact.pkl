@@ -146,6 +146,10 @@ class PinactStep extends Config.Step {
 @Builtins.meta {
   category = "Infrastructure"
   description = "Pin GitHub Actions to commit SHA for security"
+  project_indicators {
+    new { file = ".pinact.yaml" }
+    new { file = ".pinact.yml" }
+  }
 }
 // Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
 // instance when it is inserted into Mapping<String, Config.Step>.

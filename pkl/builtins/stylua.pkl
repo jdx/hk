@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Lua"
   description = "Lua formatter"
+  project_indicators {
+    new { file = "stylua.toml" }
+    new { file = ".stylua.toml" }
+  }
 }
 stylua = new Config.Step {
   types = List("lua")
