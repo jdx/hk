@@ -1,6 +1,6 @@
 ---
 description: Run hk's checks for the harbour-master (CI), pick only the cargo that changed, call up extra watches, and haul in diagnostics worth reading.
-sourceHash: 32320c9b5ac6
+sourceHash: 5d8ab9cc0a1c
 ---
 
 # Continuous integration: the harbour-master
@@ -84,6 +84,6 @@ HK_TIMING_JSON=hk-timing.json hk check --all
 
 `--no-fail-fast` collects the failures from the remaining steps too. A plan, the passage plan, shows the selected steps without executing them. The timing file records total and per-step wall time; when all hands haul at once their times overlap, so don't add parallel step durations together as a total.
 
-Use `hk check --all --format jsonl` for structured execution events, `--sarif hk.sarif` for normalized diagnostics, or `--junit-xml hk.junit.xml` to report each step as a JUnit test case for CI test-result viewers. See [clockwork hands (coding agents)](/agents) for command effects and exact file lists.
+Use `hk check --all --format jsonl` for structured execution events, `--sarif hk.sarif` for normalized diagnostics (only hands that set `diagnostic_format` produce them; see [diagnostics](/configuration#diagnostics)), or `--junit-xml hk.junit.xml` to report each step as a JUnit test case for CI test-result viewers. See [clockwork hands (coding agents)](/agents) for command effects and exact file lists.
 
 See [troubleshooting](/logging) for the ship's log levels and traces, and for inspecting the configuration.

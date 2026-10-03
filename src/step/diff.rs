@@ -202,6 +202,10 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
             // Some tools diff against a temporary file or a label, so use the
             // side that names a file under `base`.
             FileOperation::Modify { original, modified } => {
+                // Both sides are checked, so a `.git` path can't hide behind
+                // the side that is ignored.
+                refuse_dot_git(Path::new(original.as_ref()))?;
+                refuse_dot_git(Path::new(modified.as_ref()))?;
                 match checked_path(&original).ok().filter(known) {
                     Some(original) => (original, false, false),
                     None => (checked_path(&modified)?, false, false),
@@ -451,7 +455,50 @@ fn checked_path(path: &str) -> std::result::Result<PathBuf, String> {
             path.display()
         ));
     }
+    refuse_dot_git(&path)?;
     Ok(path)
+}
+
+/// Refuse a path with a component that names git's own directory, which
+/// `git apply` refuses too: a patch must not be able to write hooks or config.
+fn refuse_dot_git(path: &Path) -> std::result::Result<(), String> {
+    if path
+        .components()
+        .any(|c| c.as_os_str().to_str().is_some_and(is_dot_git))
+    {
+        return Err(format!(
+            "{}: patches may not touch git's own directory",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
+/// Whether a path component names git's own directory, however a filesystem
+/// might spell it. Mirrors `is_dotgit`, `is_hfs_dotgit` and `is_ntfs_dotgit`
+/// in git's `verify_path`, which `git apply` uses to refuse such paths: `.git`
+/// in any case; with trailing dots or spaces, or an NTFS alternate data stream
+/// suffix (`.git::$INDEX_ALLOCATION`); the NTFS short name `git~1`; and `.git`
+/// with HFS+ ignorable code points inserted.
+///
+/// A non-UTF-8 component can't be a spelling of `.git` on those filesystems
+/// and isn't matched.
+fn is_dot_git(component: &str) -> bool {
+    // HFS+ ignores these code points when comparing names.
+    fn ignorable(c: char) -> bool {
+        matches!(
+            c,
+            '\u{200c}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{206a}'..='\u{206f}' | '\u{feff}'
+        )
+    }
+    // Backslashes separate components on Windows, so check each piece.
+    component.split('\\').any(|piece| {
+        let piece: String = piece.chars().filter(|c| !ignorable(*c)).collect();
+        // Anything after a `:` is an NTFS stream name.
+        let name = piece.split(':').next().unwrap_or_default();
+        let name = name.trim_end_matches(['.', ' ']).to_ascii_lowercase();
+        name == ".git" || name == "git~1"
+    })
 }
 
 /// The contents of `path`, or `None` if it doesn't exist.
@@ -558,13 +605,15 @@ mod relativize_diff_paths_tests {
 
 #[cfg(test)]
 mod apply_patch_tests {
-    use super::apply_patch;
+    use super::{apply_patch, is_dot_git};
     use std::fs;
 
     fn dir_with(files: &[(&str, &str)]) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         for (name, contents) in files {
-            fs::write(dir.path().join(name), contents).unwrap();
+            let path = dir.path().join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, contents).unwrap();
         }
         dir
     }
@@ -624,6 +673,86 @@ mod apply_patch_tests {
             let diff = format!("--- {path}\n+++ {path}\n@@ -0,0 +1 @@\n+x\n");
             assert!(apply_patch(&diff, 0, dir.path()).is_err(), "{path}");
         }
+    }
+
+    #[test]
+    fn is_dot_git_matches_gits_spellings() {
+        for name in [
+            ".git",
+            ".GIT",
+            ".Git",
+            ".git.",
+            ".git ",
+            ".git. .",
+            "git~1",
+            "GIT~1",
+            ".git::$INDEX_ALLOCATION",
+            ".git:stream",
+            ".g\u{200c}it",
+            ".\u{feff}git",
+            ".git\\hooks",
+        ] {
+            assert!(is_dot_git(name), "{name:?}");
+        }
+        for name in [
+            "",
+            ".",
+            "..",
+            ".gitignore",
+            ".gitattributes",
+            ".github",
+            "git",
+            "git~2",
+            "a.git",
+            ".git-keep",
+            "x.git.",
+            "git~10",
+        ] {
+            assert!(!is_dot_git(name), "{name:?}");
+        }
+    }
+
+    #[test]
+    fn refuses_patches_naming_dot_git() {
+        // `git apply` refuses these; so must the in-process applier, or a
+        // patch could write a hook that runs on the next commit.
+        for path in [
+            ".git/config",
+            ".git/hooks/pre-commit",
+            ".GIT/hooks/pre-commit",
+            "sub/.git/config",
+            ".git./config",
+            "git~1/hooks/pre-commit",
+        ] {
+            let dir = dir_with(&[]);
+            let created = format!("--- /dev/null\n+++ {path}\n@@ -0,0 +1 @@\n+x\n");
+            let err = apply_patch(&created, 0, dir.path()).unwrap_err();
+            assert!(
+                err.to_string().contains("git's own directory"),
+                "{path}: {err}"
+            );
+            assert!(!dir.path().join(path).exists(), "{path}");
+        }
+    }
+
+    #[test]
+    fn refuses_a_dot_git_path_on_either_side() {
+        let dir = dir_with(&[("a.txt", "a\n"), (".git/config", "[core]\n")]);
+        // The `---` side exists and would be chosen; the `+++` side names .git.
+        let diff = "--- a.txt\n+++ .git/config\n@@ -1 +1 @@\n-a\n+b\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        let diff = "--- .git/config\n+++ a.txt\n@@ -1 +1 @@\n-[core]\n+x\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        assert_eq!(read(&dir, "a.txt"), "a\n");
+        assert_eq!(read(&dir, ".git/config"), "[core]\n");
+    }
+
+    #[test]
+    fn dot_git_lookalikes_still_apply() {
+        let dir = dir_with(&[(".gitignore", "a\n")]);
+        let diff = "--- .gitignore\n+++ .gitignore\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(read(&dir, ".gitignore"), "b\n");
     }
 
     #[cfg(unix)]

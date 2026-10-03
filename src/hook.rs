@@ -30,13 +30,18 @@ use crate::{
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
     stage_queue::StageQueue,
-    step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
+    step::{Command, CommandEffect, EXPR_CTX, OutputSummary, RunType, Step, eval_condition},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
     ui::style,
     version,
 };
+
+/// Set once a hook has already logged the error it is about to return, so
+/// `main` does not print it a second time.
+pub static ERROR_REPORTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 #[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
 #[strum(serialize_all = "kebab-case")]
@@ -115,7 +120,7 @@ pub struct Hook {
     #[serde(default)]
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
-    pub report: Option<Script>,
+    pub report: Option<Command>,
 }
 
 fn default_true() -> bool {
@@ -501,6 +506,10 @@ impl HookContext {
 impl Hook {
     pub fn init(&mut self, hook_name: &str) -> Result<()> {
         self.name = hook_name.to_string();
+        if let Some(report) = &self.report {
+            validate_report_command(report)
+                .map_err(|err| eyre::eyre!("hook `{hook_name}`: report: {err}"))?;
+        }
         for (name, step_or_group) in self.steps.iter_mut() {
             step_or_group.init(name)?;
             // Merge hook-level env into steps (step-level env takes precedence)
@@ -549,6 +558,93 @@ impl Hook {
         }
     }
 
+    /// Every step this hook can run by name: top-level steps and the steps
+    /// inside groups. Subproject steps keep their `subdir:` prefix.
+    fn step_names(&self) -> indexmap::IndexSet<&str> {
+        self.steps
+            .iter()
+            .flat_map(|(name, step_or_group)| match step_or_group {
+                StepOrGroup::Step(_) => vec![name.as_str()],
+                StepOrGroup::Group(group) => group.steps.keys().map(String::as_str).collect(),
+            })
+            .collect()
+    }
+
+    /// Reject `--step` names that match no step in this hook. Without this a
+    /// typo selects nothing, and `hk check --step typo` passes after running
+    /// zero steps, which in CI looks like a green check.
+    fn validate_requested_steps(&self, opts: &HookOptions) -> Result<()> {
+        let known = self.step_names();
+        let unknown: Vec<&String> = opts
+            .step
+            .iter()
+            .filter(|name| !known.contains(name.as_str()))
+            .collect();
+        if unknown.is_empty() {
+            return Ok(());
+        }
+        let group_names: indexmap::IndexSet<&str> = self
+            .steps
+            .iter()
+            .filter(|(_, s)| matches!(s, StepOrGroup::Group(_)))
+            .map(|(name, _)| name.as_str())
+            .collect();
+        let mut message = String::new();
+        for name in unknown {
+            message.push_str(&format!("unknown step '{name}' for hook '{}'.", self.name));
+            let namespaced: Vec<&str> = known
+                .iter()
+                .copied()
+                .filter(|k| k.rsplit_once(':').is_some_and(|(_, step)| step == name))
+                .collect();
+            if let Some(group) = group_names.get(name.as_str()) {
+                let inner = self
+                    .steps
+                    .get(*group)
+                    .and_then(|g| match g {
+                        StepOrGroup::Group(g) => Some(g.steps.keys().join(", ")),
+                        StepOrGroup::Step(_) => None,
+                    })
+                    .unwrap_or_default();
+                message.push_str(&format!(
+                    " '{name}' is a group; name its steps instead: {inner}."
+                ));
+            } else if !namespaced.is_empty() {
+                message.push_str(&format!(
+                    " Did you mean {}?",
+                    namespaced.iter().map(|n| format!("'{n}'")).join(" or ")
+                ));
+            } else {
+                message.push_str(&crate::suggest::did_you_mean_hint(
+                    name,
+                    known.iter().copied(),
+                ));
+            }
+            message.push('\n');
+        }
+        if known.is_empty() {
+            message.push_str(&format!("Hook '{}' has no steps.", self.name));
+        } else {
+            message.push_str(&format!("Available steps: {}", known.iter().join(", ")));
+        }
+        eyre::bail!("{message}")
+    }
+
+    /// Warn about `--skip-step` names that match no step. Unlike `--step`, a
+    /// stale skip is harmless, so it stays a warning.
+    fn warn_unknown_skipped_steps(&self, opts: &HookOptions) {
+        let known = self.step_names();
+        for name in &opts.skip_step {
+            if !known.contains(name.as_str()) {
+                warn!(
+                    "--skip-step {name}: no such step in hook '{}'.{}",
+                    self.name,
+                    crate::suggest::did_you_mean_hint(name, known.iter().copied())
+                );
+            }
+        }
+    }
+
     fn get_step_groups(&self, opts: &HookOptions) -> Vec<StepGroup> {
         let mut steps = self.steps.values().cloned().collect_vec();
         if !opts.step.is_empty() {
@@ -583,20 +679,51 @@ impl Hook {
         }
     }
 
-    fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> StashMethod {
-        if opts.staged || opts.unstaged {
+    fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> Result<StashMethod> {
+        Ok(if opts.staged || opts.unstaged {
             StashMethod::None
         } else if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
                 .unwrap_or(StashMethod::None)
         } else {
-            self.resolve_stash_method(*env::HK_STASH)
-        }
+            let env_stash = match &*env::HK_STASH {
+                Ok(method) => *method,
+                Err(err) => eyre::bail!("{err}"),
+            };
+            self.resolve_stash_method(env_stash)
+        })
     }
 
     fn defaults_to_staged_files(&self) -> bool {
         self.name == "pre-commit"
+    }
+
+    /// Whether this run reads untracked files from `git status`.
+    ///
+    /// Finding them makes `git status` walk the whole worktree, which costs far
+    /// more than reading the index on a large repository, so it is skipped when
+    /// nothing below can see the result. The status then lists no untracked
+    /// files, which is what `HK_STASH_UNTRACKED=false` already produces.
+    fn needs_untracked_scan(
+        &self,
+        opts: &HookOptions,
+        stash_method: StashMethod,
+        should_stage: bool,
+    ) -> bool {
+        if !*env::HK_STASH_UNTRACKED {
+            return false;
+        }
+        // Stashing sets untracked files aside, and staging tells files that
+        // were already untracked from ones a fixer created.
+        if stash_method != StashMethod::None || should_stage {
+            return true;
+        }
+        if file_selection_reads_untracked(opts, self.defaults_to_staged_files()) {
+            return true;
+        }
+        // Conditions and command templates can read `git.untracked_files`.
+        serde_json::to_string(self).map_or(true, |hook| hook.contains("untracked"))
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
@@ -604,10 +731,12 @@ impl Hook {
         clx::progress::set_output(ProgressOutput::Text);
         let settings = Settings::get();
         let run_type = self.run_type(&opts);
+        self.validate_requested_steps(&opts)?;
+        self.warn_unknown_skipped_steps(&opts);
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status()?;
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = self.resolve_stash_method_for_opts(&opts)?;
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -619,7 +748,7 @@ impl Hook {
 
         let skip_steps = build_skip_steps(&settings, &opts);
         if opts.safe {
-            validate_safe_commands(&groups, &files, run_type, &skip_steps)?;
+            validate_safe_commands(&groups, self.report.as_ref(), &files, run_type, &skip_steps)?;
         }
 
         let expr_ctx = build_expr_ctx(&git_status, &opts.hook_vars);
@@ -950,7 +1079,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status()?;
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = self.resolve_stash_method_for_opts(&opts)?;
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -972,6 +1101,7 @@ impl Hook {
         println!();
 
         // Collect stats for each step
+        self.validate_requested_steps(&opts)?;
         let groups = self.get_step_groups(&opts);
         let mut step_stats: Vec<(String, usize, Option<SkipReason>)> = Vec::new();
 
@@ -1091,6 +1221,19 @@ impl Hook {
         let run_type = self.run_type(&opts);
         // fail_on_fix exists to surface fixes for review; staging would defeat that.
         let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
+        if let Err(err) = self.validate_requested_steps(&opts) {
+            crate::structured_output::emit_error_run(
+                output_format,
+                &self.name,
+                started_at,
+                run_started.elapsed().as_millis(),
+                err.to_string(),
+                reports,
+            )
+            .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
+            return Err(err);
+        }
+        self.warn_unknown_skipped_steps(&opts);
         let groups = self.get_step_groups(&opts);
         crate::structured_output::emit_run_planned(
             output_format,
@@ -1114,7 +1257,21 @@ impl Hook {
                 return Err(err);
             }
         };
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = match self.resolve_stash_method_for_opts(&opts) {
+            Ok(method) => method,
+            Err(err) => {
+                crate::structured_output::emit_error_run(
+                    output_format,
+                    &self.name,
+                    started_at,
+                    run_started.elapsed().as_millis(),
+                    err.to_string(),
+                    reports,
+                )
+                .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
+                return Err(err);
+            }
+        };
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         // Exit before any side effects (notably stashing) when there are no steps to run.
         // Stashing here would strip the working tree, and the early return below used to
@@ -1139,7 +1296,8 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
-        let git_status = match repo.lock().await.status() {
+        let scan_untracked = self.needs_untracked_scan(&opts, stash_method, should_stage);
+        let git_status = match repo.lock().await.status_with_untracked(scan_untracked) {
             Ok(status) => status,
             Err(err) => {
                 crate::structured_output::emit_error_run(
@@ -1201,6 +1359,7 @@ impl Hook {
         if opts.safe
             && let Err(err) = validate_safe_commands(
                 &groups,
+                self.report.as_ref(),
                 &files.iter().cloned().collect::<Vec<_>>(),
                 run_type,
                 &skip_steps,
@@ -1528,19 +1687,18 @@ impl Hook {
         if let Some(report) = &self.report
             && let Ok(json) = hook_ctx.timing.to_json_string()
         {
-            let mut cmd = ensembler::CmdLineRunner::new("sh")
-                .arg("-o")
-                .arg("errexit")
-                .arg("-c");
-            let run = report.to_string();
-            cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
-            let pr = ProgressJobBuilder::new()
-                .body("report: {{message}}")
-                .prop("message", &run)
-                .start();
-            cmd = cmd.with_pr(pr);
-            if let Err(err) = cmd.execute().await {
-                warn!("Report command failed: {err}");
+            match report_runner(report) {
+                Ok((cmd, run)) => {
+                    let pr = ProgressJobBuilder::new()
+                        .body("report: {{message}}")
+                        .prop("message", &run)
+                        .start();
+                    let cmd = cmd.env("HK_REPORT_JSON", json).with_pr(pr);
+                    if let Err(err) = cmd.execute().await {
+                        warn!("Report command failed: {err}");
+                    }
+                }
+                Err(err) => warn!("Report command failed: {err}"),
             }
         }
         // Emit collected fix suggestions at the end (after progress bars and summaries)
@@ -1550,6 +1708,7 @@ impl Hook {
                 error!("{}", s);
             }
         }
+        let mut error_logged = false;
         if let Err(err) = &result {
             // ScriptFailed errors are displayed via output_by_step above, skip logging here
             // Other errors are unexpected, show full trace for debugging
@@ -1561,6 +1720,7 @@ impl Hook {
             });
             if !is_script_failed {
                 error!("{self}: hook finished with error: {err:?}");
+                error_logged = true;
             }
         } else {
             debug!("{self}: hook finished successfully");
@@ -1582,6 +1742,11 @@ impl Hook {
                 });
             }
             return Err(emit_err);
+        }
+        // main would print this same error again on exit. Only mark it when
+        // the returned error is the one logged above (not an emit failure).
+        if error_logged {
+            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         result
     }
@@ -1667,6 +1832,18 @@ impl Hook {
                 .cloned()
                 .collect()
         };
+
+        // hk passes paths to steps as strings, so it cannot select a file whose
+        // name is not valid UTF-8, whichever way it was named or listed.
+        let non_utf8 = files.iter().filter(|f| f.to_str().is_none()).collect_vec();
+        if !non_utf8.is_empty() {
+            crate::git::warn_non_utf8_paths(
+                non_utf8
+                    .iter()
+                    .map(|p| (p.as_os_str().as_encoded_bytes().to_vec(), format!("{p:?}"))),
+            );
+            files.retain(|f| f.to_str().is_some());
+        }
 
         // Strip leading "./" from all paths for consistent matching
         files = files
@@ -1766,15 +1943,8 @@ impl Hook {
                     "files.exclude: patterns from settings/CLI: {:?}",
                     all_excludes
                 );
-                let mut expanded_excludes = Vec::new();
-                for exclude in &all_excludes {
-                    expanded_excludes.push(exclude.clone());
-                    // If the pattern doesn't contain glob characters, also add patterns for directory contents
-                    if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
-                        expanded_excludes.push(format!("{}/*", exclude));
-                        expanded_excludes.push(format!("{}/**", exclude));
-                    }
-                }
+                // A pattern naming a directory also excludes the directory's contents
+                let expanded_excludes = glob::expand_directory_excludes(&all_excludes);
                 debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
                 exclude_files.extend(glob::get_matches(&expanded_excludes, &match_paths)?);
             }
@@ -1939,13 +2109,69 @@ fn build_skip_steps(settings: &Settings, opts: &HookOptions) -> IndexMap<String,
     m
 }
 
+/// Builds the process for a hook-level `report` command and the text shown for it.
+///
+/// Like before `report` accepted structured commands, the command is not
+/// rendered as a template: `HK_REPORT_JSON` carries the data.
+fn report_runner(report: &Command) -> Result<(ensembler::CmdLineRunner, String)> {
+    match report {
+        Command::Spec(spec) => report_runner(&spec.command),
+        Command::Argv(command) => {
+            validate_report_command(report)?;
+            // The same launcher step argv commands use, so a Windows `.cmd` or
+            // `.bat` executable gets batch-file handling and arguments are not
+            // re-parsed by `cmd.exe`.
+            let cwd = std::env::current_dir()?;
+            let cmd = crate::step::argv_runner(&command.argv, &cwd, None, None)?;
+            Ok((cmd, command.argv.join(" ")))
+        }
+        Command::Shell(script) => {
+            let run = script.to_string();
+            let cmd = ensembler::CmdLineRunner::new("sh")
+                .arg("-o")
+                .arg("errexit")
+                .arg("-c")
+                .arg(&run);
+            Ok((cmd, run))
+        }
+    }
+}
+
+/// Rejects a structured `report` argv without an executable, as step commands do.
+fn validate_report_command(report: &Command) -> Result<()> {
+    match report {
+        Command::Spec(spec) => validate_report_command(&spec.command),
+        Command::Argv(command) => {
+            if command.argv.first().is_none_or(|exe| exe.trim().is_empty()) {
+                eyre::bail!("structured argv command must contain an executable");
+            }
+            Ok(())
+        }
+        Command::Shell(_) => Ok(()),
+    }
+}
+
 fn validate_safe_commands(
     groups: &[StepGroup],
+    report: Option<&Command>,
     files: &[PathBuf],
     run_type: RunType,
     skip_steps: &IndexMap<String, SkipReason>,
 ) -> Result<()> {
     let mut blockers = BTreeSet::new();
+    // The report command runs after every hook, so --safe must classify it
+    // like a step command.
+    if let Some(report) = report {
+        match report.effect() {
+            None => {
+                blockers.insert("report: effect is unknown".to_string());
+            }
+            Some(CommandEffect::Destructive) => {
+                blockers.insert("report: effect is destructive".to_string());
+            }
+            Some(CommandEffect::Read | CommandEffect::Write) => {}
+        }
+    }
     for group in groups {
         let files_in_contention = group.files_in_contention_for(files, run_type)?;
         for (step_name, step) in &group.steps {
@@ -1973,6 +2199,24 @@ fn validate_safe_commands(
         );
     }
     Ok(())
+}
+
+/// Whether `Hook::file_list` selects files from the untracked files in the
+/// status, for a run that does not stash. Keep it in step with the branches
+/// there, which pick the first matching selector in this order.
+fn file_selection_reads_untracked(opts: &HookOptions, defaults_to_staged: bool) -> bool {
+    if opts.files.is_some() {
+        false
+    } else if opts.glob.is_some() || opts.unstaged {
+        true
+    } else if opts.from_ref.is_some() {
+        false
+    } else if opts.all {
+        true
+    } else {
+        // Staged files only, or else staged, unstaged and untracked files
+        !(opts.staged || defaults_to_staged)
+    }
 }
 
 fn build_expr_ctx(
@@ -2083,6 +2327,42 @@ fn skip_reason_to_reason(reason: &SkipReason) -> Reason {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn argv_report(argv: &[&str]) -> Command {
+        Command::Argv(crate::step::ArgvCommand {
+            argv: argv.iter().map(|arg| arg.to_string()).collect(),
+        })
+    }
+
+    #[test]
+    fn report_argv_without_an_executable_is_a_config_error() {
+        for argv in [&[][..], &[""], &["  ", "x"]] {
+            let report = argv_report(argv);
+            let err = validate_report_command(&report).unwrap_err().to_string();
+            assert!(
+                err.contains("must contain an executable"),
+                "{argv:?}: {err}"
+            );
+            assert!(report_runner(&report).is_err(), "{argv:?}");
+        }
+        assert!(validate_report_command(&argv_report(&["true"])).is_ok());
+    }
+
+    #[test]
+    fn report_hook_init_rejects_an_empty_argv() {
+        let mut hook = Hook {
+            report: Some(argv_report(&[])),
+            ..Hook::default()
+        };
+        let err = hook.init("check").unwrap_err().to_string();
+        assert!(err.contains("hook `check`: report:"), "{err}");
+    }
+
+    #[test]
+    fn report_argv_is_displayed_and_runs_directly() {
+        let (_, shown) = report_runner(&argv_report(&["echo", "a b"])).unwrap();
+        assert_eq!(shown, "echo a b");
+    }
 
     #[test]
     fn normalize_lexically_resolves_dot_segments() {

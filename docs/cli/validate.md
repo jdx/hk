@@ -12,6 +12,8 @@ description: "Evaluate the selected configuration without running its linter com
 
 Validate the config file
 
+Errors for configs hk cannot run. Also prints warnings for settings that load but probably do not do what was meant: unknown properties (which release builds silently drop), `depends` that never orders anything, steps without a command, and globs that cannot match.
+
 ## Flags
 
 - **`-h --help`** — Print help

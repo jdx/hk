@@ -65,6 +65,104 @@ fn index_has_intent_to_add(repo: &git2::Repository) -> bool {
     })
 }
 
+/// Files in the git directory that record an operation in progress and that a
+/// hard reset deletes. They live in the worktree's own git directory, which
+/// `git rev-parse --git-path` finds.
+const OPERATION_STATE_FILES: [&str; 7] = [
+    "MERGE_HEAD",
+    "MERGE_MSG",
+    "MERGE_MODE",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "SQUASH_MSG",
+    "AUTO_MERGE",
+];
+
+/// The directory with the todo list of a multi-commit cherry-pick or revert,
+/// which holds files such as `todo`, `head` and `opts`.
+const SEQUENCER_DIR: &str = "sequencer";
+
+/// The files that record an operation in progress, with their contents.
+type OperationState = Vec<(PathBuf, Vec<u8>)>;
+
+fn git_path(name: &str) -> Result<PathBuf> {
+    let path = git_read(["rev-parse", "--git-path", name])
+        .wrap_err_with(|| format!("failed to find {name} in the git directory"))?;
+    Ok(PathBuf::from(path.trim_end_matches('\n')))
+}
+
+/// Reads the files under `dir`, which may be missing.
+fn read_state_dir(dir: &std::path::Path, state: &mut OperationState) -> Result<()> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err).wrap_err_with(|| format!("failed to read {}", dir.display())),
+    };
+    for entry in entries {
+        let path = entry?.path();
+        if path.is_dir() {
+            read_state_dir(&path, state)?;
+        } else {
+            let contents = std::fs::read(&path)
+                .wrap_err_with(|| format!("failed to read {}", path.display()))?;
+            state.push((path, contents));
+        }
+    }
+    Ok(())
+}
+
+/// The contents of the files in [`OPERATION_STATE_FILES`] and the sequencer
+/// directory that exist. A file that exists but cannot be read is an error,
+/// because stashing could then lose it.
+fn snapshot_operation_state() -> Result<OperationState> {
+    let mut state = Vec::new();
+    for name in OPERATION_STATE_FILES {
+        let path = git_path(name)?;
+        match std::fs::read(&path) {
+            Ok(contents) => state.push((path, contents)),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(err).wrap_err_with(|| {
+                    format!(
+                        "failed to read {}, which the stash could delete",
+                        path.display()
+                    )
+                });
+            }
+        }
+    }
+    read_state_dir(&git_path(SEQUENCER_DIR)?, &mut state)?;
+    Ok(state)
+}
+
+/// Writes back the files of [`snapshot_operation_state`] that are now missing.
+/// Fails if one cannot be written, since the commit that finishes the
+/// operation would then be a different one.
+fn restore_operation_state(state: OperationState) -> Result<()> {
+    let mut failed = Vec::new();
+    for (path, contents) in state {
+        if path.exists() {
+            continue;
+        }
+        let written = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, contents));
+        match written {
+            Ok(()) => debug!("restored {}, which the stash deleted", path.display()),
+            Err(err) => failed.push(format!("{}: {err}", path.display())),
+        }
+    }
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(eyre!(
+            "failed to restore the state of the operation in progress that the stash deleted: {}",
+            failed.join("; ")
+        ))
+    }
+}
+
 fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
     const LOCK_RETRY_DELAYS: [Duration; 5] = [
         Duration::from_millis(25),
@@ -135,6 +233,21 @@ where
         }
     }
     Ok((paths, unnamed))
+}
+
+/// Runs git and splits its NUL-separated output into paths, keeping names
+/// that are not valid UTF-8 as they are. Reading the output as a `String`
+/// would cut it short at such a name or replace its bytes.
+fn git_read_raw_paths<I, S>(args: I) -> Result<Vec<PathBuf>>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    Ok(git_read_bytes(args)?
+        .split(|&b| b == 0)
+        .filter(|name| !name.is_empty())
+        .map(path_from_raw)
+        .collect())
 }
 
 /// A path git printed, which need not be valid UTF-8.
@@ -620,6 +733,89 @@ impl StashedChanges {
     }
 }
 
+/// What to write to the worktree when the stash is restored over a step's
+/// result, and whether the stashed worktree differed from the index only in
+/// its final newline.
+///
+/// `base` is the file in HEAD (empty when it was not there), `index` the
+/// staged contents when the stash was made, `work` the stashed worktree
+/// contents and `fixer` what the steps left. Every input is text; a path
+/// without a text input has `None`.
+fn resolve_restore_text(
+    base: &str,
+    index: Option<&str>,
+    work: Option<&str>,
+    fixer: Option<&str>,
+) -> (String, bool) {
+    // Merge relative to the INDEX snapshot at stash time when available.
+    // This ensures that fixer changes applied to staged content are preserved,
+    // while unstaged changes (worktree-only diffs relative to index) are kept.
+    let base_for_merge = index.unwrap_or(base);
+    let mut merged = merge::three_way_merge_hunks(base_for_merge, fixer, work);
+
+    // Special-case: if the only worktree difference relative to the index snapshot
+    // is a pure tail insertion, prefer the fixer result and append the tail.
+    if let (Some(f), Some(w), Some(i)) = (fixer, work, index) {
+        // Try strict prefix first
+        let mut tail_opt = w.strip_prefix(i);
+        // If that fails, allow a single trailing newline discrepancy, but only
+        // when the worktree is exactly the index minus its trailing newline.
+        // A non-empty remainder here means the LAST LINE was edited (e.g.
+        // i="…l3\n", w="…l3 edited\n"), which is not a pure tail insertion;
+        // treating it as one would split the edit onto a new line. Leave those
+        // to the regular three-way merge instead.
+        if tail_opt.is_none() && i.ends_with('\n') {
+            tail_opt = w
+                .strip_prefix(&i[..i.len().saturating_sub(1)])
+                .filter(|tail| tail.is_empty());
+        }
+        if let Some(tail) = tail_opt {
+            // If w == i (no tail), tail is empty; otherwise append tail to fixer
+            let mut combined = f.to_string();
+            if !tail.is_empty() {
+                combined.push_str(tail);
+            }
+            merged = combined;
+        }
+    }
+
+    // Preserve newline-only difference between worktree and index from stash time
+    // Compare the worktree snapshot against the INDEX snapshot from stash time
+    let newline_only_change = match (work, index) {
+        (Some(w), Some(i)) => {
+            let case1 = w.len() + 1 == i.len() && i.ends_with('\n') && &i[..i.len() - 1] == w;
+            let case2 = i.len() + 1 == w.len() && w.ends_with('\n') && &w[..w.len() - 1] == i;
+            case1 || case2
+        }
+        _ => false,
+    };
+    // Preserve EOF newline-only differences without discarding fixer changes.
+    if newline_only_change && let (Some(w), Some(i)) = (work, index) {
+        let w_has_nl = w.ends_with('\n');
+        let i_has_nl = i.ends_with('\n');
+        if w_has_nl && !i_has_nl {
+            if !merged.ends_with('\n') {
+                merged.push('\n');
+            }
+        } else if !w_has_nl && i_has_nl {
+            while merged.ends_with('\n') {
+                merged.pop();
+            }
+        }
+    }
+
+    // If there were no unstaged changes at stash time for this path
+    // (worktree identical to index), prefer writing the fixer result to the worktree
+    // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
+    if !newline_only_change
+        && let (Some(wc), Some(ic), Some(fc)) = (work, index, fixer)
+        && wc == ic
+    {
+        merged = fc.to_string();
+    }
+    (merged, newline_only_change)
+}
+
 /// Reads a regular-file blob in checkout form, applying the path's attributes
 /// and Git filters (including line endings and working-tree encoding). Merge
 /// inputs must use the same representation as snapshots read from disk.
@@ -897,7 +1093,7 @@ impl Git {
     /// Get the patches directory for this repository
     fn patches_dir(&self) -> Result<PathBuf> {
         let patches_dir = env::HK_STATE_DIR.join("patches");
-        std::fs::create_dir_all(&patches_dir)?;
+        env::create_state_dir_all(&patches_dir)?;
         Ok(patches_dir)
     }
 
@@ -947,6 +1143,13 @@ impl Git {
 
     /// Save a patch backup of the stash
     fn save_stash_patch(&mut self, stash_ref: &str) {
+        self.save_patch_backup(stash_ref, None);
+    }
+
+    /// Saves a patch backup of what the stash set aside. `trees` names the
+    /// staged and the worktree tree to diff when `git stash show` cannot show
+    /// it, because it compares with HEAD.
+    fn save_patch_backup(&mut self, stash_ref: &str, trees: Option<(&str, &str)>) {
         // If backup_count is 0, skip patch backup entirely
         let backup_count = Settings::get().stash_backup_count;
         if backup_count == 0 {
@@ -977,11 +1180,22 @@ impl Git {
         let patch_path = patches_dir.join(&patch_filename);
 
         // Generate patch using git stash show
-        let mut cmd = git_cmd_silent(["stash", "show", "-p"]);
-        if *env::HK_STASH_UNTRACKED {
-            cmd = cmd.arg("--include-untracked");
-        }
-        cmd = cmd.arg(stash_ref);
+        let cmd = if let Some((index_tree, worktree_tree)) = trees {
+            git_cmd_silent([
+                "diff",
+                "--binary",
+                "--no-ext-diff",
+                "--no-color",
+                index_tree,
+                worktree_tree,
+            ])
+        } else {
+            let mut cmd = git_cmd_silent(["stash", "show", "-p"]);
+            if *env::HK_STASH_UNTRACKED {
+                cmd = cmd.arg("--include-untracked");
+            }
+            cmd.arg(stash_ref)
+        };
 
         // Read patch content from git
         let mut patch_content = match cmd.read() {
@@ -1125,17 +1339,12 @@ impl Git {
                 })
                 .collect())
         } else {
-            let mut cmd = git_cmd(["ls-files", "-z"]);
+            let mut args = vec![OsString::from("ls-files"), OsString::from("-z")];
             if let Some(pathspec) = pathspec {
-                cmd = cmd.arg("--");
-                cmd = cmd.args(pathspec.iter().filter_map(|p| p.to_str()));
+                args.push(OsString::from("--"));
+                args.extend(pathspec.iter().filter(|p| p.to_str().is_some()).cloned());
             }
-            let output = cmd.read()?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            Ok(git_read_raw_paths(args)?.into_iter().collect())
         }
     }
 
@@ -1149,9 +1358,15 @@ impl Git {
     /// threads and skips unchanged directories through the cache tree. With
     /// optional locks allowed, `git status` also writes the refreshed index
     /// back when it can take the lock, as `git update-index --refresh` would.
-    #[tracing::instrument(level = "info", name = "git.status", skip_all)]
     pub fn status(&self) -> Result<GitStatus> {
-        let include_untracked = *env::HK_STASH_UNTRACKED;
+        self.status_with_untracked(*env::HK_STASH_UNTRACKED)
+    }
+
+    /// Like [`Git::status`], but only looks for untracked files when
+    /// `include_untracked` is set, which spares `git status` a walk of the
+    /// whole worktree.
+    #[tracing::instrument(level = "info", name = "git.status", skip_all)]
+    pub fn status_with_untracked(&self, include_untracked: bool) -> Result<GitStatus> {
         let mut args = vec![
             "status",
             "--porcelain=v2",
@@ -1370,13 +1585,17 @@ impl Git {
         job.prop("message", "Fetching unstaged files");
         job.set_status(ProgressStatus::Running);
 
-        // Hardened detection of worktree-only changes (including partially staged files)
+        // `status` already lists every path with changes in the worktree, read
+        // with the index refreshed, so no further `git diff`, `git ls-files` or
+        // `git status` scan is needed to find what to stash.
         let mut files_to_stash: BTreeSet<PathBuf> = BTreeSet::new();
         // Intent-to-add entries whose files exist, which git diffs as added to
         // the worktree
-        let mut intent_to_add: Vec<PathBuf> = vec![];
-        // 1) git diff --name-status (worktree vs index)
-        {
+        let mut intent_to_add: BTreeSet<PathBuf> = status.intent_to_add_files.clone();
+        // A path that is not valid UTF-8 is left out of the status, which only
+        // records that something needs stashing. Intent-to-add files are set
+        // aside whatever their names, so look for those with `git diff`.
+        if status.skipped_unstaged {
             let args: Vec<OsString> = vec![
                 "diff".into(),
                 "--name-status".into(),
@@ -1386,69 +1605,27 @@ impl Git {
                 "--no-ext-diff".into(),
                 "--ignore-submodules".into(),
             ];
-            // Paths that are not valid UTF-8 are left out of the status, which
-            // records that they need stashing. Intent-to-add files are set
-            // aside whatever their names.
             let out = git_read_bytes(args).unwrap_or_default();
-            for (status, name) in out.split(|&b| b == 0).tuples() {
-                if name.is_empty() {
-                    continue;
-                }
-                if status == b"A" {
+            for (kind, name) in out.split(|&b| b == 0).tuples() {
+                if kind == b"A" && !name.is_empty() {
                     let p = path_from_raw(name);
                     if path_exists(&p) {
-                        intent_to_add.push(p);
-                    }
-                }
-                if let Ok(name) = std::str::from_utf8(name) {
-                    let p = PathBuf::from(name);
-                    if p.exists() {
-                        files_to_stash.insert(p);
+                        intent_to_add.insert(p);
                     }
                 }
             }
         }
-        // 2) git ls-files -m (modified in worktree)
-        {
-            let args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
-            let (paths, _) = git_read_paths(args).unwrap_or_default();
-            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
-        }
-        // 3) Parse porcelain to catch nuanced mixed states.
-        // We only look at worktree-side markers (M/T/R), so untracked entries
-        // are irrelevant here. Skip the untracked scan entirely when
-        // HK_STASH_UNTRACKED=false to avoid scanning a huge worktree (see #860).
-        {
-            let untracked_arg = if *env::HK_STASH_UNTRACKED {
-                "--untracked-files=all"
-            } else {
-                "--untracked-files=no"
-            };
-            let args: Vec<OsString> = vec![
-                "status".into(),
-                "--porcelain".into(),
-                "--no-renames".into(),
-                untracked_arg.into(),
-                "-z".into(),
-            ];
-            let out = git_read_bytes(args).unwrap_or_default();
-            for entry in out.split(|&b| b == 0).filter(|s| s.len() > 3) {
-                // worktree side has changes
-                if matches!(entry[1], b'M' | b'T' | b'R')
-                    && let Ok(path) = std::str::from_utf8(&entry[3..])
-                {
-                    let p = PathBuf::from(path);
-                    if p.exists() {
-                        files_to_stash.insert(p);
-                    }
-                }
-            }
-        }
-        // 4) Union with computed status for safety
+        let intent_to_add: Vec<PathBuf> = intent_to_add.into_iter().collect();
+        // `git diff` lists unmerged paths as changed; the status classifies them
+        // separately
+        files_to_stash.extend(status.unmerged_files.iter().cloned());
         for p in status.unstaged_files.iter() {
             files_to_stash.insert(p.clone());
         }
-        // 5) When HK_STASH_UNTRACKED=true, also include untracked files
+        // An empty intent-to-add file counts as staged, not unstaged. Setting
+        // the intent-to-add files aside removes them from the set again.
+        files_to_stash.extend(intent_to_add.iter().cloned());
+        // When HK_STASH_UNTRACKED=true, also include untracked files
         if *env::HK_STASH_UNTRACKED {
             for p in status.untracked_files.iter() {
                 files_to_stash.insert(p.clone());
@@ -1536,7 +1713,30 @@ impl Git {
 
     // removed patch-file custom path for now
 
+    /// Stashes the unstaged changes, leaving the state of a merge,
+    /// cherry-pick, revert or squash in progress as it was. `git stash push`
+    /// without a pathspec resets the worktree, which deletes those files and
+    /// turns the commit that finishes the operation into a plain one.
     fn push_stash(
+        &mut self,
+        paths: Option<&[PathBuf]>,
+        status: &GitStatus,
+    ) -> Result<Option<StashType>> {
+        // Refuse to stash when the state cannot be saved, since the stash
+        // would delete it
+        let state = snapshot_operation_state()?;
+        let result = self.push_stash_inner(paths, status);
+        let restored = restore_operation_state(state);
+        match (result, restored) {
+            (Ok(stash), Ok(())) => Ok(stash),
+            (Err(err), restored) => Err(with_restore_error(err, restored)),
+            (Ok(_), Err(err)) => Err(err.wrap_err(
+                "your unstaged changes are kept in the stash entry hk created (`git stash list`)",
+            )),
+        }
+    }
+
+    fn push_stash_inner(
         &mut self,
         paths: Option<&[PathBuf]>,
         status: &GitStatus,
@@ -1559,7 +1759,7 @@ impl Git {
             if *env::HK_STASH_UNTRACKED {
                 // No tracked files to stash, but we want to stash all untracked files
                 // So do a full stash with --include-untracked (no pathspecs)
-                return self.push_stash(None, status);
+                return self.push_stash_inner(None, status);
             } else {
                 return Ok(None);
             }
@@ -1585,7 +1785,9 @@ impl Git {
                 .status()
                 .wrap_err("failed to check whether stash pathspec has changes")?;
             match diff_status.code() {
-                Some(0) => return Ok(None),
+                // Nothing differs from HEAD, but a path may still hold a staged
+                // edit that the worktree reverted
+                Some(0) => return self.stash_reverted_paths(ts),
                 Some(1) => {}
                 code => {
                     return Err(eyre!(
@@ -1690,6 +1892,158 @@ impl Git {
     }
 
     // removed: push_stash_keep_index_no_untracked helper
+
+    /// Stashes the tracked `paths` that have a staged edit and whose worktree
+    /// copy was reverted to HEAD, so `git stash push -- <paths>` has no
+    /// HEAD-to-worktree diff to work from and would reset the index. Without
+    /// a stash, steps would see the reverted contents rather than the staged
+    /// ones, and staging their output would replace the staged edit.
+    ///
+    /// Builds the stash entry that `git stash push --keep-index` would have
+    /// made, then checks the staged contents out so the worktree equals the
+    /// index while steps run. Returns `None` when no staged contents differ
+    /// from HEAD, like a mode-only change.
+    fn stash_reverted_paths(&mut self, paths: &[PathBuf]) -> Result<Option<StashType>> {
+        let mut args: Vec<OsString> = [
+            "diff",
+            "--cached",
+            "--raw",
+            "-z",
+            "--no-abbrev",
+            "--no-renames",
+            "--no-ext-diff",
+            "--ignore-submodules",
+            "HEAD",
+            "--",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        args.extend(paths.iter().map(|p| {
+            let mut spec = OsString::from(":(literal)");
+            spec.push(p.as_os_str());
+            spec
+        }));
+        // `:<old mode> <new mode> <old oid> <new oid> <status> NUL <path> NUL`
+        let raw = git_read_bytes(args).wrap_err("failed to list staged edits")?;
+        let mut fields = raw.split(|&b| b == 0).filter(|f| !f.is_empty());
+        let mut reverted: Vec<PathBuf> = vec![];
+        while let (Some(meta), Some(name)) = (fields.next(), fields.next()) {
+            let meta = String::from_utf8_lossy(meta);
+            let meta: Vec<&str> = meta.split(' ').collect();
+            // A mode-only change has the same contents in the worktree
+            if let [_, new_mode, old_oid, new_oid, ..] = meta.as_slice()
+                && old_oid != new_oid
+                && *new_mode != "160000"
+            {
+                reverted.push(path_from_raw(name));
+            }
+        }
+        if reverted.is_empty() {
+            return Ok(None);
+        }
+
+        let tmp = tempfile::tempdir()?;
+        let tmp_index = tmp.path().join("index");
+        let index_tree = git_read(["write-tree"])?.trim().to_string();
+        git_cmd(["read-tree", &index_tree])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .run()
+            .wrap_err("failed to read the index")?;
+        let mut stdin = Vec::new();
+        for p in &reverted {
+            stdin.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            stdin.push(0);
+        }
+        // Record the worktree contents, which `git add` would clean
+        git_cmd(["update-index", "--add", "-z", "--stdin"])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .stdin_bytes(stdin)
+            .run()
+            .wrap_err("failed to read the reverted files")?;
+        let worktree_tree = git_cmd(["write-tree"])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .read()?
+            .trim()
+            .to_string();
+        let index_commit = git_read(["commit-tree", &index_tree, "-p", "HEAD", "-m", "index"])?
+            .trim()
+            .to_string();
+        let commit = git_read([
+            "commit-tree",
+            &worktree_tree,
+            "-p",
+            "HEAD",
+            "-p",
+            &index_commit,
+            "-m",
+            "hk",
+        ])?
+        .trim()
+        .to_string();
+        git_cmd(["stash", "store", "-m", "hk", &commit])
+            .run()
+            .wrap_err("failed to stash reverted files")?;
+        self.stash_commit = Some(commit.clone());
+        // `git stash show` compares with HEAD, which these files match, so
+        // back up how the worktree differs from the staged contents
+        self.save_patch_backup(&commit, Some((&index_tree, &worktree_tree)));
+        // The worktree now equals the index, as `--keep-index` leaves it
+        if let Err(err) = git_cmd(["checkout-index", "--force", "-z", "--stdin"])
+            .stdin_bytes(
+                reverted
+                    .iter()
+                    .flat_map(|p| p.as_os_str().as_encoded_bytes().iter().copied().chain([0]))
+                    .collect::<Vec<u8>>(),
+            )
+            .run()
+        {
+            // Some of the files may already hold the staged contents. Put
+            // the stashed worktree contents back, and keep the entry unless
+            // that worked.
+            let restored = (|| -> Result<()> {
+                // Only the files that no longer match
+                let mut args: Vec<OsString> = ["diff", "--name-only", "-z", "--no-ext-diff"]
+                    .into_iter()
+                    .map(OsString::from)
+                    .collect();
+                args.push(commit.clone().into());
+                args.push("--".into());
+                args.extend(reverted.iter().map(|p| {
+                    let mut spec = OsString::from(":(literal)");
+                    spec.push(p.as_os_str());
+                    spec
+                }));
+                let (changed, _) = git_read_paths(args)?;
+                if changed.is_empty() {
+                    return Ok(());
+                }
+                git_cmd([
+                    "restore",
+                    &format!("--source={commit}"),
+                    "--worktree",
+                    "--pathspec-from-file=-",
+                    "--pathspec-file-nul",
+                ])
+                .stdin_bytes(literal_pathspecs(&changed))
+                .run()?;
+                Ok(())
+            })();
+            self.stash_commit = None;
+            let stash_ref = find_stash_ref(&commit).unwrap_or_else(|| commit.clone());
+            if let Err(restore_err) = restored {
+                return Err(err).wrap_err(format!(
+                    "failed to check out the staged contents, and restoring the reverted files failed ({restore_err}); their contents are kept in {stash_ref}"
+                ));
+            }
+            if let Err(err) = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run() {
+                warn!("failed to drop stash {stash_ref} of reverted files: {err:?}");
+            }
+            return Err(err).wrap_err("failed to check out the staged contents");
+        }
+        debug!("stashed reverted files {reverted:?} in {commit}");
+        Ok(Some(StashType::Git))
+    }
 
     /// Sets aside the contents of the intent-to-add files `paths`: stores them
     /// in a stash entry of untracked files, removes their entries from the
@@ -2419,113 +2773,16 @@ impl Git {
                     let has_fixer = fixer.is_some();
                     let has_work = work_pre.is_some();
                     // Merge relative to the INDEX snapshot at stash time when available.
-                    // This ensures that fixer changes applied to staged content are preserved,
-                    // while unstaged changes (worktree-only diffs relative to index) are kept.
-                    let base_for_merge = index_pre.as_deref().unwrap_or(base);
-                    let mut merged = merge::three_way_merge_hunks(
-                        base_for_merge,
-                        fixer.as_deref(),
+                    let (merged, newline_only_change) = resolve_restore_text(
+                        base,
+                        index_pre.as_deref(),
                         work_pre.as_deref(),
+                        fixer.as_deref(),
                     );
-
-                    // Special-case: if the only worktree difference relative to the index snapshot
-                    // is a pure tail insertion, prefer the fixer result and append the tail.
-                    if let (Some(f), Some(w), Some(i)) =
-                        (fixer.as_deref(), work_pre.as_deref(), index_pre.as_deref())
-                    {
-                        // Try strict prefix first
-                        let mut tail_opt = w.strip_prefix(i);
-                        // If that fails, allow a single trailing newline discrepancy, but only
-                        // when the worktree is exactly the index minus its trailing newline.
-                        // A non-empty remainder here means the LAST LINE was edited (e.g.
-                        // i="…l3\n", w="…l3 edited\n"), which is not a pure tail insertion;
-                        // treating it as one would split the edit onto a new line. Leave those
-                        // to the regular three-way merge instead.
-                        if tail_opt.is_none() && i.ends_with('\n') {
-                            tail_opt = w
-                                .strip_prefix(&i[..i.len().saturating_sub(1)])
-                                .filter(|tail| tail.is_empty());
-                        }
-                        if let Some(tail) = tail_opt {
-                            // If w == i (no tail), tail is empty; otherwise append tail to fixer
-                            let mut combined = f.to_string();
-                            if !tail.is_empty() {
-                                combined.push_str(tail);
-                            }
-                            merged = combined;
-                        }
-                    }
-
-                    // Preserve newline-only difference between worktree and index from stash time
-                    // Compare the worktree snapshot against the INDEX snapshot from stash time
-                    let newline_only_change = match (work_pre.as_deref(), index_pre.as_deref()) {
-                        (Some(w), Some(i)) => {
-                            let case1 = w.len() + 1 == i.len()
-                                && i.ends_with('\n')
-                                && &i[..i.len() - 1] == w;
-                            let case2 = i.len() + 1 == w.len()
-                                && w.ends_with('\n')
-                                && &w[..w.len() - 1] == i;
-                            if case1 || case2 {
-                                debug!(
-                                    "manual-unstash: newline-only change detected path={} w_len={} i_len={} case1={} case2={}",
-                                    display_path(&path),
-                                    w.len(),
-                                    i.len(),
-                                    case1,
-                                    case2
-                                );
-                            } else {
-                                debug!(
-                                    "manual-unstash: newline-only change NOT detected path={} w_len={} i_len={} ends_w={} ends_i={} equal_trim_w={} equal_trim_i={}",
-                                    display_path(&path),
-                                    w.len(),
-                                    i.len(),
-                                    w.ends_with('\n'),
-                                    i.ends_with('\n'),
-                                    if w.ends_with('\n') {
-                                        &w[..w.len() - 1] == i
-                                    } else {
-                                        false
-                                    },
-                                    if i.ends_with('\n') {
-                                        &i[..i.len() - 1] == w
-                                    } else {
-                                        false
-                                    }
-                                );
-                            }
-                            case1 || case2
-                        }
-                        _ => false,
-                    };
-                    // Preserve EOF newline-only differences without discarding fixer changes.
-                    if newline_only_change
-                        && let (Some(w), Some(i)) = (work_pre.as_deref(), index_pre.as_deref())
-                    {
-                        let w_has_nl = w.ends_with('\n');
-                        let i_has_nl = i.ends_with('\n');
-                        if w_has_nl && !i_has_nl {
-                            if !merged.ends_with('\n') {
-                                merged.push('\n');
-                            }
-                        } else if !w_has_nl && i_has_nl {
-                            while merged.ends_with('\n') {
-                                merged.pop();
-                            }
-                        }
-                    }
-
-                    // If there were no unstaged changes at stash time for this path
-                    // (worktree identical to index), prefer writing the fixer result to the worktree
-                    // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
-                    if !newline_only_change
-                        && let (Some(wc), Some(ic), Some(fc)) =
-                            (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
-                        && wc == ic
-                    {
-                        merged = fc.clone();
-                    }
+                    debug!(
+                        "manual-unstash: path={} newline_only_change={newline_only_change}",
+                        display_path(&path)
+                    );
 
                     // Determine which side the merged result matches
                     let mut chosen = "mixed";
@@ -2798,36 +3055,26 @@ impl Git {
                 None => format!("{from_ref}..{to_ref}"),
             };
 
-            let output = git_read([
+            git_read_raw_paths([
                 "diff",
                 "-z",
                 "--name-only",
                 "--diff-filter=ACMRTUXB",
                 "--end-of-options",
                 range.as_str(),
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         } else {
             // No resolvable base: lint every file at `to_ref`. `ls-tree` is
             // object-format agnostic, unlike a hard-coded empty-tree hash.
             debug!("could not resolve from-ref '{from_ref}'; listing all files at {to_ref}");
-            let output = git_read([
+            git_read_raw_paths([
                 "ls-tree",
                 "-z",
                 "-r",
                 "--name-only",
                 "--end-of-options",
                 to_ref,
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         }
     }
 }
@@ -2961,6 +3208,10 @@ pub(crate) struct GitStatus {
     /// libgit2 leave this empty.
     #[serde(skip)]
     pub intent_to_add_files: BTreeSet<PathBuf>,
+    /// Paths with unresolved merge conflicts that exist. Statuses classified
+    /// like libgit2 list them as unstaged as well.
+    #[serde(skip)]
+    pub unmerged_files: BTreeSet<PathBuf>,
 }
 
 impl GitStatus {
@@ -2999,6 +3250,7 @@ impl GitStatus {
         self.unstaged_renamed_files
             .extend(other.unstaged_renamed_files);
         self.intent_to_add_files.extend(other.intent_to_add_files);
+        self.unmerged_files.extend(other.unmerged_files);
     }
 
     /// Classifies entries of `git status --porcelain=v2`.
@@ -3009,10 +3261,14 @@ impl GitStatus {
                 index,
                 worktree,
                 path,
+                unmerged,
                 ..
             } = entry;
             let exists = path_exists(&path);
             let is_modified = |c: u8| matches!(c, b'M' | b'T' | b'A' | b'R' | b'C');
+            if unmerged && exists {
+                status.unmerged_files.insert(path.clone());
+            }
 
             // Only consider staged files that still exist in the worktree to avoid AD cases
             if is_modified(index) && worktree != b'D' && exists {
@@ -3045,8 +3301,9 @@ impl GitStatus {
                 status.untracked_files.insert(path.clone());
             }
             // git reports an intent-to-add file as added to the worktree, or
-            // as the new path of a worktree rename
-            if index == b' ' && matches!(worktree, b'A' | b'R') && exists {
+            // as the new path of a worktree rename. Its index side is `D` when
+            // HEAD has a file at that path.
+            if matches!(index, b' ' | b'D') && matches!(worktree, b'A' | b'R') && exists {
                 status.intent_to_add_files.insert(path.clone());
             }
             // Track modified files only if the path exists
@@ -3086,9 +3343,16 @@ impl GitStatus {
             if entry.unmerged {
                 if exists {
                     status.staged_files.insert(path.clone());
+                    status.unmerged_files.insert(path.clone());
                     status.unstaged_files.insert(path);
                 }
                 continue;
+            }
+            // An intent-to-add file replacing one in HEAD reads as a deleted
+            // index entry, so the arm below, which needs an empty index side,
+            // does not see it
+            if entry.index == b'D' && matches!(entry.worktree, b'A' | b'R') && exists {
+                status.intent_to_add_files.insert(path.clone());
             }
             let (index, worktree) = match (entry.index, entry.worktree) {
                 // libgit2 reports an intent-to-add entry as added to the index
@@ -3324,6 +3588,9 @@ fn libgit2_cannot_read_index(err: &eyre::Report) -> bool {
 struct SkippedPaths {
     /// The paths, shown lossily
     names: Vec<String>,
+    /// The same paths as git printed them, which tell apart names that differ
+    /// only in bytes that are not valid UTF-8
+    raw: Vec<Vec<u8>>,
     /// Whether any of them has changes in the worktree
     unstaged: bool,
     /// Whether any of them is untracked
@@ -3400,6 +3667,7 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
             skipped
                 .names
                 .push(String::from_utf8_lossy(bytes).into_owned());
+            skipped.raw.push(bytes.to_vec());
             None
         }
     }
@@ -3408,10 +3676,32 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
 /// Warns that a status read left out `skipped`, so that files hk does not
 /// check are not left out silently.
 fn warn_skipped_paths(skipped: &SkippedPaths) {
-    if !skipped.names.is_empty() {
+    warn_non_utf8_paths(
+        skipped
+            .raw
+            .iter()
+            .map(|raw| (raw.clone(), format!("{:?}", path_from_raw(raw)))),
+    );
+}
+
+/// Warns that hk skipped paths that are not valid UTF-8, once per path for the
+/// whole run: a status read and the file selection can both come across the
+/// same file. Each path is its raw bytes, which identify it (two names can
+/// differ only in bytes that show the same lossily), and how to show it.
+pub(crate) fn warn_non_utf8_paths(paths: impl IntoIterator<Item = (Vec<u8>, String)>) {
+    static WARNED: std::sync::Mutex<BTreeSet<Vec<u8>>> = std::sync::Mutex::new(BTreeSet::new());
+    let shown = {
+        let mut warned = WARNED.lock().unwrap();
+        paths
+            .into_iter()
+            .filter(|(raw, _)| warned.insert(raw.clone()))
+            .map(|(_, shown)| shown)
+            .collect_vec()
+    };
+    if !shown.is_empty() {
         warn!(
             "skipped {} because hk cannot handle paths that are not valid UTF-8",
-            skipped.names.iter().map(|p| format!("{p:?}")).join(", ")
+            shown.join(", ")
         );
     }
 }
@@ -3542,6 +3832,7 @@ mod tests {
         );
         assert!(status.unstaged_renamed_files.is_empty());
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(status.unmerged_files, paths(d, &["conflict.txt"]));
         assert_eq!(
             status.intent_to_add_files,
             paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
@@ -3574,6 +3865,7 @@ mod tests {
         assert_eq!(status.unstaged_deleted_files, paths(d, &["gone.txt"]));
         assert_eq!(status.unstaged_renamed_files, paths(d, &["ita_moved.txt"]));
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(status.unmerged_files, paths(d, &["conflict.txt"]));
         assert_eq!(
             status.intent_to_add_files,
             paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
@@ -3600,6 +3892,24 @@ mod tests {
             assert!(status.unstaged_files.is_empty());
             assert_eq!(status.unstaged_deleted_files, paths(d, &["a.txt"]));
             assert_eq!(status.untracked_files, paths(d, &["b.txt"]));
+        }
+    }
+
+    #[test]
+    fn test_porcelain_status_intent_to_add_replacing_a_committed_file() {
+        // `git rm --cached a.txt`, then `git add -N a.txt`: the index drops
+        // the committed entry, and the worktree adds the new one
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        std::fs::write(d.join("a.txt"), "x").unwrap();
+        let a = "a".repeat(40);
+        let output = format!(
+            "1 DA N... 100644 000000 100644 {a} {a} {}/a.txt\0",
+            d.display()
+        );
+        let entries = || parse(output.as_bytes());
+        for status in [libgit2(entries()), GitStatus::from_entries(entries())] {
+            assert_eq!(status.intent_to_add_files, paths(d, &["a.txt"]));
         }
     }
 
@@ -3746,5 +4056,118 @@ mod tests {
         assert!(!under("d.txt/inner"));
         assert!(!under("e/f/g"));
         assert!(!under("c"));
+    }
+
+    #[test]
+    fn resolve_restore_text_rules() {
+        // (name, base, index, work, fixer, merged, newline_only)
+        #[allow(clippy::type_complexity)]
+        let cases: &[(
+            &str,
+            &str,
+            Option<&str>,
+            Option<&str>,
+            Option<&str>,
+            &str,
+            bool,
+        )] = &[
+            (
+                "tail insertion keeps the fixer result and appends the tail",
+                "a\nb\n",
+                Some("a\nb\n"),
+                Some("a\nb\nc\n"),
+                Some("A\nb\n"),
+                "A\nb\nc\n",
+                false,
+            ),
+            (
+                "a last line edit is merged, not appended",
+                "l1\nl2\nl3\n",
+                Some("l1\nl2\nl3\n"),
+                Some("l1\nl2\nl3 edited\n"),
+                Some("L1\nl2\nl3\n"),
+                "L1\nl2\nl3 edited\n",
+                false,
+            ),
+            (
+                "a removed final newline is kept on the fixer result",
+                "a\nb\n",
+                Some("a\nb\n"),
+                Some("a\nb"),
+                Some("A\nb\n"),
+                "A\nb",
+                true,
+            ),
+            (
+                "an added final newline is kept on the fixer result",
+                "a\nb",
+                Some("a\nb"),
+                Some("a\nb\n"),
+                Some("A\nb"),
+                "A\nb\n",
+                true,
+            ),
+            (
+                "an unchanged worktree takes the fixer result",
+                "a\n",
+                Some("a\n"),
+                Some("a\n"),
+                Some("A\n"),
+                "A\n",
+                false,
+            ),
+            (
+                "without an index, a worktree equal to HEAD takes the fixer result",
+                "a\n",
+                None,
+                Some("a\n"),
+                Some("A\n"),
+                "A\n",
+                false,
+            ),
+            (
+                "the worktree wins when both change the same line",
+                "a\nb\n",
+                Some("a\nb\n"),
+                Some("a\nW\n"),
+                Some("a\nF\n"),
+                "a\nW\n",
+                false,
+            ),
+            (
+                "without an index, the worktree wins over the fixer",
+                "a\n",
+                None,
+                Some("x\n"),
+                Some("y\n"),
+                "x\n",
+                false,
+            ),
+            (
+                "without a fixer, the stashed worktree is restored",
+                "a\n",
+                Some("b\n"),
+                Some("b\nc\n"),
+                None,
+                "b\nc\n",
+                false,
+            ),
+            (
+                "without a fixer or a worktree, the base remains",
+                "a\n",
+                None,
+                None,
+                None,
+                "a\n",
+                false,
+            ),
+        ];
+        for (name, base, index, work, fixer, merged, newline_only) in cases {
+            assert_eq!(
+                resolve_restore_text(base, *index, *work, *fixer),
+                (merged.to_string(), *newline_only),
+                "{name}"
+            );
+        }
     }
 }

@@ -47,6 +47,9 @@ fn truncate_progress_message(s: &str, max_chars: usize) -> String {
     console::truncate_str(s, max_chars, "…").into_owned()
 }
 
+/// Exit status POSIX shells use when the command to run is not found.
+const COMMAND_NOT_FOUND_EXIT_CODE: i32 = 127;
+
 impl Step {
     pub fn commands_for_jobs<'a>(
         &'a self,
@@ -221,8 +224,11 @@ impl Step {
         // progress message; this keeps the command shape and one
         // concrete example path visible without unbounded expansion.
         let run_for_display = run_cmd
-            .render(&tctx.for_display(), self.prefix.as_ref())
-            .map(|command| command.display(self.shell_type()))
+            .render(
+                &tctx.for_user(self.shell_type()).for_display(),
+                self.prefix.as_ref(),
+            )
+            .map(|command| command.display_user(self.shell_type()))
             .unwrap_or_else(|_| run_cmd.to_string());
         let rendered_command = run_cmd
             .render(&tctx, self.prefix.as_ref())
@@ -394,7 +400,10 @@ impl Step {
                 }
             }
         }
-        for (key, value) in rendered_env {
+        let reserve_cmd_percent = cfg!(windows)
+            && matches!(rendered_command, RenderedCommand::Shell(_))
+            && matches!(self.shell_type(), ShellType::Cmd);
+        for (key, value) in super::shell::with_cmd_percent(rendered_env, reserve_cmd_percent) {
             cmd = cmd.env(key, value);
         }
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
@@ -486,14 +495,26 @@ impl Step {
                         true, // is a failure
                     );
 
-                    // If we're in check mode and a fix command exists, collect a helpful suggestion
-                    self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    // If we're in check mode and a fix command exists, collect a helpful
+                    // suggestion. Skip it when the check never ran (the shell exits 127
+                    // for a missing tool, with a "not found" message): the files were not found to need fixing.
+                    let tool_missing = e.3.status.code() == Some(COMMAND_NOT_FOUND_EXIT_CODE)
+                        && e.3.combined_output.contains("not found");
+                    if !tool_missing {
+                        self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    }
                 }
                 if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
                 }
+                // Show the command as a user could run it, not hk's internal
+                // cmd.exe placeholder.
+                let shown = run_cmd
+                    .render(&tctx.for_user(self.shell_type()), self.prefix.as_ref())
+                    .map(|command| command.display_user(self.shell_type()))
+                    .unwrap_or(run);
                 if let (ensembler::Error::Io(io), RenderedCommand::Argv(argv)) =
                     (&err, &rendered_command)
                     && io.kind() == std::io::ErrorKind::NotFound
@@ -511,9 +532,9 @@ impl Step {
                     return Err(eyre::eyre!(
                         "{program}: command not found; is it installed and on PATH?"
                     ))
-                    .wrap_err(run);
+                    .wrap_err(shown);
                 }
-                return Err(err).wrap_err(run);
+                return Err(err).wrap_err(shown);
             }
         }
         ctx.decrement_job_count();
