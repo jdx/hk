@@ -50,6 +50,7 @@ EXPECTED_FAILURES = {
     ("pkl_config_errors.bats", "syntax error in hk.pkl reports file, line and column once"),
     ("pkl_config_errors.bats", "syntax error in an imported file is blamed on that file"),
     ("top_level_exclude.bats", "top-level exclude - invalid regex fails validation"),
+    ("validate.bats", "validate names the step for an invalid exclude regex"),
     ("regex_patterns.bats", "Config.Regex fails with v2 migration guidance"),
     ("regex_patterns.bats", "Types.Regex fails with v2 migration guidance"),
     (
