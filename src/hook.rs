@@ -224,167 +224,6 @@ impl StepOrGroup {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    fn argv_report(argv: &[&str]) -> Command {
-        Command::Argv(crate::step::ArgvCommand {
-            argv: argv.iter().map(|arg| arg.to_string()).collect(),
-        })
-    }
-
-    #[test]
-    fn report_argv_without_an_executable_is_a_config_error() {
-        for argv in [&[][..], &[""], &["  ", "x"]] {
-            let report = argv_report(argv);
-            let err = validate_report_command(&report).unwrap_err().to_string();
-            assert!(
-                err.contains("must contain an executable"),
-                "{argv:?}: {err}"
-            );
-            assert!(report_runner(&report).is_err(), "{argv:?}");
-        }
-        assert!(validate_report_command(&argv_report(&["true"])).is_ok());
-    }
-
-    #[test]
-    fn report_hook_init_rejects_an_empty_argv() {
-        let mut hook = Hook {
-            report: Some(argv_report(&[])),
-            ..Hook::default()
-        };
-        let err = hook.init("check").unwrap_err().to_string();
-        assert!(err.contains("hook `check`: report:"), "{err}");
-    }
-
-    #[test]
-    fn report_argv_is_displayed_and_runs_directly() {
-        let (_, shown) = report_runner(&argv_report(&["echo", "a b"])).unwrap();
-        assert_eq!(shown, "echo a b");
-    }
-
-    #[test]
-    fn normalize_lexically_resolves_dot_segments() {
-        let cases = [
-            ("src/../vendor/lib.js", "vendor/lib.js"),
-            ("./vendor/./lib.js", "vendor/lib.js"),
-            ("../outside.js", "../outside.js"),
-            ("a/../../outside.js", "../outside.js"),
-            ("/repo/src/../vendor/lib.js", "/repo/vendor/lib.js"),
-            ("/../lib.js", "/lib.js"),
-        ];
-        for (input, expected) in cases {
-            assert_eq!(
-                normalize_lexically(Path::new(input)),
-                PathBuf::from(expected),
-                "{input}"
-            );
-        }
-    }
-
-    #[test]
-    fn exclude_match_paths_use_forward_slashes() {
-        let path = with_forward_slashes(normalize_lexically(Path::new("src/../vendor/lib.js")));
-        assert_eq!(path.to_str(), Some("vendor/lib.js"));
-    }
-
-    #[test]
-    fn step_or_group_serializes_flat_step_for_cache_round_trip() {
-        let original: StepOrGroup =
-            serde_json::from_value(json!({"_type": "step", "check": "echo ok"})).unwrap();
-
-        let serialized = serde_json::to_value(&original).unwrap();
-
-        assert_eq!(serialized["_type"], "step");
-        assert_eq!(serialized["check"]["other"], "echo ok");
-
-        let round_trip: StepOrGroup = serde_json::from_value(serialized).unwrap();
-        let StepOrGroup::Step(step) = round_trip else {
-            panic!("expected step");
-        };
-        assert!(step.check.is_some());
-    }
-
-    #[test]
-    fn step_or_group_serializes_flat_group_for_cache_round_trip() {
-        let original: StepOrGroup = serde_json::from_value(json!({
-            "_type": "group",
-            "steps": {
-                "echo": {
-                    "check": "echo ok"
-                }
-            }
-        }))
-        .unwrap();
-
-        let serialized = serde_json::to_value(&original).unwrap();
-
-        assert_eq!(serialized["_type"], "group");
-        assert_eq!(serialized["steps"]["echo"]["check"]["other"], "echo ok");
-
-        let round_trip: StepOrGroup = serde_json::from_value(serialized).unwrap();
-        let StepOrGroup::Group(group) = round_trip else {
-            panic!("expected group");
-        };
-        assert!(group.steps.contains_key("echo"));
-    }
-
-    #[test]
-    fn step_or_group_rejects_unknown_type_even_with_steps() {
-        let err = serde_json::from_value::<StepOrGroup>(json!({
-            "_type": "grup",
-            "steps": {}
-        }))
-        .unwrap_err();
-
-        assert!(
-            err.to_string()
-                .contains("unknown step or group _type \"grup\"")
-        );
-    }
-
-    #[test]
-    fn step_or_group_rejects_non_string_type_even_with_steps() {
-        let err = serde_json::from_value::<StepOrGroup>(json!({
-            "_type": true,
-            "steps": {}
-        }))
-        .unwrap_err();
-
-        assert!(err.to_string().contains("_type must be a string"));
-    }
-
-    #[test]
-    fn step_or_group_infers_untagged_object_with_steps_as_group() {
-        let value = serde_json::from_value::<StepOrGroup>(json!({
-            "steps": {}
-        }))
-        .unwrap();
-
-        assert!(matches!(value, StepOrGroup::Group(_)));
-    }
-
-    #[test]
-    fn step_or_group_treats_step_tag_with_steps_as_group() {
-        let value = serde_json::from_value::<StepOrGroup>(json!({
-            "_type": "step",
-            "steps": {
-                "echo": {
-                    "check": "echo ok"
-                }
-            }
-        }))
-        .unwrap();
-
-        let StepOrGroup::Group(group) = value else {
-            panic!("expected group");
-        };
-        assert!(group.steps.contains_key("echo"));
-    }
-}
-
 type CommandEffectsByStep = IndexMap<String, Vec<(String, Option<CommandEffect>)>>;
 
 pub struct HookContext {
@@ -2297,5 +2136,166 @@ fn skip_reason_to_reason(reason: &SkipReason) -> Reason {
         kind,
         detail,
         data: HashMap::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn argv_report(argv: &[&str]) -> Command {
+        Command::Argv(crate::step::ArgvCommand {
+            argv: argv.iter().map(|arg| arg.to_string()).collect(),
+        })
+    }
+
+    #[test]
+    fn report_argv_without_an_executable_is_a_config_error() {
+        for argv in [&[][..], &[""], &["  ", "x"]] {
+            let report = argv_report(argv);
+            let err = validate_report_command(&report).unwrap_err().to_string();
+            assert!(
+                err.contains("must contain an executable"),
+                "{argv:?}: {err}"
+            );
+            assert!(report_runner(&report).is_err(), "{argv:?}");
+        }
+        assert!(validate_report_command(&argv_report(&["true"])).is_ok());
+    }
+
+    #[test]
+    fn report_hook_init_rejects_an_empty_argv() {
+        let mut hook = Hook {
+            report: Some(argv_report(&[])),
+            ..Hook::default()
+        };
+        let err = hook.init("check").unwrap_err().to_string();
+        assert!(err.contains("hook `check`: report:"), "{err}");
+    }
+
+    #[test]
+    fn report_argv_is_displayed_and_runs_directly() {
+        let (_, shown) = report_runner(&argv_report(&["echo", "a b"])).unwrap();
+        assert_eq!(shown, "echo a b");
+    }
+
+    #[test]
+    fn normalize_lexically_resolves_dot_segments() {
+        let cases = [
+            ("src/../vendor/lib.js", "vendor/lib.js"),
+            ("./vendor/./lib.js", "vendor/lib.js"),
+            ("../outside.js", "../outside.js"),
+            ("a/../../outside.js", "../outside.js"),
+            ("/repo/src/../vendor/lib.js", "/repo/vendor/lib.js"),
+            ("/../lib.js", "/lib.js"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                normalize_lexically(Path::new(input)),
+                PathBuf::from(expected),
+                "{input}"
+            );
+        }
+    }
+
+    #[test]
+    fn exclude_match_paths_use_forward_slashes() {
+        let path = with_forward_slashes(normalize_lexically(Path::new("src/../vendor/lib.js")));
+        assert_eq!(path.to_str(), Some("vendor/lib.js"));
+    }
+
+    #[test]
+    fn step_or_group_serializes_flat_step_for_cache_round_trip() {
+        let original: StepOrGroup =
+            serde_json::from_value(json!({"_type": "step", "check": "echo ok"})).unwrap();
+
+        let serialized = serde_json::to_value(&original).unwrap();
+
+        assert_eq!(serialized["_type"], "step");
+        assert_eq!(serialized["check"]["other"], "echo ok");
+
+        let round_trip: StepOrGroup = serde_json::from_value(serialized).unwrap();
+        let StepOrGroup::Step(step) = round_trip else {
+            panic!("expected step");
+        };
+        assert!(step.check.is_some());
+    }
+
+    #[test]
+    fn step_or_group_serializes_flat_group_for_cache_round_trip() {
+        let original: StepOrGroup = serde_json::from_value(json!({
+            "_type": "group",
+            "steps": {
+                "echo": {
+                    "check": "echo ok"
+                }
+            }
+        }))
+        .unwrap();
+
+        let serialized = serde_json::to_value(&original).unwrap();
+
+        assert_eq!(serialized["_type"], "group");
+        assert_eq!(serialized["steps"]["echo"]["check"]["other"], "echo ok");
+
+        let round_trip: StepOrGroup = serde_json::from_value(serialized).unwrap();
+        let StepOrGroup::Group(group) = round_trip else {
+            panic!("expected group");
+        };
+        assert!(group.steps.contains_key("echo"));
+    }
+
+    #[test]
+    fn step_or_group_rejects_unknown_type_even_with_steps() {
+        let err = serde_json::from_value::<StepOrGroup>(json!({
+            "_type": "grup",
+            "steps": {}
+        }))
+        .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("unknown step or group _type \"grup\"")
+        );
+    }
+
+    #[test]
+    fn step_or_group_rejects_non_string_type_even_with_steps() {
+        let err = serde_json::from_value::<StepOrGroup>(json!({
+            "_type": true,
+            "steps": {}
+        }))
+        .unwrap_err();
+
+        assert!(err.to_string().contains("_type must be a string"));
+    }
+
+    #[test]
+    fn step_or_group_infers_untagged_object_with_steps_as_group() {
+        let value = serde_json::from_value::<StepOrGroup>(json!({
+            "steps": {}
+        }))
+        .unwrap();
+
+        assert!(matches!(value, StepOrGroup::Group(_)));
+    }
+
+    #[test]
+    fn step_or_group_treats_step_tag_with_steps_as_group() {
+        let value = serde_json::from_value::<StepOrGroup>(json!({
+            "_type": "step",
+            "steps": {
+                "echo": {
+                    "check": "echo ok"
+                }
+            }
+        }))
+        .unwrap();
+
+        let StepOrGroup::Group(group) = value else {
+            panic!("expected group");
+        };
+        assert!(group.steps.contains_key("echo"));
     }
 }
