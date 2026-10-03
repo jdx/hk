@@ -278,3 +278,37 @@ EOF
     assert_failure
     assert_output --partial "notadir: working directory is not a directory: notadir"
 }
+
+@test "templated dir resolves check_list_files relative to rendered directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        steps {
+            ["workspace-linter"] {
+                glob = List("**/*.go")
+                workspace_indicator = "go.mod"
+                dir = "{{workspace}}"
+                stage = "<JOB_FILES>"
+                check_list_files = "echo main.go; exit 1"
+                fix = "echo fixed >> {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p pkgs/api
+    echo "module example.com/api" > pkgs/api/go.mod
+    echo "package api" > pkgs/api/main.go
+    git add pkgs
+    git commit -m "add api"
+
+    run hk fix --all -vv
+    assert_success
+    refute_output --partial "file in check output not found in original files"
+    refute_output --partial "check_list_files failed with no files in output"
+    assert_file_contains pkgs/api/main.go "fixed"
+}
