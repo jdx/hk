@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "JavaScript/TypeScript linter with great defaults"
+  project_indicators {
+    new { file = "package.json"; contains = "\"xo\"" }
+  }
 }
 xo = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")

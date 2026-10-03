@@ -28,10 +28,10 @@ Use this pattern when adding a custom linter or contributing a builtin.
 
 ## Add a condition
 
-Conditions use expression syntax. To invoke a shell test, wrap it in `exec`:
+Conditions use expression syntax. To run the step only when a shell test succeeds, wrap it in `exec_ok`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
 
 This fragment assumes a POSIX shell. `condition` is evaluated for each job; use `step_condition` to evaluate once for the step.
