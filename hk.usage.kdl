@@ -156,8 +156,11 @@ cmd agent help="Generate integration snippets for coding agents" effect=read sub
         long_help #"""
 Run `hk run check --safe` as an agent Stop hook
 
-Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept.
+Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way.
 """#
+        flag --timeout help="Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout." {
+            arg <SECONDS>
+        }
         flag "-h --help" help="Print help" action=help builtin=#true
     }
 }

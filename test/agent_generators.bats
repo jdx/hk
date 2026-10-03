@@ -64,7 +64,8 @@ EOF
 @test "agent hooks do not print hk run_result JSON" {
     run hk agent hooks --target claude-code
     assert_success
-    assert_output --partial '"command": "hk agent stop-hook"'
+    assert_output --partial '"command": "hk agent stop-hook --timeout 570"'
+    assert_output --partial '"timeout": 600'
     refute_output --partial "--format json"
     run hk agent hooks --target codex
     assert_success
@@ -107,6 +108,16 @@ EOF
     run bash -c "echo '{\"stop_hook_active\":true}' | hk agent stop-hook"
     assert_success
     assert_output ""
+}
+
+@test "agent stop-hook --timeout stops a long check and blocks once" {
+    write_stop_hook_config "sleep 60"
+    start=$(date +%s)
+    run bash -c "echo '{}' | hk agent stop-hook --timeout 2 2>/dev/null"
+    assert_success
+    assert_output --partial '"decision":"block"'
+    assert_output --partial "did not finish within 2 seconds"
+    [ $(($(date +%s) - start)) -lt 30 ]
 }
 
 @test "agent stop-hook output stays a single decision when HK_TRACE=json is inherited" {

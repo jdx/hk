@@ -16,9 +16,10 @@ use serde_json::{Value, json};
 const MAX_REASON_CHARS: usize = 2000;
 const MAX_STEP_OUTPUT_CHARS: usize = 600;
 const MAX_DIAGNOSTICS: usize = 10;
-/// Codex stops waiting for the hook after 120 seconds (see `hk agent hooks --target codex`);
-/// give up a little earlier so the check never outlives the hook.
-const CHECK_TIMEOUT: Duration = Duration::from_secs(100);
+/// Default deadline for the check. Codex stops waiting for the hook after 120 seconds (see
+/// `hk agent hooks --target codex`), so give up a little earlier. The Claude Code snippet
+/// sets its own, longer `--timeout` together with a matching hook `timeout`.
+const DEFAULT_CHECK_TIMEOUT: Duration = Duration::from_secs(100);
 /// How long to keep reading output after the check has exited.
 const PIPE_DRAIN_GRACE: Duration = Duration::from_secs(5);
 
@@ -222,7 +223,8 @@ fn block(reason: &str) -> String {
     json!({"decision": "block", "reason": reason}).to_string()
 }
 
-pub async fn run() -> crate::Result<()> {
+pub async fn run(timeout: Option<Duration>) -> crate::Result<()> {
+    let timeout = timeout.unwrap_or(DEFAULT_CHECK_TIMEOUT);
     let mut input = String::new();
     if !std::io::stdin().is_terminal() {
         let _ = std::io::stdin().read_to_string(&mut input);
@@ -237,7 +239,7 @@ pub async fn run() -> crate::Result<()> {
             command
                 .args(["run", "check", "--safe", "--format", "json"])
                 .env_remove("HK_TRACE");
-            run_check(command, CHECK_TIMEOUT).await
+            run_check(command, timeout).await
         }
         Err(err) => Err(err),
     };
@@ -248,7 +250,7 @@ pub async fn run() -> crate::Result<()> {
             "{}",
             block(&format!(
                 "hk check did not finish within {} seconds and was stopped.",
-                CHECK_TIMEOUT.as_secs()
+                timeout.as_secs()
             ))
         ),
         Ok(CheckOutcome::Finished(output)) => println!(

@@ -5,7 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hk agent stop-hook"
+            "command": "hk agent stop-hook --timeout 570",
+            "timeout": 600
           }
         ]
       }

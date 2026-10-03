@@ -208,10 +208,27 @@
           },
           "stop-hook": {
             "full_cmd": ["agent", "stop-hook"],
-            "usage": "agent stop-hook",
+            "usage": "agent stop-hook [--timeout <SECONDS>]",
             "subcommands": {},
             "args": [],
             "flags": [
+              {
+                "name": "timeout",
+                "usage": "--timeout <SECONDS>",
+                "help": "Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.",
+                "help_first_line": "Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.",
+                "short": [],
+                "long": ["timeout"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "SECONDS",
+                  "usage": "<SECONDS>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
               {
                 "name": "help",
                 "usage": "-h --help",
@@ -230,7 +247,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Run `hk run check --safe` as an agent Stop hook",
-            "help_long": "Run `hk run check --safe` as an agent Stop hook\n\nReads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept.",
+            "help_long": "Run `hk run check --safe` as an agent Stop hook\n\nReads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way.",
             "name": "stop-hook",
             "aliases": [],
             "hidden_aliases": [],

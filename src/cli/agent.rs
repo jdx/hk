@@ -38,7 +38,13 @@ enum Command {
     /// Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is
     /// true. Always exits 0. When the check fails or `--safe` refuses to run, prints only
     /// `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept.
-    StopHook,
+    /// A check still running after `--timeout` seconds is stopped and reported the same way.
+    StopHook {
+        /// Seconds to let the check run before stopping it (default 100). Keep it below the
+        /// agent's own hook timeout.
+        #[usage(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
@@ -70,18 +76,18 @@ impl Agent {
     /// The stop hook's stdout carries only its decision, so hk's own JSON trace
     /// records must go to stderr, as they do for structured `run` output.
     pub(crate) fn is_stop_hook(&self) -> bool {
-        matches!(self.command, Command::StopHook)
+        matches!(self.command, Command::StopHook { .. })
     }
 
     pub async fn run(self) -> Result<()> {
-        if matches!(self.command, Command::StopHook) {
-            return stop_hook::run().await;
+        if let Command::StopHook { timeout } = self.command {
+            return stop_hook::run(timeout.map(std::time::Duration::from_secs)).await;
         }
         let output = match self.command {
             Command::Instructions { target } => instructions(target),
             Command::Hooks { target } => hooks(target),
             Command::Mcp { target } => mcp(target),
-            Command::StopHook => unreachable!("handled above"),
+            Command::StopHook { .. } => unreachable!("handled above"),
         };
         print!("{output}");
         Ok(())

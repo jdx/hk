@@ -228,7 +228,6 @@
     "Run a named hook": "Pipe up a named hook (run a named hook)",
     "description: \"Run as the command of a Claude Code or Codex Stop hook; see the hook snippet from hk agent hooks.\"": "description: \"Run as the command of a Claude Code or Codex Stop hook, the watch-bell at the end of a turn; see the hook snippet from hk agent hooks.\"",
     "Run `hk run check --safe` as an agent Stop hook": "Run `hk run check --safe` as a clockwork hand's Stop hook",
-    "Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept.": "Reads the clockwork hand's Stop hook JSON from stdin and sits idle when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept.",
     "Run as the command of a Claude Code or Codex Stop hook; see the hook snippet from hk agent hooks.": "Run as the command of a Claude Code or Codex Stop hook, the watch-bell at the end of a turn; see the hook snippet from hk agent hooks.",
     "Run an MCP server for coding agents over standard input/output": "Run an MCP server for coding agents, the clockwork hands, over standard input/output",
     "Run step-defined tests": "Run step-defined tests: drills written into the steps themselves.",
@@ -343,7 +342,9 @@
     "description: \"Validate Python syntax using python3 (or python). If neither interpreter is available, the utility skips the files. Python may create `__pycache__` directories.\"": "description: \"Check Python syntax with python3 (or python). If neither interpreter is on hand, the utility skips the files. Python may create `__pycache__` directories.\"",
     "description: \"Validate a file containing a commit message.\"": "description: \"Read the name she's christened with from a file and see it's proper: check a file holding a commit message.\"",
     "description: \"Write to a separate file while evaluating a migration. Steps that still run through prek or pre-commit are marked with a comment explaining why.\"": "description: \"Write to a separate file while ye weigh up a migration. Steps that still sail under prek or pre-commit carry a comment saying why.\"",
-    "title: \"CLI reference\"": "title: \"CLI reference: the bosun's calls\""
+    "title: \"CLI reference\"": "title: \"CLI reference: the bosun's calls\"",
+    "Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way.": "Reads the clockwork hand's Stop hook JSON from stdin and sits idle when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way.",
+    "- **`--timeout <SECONDS>`** — Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.": "- **`--timeout <SECONDS>`** — Seconds to let the check run before the watch-bell stops it (default 100). Keep it below the clockwork hand's own hook timeout."
   },
   "pages": {
     "migrate/pre-commit.md": {
