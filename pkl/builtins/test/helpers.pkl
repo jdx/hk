@@ -50,6 +50,18 @@ class TestMaker {
   function checkFail(contents: String, code: Int): Config.StepTest =
     makeTest("check", contents, contents, code)
 
+  /// Make a "check" test (where `check` should exit nonzero) that also expects the step's
+  /// `diagnostic_format` to parse its output into diagnostics matching each of `found`
+  function checkDiagnostics(
+    contents: String,
+    code: Int,
+    found: List<Config.StepTestDiagnostic>,
+  ): Config.StepTest = (makeTest("check", contents, contents, code)) {
+    expect {
+      diagnostics = found.toListing()
+    }
+  }
+
   /// Make a "fix" test (where `fix` should exit zero)
   function fixPass(contentsBefore: String, contentsAfter: String): Config.StepTest =
     makeTest("fix", contentsBefore, contentsAfter, 0)

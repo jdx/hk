@@ -3,9 +3,11 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::{
-    Result, git_util,
+    Result,
+    diagnostics::{self, Diagnostic},
+    git_util,
     step::{RenderedCommand, RunType, Step, argv_runner},
-    step_test::{RunKind, StepTest},
+    step_test::{RunKind, StepTest, StepTestDiagnostic},
     tera,
 };
 use ensembler::CmdLineRunner;
@@ -30,6 +32,21 @@ async fn execute_cmd(
     command: &RenderedCommand,
     stdin: &Option<String>,
 ) -> Result<(String, String, i32)> {
+    let (stdout, stderr, code, _) =
+        execute_cmd_combined(step, tctx, base_dir, test, command, stdin).await?;
+    Ok((stdout, stderr, code))
+}
+
+/// Like `execute_cmd`, and also returns stdout and stderr interleaved as hk's own check runs
+/// capture them, which is what a step's `diagnostic_format` parses.
+async fn execute_cmd_combined(
+    step: &Step,
+    tctx: &tera::Context,
+    base_dir: &Path,
+    test: &StepTest,
+    command: &RenderedCommand,
+    stdin: &Option<String>,
+) -> Result<(String, String, i32, String)> {
     let rendered_step_env = step
         .env
         .iter()
@@ -77,8 +94,13 @@ async fn execute_cmd(
         runner = runner.env(k, v);
     }
     let result = runner.execute().await;
-    let (stdout, stderr, code) = match result {
-        Ok(r) => (r.stdout, r.stderr, r.status.code().unwrap_or(0)),
+    let (stdout, stderr, code, combined) = match result {
+        Ok(r) => (
+            r.stdout,
+            r.stderr,
+            r.status.code().unwrap_or(0),
+            r.combined_output,
+        ),
         Err(e) => {
             if let ensembler::Error::ScriptFailed(tuple) = &e {
                 let r = &tuple.3;
@@ -86,13 +108,14 @@ async fn execute_cmd(
                     r.stdout.clone(),
                     r.stderr.clone(),
                     r.status.code().unwrap_or(1),
+                    r.combined_output.clone(),
                 )
             } else {
                 return Err(e.into());
             }
         }
     };
-    Ok((stdout, stderr, code))
+    Ok((stdout, stderr, code, combined))
 }
 
 /// The files a test's command runs against, or the reason none are left.
@@ -167,6 +190,95 @@ fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<Stri
         return Some(format!("stderr missing: {}", needle));
     }
     None
+}
+
+/// Whether `path` names the same file as `expected`, ignoring a leading `./`.
+fn same_path(path: &str, expected: &str) -> bool {
+    path.strip_prefix("./").unwrap_or(path) == expected.strip_prefix("./").unwrap_or(expected)
+}
+
+fn diagnostic_matches(diagnostic: &Diagnostic, expected: &StepTestDiagnostic) -> bool {
+    let start = diagnostic.range.as_ref().map(|range| &range.start);
+    expected.path.as_ref().is_none_or(|path| {
+        diagnostic
+            .path
+            .as_deref()
+            .is_some_and(|actual| same_path(actual, path))
+    }) && expected
+        .line
+        .is_none_or(|line| start.is_some_and(|start| start.line == line))
+        && expected
+            .column
+            .is_none_or(|column| start.is_some_and(|start| start.column == column))
+        && expected
+            .severity
+            .as_ref()
+            .is_none_or(|severity| *severity == diagnostic.severity)
+        && expected
+            .rule
+            .as_ref()
+            .is_none_or(|rule| diagnostic.rule.as_ref() == Some(rule))
+        && expected
+            .message
+            .as_ref()
+            .is_none_or(|message| diagnostic.message.contains(message))
+}
+
+fn describe(diagnostic: &Diagnostic) -> String {
+    let (line, column) = diagnostic
+        .range
+        .as_ref()
+        .map(|range| (range.start.line, range.start.column))
+        .unzip();
+    format!(
+        "{}:{}:{} {:?} {:?} {:?}",
+        diagnostic.path.as_deref().unwrap_or("-"),
+        line.map_or("-".to_string(), |line| line.to_string()),
+        column.map_or("-".to_string(), |column| column.to_string()),
+        diagnostic.severity,
+        diagnostic.rule,
+        diagnostic.message
+    )
+}
+
+/// Parse a `check` test's combined output with the step's `diagnostic_format`, as a real check
+/// does for structured output and SARIF, and report each expected diagnostic that no parsed
+/// diagnostic matches.
+fn check_diagnostics(step: &Step, test: &StepTest, combined: &str) -> Vec<String> {
+    let expected = &test.expect.diagnostics;
+    if expected.is_empty() {
+        return vec![];
+    }
+    if !matches!(test.run, RunKind::Check) {
+        return vec!["expect.diagnostics requires run = \"check\"".to_string()];
+    }
+    let Some(format) = step.diagnostic_format else {
+        return vec!["expect.diagnostics requires the step to set diagnostic_format".to_string()];
+    };
+    let tool = step.diagnostic_tool.as_deref().unwrap_or(&step.name);
+    let parsed = diagnostics::parse(format, &step.name, tool, combined);
+    expected
+        .iter()
+        .filter(|expected| {
+            !parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic_matches(diagnostic, expected))
+        })
+        .map(|expected| {
+            format!(
+                "no diagnostic matches {expected:?}; parsed {} diagnostic(s): [{}]; parse warnings: {:?}",
+                parsed.diagnostics.len(),
+                parsed
+                    .diagnostics
+                    .iter()
+                    .map(describe)
+                    .collect::<Vec<_>>()
+                    .join("; "),
+                parsed.warnings
+            )
+        })
+        .collect()
 }
 
 fn check_file_contents(
@@ -335,8 +447,8 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Run main command
 
-    let (mut stdout, mut stderr, mut code) =
-        execute_cmd(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
+    let (mut stdout, mut stderr, mut code, combined) =
+        execute_cmd_combined(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
 
     // A diff test applies the patch as fix mode would, but a patch that
     // doesn't apply fails the test instead of falling back to `fix`.
@@ -379,6 +491,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     reasons.extend(check_stdout_contains(&stdout, &test.expect.stdout));
     reasons.extend(check_stderr_contains(&stderr, &test.expect.stderr));
     reasons.extend(check_file_contents(&test.expect.files, &tctx, &base_dir)?);
+    reasons.extend(check_diagnostics(step, test, &combined));
 
     // TODO: Consider adding a user-defined "cleanup" script in hk.pkl that tests can use
     // to clean up after themselves. The previous automatic cleanup caused race conditions
@@ -491,6 +604,82 @@ mod tests {
             select_test_files(&step, &test, paths(&["a.yaml", "b.tf"])).unwrap(),
             TestFiles::Selected(paths(&["a.yaml"]))
         );
+    }
+
+    fn gcc_step() -> Step {
+        Step {
+            name: "lint".to_string(),
+            diagnostic_format: Some(crate::step::DiagnosticFormat::Gcc),
+            ..Default::default()
+        }
+    }
+
+    fn expecting(diagnostics: Vec<StepTestDiagnostic>) -> StepTest {
+        StepTest {
+            expect: crate::step_test::StepTestExpect {
+                diagnostics,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn expected_diagnostics_match_parsed_output() {
+        let test = expecting(vec![StepTestDiagnostic {
+            path: Some("a.c".to_string()),
+            line: Some(2),
+            column: Some(4),
+            severity: Some(diagnostics::Severity::Warning),
+            rule: Some("W1".to_string()),
+            message: Some("first".to_string()),
+        }]);
+
+        assert!(
+            check_diagnostics(
+                &gcc_step(),
+                &test,
+                "./a.c:2:4: warning: first line [W1]\n  context\n"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn unmatched_diagnostic_lists_what_was_parsed() {
+        let test = expecting(vec![StepTestDiagnostic {
+            line: Some(9),
+            ..Default::default()
+        }]);
+
+        let reasons = check_diagnostics(&gcc_step(), &test, "a.c:2:4: error: bad\n");
+        assert_eq!(reasons.len(), 1);
+        assert!(reasons[0].contains("parsed 1 diagnostic(s)"), "{reasons:?}");
+        assert!(reasons[0].contains("a.c:2:4"), "{reasons:?}");
+    }
+
+    #[test]
+    fn diagnostics_need_a_format_and_a_check_run() {
+        let test = expecting(vec![StepTestDiagnostic::default()]);
+        let reasons = check_diagnostics(&Step::default(), &test, "a.c:2:4: error: bad\n");
+        assert_eq!(
+            reasons,
+            vec!["expect.diagnostics requires the step to set diagnostic_format"]
+        );
+
+        let fix = StepTest {
+            run: RunKind::Fix,
+            ..test
+        };
+        assert_eq!(
+            check_diagnostics(&gcc_step(), &fix, "a.c:2:4: error: bad\n"),
+            vec!["expect.diagnostics requires run = \"check\""]
+        );
+    }
+
+    #[test]
+    fn no_expectations_skip_parsing() {
+        assert!(check_diagnostics(&Step::default(), &StepTest::default(), "anything").is_empty());
     }
 
     #[test]

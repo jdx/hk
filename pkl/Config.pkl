@@ -1136,6 +1136,43 @@ class StepTestExpect {
 
   /// Expected files after run: path => full contents (exact match)
   files: Mapping<String, String> = new Mapping<String, String> {}
+
+  /// Normalized diagnostics that the output of a `check` test must contain.
+  ///
+  /// hk parses the test command's combined stdout and stderr with the step's `diagnostic_format`,
+  /// as a real check does for `--sarif` and `--format json`, and each entry here must match at
+  /// least one parsed diagnostic. The step must set `diagnostic_format`, and the test must use
+  /// `run = "check"`. Fields you leave out match anything.
+  ///
+  /// ```pkl
+  /// expect {
+  ///   code = 1
+  ///   diagnostics {
+  ///     new { path = "main.c"; line = 2; severity = "error" }
+  ///   }
+  /// }
+  /// ```
+  diagnostics: Listing<StepTestDiagnostic> = new Listing {}
+}
+
+class StepTestDiagnostic {
+  /// File path as the tool printed it; a leading `./` is ignored.
+  path: String?
+
+  /// Line where the diagnostic starts.
+  line: Int?
+
+  /// Column where the diagnostic starts.
+  column: Int?
+
+  /// "error", "warning", "note", or "help".
+  severity: ("error" | "warning" | "note" | "help")?
+
+  /// Rule or code the tool reported.
+  rule: String?
+
+  /// Substring that must appear in the diagnostic's message.
+  message: String?
 }
 
 class Group {
