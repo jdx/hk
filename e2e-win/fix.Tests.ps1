@@ -105,9 +105,7 @@ hooks {
         # The index gets the fixed staged content only.
         (git show ':a.txt' | Out-String).Replace("`r`n", "`n") | Should -BeExactly "base`nstaged`n"
         # The working tree keeps the unstaged edit on top of the fix.
-        $worktree = Read-Lf 'a.txt'
-        $worktree | Should -Match 'unstaged'
-        $worktree | Should -Match 'staged'
+        Read-Lf 'a.txt' | Should -BeExactly "base`nstaged`nunstaged   `n"
         (git stash list | Out-String) | Should -BeNullOrEmpty
         (git status --porcelain | Out-String).Trim() | Should -BeExactly 'MM a.txt'
     }
