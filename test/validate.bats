@@ -182,6 +182,7 @@ EOF
         # lint runs; release builds drop them and warn.
         assert_output --partial "unknown field `chek`"
     else
+        assert_success
         assert_output --partial "unknown property 'chek' in step 'lint' in hook 'check'; hk ignores it. Did you mean 'check'?"
     fi
 }
