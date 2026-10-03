@@ -117,11 +117,13 @@ pub fn matches_types(path: &Path, type_filters: &[String]) -> bool {
 /// shebang and the program, and tabs between arguments, are allowed.
 fn shebang_interpreter(line: &str) -> &str {
     fn base_name(program: &str) -> &str {
+        // A quoted command line such as `'python3 -u'` runs its first word
         let program = program.trim_matches(['"', '\'']);
+        let program = program.split_whitespace().next().unwrap_or("");
         program.rsplit('/').next().unwrap_or(program)
     }
 
-    let mut tokens = line.trim().trim_start_matches("#!").split_whitespace();
+    let mut tokens = shebang_words(line.trim().trim_start_matches("#!"));
     let program = base_name(tokens.next().unwrap_or(""));
     if program != "env" {
         return program;
@@ -143,6 +145,35 @@ fn shebang_interpreter(line: &str) -> &str {
             return base_name(token);
         }
     }
+}
+
+/// Splits `text` at whitespace outside quotes, as env does for `-S`, so that
+/// `FOO="a b"` stays one word. Quotes are left in the words.
+fn shebang_words(text: &str) -> impl Iterator<Item = &str> {
+    let mut rest = text;
+    std::iter::from_fn(move || {
+        rest = rest.trim_start();
+        if rest.is_empty() {
+            return None;
+        }
+        let mut quote = None;
+        let mut end = rest.len();
+        for (i, c) in rest.char_indices() {
+            match quote {
+                Some(q) if c == q => quote = None,
+                Some(_) => {}
+                None if c == '"' || c == '\'' => quote = Some(c),
+                None if c.is_whitespace() => {
+                    end = i;
+                    break;
+                }
+                None => {}
+            }
+        }
+        let (word, remainder) = rest.split_at(end);
+        rest = remainder;
+        Some(word)
+    })
 }
 
 /// If `token` is env's `-S` / `--split-string` option, the start of the command
@@ -689,6 +720,8 @@ mod tests {
             ("#!/usr/bin/env -S 'python3 -u'\n", "python3"),
             ("#!/usr/bin/env FOO=bar python3\n", "python3"),
             ("#!/usr/bin/env -S FOO=bar BAZ=1 python3 -u\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a b' BAR=\"c  d\" ruby -w\n", "ruby"),
             ("#!/usr/bin/env -u HOME -i ruby\n", "ruby"),
             ("#!/usr/bin/env -C /tmp node\n", "node"),
             ("#!/bin/env bash\n", "bash"),
