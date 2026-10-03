@@ -230,11 +230,12 @@ pub fn emit_run(
                         .filter(|output| !output.is_empty()),
                 )
                 .map(|(diagnostic_format, output)| {
-                    diagnostics::parse(
+                    diagnostics::parse_with_default(
                         diagnostic_format,
                         name,
                         step.diagnostic_tool.as_deref().unwrap_or(name),
                         output,
+                        step.diagnostic_severity.clone(),
                     )
                 })
                 .unwrap_or_default();

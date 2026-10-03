@@ -32,6 +32,8 @@ buildifier_lint = new Config.Step {
   }
   // Findings are `path:line: rule: message` (no column); hk ignores the `path # reformat` lines
   diagnostic_format = "gcc"
+  // `-lint=warn` findings carry no severity word
+  diagnostic_severity = "warning"
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("buildifier", "-lint=fix", "{{files}}") }
     effect = "write"
@@ -62,7 +64,7 @@ buildifier_lint = new Config.Step {
         List(new Config.StepTestDiagnostic {
           path = "BUILD.bazel"
           line = 1
-          severity = "error"
+          severity = "warning"
           message = "native-cc-library: Function \"cc_library\" is not global anymore"
         }),
       )

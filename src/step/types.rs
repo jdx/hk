@@ -296,6 +296,9 @@ pub struct Step {
 
     /// Tool name included in normalized diagnostics (defaults to step name).
     pub diagnostic_tool: Option<String>,
+
+    /// Severity for `gcc` findings the tool prints without one (defaults to error).
+    pub diagnostic_severity: Option<crate::diagnostics::Severity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
