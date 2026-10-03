@@ -42,6 +42,7 @@ mod expr_env;
 mod filtering;
 mod job_builder;
 mod output;
+mod process_tree;
 mod progress;
 mod runner;
 mod shell;
@@ -51,6 +52,7 @@ mod types;
 pub(crate) use command::argv_runner;
 pub use expr_env::{EXPR_CTX, eval_condition};
 pub(crate) use job_builder::SharedBatchJobs;
+pub(crate) use process_tree::cancel_running_steps;
 pub use shell::ShellType;
 #[cfg(test)]
 pub(crate) use types::ArgvCommand;

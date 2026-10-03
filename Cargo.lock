@@ -885,6 +885,7 @@ dependencies = [
  "url",
  "usage-rs",
  "winapi-util",
+ "windows-sys 0.61.2",
  "xx",
  "zip",
 ]
