@@ -1271,6 +1271,22 @@ impl Config {
         Ok(())
     }
 
+    /// The project config exactly as Pkl evaluated it, before hk drops
+    /// properties it does not know. `None` when there is no project config.
+    pub fn project_config_json() -> Result<Option<serde_json::Value>> {
+        let paths = Self::project_config_search_paths();
+        let Some(path) = Self::find_project_config(&paths) else {
+            return Ok(None);
+        };
+        Ok(Some(eval_pklr::<serde_json::Value>(&path)?.0))
+    }
+
+    /// Warnings about a config that loads but probably does not do what its
+    /// author meant. Run by `hk validate`; never fatal.
+    pub fn lint(&self) -> Vec<String> {
+        crate::lint::lint_hooks(&self.hooks, &self.steps, &self.implicit_default_hooks)
+    }
+
     pub fn validate(&self) -> Result<()> {
         for pattern in self.exclude.iter().flat_map(|e| &e.regexes) {
             regex::Regex::new(pattern)

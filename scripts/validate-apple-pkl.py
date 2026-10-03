@@ -48,6 +48,7 @@ EXPECTED_FAILURES = {
     ("pkl_config_errors.bats", "invalid module URI shows helpful error"),
     ("pkl_config_errors.bats", "pkl file with syntax errors shows original error"),
     ("top_level_exclude.bats", "top-level exclude - invalid regex fails validation"),
+    ("validate.bats", "validate warns about a misspelled property"),
     ("regex_patterns.bats", "Config.Regex fails with v2 migration guidance"),
     ("regex_patterns.bats", "Types.Regex fails with v2 migration guidance"),
     (
