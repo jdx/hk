@@ -56,8 +56,10 @@ buf_lint = new Config.Step {
           badProto,
           100,
           // The test sandbox's workspace is an absolute temp directory, so buf prints
-          // absolute paths here; a real run prints paths relative to the workspace.
+          // absolute paths here, which the relative path below matches by its tail; a real
+          // run prints paths relative to the workspace.
           List(new Config.StepTestDiagnostic {
+            path = "proto/condition.proto"
             line = 6
             column = 3
             severity = "error"
