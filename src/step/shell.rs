@@ -30,6 +30,9 @@ pub enum ShellType {
     Other(String),
 }
 
+/// Environment variable holding a literal `%` for cmd.exe quoting.
+pub const CMD_PERCENT_VAR: &str = "HK_CMD_PERCENT";
+
 impl ShellType {
     /// Quote a string appropriately for this shell type.
     ///
@@ -50,8 +53,14 @@ impl ShellType {
             ShellType::Cmd => {
                 // Windows cmd.exe quoting: wrap in double quotes, escape special characters
                 // - Double quotes are escaped as ""
-                // - Percent signs are escaped as %% to prevent environment variable expansion
-                let escaped = s.replace('%', "%%").replace('"', "\"\"");
+                // - Percent signs become `%HK_CMD_PERCENT%`. `%%` only collapses inside
+                //   batch files; on a `cmd /c` command line it stays `%%`, so a file
+                //   named `100%.txt` arrived as `100%%.txt`. cmd expands variables in a
+                //   single pass, so the injected variable yields a literal `%` that is
+                //   never re-expanded. The runner defines it for cmd.exe steps.
+                let escaped = s
+                    .replace('%', &format!("%{CMD_PERCENT_VAR}%"))
+                    .replace('"', "\"\"");
                 format!("\"{}\"", escaped)
             }
             ShellType::PowerShell => {
@@ -65,5 +74,22 @@ impl ShellType {
                 String::from_utf8(o).unwrap_or_default()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cmd_quote_expands_percent_through_variable() {
+        assert_eq!(
+            ShellType::Cmd.quote("100%.txt"),
+            "\"100%HK_CMD_PERCENT%.txt\""
+        );
+        assert_eq!(
+            ShellType::Cmd.quote("a%PATH%\"b"),
+            "\"a%HK_CMD_PERCENT%PATH%HK_CMD_PERCENT%\"\"b\""
+        );
     }
 }

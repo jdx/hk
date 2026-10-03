@@ -431,6 +431,8 @@ jobs:
           ./e2e-win/run.ps1 -TestName "*help*"
           # Regression test for discussion #823 (cmd.exe {{files}} quoting)
           ./e2e-win/run.ps1 -TestName "*{{files}} template*"
+          # Regression test for percent signs in file names (cmd /c keeps %% literal)
+          ./e2e-win/run.ps1 -TestName "*percent signs*"
           # Regression test for discussion #1220 (structured argv npm shims)
           ./e2e-win/run.ps1 -TestName "*structured argv resolves*"
           # Regression tests for issue #1534 (stash CRLF restoration)

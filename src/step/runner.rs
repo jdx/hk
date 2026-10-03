@@ -360,6 +360,13 @@ impl Step {
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
             .stderr_to_progress(true);
+        if cfg!(windows)
+            && matches!(rendered_command, RenderedCommand::Shell(_))
+            && matches!(self.shell_type(), ShellType::Cmd)
+        {
+            // Referenced by `ShellType::Cmd::quote` to emit a literal `%`.
+            cmd = cmd.env(super::shell::CMD_PERCENT_VAR, "%");
+        }
         if let Some(stdin) = &self.stdin {
             let rendered_stdin = tera::render(stdin, &tctx)?;
             cmd = cmd.stdin_string(rendered_stdin);

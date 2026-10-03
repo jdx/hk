@@ -190,4 +190,47 @@ hooks {
             Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
+
+    It '{{files}} template keeps percent signs in file names literal' {
+        # cmd.exe leaves `%%` untouched on a /c command line (only batch files
+        # collapse it), so doubling `%` made `100%.txt` arrive as `100%%.txt`.
+        # `%PATH%` in a name must not expand either.
+        $testDir = Join-Path $TestDrive ([System.Guid]::NewGuid().ToString())
+        New-Item -ItemType Directory -Path $testDir | Out-Null
+        Set-Location $testDir
+
+        try {
+            git init | Out-Null
+            git config user.email "test@test.com"
+            git config user.name "Test"
+
+            $pklPath = (Resolve-Path $env:PKL_PATH).Path -replace '\\', '/'
+            $config = @"
+amends "file:///$pklPath/Config.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["percent"] {
+                glob = "*.txt"
+                check = "type {{files}}"
+            }
+        }
+    }
+}
+"@
+            Set-Content -Path "hk.pkl" -Value $config -Encoding ascii
+            Set-Content -Path "100%.txt" -Value "one" -Encoding ascii
+            Set-Content -Path "a%PATH%b.txt" -Value "two" -Encoding ascii
+            git add -A
+            git commit -m "initial" | Out-Null
+
+            $output = hk check --all 2>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
+            $output | Should -Not -Match 'cannot find the file'
+        } finally {
+            Set-Location $script:originalPath
+            Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
