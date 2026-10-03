@@ -174,12 +174,13 @@ type = "string"
 env_only = true
 sources.env = ["HK_PKL_HTTP_REWRITE"]
 docs = """
-URL rewrites for the built-in pklr evaluator, which hk uses to evaluate `hk.pkl`. Pkl package and module downloads whose URL starts with `<FROM>` are fetched from `<TO>` instead, for example through an internal mirror.
+URL rewrite rules for the built-in pklr evaluator, in the form
+`http(s)://<FROM>/=http(s)://<TO>/`. Separate several rules with commas; the longest
+matching source prefix wins. Package downloads are rewritten as their
+`https://<host>/<path>/<name>@<version>.zip` URL.
 
-Each rewrite has the form `http(s)://<FROM>/=http(s)://<TO>/`. Separate several rewrites with commas.
-
-This setting is read directly from the environment variable before `hk.pkl` is evaluated, \
-so it cannot be configured in `hk.pkl`.
+This setting is read directly from the environment variable before the configuration \
+is evaluated, so it cannot be configured in `hk.pkl`.
 """
 
 [pkl_ca_certificates]
@@ -187,13 +188,14 @@ type = "path"
 env_only = true
 sources.env = ["HK_PKL_CA_CERTIFICATES"]
 docs = """
-A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots, when it downloads Pkl packages.
+A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots,
+when it downloads packages and modules.
 
-This setting is read directly from the environment variable before `hk.pkl` is evaluated, \
-so it cannot be configured in `hk.pkl`.
+This setting is read directly from the environment variable before the configuration \
+is evaluated, so it cannot be configured in `hk.pkl`.
 
-This is useful in corporate environments with SSL-intercepting proxies where hk
-needs to trust custom CA certificates to download packages.
+This is useful in corporate environments with SSL-intercepting proxies, and for
+package hosts whose certificate comes from a private certificate authority.
 """
 
 [jobs]

@@ -39,9 +39,36 @@ teardown() {
     assert_success
     refute_output
 
-    # Verify file was normalized to LF
-    run cat file.txt
-    assert_output "$(printf "line1\nline2\nline3\n")"
+    # CRLF is the most frequent ending, so the file is normalized to CRLF
+    assert_equal "$(od -An -c file.txt | tr -s ' ')" "$(printf 'line1\r\nline2\r\nline3\r\n' | od -An -c | tr -s ' ')"
+}
+
+@test "util mixed-line-ending - fixes to LF when LF is the most frequent" {
+    printf "line1\nline2\r\nline3\n" > file.txt
+
+    run hk util mixed-line-ending --fix file.txt
+    assert_success
+    refute_output
+
+    assert_equal "$(od -An -c file.txt | tr -s ' ')" "$(printf 'line1\nline2\nline3\n' | od -An -c | tr -s ' ')"
+}
+
+@test "util mixed-line-ending - a tie normalizes to LF" {
+    printf "line1\r\nline2\n" > file.txt
+
+    run hk util mixed-line-ending --fix file.txt
+    assert_success
+
+    assert_equal "$(od -An -c file.txt | tr -s ' ')" "$(printf 'line1\nline2\n' | od -An -c | tr -s ' ')"
+}
+
+@test "util mixed-line-ending - fix leaves a file with one ending alone" {
+    printf "line1\r\nline2\r\n" > crlf.txt
+
+    run hk util mixed-line-ending --fix crlf.txt
+    assert_success
+
+    assert_equal "$(od -An -c crlf.txt | tr -s ' ')" "$(printf 'line1\r\nline2\r\n' | od -An -c | tr -s ' ')"
 }
 
 @test "util mixed-line-ending - multiple files" {
@@ -62,7 +89,7 @@ teardown() {
     assert_success
     refute_output
 
-    # Verify both files normalized
+    # Each file is tied between the endings, so both are normalized to LF
     run cat file1.txt
     assert_output "$(printf "line1\nline2\n")"
     run cat file2.txt
@@ -82,7 +109,8 @@ teardown() {
 
     run hk util mixed-line-ending --diff file.txt
     assert_failure
-    echo "--- a/file.txt\n+++ b/file.txt\n@@ -1,3 +1,3 @@\n-line1\r\n+line1\nline2\n-line3\r\n+line3\n" | assert_output
+    # CRLF is the most frequent ending, so the diff rewrites the one LF
+    printf -- "--- a/file.txt\n+++ b/file.txt\n@@ -1,3 +1,3 @@\n line1\r\n-line2\n+line2\r\n line3\r\n" | assert_output
 }
 
 @test "util mixed-line-ending - builtin integration" {
@@ -125,7 +153,6 @@ HK
     run hk fix
     assert_success
 
-    # Verify file was normalized
-    run cat test.txt
-    assert_output "$(printf "line1\nline2\nline3\n")"
+    # Verify file was normalized to its most frequent ending
+    assert_equal "$(od -An -c test.txt | tr -s ' ')" "$(printf 'line1\r\nline2\r\nline3\r\n' | od -An -c | tr -s ' ')"
 }

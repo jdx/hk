@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: 3858af749b42
+sourceHash: 1c416591a973
 ---
 
 # Configuration, the ship's charts
@@ -246,6 +246,29 @@ check_diff = "hk util format-diff {{files}} -- stylua --stdin-filepath {} -"
 
 If the formatter fails on any file, no patch is printed and hk runs `fix`, which reports the error. Beware: a formatter's stdin mode can ignore excludes in its own configuration that it does apply to files named on the command line, as yamlfmt's and taplo's do. Their builtins ask the tool which files would change before formatting those.
 
+### What the lookouts sang out: diagnostics {#diagnostics}
+
+`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a hand's `check` command, and it can't guess a tool's output format. A hand reports diagnostics only when it sets `diagnostic_format`. Without it the hand still runs, fails, and can carry its raw text in the result's `output` field (separate from `diagnostics`; `output_summary` and other step settings decide when it is present), but its `diagnostics` list and its SARIF results are empty. In `--format jsonl` output, the findings are in the final `run_completed` result; each `step_completed` event carries an empty `diagnostics` array.
+
+The standing crew are no different. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Most builtins don't set it (check a builtin's definition in `pkl/builtins`), so an unchanged builtin hand sings out no diagnostics even when it fails. To get diagnostics from one of those, set `diagnostic_format` on yer own hand, and add the tool's flag for a supported format to its `check` command if ye accept the output changing.
+
+| `diagnostic_format` | What hk reads                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gcc`               | Lines like `path:line:column: warning: message [rule]`. The severity and the trailing `[rule]` are optional, and lines that follow a diagnostic are added to its message. |
+| `sarif`             | A SARIF 2.1.0 log. Each result becomes a diagnostic, with its rule and help link.                                                                                         |
+| `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                        |
+| `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                 |
+
+hk parses the combined stdout and stderr of `check` runs. If a hand captured no `check` output, structured results fall back to the hand's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Raw text is reported in the separate `output` field, and `output_summary` and other step settings decide when it is present. Output that can't be parsed usually becomes an entry in the hand's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, and the `cargo-json` parser skips valid JSON events that aren't `compiler-message`. This hand reports each line of the compiler's `path:line:column: message` output as a diagnostic:
+
+```pkl
+["compiler"] {
+    check = "my-compiler {{files}}"
+    diagnostic_format = "gcc"
+    diagnostic_tool = "my-compiler"
+}
+```
+
 ### Refit a standing hand: customize a builtin {#customize-a-builtin}
 
 ```pkl
@@ -382,18 +405,125 @@ The bosun's pipe brings word of its own too: Git hook arguments such as `hook_ar
 
 Mind: conditions are expr-lang expressions, not Tera templates. Name variables directly, as in `is_branch_checkout`, not as `{{ is_branch_checkout }}`.
 
+## One set of charts for many ships: share configuration across repositories {#share-configuration}
+
+hk has no setting that fetches its charts from a Git URL. Because `hk.pkl` is a Pkl module, each repository instead amends a shared module and adds what is its own. Each ship still evaluates its own charts and runs its own steps; a change to the shared module reaches a ship when that ship adopts it.
+
+| Pattern                                                  | Version pinned by      | Works offline                             | Needs                                       |
+| -------------------------------------------------------- | ---------------------- | ----------------------------------------- | ------------------------------------------- |
+| [Self-hosted package](#share-package)                    | Package version in URL | After the first download, from the locker | Any HTTPS file host                         |
+| [Relative `amends` or a Git submodule](#share-submodule) | Commit                 | Yes                                       | Checkout of the shared files                |
+| Plain HTTPS module (`amends "https://…/hk.pkl"`)         | Nothing                | No: refetched whenever hk re-evaluates    | Any HTTPS file host; not recommended, matey |
+
+Use a package when many ships share their charts and ye want versioned releases.
+
+### Publish a versioned package {#share-package}
+
+A package is a ZIP of Pkl files served from an HTTPS URL. This one shares two builtins that need no outside tools. Make a project directory with a `PklProject` and the shared module:
+
+```pkl [PklProject]
+amends "pkl:Project"
+
+package {
+  name = "acme-hk"
+  version = "1.0.0"
+  baseUri = "package://hk-config.example.com/acme-hk"
+  packageZipUrl = "https://hk-config.example.com/acme-hk@\(version).zip"
+}
+```
+
+```pkl [hk.pkl]
+amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
+
+steps {
+  ["trailing_whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+}
+```
+
+Import hk's schema by its full `package://` URL, as above. hk's evaluator does not resolve Pkl project dependencies, so the `@name/…` import form that a `dependencies` block provides fails with `Import not found`.
+
+Build the package with the Pkl CLI and upload both files it writes, `acme-hk@1.0.0` and `acme-hk@1.0.0.zip`, to the paths in `baseUri` and `packageZipUrl`:
+
+```sh
+pkl project package --output-path out .
+```
+
+A ship then adopts the shared charts and adds its own steps:
+
+```pkl
+amends "package://hk-config.example.com/acme-hk@1.0.0#/hk.pkl"
+
+steps {
+  ["typecheck"] { check = "tsc --noEmit" }
+}
+```
+
+For a package URL on any host, hk downloads `https://<host>/<path>/<name>@<version>.zip`. It does not fetch the metadata file, so the ZIP is the part hk needs, and the metadata is for the Pkl CLI. The download is stowed in the locker, [`HK_PKL_CACHE_DIR`](/environment_variables#hk-pkl-cache-dir), under a name derived from that URL, so:
+
+- A package that has been used once evaluates with no boats ashore, including with [`HK_PKL_OFFLINE=1`](/environment_variables#hk-pkl-offline) and when the host is down. On CI, the harbour-master should keep the cache directory between runs to get the same result.
+- A cached version never changes. To change the shared charts, publish a new version and update the version in each ship's `amends` line. Replacing a file at an existing URL does not reach machines that cached it.
+- With `HK_PKL_OFFLINE=1`, a first run on a machine with no cached copy fails and names the package URL and the cache location.
+
+The shared module above amends hk 2.4.0's schema. An hk executable of the same version has that package built in, so it needs no download. Pinning a different hk version sends a boat ashore once for that version's package, from `github.com`, unless ye [mirror it](#share-rewrite).
+
+A host with a certificate from a private certificate authority needs [`HK_PKL_CA_CERTIFICATES`](/environment_variables#hk-pkl-ca-certificates). Without it, the download fails with `error sending request`.
+
+hk sends no credentials by itself. For a host that needs Basic authentication, see [credentials in a rewrite](#share-rewrite).
+
+### Use relative amends or a Git submodule {#share-submodule}
+
+Keep the shared files in a Git repository and amend them by path. As a submodule:
+
+```sh
+git submodule add https://example.com/acme/hk-shared .hk-shared
+```
+
+```pkl
+amends ".hk-shared/hk.pkl"
+
+steps {
+  ["local-check"] { check = "make local-check" }
+}
+```
+
+The shared files can import each other with relative paths, and each can amend or import hk's schema by its package URL. Updating the submodule commit is the upgrade, and clones need `git submodule update --init` (or `git clone --recurse-submodules`, or `submodules: true` for `actions/checkout`) before hk can read the charts. A path outside the repository, such as `amends "../shared-config/hk.pkl"`, works the same way, though other clones need the same layout. hk re-evaluates the configuration when any file it imports changes.
+
+### Mirror or redirect downloads {#share-rewrite}
+
+[`HK_PKL_HTTP_REWRITE`](/environment_variables#hk-pkl-http-rewrite) replaces the start of a URL hk would send a boat to, and it takes several rules separated by commas. Set it in the environment of the hk process, such as yer shell profile or CI configuration. Use it to serve packages from an internal mirror:
+
+```sh
+export HK_PKL_HTTP_REWRITE="https://github.com/jdx/hk/releases/download/=https://mirror.example.com/hk/,https://hk-config.example.com/=https://files.internal.example/hk-config/"
+```
+
+With these rules, `package://hk-config.example.com/acme-hk@1.0.0` downloads from `https://files.internal.example/hk-config/acme-hk@1.0.0.zip`. The rewrite is applied to the ZIP URL and to plain HTTPS modules, and the longest matching prefix wins.
+
+The target can carry Basic authentication credentials, which `pkl` itself does not support for packages: `https://user:token@files.internal.example/hk-config/`. A failed download prints the rewritten URL, credentials included, so keep that output out of shared logs and use a token with narrow, read-only access. A rule without an `=` is ignored with a warning, and a comma cannot appear inside a rule.
+
+### Behind a proxy {#share-proxy}
+
+Downloads follow the standard proxy variables. hk uses the first of `http_proxy`, `HTTP_PROXY`, `https_proxy`, and `HTTPS_PROXY` that is set and nonempty for every download, whatever its scheme, and honors `no_proxy` or `NO_PROXY` to skip it for some hosts:
+
+```sh
+HTTPS_PROXY=http://proxy.example.com:3128 NO_PROXY=files.internal.example hk check
+```
+
+A proxy that intercepts TLS needs its CA in [`HK_PKL_CA_CERTIFICATES`](/environment_variables#hk-pkl-ca-certificates).
+
 ## Who outranks whom: configuration precedence {#configuration-precedence}
 
 Runtime settings are settled from lowest precedence to highest, like a chain of command:
 
-| Precedence | Where it hails from                                                   |
-| ---------- | --------------------------------------------------------------------- |
-| 1          | Built-in defaults                                                     |
-| 2          | User configuration, typically `~/.config/hk/config.pkl`               |
-| 3          | The selected project configuration                                    |
-| 4          | Git configuration, with local values overriding global/system values  |
-| 5          | `HK_*` environment variables, the standing orders                     |
-| 6          | CLI flags, flown on the call itself                                   |
+| Precedence | Where it hails from                                                  |
+| ---------- | -------------------------------------------------------------------- |
+| 1          | Built-in defaults                                                    |
+| 2          | User configuration, typically `~/.config/hk/config.pkl`              |
+| 3          | The selected project configuration                                   |
+| 4          | Git configuration, with local values overriding global/system values |
+| 5          | `HK_*` environment variables, the standing orders                    |
+| 6          | CLI flags, flown on the call itself                                  |
 
 For scalar settings, a higher layer's value overrides the ones below it. List settings such as `exclude`, `skip_steps`, `skip_hooks`, and `hide_warnings` are different: they gather up their values from every source.
 
