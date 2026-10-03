@@ -66,9 +66,21 @@ EOF
     run bash -c "hk --format jsonl check --all 2>machine-errors.log"
     assert_failure
     jsonl="$output"
-    run jq -s -r 'map(.event) | join(",")' <<<"$jsonl"
+    # The two steps run concurrently, so their start/complete events may
+    # interleave (started,started,completed,completed or started,completed,
+    # started,completed). Pin the run bookends and that each step starts
+    # before it completes, not the order between the steps.
+    run jq -s -r 'map(.event) | [.[:2], .[-1:]] | flatten | join(",")' <<<"$jsonl"
     assert_success
-    assert_output "run_started,run_planned,step_started,step_started,step_completed,step_completed,run_completed"
+    assert_output "run_started,run_planned,run_completed"
+    run jq -s -r '[.[2:-1][] | .event] | sort | join(",")' <<<"$jsonl"
+    assert_success
+    assert_output "step_completed,step_completed,step_started,step_started"
+    run jq -s -e '
+        [.[] | select(.event | startswith("step_"))]
+        | group_by(.data.name)
+        | all(.[]; map(.event) == ["step_started", "step_completed"])' <<<"$jsonl"
+    assert_success
     run jq -s -e '.[].sequence' <<<"$jsonl"
     assert_success
     run jq -s -e 'last.data.status == "failed" and (last.data.failure | length > 0)' <<<"$jsonl"
