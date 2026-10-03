@@ -84,12 +84,18 @@ pub(crate) fn descendants(procs: &[Proc], root: u32, skip_direct: &[&str]) -> Ve
     found
 }
 
-/// The processes below `known` that are not in it yet: what they started after
-/// `known` was listed.
+/// The processes that are not in `known` yet: what `known` started after it
+/// was listed, and any new child of `root` (hk) apart from its helpers, such as
+/// a step command that began after the first listing.
 #[cfg_attr(not(windows), allow(dead_code))]
-pub(crate) fn newcomers(procs: &[Proc], known: &[Proc]) -> Vec<Proc> {
-    let parents: Vec<(u32, u64)> = known.iter().map(|p| (p.pid, p.created)).collect();
+pub(crate) fn newcomers(procs: &[Proc], known: &[Proc], root: u32) -> Vec<Proc> {
+    let root_created = procs
+        .iter()
+        .find(|p| p.pid == root)
+        .map_or(0, |p| p.created);
     let mut found = known.to_vec();
+    collect(procs, &[(root, root_created)], HELPERS, &mut found);
+    let parents: Vec<(u32, u64)> = known.iter().map(|p| (p.pid, p.created)).collect();
     collect(procs, &parents, &[], &mut found);
     found.split_off(known.len())
 }
@@ -242,7 +248,7 @@ mod windows {
             for victim in &pending {
                 terminate(victim);
             }
-            pending = newcomers(&processes(), &known);
+            pending = newcomers(&processes(), &known, std::process::id());
             if pending.is_empty() {
                 return;
             }
@@ -350,7 +356,21 @@ mod tests {
             p(6, 5, 60, "grandchild.exe"),
             p(7, 99, 70, "unrelated.exe"),
         ];
-        assert_eq!(pids(&newcomers(&procs, &known)), vec![5, 6]);
+        assert_eq!(pids(&newcomers(&procs, &known, 1)), vec![5, 6]);
+    }
+
+    #[test]
+    fn finds_a_step_command_that_began_after_the_first_listing() {
+        let known = [p(2, 1, 20, "cmd.exe"), p(3, 2, 30, "node.exe")];
+        let procs = [
+            p(1, 0, 10, "hk.exe"),
+            p(2, 1, 20, "cmd.exe"),
+            p(3, 2, 30, "node.exe"),
+            p(8, 1, 80, "cmd.exe"),
+            p(9, 8, 90, "python.exe"),
+            p(10, 1, 85, "git.exe"),
+        ];
+        assert_eq!(pids(&newcomers(&procs, &known, 1)), vec![8, 9]);
     }
 
     #[test]
@@ -358,7 +378,7 @@ mod tests {
         // The listed node (3) has exited; its orphan (5) still names it.
         let known = [p(3, 2, 30, "node.exe")];
         let procs = [p(5, 3, 50, "orphan.exe")];
-        assert_eq!(pids(&newcomers(&procs, &known)), vec![5]);
+        assert_eq!(pids(&newcomers(&procs, &known, 1)), vec![5]);
     }
 
     #[test]
@@ -366,6 +386,6 @@ mod tests {
         let known = [p(3, 2, 30, "node.exe")];
         // pid 3 now belongs to an unrelated, newer process and its child.
         let procs = [p(3, 1, 90, "unrelated.exe"), p(8, 3, 95, "its-child.exe")];
-        assert!(newcomers(&procs, &known).is_empty());
+        assert!(newcomers(&procs, &known, 1).is_empty());
     }
 }
