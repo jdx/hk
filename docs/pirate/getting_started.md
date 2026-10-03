@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: e5b672d0815d
+sourceHash: a84d49221c41
 ---
 
 # Getting under way
@@ -61,6 +61,8 @@ Choose the scope that fits how ye sail:
 | This ship (the current repository)            | `hk install`          | Rig the hooks this project defines; works with older Git versions too             |
 
 On Git 2.54+, hk uses Git's configuration-based hooks. On older Git, rigging a single ship (a per-repository install) writes script shims. Use `hk install --legacy` to ask for shims outright.
+
+Global hooks record a path that survives upgrades: the mise shim for a mise-installed hk, or the `hk` on `PATH` that links to the running binary (for example Homebrew's), rather than a versioned install directory. Per-repository hooks call `hk` from `PATH` and append hk's own directory to the end of `PATH`, so they still work when a Git client is started without yer shell's `PATH`. If hk cannot be found at all, the hook fails with exit status 127 and the commit is blocked.
 
 If hk is already rigged across the fleet (installed globally), `hk install` skips the local installation and clears away stale local hk hooks. `--force-local` overrides that, but combining local and global hooks can cause duplicate runs: the pipe may call all hands twice over.
 
