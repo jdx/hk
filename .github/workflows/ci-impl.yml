@@ -112,7 +112,8 @@ jobs:
         with:
           name: hk-windows-latest
           path: target/debug/hk.exe
-  ci-libgit2:
+  ci-hosted-bats:
+    name: ci-hosted-bats (${{ matrix.os }})
     needs: build
     permissions:
       contents: read
@@ -123,7 +124,9 @@ jobs:
           - os: macos-latest
           - os: ubuntu-latest
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'macos-latest' && 40 || 30 }}
+    # Keep both configuration-specific retry budgets. On macOS that is two
+    # 15-minute libgit2 attempts, two 10-minute nogit attempts, and setup.
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 60 || 40 }}
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -177,22 +180,44 @@ jobs:
           timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
           command: scripts/ci_attempt_notice "bats (libgit2)" mise run --skip-deps test:bats:libgit2
-      - name: Publish builtin test timings
+      - name: Save libgit2 test timings
         if: always()
         run: |
           f=target/test-timings/builtins-all.tsv
-          [ -f "$f" ] || exit 0
+          [ ! -f "$f" ] || cp "$f" target/test-timings/builtins-libgit2.tsv
+      # Keep this step independent from libgit2 so one configuration's
+      # failure still reports the other configuration before the job fails.
+      - name: mise run test:bats:nogit
+        if: always()
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
+        with:
+          timeout_minutes: 10
+          max_attempts: 2
+          command: scripts/ci_attempt_notice "bats (nogit)" mise run --skip-deps test:bats:nogit
+      - name: Save nogit test timings
+        if: always()
+        run: |
+          f=target/test-timings/builtins-all.tsv
+          [ ! -f "$f" ] || cp "$f" target/test-timings/builtins-nogit.tsv
+      - name: Publish builtin test timings
+        if: always()
+        run: |
           {
-            echo "### Slowest builtin test cases (libgit2, ${{ matrix.os }})"
-            echo
-            echo "| ms | case |"
-            echo "| ---: | --- |"
-            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+            for config in libgit2 nogit; do
+              f="target/test-timings/builtins-$config.tsv"
+              [ -f "$f" ] || continue
+              echo "### Slowest builtin test cases ($config, ${{ matrix.os }})"
+              echo
+              echo "| ms | case |"
+              echo "| ---: | --- |"
+              head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+              echo
+            done
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
-          name: test-timings-libgit2-${{ matrix.os }}
+          name: test-timings-hosted-bats-${{ matrix.os }}
           path: target/test-timings/
           if-no-files-found: ignore
   ci-nolibgit2:
@@ -263,77 +288,6 @@ jobs:
         if: always()
         with:
           name: test-timings-nolibgit2-${{ matrix.os }}
-          path: target/test-timings/
-          if-no-files-found: ignore
-  ci-nogit:
-    needs: build
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-    # Pinned to github-hosted runners: builtins_tests.bats installs ~50
-    # tools via mise under 16-way parallelism, which surfaces a
-    # mise + namespace-runner incompatibility (many backends report
-    # "does not have an executable named X" on fresh installs, and
-    # asdf:swiftlint binaries SIGILL on namespace's linux image).
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - run: brew install parallel
-        if: ${{ matrix.os == 'macos-latest' }}
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Restore Bats mise tools
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.local/share/mise/installs
-          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          cache: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: hk-${{ matrix.os }}
-          path: target/debug
-      - run: chmod +x target/debug/hk
-      - run: mise x -- aube install
-      # The downloaded artifact is this commit's hk, so the bats task runs with
-      # --skip-deps instead of recompiling it (a cold cargo build here cost
-      # 77-183s per job). Its other dependencies run up front, outside the
-      # retry window: the generated pkl files the tests read, and the builtin
-      # tool-stub preinstall.
-      - run: |
-          mise run pkl:gen
-          mise run test:bats:setup
-      - name: mise run test:bats:nogit
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
-        with:
-          timeout_minutes: 10
-          # Two attempts, not three: the job budget covers setup, the build and
-          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
-          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
-          # build, so the retry is here for genuine flakes.
-          max_attempts: 2
-          command: scripts/ci_attempt_notice "bats (nogit)" mise run --skip-deps test:bats:nogit
-      - name: Publish builtin test timings
-        if: always()
-        run: |
-          f=target/test-timings/builtins-all.tsv
-          [ -f "$f" ] || exit 0
-          {
-            echo "### Slowest builtin test cases (nogit, ${{ matrix.os }})"
-            echo
-            echo "| ms | case |"
-            echo "| ---: | --- |"
-            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always()
-        with:
-          name: test-timings-nogit-${{ matrix.os }}
           path: target/test-timings/
           if-no-files-found: ignore
   ci-other:
@@ -435,9 +389,8 @@ jobs:
       - apple-pkl
       - build
       - build-windows
-      - ci-libgit2
+      - ci-hosted-bats
       - ci-nolibgit2
-      - ci-nogit
       - ci-other
       - ci-windows
       - mcp-ui
@@ -462,16 +415,12 @@ jobs:
             echo "build-windows failed or was skipped"
             exit 1
           fi
-          if [ "${{ needs.ci-libgit2.result }}" != "success" ]; then
-            echo "ci-libgit2 failed or was skipped"
+          if [ "${{ needs.ci-hosted-bats.result }}" != "success" ]; then
+            echo "ci-hosted-bats failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.ci-nolibgit2.result }}" != "success" ]; then
             echo "ci-nolibgit2 failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.ci-nogit.result }}" != "success" ]; then
-            echo "ci-nogit failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.ci-other.result }}" != "success" ]; then
