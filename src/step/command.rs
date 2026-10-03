@@ -101,6 +101,12 @@ fn resolve_program(
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
+fn has_exe_extension(program: &str) -> bool {
+    let program = program.to_ascii_lowercase();
+    program.ends_with(".exe") || program.ends_with(".com")
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
 fn is_batch_file(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
@@ -145,10 +151,13 @@ pub(crate) fn batch_command_line_len(
     let program = match resolve_program(argv.first()?, cwd, path, pathext) {
         Some(program) if is_batch_file(&program) => program,
         Some(_) => return None,
-        None if assume_unresolved_shim => std::path::PathBuf::from(format!(
-            "{}.cmd",
-            cwd.join("node_modules\\.bin").join(&argv[0]).display()
-        )),
+        // A program named with an executable extension is not a shim.
+        None if assume_unresolved_shim && !has_exe_extension(&argv[0]) => {
+            std::path::PathBuf::from(format!(
+                "{}.cmd",
+                cwd.join("node_modules\\.bin").join(&argv[0]).display()
+            ))
+        }
         None => return None,
     };
     Some(
@@ -273,6 +282,11 @@ mod tests {
         let argv = vec!["missing".to_string(), "a.txt".to_string()];
         assert_eq!(
             batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), false),
+            None
+        );
+        let exe = vec!["missing.exe".to_string(), "a.txt".to_string()];
+        assert_eq!(
+            batch_command_line_len(&exe, dir.path(), Some(path), Some(".exe;.cmd"), true),
             None
         );
         assert!(
