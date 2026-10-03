@@ -1,5 +1,5 @@
 ---
-sourceHash: e464ba245dcf
+sourceHash: 5c64fff7ede6
 ---
 
 # Clockwork hands: coding agents
@@ -48,6 +48,16 @@ hk agent mcp --target claude-desktop
 hk agent mcp --target claude-code
 hk agent mcp --target vscode
 ```
+
+`start_check`, `start_safe_check`, and `start_safe_fix` take an optional `scope` argument that picks the cargo a run covers. It defaults to `all`, and any other value is turned away at the gangway.
+
+| `scope`    | The cargo                                                                           | hk flag                       |
+| ---------- | ----------------------------------------------------------------------------------- | ----------------------------- |
+| `all`      | The whole of the cargo: every tracked file plus untracked files that are not ignored | `--all`                       |
+| `changed`  | Cargo loaded aboard, cargo left on the dock, and untracked files: all that differs from `HEAD` | none (hk's default selection) |
+| `unstaged` | Cargo left on the dock and untracked files only, without the cargo loaded aboard    | `--unstaged`                  |
+
+Use `changed` or `unstaged` to inspect only what a clockwork hand just touched, instead of the whole ship.
 
 Codex, Claude Code, Claude Desktop, and VS Code can all work the structured MCP tools. Hosts that implement MCP Apps also get the hk dashboard; other hosts get the same structured content and a useful text fallback.
 

@@ -220,6 +220,38 @@ struct RootRequest {
     root: Option<String>,
 }
 
+/// Which files a run covers.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum RunScope {
+    /// Every tracked file plus untracked files that are not ignored (`hk --all`).
+    #[default]
+    All,
+    /// Staged, unstaged, and untracked files: everything that differs from HEAD (no selection flag).
+    Changed,
+    /// Unstaged and untracked files only, excluding staged files (`hk --unstaged`).
+    Unstaged,
+}
+
+impl RunScope {
+    fn flag(self) -> Option<&'static str> {
+        match self {
+            Self::All => Some("--all"),
+            Self::Changed => None,
+            Self::Unstaged => Some("--unstaged"),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct StartRequest {
+    /// An allowed root returned by inspect_project; omit when only one root is available.
+    root: Option<String>,
+    /// Files to run on: "all" (default), "changed" (staged, unstaged, and untracked files), or "unstaged" (unstaged and untracked files only).
+    #[serde(default)]
+    scope: RunScope,
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 struct RunRequest {
     /// Run identifier returned by a start tool.
@@ -327,7 +359,12 @@ impl HkMcpServer {
         }
     }
 
-    async fn start(&self, root: PathBuf, kind: RunKind) -> Result<RunSnapshot, String> {
+    async fn start(
+        &self,
+        root: PathBuf,
+        kind: RunKind,
+        scope: RunScope,
+    ) -> Result<RunSnapshot, String> {
         let id = format!("hk-{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let cancel = CancellationToken::new();
         let snapshot = {
@@ -366,11 +403,18 @@ impl HkMcpServer {
             snapshot
         };
         let server = self.clone();
-        tokio::spawn(async move { server.execute(id, root, kind, cancel).await });
+        tokio::spawn(async move { server.execute(id, root, kind, scope, cancel).await });
         Ok(snapshot)
     }
 
-    async fn execute(&self, id: String, root: PathBuf, kind: RunKind, cancel: CancellationToken) {
+    async fn execute(
+        &self,
+        id: String,
+        root: PathBuf,
+        kind: RunKind,
+        scope: RunScope,
+        cancel: CancellationToken,
+    ) {
         let diff_baseline = prepare_diff_baseline(&root).await;
         let executable = match std::env::current_exe() {
             Ok(path) => path,
@@ -386,11 +430,13 @@ impl HkMcpServer {
             .arg(&root)
             .args(["--format", "jsonl"])
             .arg(kind.command())
-            .arg("--all")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
+        if let Some(flag) = scope.flag() {
+            command.arg(flag);
+        }
         if kind.safe() {
             command.arg("--safe");
         }
@@ -576,7 +622,7 @@ impl HkMcpServer {
     )]
     async fn start_check(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::Check).await
@@ -593,7 +639,7 @@ impl HkMcpServer {
     )]
     async fn start_safe_check(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::SafeCheck).await
@@ -610,7 +656,7 @@ impl HkMcpServer {
     )]
     async fn start_safe_fix(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::SafeFix).await
@@ -823,13 +869,13 @@ impl HkMcpServer {
 
     async fn start_tool(
         &self,
-        request: RootRequest,
+        request: StartRequest,
         peer: Peer<RoleServer>,
         kind: RunKind,
     ) -> Result<CallToolResult, String> {
         self.refresh_client_roots(&peer).await;
         let root = self.select_root(request.root.as_deref()).await?;
-        let snapshot = self.start(root, kind).await?;
+        let snapshot = self.start(root, kind, request.scope).await?;
         let value = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
         Ok(tool_success(format!("Started run {}", snapshot.id), value))
     }
@@ -1624,10 +1670,15 @@ mod tests {
         let root = root.path().canonicalize().unwrap();
         let server = HkMcpServer::new(root.clone());
         let first = server
-            .start(root.clone(), RunKind::SafeCheck)
+            .start(root.clone(), RunKind::SafeCheck, RunScope::All)
             .await
             .unwrap();
-        assert!(server.start(root, RunKind::SafeCheck).await.is_err());
+        assert!(
+            server
+                .start(root, RunKind::SafeCheck, RunScope::All)
+                .await
+                .is_err()
+        );
         {
             let mut state = server.state.lock().await;
             let run = state
@@ -1667,6 +1718,32 @@ mod tests {
             server.snapshot("active").await.unwrap().status,
             "cancelling"
         );
+    }
+
+    #[test]
+    fn scope_defaults_to_all_and_maps_to_cli_flags() {
+        let request: StartRequest = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(request.scope, RunScope::All);
+        assert_eq!(request.scope.flag(), Some("--all"));
+        for (value, flag) in [
+            ("all", Some("--all")),
+            ("changed", None),
+            ("unstaged", Some("--unstaged")),
+        ] {
+            let request: StartRequest =
+                serde_json::from_value(serde_json::json!({ "scope": value })).unwrap();
+            assert_eq!(request.scope.flag(), flag, "{value}");
+        }
+    }
+
+    #[test]
+    fn unknown_scope_is_rejected_with_the_valid_values() {
+        let error =
+            serde_json::from_value::<StartRequest>(serde_json::json!({ "scope": "staged" }))
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("unknown variant `staged`"), "{error}");
+        assert!(error.contains("`all`, `changed`, `unstaged`"), "{error}");
     }
 
     #[tokio::test]
@@ -1738,6 +1815,16 @@ mod tests {
             tools["start_safe_fix"]["annotations"]["destructiveHint"],
             false
         );
+        for name in ["start_check", "start_safe_check", "start_safe_fix"] {
+            let schema = &tools[name]["inputSchema"];
+            assert!(schema["properties"]["scope"].is_object(), "{name}");
+            assert!(
+                schema["required"]
+                    .as_array()
+                    .is_none_or(|required| !required.iter().any(|field| field == "scope")),
+                "{name}"
+            );
+        }
         assert_eq!(
             tools["inspect_project"]["annotations"]["readOnlyHint"],
             true
