@@ -428,6 +428,40 @@ impl Config {
         Self::find_project_config_from(start, &Self::project_config_search_paths()).is_some()
     }
 
+    /// `hk.local.pkl` is picked instead of the shared `hk.pkl`, not merged with
+    /// it, so a local file that does not `amends` the shared file silently drops
+    /// the whole shared configuration. Say so, unless the warning is hidden.
+    fn warn_if_local_config_ignores_shared(path: &Path) {
+        if path.file_name().is_none_or(|n| n != "hk.local.pkl") {
+            return;
+        }
+        let Some(dir) = path.parent() else {
+            return;
+        };
+        let mut candidates = vec![dir.join("hk.pkl"), dir.join(".config").join("hk.pkl")];
+        if dir.file_name().is_some_and(|n| n == ".config")
+            && let Some(parent) = dir.parent()
+        {
+            candidates.push(parent.join("hk.pkl"));
+        }
+        let shared: Vec<PathBuf> = candidates.into_iter().filter(|p| p.is_file()).collect();
+        if shared.is_empty() || amends_chain_reaches(path, &shared) {
+            return;
+        }
+        let hidden = std::env::var("HK_HIDE_WARNINGS")
+            .is_ok_and(|v| v.split(',').any(|t| t.trim() == LOCAL_CONFIG_WARNING_TAG));
+        if hidden {
+            return;
+        }
+        warn!(
+            "{} does not amend {}, so it replaces the shared configuration instead of extending it. \
+            Add `amends \"{}\"` to keep the shared steps, or hide this warning with HK_HIDE_WARNINGS={LOCAL_CONFIG_WARNING_TAG}.",
+            xx::file::display_path(path),
+            xx::file::display_path(&shared[0]),
+            relative_module_path(dir, &shared[0])
+        );
+    }
+
     fn load_config_cached(path: PathBuf) -> Result<Config> {
         Self::load_config_cached_with(path, true)
     }
@@ -469,6 +503,7 @@ impl Config {
                     warn!("failed to write imports cache file: {err:#}");
                 }
             }
+            Self::warn_if_local_config_ignores_shared(&path);
             let has_untracked_imports = import_analysis.has_untracked_imports
                 || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
 
@@ -602,7 +637,9 @@ impl Config {
             .display_skip_reasons
             .take()
             .or(hkrc.display_skip_reasons);
-        self.hide_warnings = self.hide_warnings.take().or(hkrc.hide_warnings);
+        // List settings that settings.toml marks `merge = "union"` combine the
+        // project and user values instead of letting the project's replace them.
+        union_lists(&mut self.hide_warnings, hkrc.hide_warnings);
         self.warnings = self.warnings.take().or(hkrc.warnings);
         // Exclude patterns are unioned, like every other exclude source.
         match (&mut self.exclude, hkrc.exclude) {
@@ -611,8 +648,8 @@ impl Config {
             (Some(_), None) => {}
         }
         self.profiles = self.profiles.take().or(hkrc.profiles);
-        self.skip_hooks = self.skip_hooks.take().or(hkrc.skip_hooks);
-        self.skip_steps = self.skip_steps.take().or(hkrc.skip_steps);
+        union_lists(&mut self.skip_hooks, hkrc.skip_hooks);
+        union_lists(&mut self.skip_steps, hkrc.skip_steps);
         self.default_branch = self.default_branch.take().or(hkrc.default_branch);
         self.min_hk_version = self.min_hk_version.take().or(hkrc.min_hk_version);
         self.stash_backup_count = self.stash_backup_count.or(hkrc.stash_backup_count);
@@ -1195,6 +1232,71 @@ fn failed_pkl_config_error(path: &Path, stderr: &str) -> eyre::Report {
     )
 }
 
+/// The target of a module's `amends "..."` declaration, if it is a local path.
+fn amends_target(module: &Path) -> Option<PathBuf> {
+    let source = std::fs::read_to_string(module).ok()?;
+    let line = source
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with("amends "))?;
+    let target = line
+        .strip_prefix("amends ")?
+        .trim_start()
+        .strip_prefix('"')?;
+    let target = &target[..target.find('"')?];
+    if let Some(path) = target.strip_prefix("file://") {
+        // `file:///C:/x` carries a leading slash before a Windows drive letter.
+        let bytes = path.as_bytes();
+        let path = if bytes.len() > 2 && bytes[0] == b'/' && bytes[2] == b':' {
+            &path[1..]
+        } else {
+            path
+        };
+        return Some(PathBuf::from(path));
+    }
+    if target.contains("://") {
+        // Other schemes cannot be traced back to a local file.
+        return None;
+    }
+    Some(module.parent()?.join(target))
+}
+
+/// True when following `amends` declarations from `start` (a plain `import` does
+/// not count, since it inherits nothing) reaches one of `shared`.
+fn amends_chain_reaches(start: &Path, shared: &[PathBuf]) -> bool {
+    let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let shared: Vec<PathBuf> = shared.iter().map(|p| canon(p)).collect();
+    let mut current = start.to_path_buf();
+    for _ in 0..16 {
+        let Some(next) = amends_target(&current) else {
+            return false;
+        };
+        if shared.contains(&canon(&next)) {
+            return true;
+        }
+        current = next;
+    }
+    false
+}
+
+/// How a module in `dir` refers to `target`, which sits in `dir`, `dir/.config`
+/// or the parent of `dir`.
+fn relative_module_path(dir: &Path, target: &Path) -> String {
+    let name = target.file_name().map_or_else(
+        || "hk.pkl".to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
+    match target.parent() {
+        Some(p) if p == dir => format!("./{name}"),
+        Some(p) if Some(p) == dir.parent() => format!("../{name}"),
+        Some(p) if p.file_name().is_some_and(|n| n == ".config") => format!("./.config/{name}"),
+        _ => target.display().to_string(),
+    }
+}
+
+/// `HK_HIDE_WARNINGS` tag for the "local config ignores the shared config" warning.
+const LOCAL_CONFIG_WARNING_TAG: &str = "local-config-replaces-shared";
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
@@ -1446,6 +1548,21 @@ fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> R
     }
 
     Ok(())
+}
+
+/// Add the user's entries that the project's list does not already have.
+fn union_lists(project: &mut Option<Vec<String>>, user: Option<Vec<String>>) {
+    match (project, user) {
+        (Some(project), Some(user)) => {
+            for item in user {
+                if !project.contains(&item) {
+                    project.push(item);
+                }
+            }
+        }
+        (project @ None, user) => *project = user,
+        (Some(_), None) => {}
+    }
 }
 
 /// Top-level `exclude` patterns.
@@ -1734,16 +1851,23 @@ mod tests {
     }
 
     #[test]
-    fn validate_compiles_globs_with_the_steps_dir() {
-        let mut globby = step("lint");
-        globby.dir = Some("foo[".into());
-        globby.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+    fn validate_compiles_globs_relative_to_the_steps_dir() {
+        // Globs match paths relative to `dir`, so glob characters in the
+        // directory's name are literal and never make a pattern invalid.
+        let mut bracketed = step("lint");
+        bracketed.dir = Some("foo[".into());
+        bracketed.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        config_with_steps(vec![bracketed]).validate().unwrap();
+
+        let mut bad_glob = step("lint");
+        bad_glob.dir = Some("foo".into());
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
         let err = format!(
             "{:#}",
-            config_with_steps(vec![globby]).validate().unwrap_err()
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
         );
         assert!(
-            err.contains("Step 'lint'") && err.contains("invalid glob '*'"),
+            err.contains("Step 'lint'") && err.contains("invalid glob 'src/[abc'"),
             "{err}"
         );
     }
@@ -1771,6 +1895,22 @@ mod tests {
             config_with_steps(vec![bad_regex]).validate().unwrap_err()
         );
         assert!(err.contains("invalid exclude"), "{err}");
+    }
+
+    #[test]
+    fn union_lists_combines_project_and_user_entries() {
+        let list = |items: &[&str]| Some(items.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let mut project = list(&["a", "b"]);
+        union_lists(&mut project, list(&["b", "c"]));
+        assert_eq!(project, list(&["a", "b", "c"]));
+
+        let mut none = None;
+        union_lists(&mut none, list(&["x"]));
+        assert_eq!(none, list(&["x"]));
+
+        let mut kept = list(&["a"]);
+        union_lists(&mut kept, None);
+        assert_eq!(kept, list(&["a"]));
     }
 
     #[test]
@@ -2436,6 +2576,65 @@ mod tests {
                 ("PATH".to_string(), std::env::var("PATH").ok()),
             ])
         );
+    }
+
+    #[test]
+    fn relative_module_path_points_at_the_shared_file() {
+        let dir = Path::new("/repo/.config");
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/hk.pkl")),
+            "../hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/.config/hk.pkl")),
+            "./hk.pkl"
+        );
+        let root = Path::new("/repo");
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/hk.pkl")),
+            "./hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/.config/hk.pkl")),
+            "./.config/hk.pkl"
+        );
+    }
+
+    #[test]
+    fn file_uri_amends_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let local = dir.path().join("hk.local.pkl");
+        std::fs::write(&local, format!("amends \"file://{}\"\n", shared.display())).unwrap();
+        let other = dir.path().join("other.pkl");
+        std::fs::write(&other, "amends \"https://example.com/hk.pkl\"\n").unwrap();
+        let shared = [shared];
+        if cfg!(unix) {
+            assert!(amends_chain_reaches(&local, &shared));
+        }
+        assert!(!amends_chain_reaches(&other, &shared));
+    }
+
+    #[test]
+    fn only_amends_declarations_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let amending = dir.path().join("a.pkl");
+        std::fs::write(&amending, "amends \"./hk.pkl\"\n").unwrap();
+        let chained = dir.path().join("b.pkl");
+        std::fs::write(&chained, "amends \"./a.pkl\"\n").unwrap();
+        let importing = dir.path().join("c.pkl");
+        std::fs::write(
+            &importing,
+            "amends \"pkl/Config.pkl\"\nimport \"./hk.pkl\" as S\n",
+        )
+        .unwrap();
+        let shared = [shared];
+        assert!(amends_chain_reaches(&amending, &shared));
+        assert!(amends_chain_reaches(&chained, &shared));
+        assert!(!amends_chain_reaches(&importing, &shared));
     }
 
     #[test]
