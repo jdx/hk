@@ -54,8 +54,11 @@ hooks {
             $gitDir = (git rev-parse --absolute-git-dir).Trim()
             $journal = Join-Path $gitDir 'hk-pending-stash'
 
+            # Output goes outside the repository: untracked files in it would be stashed, or
+            # keep the worktree from counting as clean when the next run recovers
+            $outDir = $TestDrive
             $hk = Start-Process -FilePath hk -ArgumentList 'run', 'pre-commit' -PassThru -NoNewWindow `
-                -RedirectStandardOutput hk-out.txt -RedirectStandardError hk-err.txt
+                -RedirectStandardOutput (Join-Path $outDir 'hk-out.txt') -RedirectStandardError (Join-Path $outDir 'hk-err.txt')
             for ($i = 0; $i -lt 200 -and -not (Test-Path (Join-Path $gitDir 'started')); $i++) {
                 Start-Sleep -Milliseconds 100
             }
@@ -69,11 +72,11 @@ hooks {
                 Where-Object { $_.CommandLine -like '*ping -n 60*' } |
                 ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
             Start-Sleep -Seconds 1
-            Remove-Item hk-out.txt, hk-err.txt -ErrorAction SilentlyContinue
+            Remove-Item (Join-Path $gitDir 'started') -ErrorAction SilentlyContinue
             Test-Path $journal | Should -BeTrue
             (git stash list | Measure-Object).Count | Should -Be 1
 
-            cmd /c "hk check --all > hk-recover.txt 2>&1"
+            cmd /c "hk check --all > `"$outDir\hk-recover.txt`" 2>&1"
             $LASTEXITCODE | Should -Be 0
             ((Get-Content file.txt -Raw) -replace "`r", '') | Should -Be "staged`nunstaged`n"
             (git stash list | Measure-Object).Count | Should -Be 0
