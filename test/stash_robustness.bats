@@ -151,3 +151,36 @@ EOF
     run git status
     assert_success
 }
+
+# git reads a pathspec that starts with ":" as pathspec syntax, so the stash
+# must name such a file literally. Otherwise it was not stashed, the step ran
+# on the worktree and staging its output put the unstaged edit in the index.
+@test "stash handles a tracked file whose name starts with a colon" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps { ["fixer"] { glob = "*"; fix = "true" } }
+  }
+}
+PKL
+    printf 'decoy\n' > file.txt
+    printf 'base\nmid\nlast\n' > :file.txt
+    git add .
+    git commit -m init
+    for libgit2 in 1 0; do
+        printf 'staged\nmid\nlast\n' > :file.txt
+        git --literal-pathspecs add -- :file.txt
+        printf 'staged\nmid\nunstaged\n' > :file.txt
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        assert_success
+        assert_equal "$(cat :file.txt)" "$(printf 'staged\nmid\nunstaged')"
+        assert_equal "$(git --literal-pathspecs show ::file.txt)" "$(printf 'staged\nmid\nlast')"
+        assert_equal "$(cat file.txt)" decoy
+        assert_equal "$(git stash list)" ""
+        git --literal-pathspecs reset -q --hard
+    done
+}
