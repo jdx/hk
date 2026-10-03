@@ -141,6 +141,18 @@ async fn kill_group(child: &mut tokio::process::Child) {
         // signals only the check and the processes it started.
         unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
     }
+    #[cfg(windows)]
+    if let Some(pid) = child.id() {
+        // Windows has no process groups: kill the check's whole tree while the check is
+        // still alive, so the linters it spawned do not outlive the hook.
+        let _ = tokio::process::Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &pid.to_string()])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await;
+    }
     let _ = child.kill().await;
     let _ = child.wait().await;
 }
@@ -456,6 +468,20 @@ mod tests {
         assert!(matches!(outcome, CheckOutcome::TimedOut));
         // The step's `sleep` is gone too, so nothing holds the pipes or keeps working.
         assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn a_timed_out_check_is_killed_with_its_steps_on_windows() {
+        // cmd starts a child `ping` (about 30s) and waits for it; the tree must die promptly.
+        let mut command = tokio::process::Command::new("cmd");
+        command.args(["/C", "ping -n 30 127.0.0.1 >NUL"]);
+        let started = std::time::Instant::now();
+        let outcome = run_check(command, Duration::from_millis(500))
+            .await
+            .unwrap();
+        assert!(matches!(outcome, CheckOutcome::TimedOut));
+        assert!(started.elapsed() < Duration::from_secs(10));
     }
 
     #[tokio::test]
