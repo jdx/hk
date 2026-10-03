@@ -1118,7 +1118,7 @@ struct PklSyntaxError {
     location: String,
     message: String,
     /// The offending source line, if the offset falls inside the source.
-    excerpt: Option<(usize, String, usize)>,
+    excerpt: Option<(usize, String, String)>,
 }
 
 impl std::fmt::Display for PklSyntaxError {
@@ -1128,13 +1128,9 @@ impl std::fmt::Display for PklSyntaxError {
             "Failed to evaluate Pkl config\n\n{}: {}",
             self.location, self.message
         )?;
-        if let Some((line, text, col)) = &self.excerpt {
+        if let Some((line, text, pad)) = &self.excerpt {
             let gutter = " ".repeat(line.to_string().len());
-            write!(
-                f,
-                "\n {gutter} |\n {line} | {text}\n {gutter} | {}^",
-                " ".repeat(col.saturating_sub(1))
-            )?;
+            write!(f, "\n {gutter} |\n {line} | {text}\n {gutter} | {}^", pad)?;
         }
         Ok(())
     }
@@ -1159,6 +1155,11 @@ fn line_col(source: &str, offset: usize) -> (usize, usize) {
 /// A source name for display: `./` segments dropped, and relative to the
 /// current directory when the file lives under it.
 fn display_source_name(name: &str) -> String {
+    // A module fetched by URI keeps its name; treating it as a path would
+    // collapse the `//` after the scheme.
+    if name.contains("://") {
+        return name.to_string();
+    }
     let path: PathBuf = Path::new(name).components().collect();
     let relative = std::env::current_dir()
         .ok()
@@ -1171,10 +1172,16 @@ fn syntax_error(name: &str, source: &str, offset: usize, message: &str) -> PklSy
     PklSyntaxError {
         location: format!("{}:{line}:{col}", display_source_name(name)),
         message: message.to_string(),
-        excerpt: source
-            .lines()
-            .nth(line - 1)
-            .map(|text| (line, text.trim_end().to_string(), col)),
+        excerpt: source.lines().nth(line - 1).map(|text| {
+            // Keep tabs as tabs so the caret lines up whatever width the
+            // terminal gives them.
+            let pad = text
+                .chars()
+                .take(col.saturating_sub(1))
+                .map(|c| if c == '\t' { '\t' } else { ' ' })
+                .collect();
+            (line, text.trim_end().to_string(), pad)
+        }),
     }
 }
 
@@ -1887,11 +1894,20 @@ mod tests {
     #[test]
     fn syntax_errors_report_the_failing_file_with_line_and_column() {
         let err = syntax_error("steps/./lint.pkl", "a = 1\nglob = = 2\n", 13, "bad token");
-        assert_eq!(err.location, "steps/lint.pkl:2:8");
+        let file = Path::new("steps").join("lint.pkl").display().to_string();
+        assert_eq!(err.location, format!("{file}:2:8"));
         let text = err.to_string();
-        assert!(text.contains("steps/lint.pkl:2:8: bad token"), "{text}");
+        assert!(text.contains(&format!("{file}:2:8: bad token")), "{text}");
         assert!(text.contains(" 2 | glob = = 2"), "{text}");
         assert!(text.ends_with("|        ^"), "{text}");
+    }
+
+    #[test]
+    fn syntax_errors_keep_uri_names_and_tabs() {
+        let err = syntax_error("https://host/dir/m.pkl", "\tx = =\n", 5, "bad");
+        assert_eq!(err.location, "https://host/dir/m.pkl:1:6");
+        // The caret padding repeats the line's tab instead of one space.
+        assert!(err.to_string().ends_with("| \t    ^"), "{err}");
     }
 
     #[test]
@@ -1899,7 +1915,8 @@ mod tests {
         let source = "x = 1\ny = @\n";
         let error = pklr::Error::parse("dir/other.pkl", source, 10, "unexpected".to_string());
         let located = pklr_syntax_error(&error).unwrap();
-        assert_eq!(located.location, "dir/other.pkl:2:5");
+        let file = Path::new("dir").join("other.pkl").display().to_string();
+        assert_eq!(located.location, format!("{file}:2:5"));
         assert!(pklr_syntax_error(&pklr::Error::Eval("boom".into())).is_none());
     }
 
