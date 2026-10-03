@@ -39,12 +39,24 @@ enum Command {
     /// true. Always exits 0. When the check fails or `--safe` refuses to run, prints only
     /// `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept.
     /// A check still running after `--timeout` seconds is stopped and reported the same way.
+    /// When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's
+    /// documentation is inconsistent about empty stdout and `{}` is valid under either reading.
     StopHook {
         /// Seconds to let the check run before stopping it (default 100). Keep it below the
         /// agent's own hook timeout.
         #[usage(long, value_name = "SECONDS")]
         timeout: Option<u64>,
+        /// Agent running the hook; `codex` prints `{}` when the check passes
+        #[usage(long, value_enum)]
+        target: Option<StopHookTarget>,
     },
+}
+
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
+enum StopHookTarget {
+    Codex,
+    ClaudeCode,
 }
 
 #[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
@@ -80,8 +92,12 @@ impl Agent {
     }
 
     pub async fn run(self) -> Result<()> {
-        if let Command::StopHook { timeout } = self.command {
-            return stop_hook::run(timeout.map(std::time::Duration::from_secs)).await;
+        if let Command::StopHook { timeout, target } = self.command {
+            return stop_hook::run(
+                timeout.map(std::time::Duration::from_secs),
+                matches!(target, Some(StopHookTarget::Codex)),
+            )
+            .await;
         }
         let output = match self.command {
             Command::Instructions { target } => instructions(target),

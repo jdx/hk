@@ -21,7 +21,7 @@ Generate integration snippets for coding agents
 - [`hk agent hooks <--target <TARGET>>`](/cli/agent/hooks.md)
 - [`hk agent instructions <--target <TARGET>>`](/cli/agent/instructions.md)
 - [`hk agent mcp <--target <TARGET>>`](/cli/agent/mcp.md)
-- [`hk agent stop-hook [--timeout <SECONDS>]`](/cli/agent/stop-hook.md)
+- [`hk agent stop-hook [--timeout <SECONDS>] [--target <TARGET>]`](/cli/agent/stop-hook.md)
 
 <!-- hk documentation examples -->
 

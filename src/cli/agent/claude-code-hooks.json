@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hk agent stop-hook --timeout 570",
+            "command": "hk agent stop-hook --target claude-code --timeout 570",
             "timeout": 600
           }
         ]

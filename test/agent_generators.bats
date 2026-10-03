@@ -64,12 +64,12 @@ EOF
 @test "agent hooks do not print hk run_result JSON" {
     run hk agent hooks --target claude-code
     assert_success
-    assert_output --partial '"command": "hk agent stop-hook --timeout 570"'
+    assert_output --partial '"command": "hk agent stop-hook --target claude-code --timeout 570"'
     assert_output --partial '"timeout": 600'
     refute_output --partial "--format json"
     run hk agent hooks --target codex
     assert_success
-    assert_output --partial '"command": "hk agent stop-hook"'
+    assert_output --partial '"command": "hk agent stop-hook --target codex"'
 }
 
 @test "agent stop-hook is silent and exits 0 when the check passes" {
@@ -77,6 +77,16 @@ EOF
     run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook"
     assert_success
     assert_output ""
+    run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook --target claude-code"
+    assert_success
+    assert_output ""
+}
+
+@test "agent stop-hook --target codex prints {} when the check passes" {
+    write_stop_hook_config "true"
+    run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook --target codex"
+    assert_success
+    assert_output "{}"
 }
 
 @test "agent stop-hook blocks with only a decision when the check fails" {
@@ -108,6 +118,9 @@ EOF
     run bash -c "echo '{\"stop_hook_active\":true}' | hk agent stop-hook"
     assert_success
     assert_output ""
+    run bash -c "echo '{\"stop_hook_active\":true}' | hk agent stop-hook --target codex"
+    assert_success
+    assert_output "{}"
 }
 
 @test "agent stop-hook --timeout stops a long check and blocks once" {
@@ -127,9 +140,9 @@ EOF
     assert_output --regexp '^\{"decision":"block","reason":"[^"]*probe-failed[^"]*"\}$'
 }
 
-@test "agent stop-hook stays silent when the check passes under HK_TRACE=json" {
+@test "agent stop-hook prints only {} for Codex when the check passes under HK_TRACE=json" {
     write_stop_hook_config "true"
-    run bash -c "echo '{}' | HK_TRACE=json hk agent stop-hook 2>/dev/null"
+    run bash -c "echo '{}' | HK_TRACE=json hk agent stop-hook --target codex 2>/dev/null"
     assert_success
-    assert_output ""
+    assert_output "{}"
 }

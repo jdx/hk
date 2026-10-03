@@ -7,15 +7,19 @@ description: "Run as the command of a Claude Code or Codex Stop hook; see the ho
 
 # `hk agent stop-hook`
 
-- **Usage:** `hk agent stop-hook [--timeout <SECONDS>]`
+- **Usage:** `hk agent stop-hook [--timeout <SECONDS>] [--target <TARGET>]`
 
 Run `hk run check --safe` as an agent Stop hook
 
-Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way.
+Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way. When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's documentation is inconsistent about empty stdout and `{}` is valid under either reading.
 
 ## Flags
 
 - **`--timeout <SECONDS>`** — Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.
+- **`--target <TARGET>`** — Agent running the hook; `codex` prints `{}` when the check passes
+
+  **Choices:** `codex`, `claude-code`
+
 - **`-h --help`** — Print help
 
 <!-- hk documentation examples -->

@@ -3,7 +3,9 @@
 //! Claude Code and Codex both treat a Stop hook's stdout as a JSON decision and its exit code as
 //! a separate signal, so a raw `hk run check` hook leaks hk's own result JSON and linter exit
 //! codes into the agent. This runner owns the whole contract: it always exits 0 and its only
-//! possible output is `{"decision":"block","reason":"..."}`.
+//! possible output is `{"decision":"block","reason":"..."}`, or when the check passes nothing
+//! (Claude Code's documented pass) or `{}` for Codex, whose docs contradict themselves about
+//! empty stdout; `{}` is valid under either reading.
 
 use std::io::{IsTerminal, Read};
 use std::process::Output;
@@ -350,17 +352,25 @@ fn diagnose(stdout: &str, stderr: &str, code: Option<i32>) -> String {
     truncate(&reason)
 }
 
+/// What a passing check prints: `{}` for Codex, nothing for Claude Code.
+fn pass_output(codex: bool) -> Option<&'static str> {
+    codex.then_some("{}")
+}
+
 fn block(reason: &str) -> String {
     json!({"decision": "block", "reason": reason}).to_string()
 }
 
-pub async fn run(timeout: Option<Duration>) -> crate::Result<()> {
+pub async fn run(timeout: Option<Duration>, codex: bool) -> crate::Result<()> {
     let timeout = timeout.unwrap_or(DEFAULT_CHECK_TIMEOUT);
     let mut input = String::new();
     if !std::io::stdin().is_terminal() {
         let _ = std::io::stdin().read_to_string(&mut input);
     }
     if stop_hook_active(&input) {
+        if let Some(pass) = pass_output(codex) {
+            println!("{pass}");
+        }
         return Ok(());
     }
     let output = match std::env::current_exe() {
@@ -375,7 +385,11 @@ pub async fn run(timeout: Option<Duration>) -> crate::Result<()> {
         Err(err) => Err(err),
     };
     match output {
-        Ok(CheckOutcome::Finished(output)) if output.status.success() => {}
+        Ok(CheckOutcome::Finished(output)) if output.status.success() => {
+            if let Some(pass) = pass_output(codex) {
+                println!("{pass}");
+            }
+        }
         Ok(CheckOutcome::Interrupted) => {}
         Ok(CheckOutcome::TimedOut) => println!(
             "{}",
@@ -531,6 +545,12 @@ mod tests {
         assert_eq!(output.status.code(), Some(3));
         assert_eq!(output.stdout, b"out\n");
         assert_eq!(output.stderr, b"err\n");
+    }
+
+    #[test]
+    fn a_passing_check_prints_braces_only_for_codex() {
+        assert_eq!(pass_output(true), Some("{}"));
+        assert_eq!(pass_output(false), None);
     }
 
     #[test]
