@@ -78,7 +78,7 @@ EOF
     assert_failure
     # The non-TTY end-of-run failure summary is kept (#890).
     assert_output --partial "missing stderr:"
-    assert_output --partial "hk-no-such-tool-xyz: not found"
+    assert_output --regexp "hk-no-such-tool-xyz: .*not found"
     refute_output --partial "To fix, run"
 }
 

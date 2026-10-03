@@ -491,8 +491,10 @@ impl Step {
 
                     // If we're in check mode and a fix command exists, collect a helpful
                     // suggestion. Skip it when the check never ran (the shell exits 127
-                    // for a missing tool): the files were not found to need fixing.
-                    if e.3.status.code() != Some(COMMAND_NOT_FOUND_EXIT_CODE) {
+                    // for a missing tool, with a "not found" message): the files were not found to need fixing.
+                    let tool_missing = e.3.status.code() == Some(COMMAND_NOT_FOUND_EXIT_CODE)
+                        && e.3.combined_output.contains("not found");
+                    if !tool_missing {
                         self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
                     }
                 }
