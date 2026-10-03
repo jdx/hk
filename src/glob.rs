@@ -13,6 +13,35 @@ pub fn get_matches_strict<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Resul
     get_matches_with_options(glob, files, true)
 }
 
+/// Compile one glob with the options the runtime matchers use.
+fn build_glob(glob: &str, literal_separator: bool) -> Result<globset::Glob> {
+    let mut builder = GlobBuilder::new(glob);
+    builder.empty_alternates(true);
+    if literal_separator {
+        builder.literal_separator(true);
+    }
+    Ok(builder.build()?)
+}
+
+/// Check that a step pattern compiles, so a bad glob or regex is reported when
+/// the config loads instead of when a step first filters files.
+pub fn validate_pattern(pattern: &Pattern) -> std::result::Result<(), String> {
+    match pattern {
+        Pattern::Globs(globs) => {
+            for glob in globs {
+                // `dir` makes the runtime match strictly, so check that mode too.
+                build_glob(glob, false)
+                    .and_then(|_| build_glob(glob, true))
+                    .map_err(|e| format!("invalid glob '{glob}': {e}"))?;
+            }
+        }
+        Pattern::Regex { pattern, .. } => {
+            Regex::new(pattern).map_err(|e| format!("invalid regex '{pattern}': {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn get_matches_with_options<P: AsRef<Path>>(
     glob: &[String],
     files: &[P],
@@ -21,13 +50,7 @@ fn get_matches_with_options<P: AsRef<Path>>(
     let files = files.iter().map(|f| f.as_ref()).collect_vec();
     let mut gb = GlobSetBuilder::new();
     for g in glob {
-        let mut builder = GlobBuilder::new(g);
-        builder.empty_alternates(true);
-        if literal_separator {
-            builder.literal_separator(true);
-        }
-        let g = builder.build()?;
-        gb.add(g);
+        gb.add(build_glob(g, literal_separator)?);
     }
     let gs = gb.build()?;
     let matches = files

@@ -19,3 +19,72 @@ hooks {
 EOF
     hk validate
 }
+
+# Writes an hk.pkl whose "check" hook holds the given steps.
+_write_check_steps() {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+$1
+        }
+    }
+}
+EOF
+}
+
+@test "validate rejects a dependency cycle instead of hanging" {
+    _write_check_steps '
+            ["a"] { depends = List("b"); check = "true" }
+            ["b"] { depends = List("c"); check = "true" }
+            ["c"] { depends = List("a"); check = "true" }'
+    run timeout 20 hk validate
+    assert_failure
+    refute [ "$status" -eq 124 ]
+    assert_output --partial "circular dependency"
+    assert_output --partial "hook 'check'"
+    assert_output --partial "a -> b -> c -> a"
+    # The same config used to hang `hk check` forever.
+    run timeout 20 hk check --all
+    assert_failure
+    refute [ "$status" -eq 124 ]
+    assert_output --partial "circular dependency"
+}
+
+@test "validate rejects a step that depends on itself" {
+    _write_check_steps '
+            ["lint"] { depends = List("lint"); check = "true" }'
+    run timeout 20 hk validate
+    assert_failure
+    refute [ "$status" -eq 124 ]
+    assert_output --partial "Step 'lint' in hook 'check' depends on itself"
+}
+
+@test "validate accepts depends across execution groups" {
+    # depends only orders steps within one group, so a name in a later group is not a cycle.
+    _write_check_steps '
+            ["a"] { depends = List("b"); check = "true" }
+            ["b"] { exclusive = true; depends = List("a"); check = "true" }'
+    run timeout 20 hk validate
+    assert_success
+}
+
+@test "validate names the step for an invalid glob" {
+    _write_check_steps '
+            ["lint"] { glob = "src/[abc"; check = "true" }'
+    run hk validate
+    assert_failure
+    assert_output --partial "Step 'lint' in hook 'check'"
+    assert_output --partial "invalid glob 'src/[abc'"
+}
+
+@test "validate names the step for an invalid exclude regex" {
+    _write_check_steps '
+            ["lint"] { glob = "*"; exclude = Regex("vendor/("); check = "true" }'
+    run hk validate
+    assert_failure
+    assert_output --partial "Step 'lint' in hook 'check'"
+    assert_output --partial "invalid exclude"
+    assert_output --partial "vendor/("
+}
