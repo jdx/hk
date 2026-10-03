@@ -26,12 +26,20 @@ jobs:
             {filename: "docs/getting-started.md"},
             {filename: "docs/pirate/STYLE.md"}
           ] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))' >/dev/null
+          if jq -en '[] | length > 0 and all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))'; then
+            echo "::error::an empty file list must select full CI"
+            exit 1
+          fi
           if jq -en '[{filename: "docs/public/Config.pkl"}] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))'; then
             echo "::error::generated docs inputs must select full CI"
             exit 1
           fi
           if jq -en '[{filename: "src/main.rs"}] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))'; then
             echo "::error::runtime inputs must select full CI"
+            exit 1
+          fi
+          if jq -en '[{filename: "docs/main.md", previous_filename: "src/main.rs"}] | all(.[]; ([.filename, .previous_filename?] | map(select(. != null)) | all(.[]; test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))))'; then
+            echo "::error::renamed runtime inputs must select full CI"
             exit 1
           fi
       - id: classify
@@ -56,8 +64,33 @@ jobs:
             exit 0
           fi
 
-          if jq -es 'all(.[][]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))' "$files" >/dev/null; then
+          if jq -es '([.[][]] | length > 0) and all(.[][]; ([.filename, .previous_filename?] | map(select(. != null)) | all(.[]; test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))))' "$files" >/dev/null; then
             echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  docs_only:
+    name: validate docs-only changes
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          cache_save: false
+      - run: mise x -- aube install
+      - run: mise run render
+      - name: Assert render produces no diff
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::'mise run render' produced changes. Run it locally and commit."
+            git status
+            git diff HEAD
+            exit 1
           fi
 
   trusted:
@@ -82,7 +115,7 @@ jobs:
     name: final
     if: ${{ always() && !cancelled() && needs.trusted.result != 'cancelled' && needs.untrusted.result != 'cancelled' }}
     permissions: {}
-    needs: [changes, trusted, untrusted]
+    needs: [changes, docs_only, trusted, untrusted]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
@@ -90,6 +123,7 @@ jobs:
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
           DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          DOCS_ONLY_RESULT: ${{ needs.docs_only.result }}
           TRUSTED_RESULT: ${{ needs.trusted.result }}
           UNTRUSTED_RESULT: ${{ needs.untrusted.result }}
         run: |
@@ -98,6 +132,10 @@ jobs:
             exit 1
           fi
           if [[ "$DOCS_ONLY" == true ]]; then
+            if [[ "$DOCS_ONLY_RESULT" != success ]]; then
+              echo "docs_only=$DOCS_ONLY_RESULT"
+              exit 1
+            fi
             echo "docs-only pull request; full CI intentionally skipped"
             exit 0
           fi
