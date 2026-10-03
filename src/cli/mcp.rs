@@ -24,7 +24,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{
-    io::{AsyncRead, AsyncReadExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
     process::Command,
     sync::Mutex,
 };
@@ -371,7 +371,12 @@ impl HkMcpServer {
     }
 
     async fn execute(&self, id: String, root: PathBuf, kind: RunKind, cancel: CancellationToken) {
-        let diff_baseline = snapshot_tree(&root).await;
+        // A root that is not a git repository has no diff to capture; that is not an error.
+        let diff_baseline = if is_git_repository(&root).await {
+            Some(snapshot_tree(&root).await)
+        } else {
+            None
+        };
         let executable = match std::env::current_exe() {
             Ok(path) => path,
             Err(error) => {
@@ -419,7 +424,10 @@ impl HkMcpServer {
         };
         let _ = stdout_task.await;
         let _ = stderr_task.await;
-        let (diff, diff_error) = capture_run_diff(&root, diff_baseline).await;
+        let (diff, diff_error) = match diff_baseline {
+            Some(baseline) => capture_run_diff(&root, baseline).await,
+            None => (CapturedDiff::default(), None),
+        };
         let mut state = self.state.lock().await;
         let Some(run) = state.runs.iter_mut().find(|run| run.id == id) else {
             return;
@@ -1141,71 +1149,90 @@ async fn run_git(root: &Path, args: &[&str], index: Option<&Path>) -> Result<Vec
     Ok(output.stdout)
 }
 
-/// Records the working tree (tracked and untracked, excluding ignored files) as a git
-/// tree object using a private temporary index, so the user's real index is never touched.
-async fn snapshot_tree(root: &Path) -> Result<String, String> {
-    let index_path = run_git(root, &["rev-parse", "--git-path", "index"], None).await?;
-    let index_path = PathBuf::from(String::from_utf8_lossy(&index_path).trim());
-    let index_path = if index_path.is_absolute() {
-        index_path
-    } else {
-        root.join(index_path)
-    };
-    // The temp index lives in its own directory (removed on drop) because git rejects an
-    // empty pre-created index file; it starts out absent when there is no real index.
-    let temp_dir = tempfile::tempdir().map_err(|error| error.to_string())?;
-    let temp_index = temp_dir.path().join("index");
-    if index_path.exists() {
-        std::fs::copy(&index_path, &temp_index)
-            .map_err(|error| format!("failed to copy git index: {error}"))?;
-    } else {
-        run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
-    }
-    drop_unmerged_entries(root, &temp_index).await?;
-    // Store the worktree bytes as they are: no CRLF conversion, and no clean filters
-    // (those come from attributes, which are read from the empty tree instead). Only
-    // paths under `root` are re-read, so changes elsewhere in the repository cannot
-    // show up in the diff. Git older than 2.40 lacks `--attr-source`.
-    let raw = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"];
-    let mut with_attr_source = raw.to_vec();
-    let attr_source = format!("--attr-source={EMPTY_TREE}");
-    with_attr_source.push(&attr_source);
-    with_attr_source.extend(["add", "-A", "--", "."]);
-    if run_git(root, &with_attr_source, Some(&temp_index))
+/// Runs git with `input` on stdin; otherwise like [`run_git`].
+async fn run_git_with_input(
+    root: &Path,
+    args: &[&str],
+    index: &Path,
+    input: Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    let mut child = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .env("GIT_INDEX_FILE", index)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    let mut stdin = child.stdin.take().ok_or("failed to open git stdin")?;
+    let writer = tokio::spawn(async move {
+        let _ = stdin.write_all(&input).await;
+        // Dropping stdin closes it so git sees the end of the list.
+    });
+    let output = child
+        .wait_with_output()
         .await
-        .is_err()
-    {
-        let mut without = raw.to_vec();
-        without.extend(["add", "-A", "--", "."]);
-        run_git(root, &without, Some(&temp_index)).await?;
+        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    let _ = writer.await;
+    if !output.status.success() {
+        return Err(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
-    let tree = run_git(root, &["write-tree"], Some(&temp_index)).await?;
-    Ok(String::from_utf8_lossy(&tree).trim().to_string())
+    Ok(output.stdout)
 }
 
-/// `write-tree` refuses an index with unmerged entries, such as a merge conflict in a
-/// file outside `root` (which the pathspec-limited `add` never refreshes). Both snapshots
-/// of a run drop the same paths, so they cannot show up in the diff.
-async fn drop_unmerged_entries(root: &Path, index: &Path) -> Result<(), String> {
-    let top = run_git(root, &["rev-parse", "--show-toplevel"], None).await?;
-    let top = PathBuf::from(String::from_utf8_lossy(&top).trim());
-    let unmerged = run_git(&top, &["ls-files", "-u", "-z"], Some(index)).await?;
-    let mut paths = Vec::new();
-    for entry in unmerged.split(|byte| *byte == 0) {
-        // `<mode> <object> <stage>\t<path>`
-        if let Some(tab) = entry.iter().position(|byte| *byte == b'\t') {
-            let path = String::from_utf8_lossy(&entry[tab + 1..]).into_owned();
-            if paths.last() != Some(&path) {
-                paths.push(path);
+/// Records the files under `root` (tracked and untracked, excluding ignored untracked
+/// files) as a git tree object using a private temporary index, so the user's real index
+/// is never touched.
+///
+/// The temporary index starts empty and every file is hashed from its worktree bytes, with
+/// no CRLF conversion and no clean filters (those come from attributes, which are read from
+/// the empty tree instead). Reusing the real index would keep its already-converted blobs
+/// for files whose cached stat still matches, so a clean file would differ between the
+/// snapshots taken before and after a run. It also carries unmerged entries, which
+/// `write-tree` refuses. Git older than 2.40 lacks `--attr-source`.
+async fn snapshot_tree(root: &Path) -> Result<String, String> {
+    // The temp index lives in its own directory (removed on drop) because git rejects an
+    // empty pre-created index file.
+    let temp_dir = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let temp_index = temp_dir.path().join("index");
+    run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
+    // Tracked files first, so tracked files that .gitignore also matches are included.
+    let tracked = run_git(root, &["ls-files", "-z"], None).await?;
+    let raw = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"];
+    let attr_source = format!("--attr-source={EMPTY_TREE}");
+    for use_attr_source in [true, false] {
+        let mut prefix = raw.to_vec();
+        if use_attr_source {
+            prefix.push(&attr_source);
+        }
+        let mut update = prefix.clone();
+        update.extend(["update-index", "--add", "--remove", "-z", "--stdin"]);
+        let mut add = prefix;
+        add.extend(["add", "-A", "--", "."]);
+        let result = async {
+            if !tracked.is_empty() {
+                run_git_with_input(root, &update, &temp_index, tracked.clone()).await?;
+            }
+            run_git(root, &add, Some(&temp_index)).await
+        }
+        .await;
+        match result {
+            Ok(_) => break,
+            Err(error) if !use_attr_source => return Err(error),
+            Err(_) => {
+                run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
             }
         }
     }
-    for chunk in paths.chunks(256) {
-        let mut args = vec!["update-index", "--force-remove", "--"];
-        args.extend(chunk.iter().map(String::as_str));
-        run_git(&top, &args, Some(index)).await?;
-    }
-    Ok(())
+    let tree = run_git(root, &["write-tree"], Some(&temp_index)).await?;
+    Ok(String::from_utf8_lossy(&tree).trim().to_string())
 }
 
 /// Git's well-known empty tree, which always exists.
@@ -1351,7 +1378,7 @@ fn record_diff_error(run: &mut RunRecord, error: Option<String>) {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::io::{AsyncBufReadExt, BufReader};
 
     fn test_run(id: &str, status: &str, output: Vec<u8>) -> RunRecord {
         RunRecord {
@@ -1605,6 +1632,80 @@ mod tests {
         let diff = git_diff(&root, &baseline, &after).await.unwrap();
         assert!(diff.text.contains("+++ b/new.txt"), "{}", diff.text);
         assert!(!diff.text.contains("conflict.txt"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn clean_files_do_not_appear_when_line_ending_conversion_is_configured() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        git_in(root, &["config", "user.email", "t@t"]);
+        git_in(root, &["config", "user.name", "t"]);
+        git_in(root, &["config", "core.autocrlf", "true"]);
+        // The index holds LF; the worktree holds CRLF, and stays that way.
+        std::fs::write(root.join("clean.txt"), b"a\r\nb\r\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-qm", "init"]);
+        std::fs::write(root.join("clean.txt"), b"a\r\nb\r\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("other.txt"), b"x\r\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+++ b/other.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("clean.txt"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn tracked_files_matching_gitignore_are_still_diffed() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        std::fs::write(root.join("kept.log"), "one\n").unwrap();
+        git_in(root, &["add", "-f", "kept.log"]);
+        std::fs::write(root.join(".gitignore"), "*.log\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+        std::fs::write(root.join("kept.log"), "two\n").unwrap();
+        std::fs::write(root.join("ignored.log"), "x\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+two"), "{}", diff.text);
+        assert!(!diff.text.contains("ignored.log"), "{}", diff.text);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn conflicted_files_with_pathspec_or_non_utf8_names_do_not_break_snapshots() {
+        use std::os::unix::ffi::OsStrExt;
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        git_in(repo, &["config", "user.email", "t@t"]);
+        git_in(repo, &["config", "user.name", "t"]);
+        let name = std::ffi::OsStr::from_bytes(b":(glob)*bad\xffname.txt");
+        std::fs::write(repo.join(name), "base\n").unwrap();
+        git_in(repo, &["add", "."]);
+        git_in(repo, &["commit", "-qm", "base"]);
+        git_in(repo, &["checkout", "-qb", "other"]);
+        std::fs::write(repo.join(name), "other\n").unwrap();
+        git_in(repo, &["commit", "-qam", "other"]);
+        git_in(repo, &["checkout", "-q", "-"]);
+        std::fs::write(repo.join(name), "mine\n").unwrap();
+        git_in(repo, &["commit", "-qam", "mine"]);
+        let _ = std::process::Command::new("git")
+            .args(["merge", "other"])
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("sibling.txt"), "keep\n").unwrap();
+
+        let baseline = snapshot_tree(repo).await.unwrap();
+        std::fs::write(repo.join("new.txt"), "x\n").unwrap();
+        let after = snapshot_tree(repo).await.unwrap();
+        let diff = git_diff(repo, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+++ b/new.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("sibling.txt"), "{}", diff.text);
     }
 
     #[tokio::test]
