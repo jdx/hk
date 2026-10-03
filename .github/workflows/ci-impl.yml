@@ -426,15 +426,9 @@ jobs:
       - name: Run Pester e2e tests
         run: |
           $env:PKL_PATH = "${{ github.workspace }}/pkl"
-          # Run only basic tests that don't require pkl to avoid hangs
-          ./e2e-win/run.ps1 -TestName "*version*"
-          ./e2e-win/run.ps1 -TestName "*help*"
-          # Regression test for discussion #823 (cmd.exe {{files}} quoting)
-          ./e2e-win/run.ps1 -TestName "*{{files}} template*"
-          # Regression test for discussion #1220 (structured argv npm shims)
-          ./e2e-win/run.ps1 -TestName "*structured argv resolves*"
-          # Regression tests for issue #1534 (stash CRLF restoration)
-          ./e2e-win/run.ps1 -TestName "*stash line endings*"
+          # Runs every Pester case under e2e-win/ (a new case is picked up
+          # automatically; name filters here silently skipped cases before).
+          ./e2e-win/run.ps1
   final:
     permissions: {}
     needs:

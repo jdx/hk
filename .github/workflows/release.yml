@@ -298,8 +298,65 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Runs each shipped archive on a native runner, so a binary that builds but
+  # does not start (or was cross-built and never executed, like the aarch64
+  # Linux and Windows rows) blocks the release instead of reaching users.
+  smoke-archives:
+    needs: [build-binaries]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/smoke-release-archive.sh
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: binary-${{ matrix.target }}
+          path: archive
+      - name: Extract archive
+        if: ${{ !contains(matrix.target, 'windows') }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir extracted
+          tar -xzf "archive/hk-${TARGET}.tar.gz" -C extracted
+      - name: Extract archive
+        if: contains(matrix.target, 'windows')
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: Expand-Archive -Path "archive/hk-$env:TARGET.zip" -DestinationPath extracted
+      - name: Smoke-test the extracted binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: scripts/smoke-release-archive.sh extracted "$TARGET"
+
   create-release:
-    needs: [build-binaries, build-pkl]
+    needs: [build-binaries, build-pkl, smoke-archives]
     runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: write

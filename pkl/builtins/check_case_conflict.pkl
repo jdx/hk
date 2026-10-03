@@ -7,6 +7,11 @@ import "../Config.pkl"
 }
 check_case_conflict = new Config.Step {
   glob = "**/*"
+  // Only file names matter, never contents, so the default filters would wrongly
+  // skip the step when a changeset holds only binary files or symlinks, whose
+  // names can conflict like any other.
+  allow_binary = true
+  allow_symlinks = true
   check = new Config.CommandSpec {
     command = new Config.Command { argv = List("hk", "util", "check-case-conflict", "{{files}}") }
     effect = "read"
