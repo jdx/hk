@@ -1040,7 +1040,7 @@ fn get_http_proxy() -> Option<String> {
 /// The pkl package for this version, staged by `build/embed_pkl_package.rs`.
 /// Empty when the pkl sources were not generated.
 static EMBEDDED_PKL_PACKAGE: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/hk_pkl_package.zip"));
+    include_bytes!(concat!(std::env!("OUT_DIR"), "/hk_pkl_package.zip"));
 
 /// The release archive URL `hk init` writes into `hk.pkl` for this version.
 fn embedded_pkl_package_url() -> String {
