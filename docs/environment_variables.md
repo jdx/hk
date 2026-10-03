@@ -238,6 +238,12 @@ Override how unstaged work is saved before a hook. `git` enables stashing; `patc
 
 Number of backup patches to retain per repository under `$HK_STATE_DIR/patches/`. Set to `0` to disable patch backups.
 
+## `HK_STASH_LOCK_TIMEOUT` {#hk-stash-lock-timeout}
+
+**Type:** nonnegative integer (seconds) · **Default:** 300
+
+How long to wait for another hk process in the same repository to finish stashing, using the `hk-stash.lock` file in the common git directory that linked worktrees share. On timeout hk fails and names the lock file. Set to `0` to fail at once instead of waiting. Also settable with `git config hk.stashLockTimeout`.
+
 ## `HK_STASH_UNTRACKED` {#hk-stash-untracked}
 
 **Type:** boolean · **Default:** true

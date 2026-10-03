@@ -35,6 +35,7 @@ mod par;
 mod plan;
 mod settings;
 mod stage_queue;
+mod stash_lock;
 mod step;
 mod step_context;
 mod step_depends;

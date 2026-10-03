@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: fa8bcccfa762
+sourceHash: 72fdf6aec106
 ---
 
 # Git hooks and stowing the hold
@@ -78,6 +78,8 @@ Files marked with `git add -N` (intent to add) have no staged content, so hk set
 Read hk's error before ye change the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git stash list` to see which changes are present.
 
 hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls how many it keeps. Keep the stash and backup hk reports until ye have recovered and reviewed yer work. Don't blindly apply a stash again to files that already carry its changes.
+
+While hk has yer unstaged changes stowed, it holds a lock file, `hk-stash.lock`, in the repository's common git directory, which linked worktrees share. Two hk crews in one repository, such as hooks in two worktrees, therefore take turns stowing and restoring instead of hauling up each other's cargo. The one that waits prints a message and gives up after [`HK_STASH_LOCK_TIMEOUT`](/environment_variables#hk-stash-lock-timeout) seconds, naming the lock file. The operating system drops the lock if hk is sunk.
 
 Intent-to-add files are kept in a separate stash entry named `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
 

@@ -1400,11 +1400,25 @@ impl Hook {
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
+        // Held from before the stash is made until it is restored, so another
+        // hk process in this repository cannot stash in between.
+        let mut stash_lock = None;
         if stash_method != StashMethod::None {
             // Only run stash logic if there are actually unstaged changes to stash
             let has_unstaged_changes = git_status.has_unstaged_changes(*env::HK_STASH_UNTRACKED);
 
             if has_unstaged_changes {
+                let lock_path = repo.lock().await.stash_lock_path()?;
+                let timeout =
+                    std::time::Duration::from_secs(Settings::get().stash_lock_timeout as u64);
+                stash_lock = Some(tokio::task::block_in_place(|| {
+                    crate::stash_lock::StashLock::acquire(&lock_path, timeout, || {
+                        warn!(
+                            "waiting for another hk process to finish stashing (lock: {})",
+                            lock_path.display()
+                        )
+                    })
+                })?);
                 // Capture exact staged index entries for files under consideration so we can
                 // ensure index hunks survive formatting and stash apply.
                 let files_vec = hook_ctx.files();
@@ -1524,6 +1538,7 @@ impl Hook {
                 }
             }
         }
+        drop(stash_lock);
         // Capture final git state when its log output or timing span is observable.
         if log::log_enabled!(log::Level::Debug) || crate::trace::enabled() {
             match repo.lock().await.status() {
