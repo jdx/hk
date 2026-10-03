@@ -457,14 +457,17 @@ fn install_local_shims(events: &[String], command: &OsStr, force: bool) -> Resul
         // Write a new file and rename it over the hook. A rename replaces a
         // symlink (even a dangling one) instead of following it, so the
         // link's target is never written.
-        let temp = hooks.join(format!(".{event}.hk-install-{}", std::process::id()));
-        let _ = std::fs::remove_file(&temp);
-        xx::file::write(&temp, git_hook_content(&command.to_string_lossy(), event))?;
-        xx::file::make_executable(&temp)?;
-        if let Err(err) = std::fs::rename(&temp, &hook_file) {
-            let _ = std::fs::remove_file(&temp);
-            return Err(err.into());
-        }
+        // The temp file has a random name and is created exclusively, so a
+        // symlink planted at a guessed name can't redirect the write.
+        let mut temp = tempfile::Builder::new()
+            .prefix(&format!(".{event}.hk-install-"))
+            .tempfile_in(&hooks)?;
+        std::io::Write::write_all(
+            &mut temp,
+            git_hook_content(&command.to_string_lossy(), event).as_bytes(),
+        )?;
+        xx::file::make_executable(temp.path())?;
+        temp.persist(&hook_file).map_err(|err| err.error)?;
         info!("Installed hk hook: {}", hook_file.display());
     }
     Ok(())
