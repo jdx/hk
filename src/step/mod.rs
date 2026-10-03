@@ -52,6 +52,7 @@ pub(crate) use command::argv_runner;
 pub use expr_env::{EXPR_CTX, eval_condition};
 pub(crate) use job_builder::SharedBatchJobs;
 pub use shell::ShellType;
+pub(crate) use shell::split_shell;
 pub(crate) use types::RenderedCommand;
 #[cfg(test)]
 pub(crate) use types::{ArgvCommand, Command};

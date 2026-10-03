@@ -23,7 +23,7 @@ use std::path::PathBuf;
 
 use super::command::argv_runner;
 use super::expr_env::eval_condition;
-use super::shell::ShellType;
+use super::shell::{ShellType, split_shell};
 use super::types::{
     CheckFirstCmd, Command, CommandPrefix, Pattern, RenderedCommand, RunType, Step,
 };
@@ -329,13 +329,11 @@ impl Step {
             RenderedCommand::Shell(run) => {
                 let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
                 if let Some(shell) = &self.shell {
-                    let shell = shell.to_string();
-                    let shell = shell.split_whitespace().collect_vec();
-                    let mut cmd = if use_raw_cmd {
-                        CmdLineRunner::new_direct(shell[0])
-                    } else {
-                        CmdLineRunner::new(shell[0])
-                    };
+                    let shell = split_shell(&shell.to_string());
+                    // Start the shell itself. `CmdLineRunner::new` would wrap it in
+                    // `cmd.exe /c` on Windows, which ends a script at its first
+                    // newline and re-parses its quotes.
+                    let mut cmd = CmdLineRunner::new_direct(&shell[0]);
                     for arg in shell[1..].iter() {
                         cmd = cmd.arg(arg);
                     }
@@ -347,7 +345,7 @@ impl Step {
                 } else if use_raw_cmd {
                     CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(run)
                 } else {
-                    CmdLineRunner::new("sh")
+                    CmdLineRunner::new_direct("sh")
                         .arg("-o")
                         .arg("errexit")
                         .arg("-c")
@@ -672,7 +670,7 @@ impl Step {
             .as_ref()
             .map(|s| s.to_string())
             .unwrap_or_default();
-        let shell = shell.split_whitespace().next().unwrap_or_default();
+        let shell = split_shell(&shell).into_iter().next().unwrap_or_default();
         let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
         // Use case-insensitive matching for shell names
         // Include .exe variants for Windows environments (Git Bash, MSYS2, Cygwin)

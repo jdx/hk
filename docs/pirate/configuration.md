@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: eaeee6c42cf0
+sourceHash: ac28bc853631
 ---
 
 # Configuration, the ship's charts
@@ -156,6 +156,31 @@ string `prefix`. When a structured command should run through a launcher, use an
 argv-list prefix such as `List("mise", "x", "--")`. The rest of a step's
 behaviour still applies, including `dir`, `env`, and automatic batching for
 large file lists.
+
+### Shell commands on Windows {#shell-commands-on-windows}
+
+On Windows, a string command runs through `cmd.exe` unless the hand sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few of the standing crew (builtins) are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `typos`, and `yq`. Every other builtin sails as it is.
+
+To run one of them, set its `shell` to a POSIX shell, such as the `sh` that comes aboard with Git for Windows. A value that contains quotes is split the way a POSIX shell would split it, so a path with spaces can be quoted:
+
+```pkl
+["jq"] = (Builtins.jq) {
+    shell = "\"C:/Program Files/Git/usr/bin/sh.exe\" -o errexit -c"
+}
+```
+
+If `sh` is already on the `PATH`, `shell = "sh -o errexit -c"` is enough. Keep `-o errexit -c`: it is what hk uses on other platforms, and the scripts rely on it.
+
+`go_imports` also carries a structured `fix`, which can't sail with `shell`. Swap it for a string command too:
+
+```pkl
+["go_imports"] = (Builtins.go_imports) {
+    shell = "sh -o errexit -c"
+    fix = "goimports -w {{files}}"
+}
+```
+
+Set `shell` on the hand itself, not on a gang that also holds hands with structured commands: a hand can't sail with both `shell` and a structured `Command`, and a gang passes its `shell` to every hand that has none.
 
 ### Literal braces that must sail through {#literal-braces-in-commands}
 

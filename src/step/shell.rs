@@ -6,6 +6,22 @@
 
 use shell_quote::{QuoteInto, QuoteRefExt};
 
+/// Split a step's `shell` setting into the program and its arguments.
+///
+/// Words are separated by whitespace. A value that contains a quote is split
+/// the way a POSIX shell would, so a program path with a space can be quoted:
+/// `"C:\Program Files\Git\usr\bin\sh.exe" -o errexit -c`. A value without
+/// quotes is split on whitespace alone, which keeps the backslashes of an
+/// unquoted Windows path.
+pub(crate) fn split_shell(shell: &str) -> Vec<String> {
+    let whitespace = || shell.split_whitespace().map(str::to_string).collect();
+    if shell.contains(['"', '\'']) {
+        shell_words::split(shell).unwrap_or_else(|_| whitespace())
+    } else {
+        whitespace()
+    }
+}
+
 /// The type of shell used to execute step commands.
 ///
 /// Different shells have different quoting rules, so knowing the shell type
@@ -65,5 +81,49 @@ impl ShellType {
                 String::from_utf8(o).unwrap_or_default()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_shell;
+
+    #[test]
+    fn splits_on_whitespace() {
+        assert_eq!(
+            split_shell("bash -o errexit -c"),
+            ["bash", "-o", "errexit", "-c"]
+        );
+        assert!(split_shell("   ").is_empty());
+    }
+
+    #[test]
+    fn keeps_the_backslashes_of_an_unquoted_windows_path() {
+        assert_eq!(
+            split_shell(r"C:\tools\sh.exe -c"),
+            [r"C:\tools\sh.exe", "-c"]
+        );
+    }
+
+    #[test]
+    fn honors_quotes_around_a_path_with_spaces() {
+        assert_eq!(
+            split_shell(r#""C:\Program Files\Git\usr\bin\sh.exe" -o errexit -c"#),
+            [
+                r"C:\Program Files\Git\usr\bin\sh.exe",
+                "-o",
+                "errexit",
+                "-c"
+            ]
+        );
+        assert_eq!(
+            split_shell(r"'C:\Program Files\Git\bin\sh.exe' -c"),
+            [r"C:\Program Files\Git\bin\sh.exe", "-c"]
+        );
+    }
+
+    #[test]
+    fn falls_back_to_whitespace_when_a_quote_is_unbalanced() {
+        assert_eq!(split_shell(r#"sh "-c"#), ["sh", r#""-c"#]);
     }
 }
