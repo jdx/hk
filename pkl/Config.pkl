@@ -1164,8 +1164,9 @@ class StepTestExpect {
 
 class StepTestDiagnostic {
   /// File path as the tool printed it; a leading `./` is ignored. If the tool printed an absolute
-  /// path, as tools do for the test's temporary sandbox, a relative path here matches when the
-  /// absolute path ends with it at a directory boundary.
+  /// path, as tools do for the test's temporary sandbox, a relative path here matches when that
+  /// path lies inside the sandbox directory and the rest equals it. On Windows, backslash
+  /// separators and letter case are ignored; elsewhere neither is.
   path: String?
 
   /// Line where the diagnostic starts.
