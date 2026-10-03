@@ -28,6 +28,8 @@ export const sidebar: SidebarItem[] = [
     items: [
       { text: "Getting started", link: "/getting_started" },
       { text: "Migrating to hk v2", link: "/migration-v2" },
+      { text: "Migrating from lefthook", link: "/migrate-lefthook" },
+      { text: "Migrating from husky", link: "/migrate-husky" },
       { text: "Why hk?", link: "/why-hk" },
       { text: "Pkl essentials", link: "/pkl_introduction" },
     ],
@@ -96,6 +98,8 @@ export const PIRATE_SIDEBAR_TEXT: Record<string, string> = {
   "Start here": "Weigh anchor",
   "Getting started": "Getting under way",
   "Migrating to hk v2": "Refitting the ship for hk v2",
+  "Migrating from lefthook": "Changing ships from lefthook",
+  "Migrating from husky": "Changing ships from husky and lint-staged",
   "Why hk?": "Why sail with hk?",
   "Pkl essentials": "Pkl essentials for the chart room",
   Guides: "Seamanship",
