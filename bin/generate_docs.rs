@@ -193,19 +193,22 @@ fn script_text(command: &serde_json::Map<String, serde_json::Value>) -> Option<S
     }
 }
 
-/// Render a string or list-of-strings option as a Pkl value, chosen by the
-/// JSON type: a string stays a quoted string, a list becomes `List(...)`.
-/// Regex items keep the `/pattern/` display form.
+/// Render a string, Regex or list option as Pkl source, chosen by the JSON
+/// type: a string stays a quoted string, a Regex object becomes
+/// `Regex(#"..."#)`, and a list becomes `List(...)` of those.
 fn pkl_value(value: &serde_json::Value) -> Option<String> {
-    let quote = |s: &str| serde_json::to_string(s).unwrap_or_else(|_| format!("{s:?}"));
     match value {
-        serde_json::Value::String(s) => Some(quote(s)),
+        serde_json::Value::String(s) => {
+            Some(serde_json::to_string(s).unwrap_or_else(|_| format!("{s:?}")))
+        }
+        serde_json::Value::Object(map)
+            if map.get("_type").and_then(|v| v.as_str()) == Some("regex") =>
+        {
+            let pattern = map.get("pattern")?.as_str()?;
+            Some(format!("Regex(#\"{pattern}\"#)"))
+        }
         serde_json::Value::Array(arr) => {
-            let items: Vec<String> = arr
-                .iter()
-                .flat_map(string_list)
-                .map(|item| quote(&item))
-                .collect();
+            let items: Vec<String> = arr.iter().filter_map(pkl_value).collect();
             (!items.is_empty()).then(|| format!("List({})", items.join(", ")))
         }
         _ => None,
@@ -628,7 +631,11 @@ mod tests {
             "exclude": [{"_type": "regex", "pattern": "^gen/"}]
         });
         assert_eq!(files_doc(&step).as_deref(), Some("`/\\.rs$/`"));
-        assert!(options_doc(&step).unwrap().contains("/^gen/"));
+        assert!(
+            options_doc(&step)
+                .unwrap()
+                .contains(r##"Regex(#"^gen/"#)"##)
+        );
     }
 
     #[test]
@@ -773,6 +780,20 @@ mod tests {
         assert_eq!(
             options_doc(&json!({"exclude": ["deps/**/*", "tmp/**/*"]})).as_deref(),
             Some(r#"`exclude = List("deps/**/*", "tmp/**/*")`"#)
+        );
+    }
+
+    #[test]
+    fn options_doc_renders_regex_excludes_as_pkl() {
+        assert_eq!(
+            options_doc(&json!({"exclude": {"_type": "regex", "pattern": r"\.min\.js$"}}))
+                .as_deref(),
+            Some(r##"`exclude = Regex(#"\.min\.js$"#)`"##)
+        );
+        assert_eq!(
+            options_doc(&json!({"exclude": ["vendor/**", {"_type": "regex", "pattern": "^gen/"}]}))
+                .as_deref(),
+            Some(r##"`exclude = List("vendor/**", Regex(#"^gen/"#))`"##)
         );
     }
 
