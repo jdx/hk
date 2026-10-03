@@ -227,9 +227,9 @@ enum RunScope {
     /// Every tracked file plus untracked files that are not ignored (`hk --all`).
     #[default]
     All,
-    /// Staged, unstaged, and untracked files: everything that differs from HEAD (`hk --stash none`, so a configured stash method cannot narrow it to staged files).
+    /// Staged and unstaged files, plus untracked files unless `HK_STASH_UNTRACKED=0` skips untracked discovery (`hk --stash none` only stops a configured stash method from narrowing it to staged files; it does not override that setting).
     Changed,
-    /// Unstaged and untracked files only, excluding staged files (`hk --unstaged`).
+    /// Unstaged files, plus untracked files unless `HK_STASH_UNTRACKED=0`, excluding staged files (`hk --unstaged`).
     Unstaged,
 }
 
@@ -248,7 +248,7 @@ impl RunScope {
 struct StartRequest {
     /// An allowed root returned by inspect_project; omit when only one root is available.
     root: Option<String>,
-    /// Files to run on: "all" (default), "changed" (staged, unstaged, and untracked files), or "unstaged" (unstaged and untracked files only).
+    /// Files to run on: "all" (default), "changed" (staged and unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0), or "unstaged" (unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0).
     #[serde(default)]
     scope: RunScope,
 }
