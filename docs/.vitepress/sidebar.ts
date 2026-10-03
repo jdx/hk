@@ -81,6 +81,7 @@ export const sidebar: SidebarItem[] = [
     items: [
       { text: "Benchmarks", link: "/benchmarks" },
       { text: "About hk", link: "/about" },
+      { text: "Security model", link: "/security" },
       { text: "Contributing", link: "/contributing" },
       { text: "Sea shanty", link: "/shanty" },
     ],
@@ -122,6 +123,7 @@ export const PIRATE_SIDEBAR_TEXT: Record<string, string> = {
   Project: "The ship's company",
   Benchmarks: "Speed trials (benchmarks)",
   "About hk": "About hk: the bosun's tale",
+  "Security model": "The ship's defences (security model)",
   Contributing: "Signing aboard to contribute",
   "Sea shanty": "The shanty",
 };
