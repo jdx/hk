@@ -26,6 +26,13 @@ jobs:
             {filename: "docs/getting-started.md"},
             {filename: "docs/pirate/STYLE.md"}
           ] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))' >/dev/null
+          printf '%s\n' '[{"filename":"README.md"}]' '[{"filename":"docs/getting-started.md"}]' \
+            | jq -es '([.[][]] | length > 0) and all(.[][]; ([.filename, .previous_filename?] | map(select(. != null)) | all(.[]; test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))))' >/dev/null
+          if printf '%s\n' '[{"filename":"README.md"}]' '[{"filename":"src/main.rs"}]' \
+            | jq -es '([.[][]] | length > 0) and all(.[][]; ([.filename, .previous_filename?] | map(select(. != null)) | all(.[]; test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))))'; then
+            echo "::error::a non-docs file on a later API page must select full CI"
+            exit 1
+          fi
           if jq -en '[] | length > 0 and all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))'; then
             echo "::error::an empty file list must select full CI"
             exit 1
