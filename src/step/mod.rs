@@ -52,9 +52,10 @@ pub(crate) use command::argv_runner;
 pub use expr_env::{EXPR_CTX, eval_condition};
 pub(crate) use job_builder::SharedBatchJobs;
 pub use shell::ShellType;
-pub(crate) use types::RenderedCommand;
 #[cfg(test)]
-pub(crate) use types::{ArgvCommand, Command};
+pub(crate) use types::ArgvCommand;
+pub(crate) use types::Command;
+pub(crate) use types::RenderedCommand;
 pub use types::{
     CommandEffect, CommandPrefix, DiagnosticFormat, FileSelector, OutputSummary, Pattern, RunType,
     Script, Step,

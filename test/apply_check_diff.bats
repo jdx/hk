@@ -976,6 +976,176 @@ EOF
     assert_output --regexp '^line-(1-2|2-1)$'
 }
 
+# Check-only steps (no fix, no check_diff), like a type checker. Each marks
+# that it started and waits up to 5 seconds for the other's mark; a step that
+# ran after the other leaves "$STEP.alone".
+# $1: the effect both steps' check declares
+write_check_only_rendezvous() {
+    local check_effect=$1
+    cat <<'SCRIPT' > checker.sh
+#!/bin/bash
+touch "$STEP.started"
+for _ in $(seq 50); do
+    [ -e "$OTHER.started" ] && break
+    sleep 0.1
+done
+[ -e "$OTHER.started" ] || touch "$STEP.alone"
+exit 0
+SCRIPT
+    chmod +x checker.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["first"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "1"; ["OTHER"] = "2" }
+                check = new CommandSpec { command = "./checker.sh"; effect = "$check_effect" }
+            }
+            ["second"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "2"; ["OTHER"] = "1" }
+                check = new CommandSpec { command = "./checker.sh"; effect = "$check_effect" }
+            }
+        }
+    }
+}
+EOF
+}
+
+@test "read-only check-only steps run alongside each other in fix mode" {
+    write_check_only_rendezvous read
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # Both held read locks on test.txt at once, so each saw the other start.
+    [ -e 1.started ]
+    [ -e 2.started ]
+    [ ! -e 1.alone ]
+    [ ! -e 2.alone ]
+}
+
+@test "check-only steps that declare a write effect keep write locks in fix mode" {
+    write_check_only_rendezvous write
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # One ran after the other, so exactly one waited for the other in vain.
+    [ -e 1.alone ] || [ -e 2.alone ]
+}
+
+# Prints the current time in seconds with millisecond precision. `date +%s%N`
+# is not available on macOS.
+write_span_helpers() {
+    cat <<'SCRIPT' > now.sh
+#!/bin/bash
+perl -MTime::HiRes=time -e 'printf "%.3f\n", time'
+SCRIPT
+    chmod +x now.sh
+}
+
+@test "a read-only check-only step does not run while a fixer writes the same file" {
+    write_span_helpers
+    # Each side records when its command ran, start and end, so an overlap
+    # anywhere in either window is caught whichever of them goes first.
+    cat <<'SCRIPT' > checker.sh
+#!/bin/bash
+start=$(./now.sh)
+sleep 1
+echo "$start $(./now.sh)" > checker.span
+exit 0
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+start=$(./now.sh)
+sleep 1
+echo fixed > "$1"
+echo "$start $(./now.sh)" > fixer.span
+SCRIPT
+    chmod +x checker.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["check-only"] {
+                glob = List("*.txt")
+                check = new CommandSpec { command = "./checker.sh"; effect = "read" }
+            }
+            ["fixer"] {
+                glob = List("*.txt")
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    [ -e checker.span ]
+    [ -e fixer.span ]
+    # The two windows are disjoint: one ended before the other started.
+    run awk 'NR==FNR { cs=$1; ce=$2; next } { fs=$1; fe=$2 } END { exit !(ce <= fs || fe <= cs) }' checker.span fixer.span
+    assert_success
+    run cat test.txt
+    assert_output "fixed"
+}
+
+@test "a read-only check that depends on a fixer sees the fixed file while another reader holds it" {
+    cat <<'SCRIPT' > reader.sh
+#!/bin/bash
+sleep 1
+exit 0
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo fixed > "$1"
+SCRIPT
+    cat <<'SCRIPT' > verify.sh
+#!/bin/bash
+[ "$(cat "$1")" = "fixed" ]
+SCRIPT
+    chmod +x reader.sh fixer.sh verify.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["reader"] {
+                glob = List("*.txt")
+                check = new CommandSpec { command = "./reader.sh"; effect = "read" }
+            }
+            ["fixer"] {
+                glob = List("*.txt")
+                fix = "./fixer.sh {{files}}"
+            }
+            ["verify"] {
+                glob = List("*.txt")
+                depends = List("fixer")
+                check = new CommandSpec { command = "./verify.sh {{files}}"; effect = "read" }
+            }
+        }
+    }
+}
+EOF
+    echo "line" > test.txt
+
+    # `verify` shares read locks with `reader`, but `depends` still makes it
+    # wait for the fixer, so it never sees the file before the fix.
+    run hk fix test.txt
+    assert_success
+    run cat test.txt
+    assert_output "fixed"
+}
+
 @test "a read-only check_diff patch that also names a file outside the job is applied" {
     # Like `go mod tidy -diff` rewriting go.sum from all of a job's .go files:
     # the patch is computed again under write locks, from every job file.
