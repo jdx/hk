@@ -140,8 +140,21 @@ fn has_smart_quotes(path: &Path) -> Result<bool> {
 }
 
 fn generate_diff(path: &Path) -> Result<Option<String>> {
-    // A diff needs the whole original and fixed text, so read once and validate then.
-    let Ok(original) = String::from_utf8(fs::read(path)?) else {
+    generate_diff_with(path, CHUNK_SIZE, |p| Ok(fs::read(p)?))
+}
+
+/// Pass 1 is a read-only bounded-memory scan that decides "valid UTF-8 with smart
+/// quotes"; clean and non-UTF-8 files return here without being loaded. Only a file
+/// that needs changes is loaded (pass 2, `load`) because a diff needs both texts.
+fn generate_diff_with(
+    path: &Path,
+    chunk_size: usize,
+    load: impl FnOnce(&Path) -> Result<Vec<u8>>,
+) -> Result<Option<String>> {
+    if !has_smart_quotes_in(path, chunk_size)? {
+        return Ok(None);
+    }
+    let Ok(original) = String::from_utf8(load(path)?) else {
         return Ok(None);
     };
     let fixed = fix_quotes(&original);
@@ -164,27 +177,30 @@ fn replace_smart_quotes(path: &Path) -> Result<()> {
     replace_smart_quotes_in(path, CHUNK_SIZE)
 }
 
-/// Single pass: the fixed text goes to a temp file next to the target while the
-/// file is read, and the temp file replaces the target only once the whole file
-/// proved to be UTF-8 and something changed. Otherwise it is dropped (deleted) and
-/// the original is never touched, so non-UTF-8 files stay intact.
+/// Pass 1 is a read-only scan: clean and non-UTF-8 files return with no writes, so
+/// they need no writable directory and no scratch space. Only a file that needs
+/// changes gets pass 2, which streams the fixed text into a temp file next to the
+/// target and atomically replaces the target once the whole file read as UTF-8
+/// (if it stopped being UTF-8 in between, the temp file is dropped and the
+/// original left alone). Files that change are read twice by design.
 fn replace_smart_quotes_in(path: &Path, chunk_size: usize) -> Result<()> {
+    if !has_smart_quotes_in(path, chunk_size)? {
+        return Ok(());
+    }
+
     // Write through symlinks: replace the target, not the link itself.
     let target = fs::canonicalize(path)?;
     let perms = fs::metadata(&target)?.permissions();
     let dir = target.parent().unwrap_or_else(|| Path::new("."));
     let mut tmpfile = NamedTempFile::new_in(dir)?;
     let mut out = BufWriter::new(tmpfile.as_file_mut());
-    let mut changed = false;
     let utf8 = for_each_chunk(&target, chunk_size, |s| {
-        let fixed = fix_quotes(s);
-        changed = changed || fixed != s;
-        out.write_all(fixed.as_bytes())?;
+        out.write_all(fix_quotes(s).as_bytes())?;
         Ok(())
     })?;
     out.flush()?;
     drop(out);
-    if !utf8 || !changed {
+    if !utf8 {
         return Ok(());
     }
     tmpfile.as_file().sync_all()?;
@@ -198,7 +214,25 @@ fn replace_smart_quotes_in(path: &Path, chunk_size: usize) -> Result<()> {
 mod tests {
     use super::*;
     use std::fs;
-    use tempfile::NamedTempFile;
+
+    /// A file in its own directory with no open handle. `NamedTempFile` keeps one
+    /// open, which on Windows blocks replacing the file.
+    struct NamedTempFile {
+        _dir: tempfile::TempDir,
+        path: PathBuf,
+    }
+
+    impl NamedTempFile {
+        fn new() -> std::io::Result<Self> {
+            let dir = tempfile::tempdir()?;
+            let path = dir.path().join("file.txt");
+            fs::write(&path, b"")?;
+            Ok(Self { _dir: dir, path })
+        }
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
 
     #[test]
     fn test_replace_smart_quotes() {
@@ -424,6 +458,53 @@ mod tests {
                 assert!(!has_smart_quotes_in(file.path(), chunk).unwrap());
             }
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_clean_file_in_read_only_dir_succeeds() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("clean.txt");
+        fs::write(&path, "plain \"text\"").unwrap();
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o555)).unwrap();
+
+        let result = replace_smart_quotes(&path);
+
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(0o755)).unwrap();
+        result.unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"plain \"text\"");
+    }
+
+    #[test]
+    fn test_diff_loads_only_files_with_smart_quotes() {
+        let never = |_: &Path| -> Result<Vec<u8>> { panic!("loaded a file that needs no diff") };
+
+        let clean = NamedTempFile::new().unwrap();
+        fs::write(clean.path(), "x".repeat(CHUNK_SIZE * 3)).unwrap();
+        assert!(
+            generate_diff_with(clean.path(), CHUNK_SIZE, never)
+                .unwrap()
+                .is_none()
+        );
+
+        let binary = NamedTempFile::new().unwrap();
+        fs::write(binary.path(), b"\xff\xfe\x00 \xe2\x80\x9c").unwrap();
+        assert!(
+            generate_diff_with(binary.path(), CHUNK_SIZE, never)
+                .unwrap()
+                .is_none()
+        );
+
+        let quoted = NamedTempFile::new().unwrap();
+        fs::write(quoted.path(), "\u{201C}q\u{201D}\n").unwrap();
+        let mut loaded = false;
+        let diff = generate_diff_with(quoted.path(), CHUNK_SIZE, |p| {
+            loaded = true;
+            Ok(fs::read(p)?)
+        })
+        .unwrap();
+        assert!(loaded && diff.unwrap().contains("+\"q\""));
     }
 
     #[test]
