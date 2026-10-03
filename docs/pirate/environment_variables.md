@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: 7480b260e00c
+sourceHash: ccfb5e1e37bb
 ---
 
 # Standing orders (environment variables)
@@ -237,6 +237,12 @@ Overrides how unstaged work is stowed before a hook runs. `git` turns stashing o
 **Type:** nonnegative integer · **Unless ye say otherwise:** 20
 
 How many backup patches to keep for each ship (repository), under `$HK_STATE_DIR/patches/`. Set to `0` to turn patch backups off.
+
+## `HK_STASH_LOCK_TIMEOUT` {#hk-stash-lock-timeout}
+
+**Type:** nonnegative integer (seconds) · **Unless ye say otherwise:** 300
+
+How long to wait for another hk process in the same repository to finish stowing, using the `hk-stash.lock` file in the common git directory that linked worktrees share. On timeout hk fails and names the lock file. Set to `0` to fail at once instead of waiting. Also settable with `git config hk.stashLockTimeout`.
 
 ## `HK_STASH_UNTRACKED` {#hk-stash-untracked}
 
