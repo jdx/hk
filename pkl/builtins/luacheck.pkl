@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Lua"
   description = "Lua linter"
+  project_indicators {
+    new { file = ".luacheckrc" }
+  }
 }
 luacheck = new Config.Step {
   types = List("lua")

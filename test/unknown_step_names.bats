@@ -112,3 +112,10 @@ EOF
     assert_failure
     assert_output --partial "unknown step 'lint' for hook 'check'. Did you mean 'pkg:lint'?"
 }
+
+@test "--plan also warns about an unknown --skip-step name" {
+    _write_config
+    run hk check --plan --skip-step prettir --all
+    assert_success
+    assert_output --partial "--skip-step prettir: no such step in hook 'check'. Did you mean 'prettier'?"
+}
