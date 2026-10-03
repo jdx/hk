@@ -221,8 +221,11 @@ impl Step {
         // progress message; this keeps the command shape and one
         // concrete example path visible without unbounded expansion.
         let run_for_display = run_cmd
-            .render(&tctx.for_display(), self.prefix.as_ref())
-            .map(|command| command.display(self.shell_type()))
+            .render(
+                &tctx.for_user(self.shell_type()).for_display(),
+                self.prefix.as_ref(),
+            )
+            .map(|command| command.display_user(self.shell_type()))
             .unwrap_or_else(|_| run_cmd.to_string());
         let rendered_command = run_cmd
             .render(&tctx, self.prefix.as_ref())
@@ -392,7 +395,10 @@ impl Step {
                 }
             }
         }
-        for (key, value) in rendered_env {
+        let reserve_cmd_percent = cfg!(windows)
+            && matches!(rendered_command, RenderedCommand::Shell(_))
+            && matches!(self.shell_type(), ShellType::Cmd);
+        for (key, value) in super::shell::with_cmd_percent(rendered_env, reserve_cmd_percent) {
             cmd = cmd.env(key, value);
         }
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
@@ -492,6 +498,12 @@ impl Step {
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
                 }
+                // Show the command as a user could run it, not hk's internal
+                // cmd.exe placeholder.
+                let shown = run_cmd
+                    .render(&tctx.for_user(self.shell_type()), self.prefix.as_ref())
+                    .map(|command| command.display_user(self.shell_type()))
+                    .unwrap_or(run);
                 if let (ensembler::Error::Io(io), RenderedCommand::Argv(argv)) =
                     (&err, &rendered_command)
                     && io.kind() == std::io::ErrorKind::NotFound
@@ -509,9 +521,9 @@ impl Step {
                     return Err(eyre::eyre!(
                         "{program}: command not found; is it installed and on PATH?"
                     ))
-                    .wrap_err(run);
+                    .wrap_err(shown);
                 }
-                return Err(err).wrap_err(run);
+                return Err(err).wrap_err(shown);
             }
         }
         ctx.decrement_job_count();
