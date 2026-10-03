@@ -197,7 +197,7 @@ fn shebang_words(text: &str) -> impl Iterator<Item = &str> {
 }
 
 /// Whether `text`, split by env's `-S`, has a backslash escape GNU env rejects.
-/// Outside single quotes it knows `\c \f \n \r \t \v \_ \# \$ \" \\`; inside
+/// Outside single quotes it knows `\c \f \n \r \t \v \_ \# \$ \" \' \\`; inside
 /// them only `\\` and `\'` are escapes, and other backslashes are literal.
 fn has_invalid_env_escape(text: &str) -> bool {
     let mut quote = None;
@@ -212,7 +212,7 @@ fn has_invalid_env_escape(text: &str) -> bool {
                 }
             }
             (_, '\\') => match chars.next() {
-                Some('c' | 'f' | 'n' | 'r' | 't' | 'v' | '_' | '#' | '$' | '"' | '\\') => {}
+                Some('c' | 'f' | 'n' | 'r' | 't' | 'v' | '_' | '#' | '$' | '"' | '\'' | '\\') => {}
                 _ => return true,
             },
             _ => {}
@@ -774,6 +774,9 @@ mod tests {
             ("#!/usr/bin/env -S FOO='a\\b' python3\n", "python3"),
             ("#!/usr/bin/env -S FOO='a\\\\' python3\n", "python3"),
             ("#!/usr/bin/env -S FOO=\"a\\$b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\'b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=a\\'b python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a\\'b' python3\n", "python3"),
             // GNU env rejects other escapes, such as a backslash and a space,
             // so the script cannot start and has no interpreter
             ("#!/usr/bin/env -S FOO=a\\ b python3\n", ""),
