@@ -1149,9 +1149,15 @@ impl Git {
     /// threads and skips unchanged directories through the cache tree. With
     /// optional locks allowed, `git status` also writes the refreshed index
     /// back when it can take the lock, as `git update-index --refresh` would.
-    #[tracing::instrument(level = "info", name = "git.status", skip_all)]
     pub fn status(&self) -> Result<GitStatus> {
-        let include_untracked = *env::HK_STASH_UNTRACKED;
+        self.status_with_untracked(*env::HK_STASH_UNTRACKED)
+    }
+
+    /// Like [`Git::status`], but only looks for untracked files when
+    /// `include_untracked` is set, which spares `git status` a walk of the
+    /// whole worktree.
+    #[tracing::instrument(level = "info", name = "git.status", skip_all)]
+    pub fn status_with_untracked(&self, include_untracked: bool) -> Result<GitStatus> {
         let mut args = vec![
             "status",
             "--porcelain=v2",
