@@ -23,6 +23,39 @@ const DEFAULT_CHECK_TIMEOUT: Duration = Duration::from_secs(100);
 /// How long to keep reading output after the check has exited.
 const PIPE_DRAIN_GRACE: Duration = Duration::from_secs(5);
 
+/// Most bytes kept per output stream; a check can print far more than a block reason needs.
+const MAX_CAPTURED_BYTES: usize = 1024 * 1024;
+
+/// Reads a stream to the end but keeps at most `cap` bytes: the head for stdout (the start
+/// of the JSON document), the tail for stderr (where a failure is reported).
+async fn read_capped<R: AsyncReadExt + Unpin>(
+    mut reader: R,
+    cap: usize,
+    keep_tail: bool,
+) -> Vec<u8> {
+    let mut kept = Vec::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        let count = match reader.read(&mut buffer).await {
+            Ok(0) | Err(_) => break,
+            Ok(count) => count,
+        };
+        if keep_tail {
+            kept.extend_from_slice(&buffer[..count]);
+            if kept.len() > cap * 2 {
+                kept.drain(..kept.len() - cap);
+            }
+        } else {
+            let room = cap.saturating_sub(kept.len());
+            kept.extend_from_slice(&buffer[..count.min(room)]);
+        }
+    }
+    if keep_tail && kept.len() > cap {
+        kept.drain(..kept.len() - cap);
+    }
+    kept
+}
+
 enum CheckOutcome {
     Finished(Output),
     TimedOut,
@@ -46,16 +79,10 @@ async fn run_check(
     let mut child = command.spawn()?;
     let mut stdout = child.stdout.take().expect("piped stdout");
     let mut stderr = child.stderr.take().expect("piped stderr");
-    let stdout_task = tokio::spawn(async move {
-        let mut bytes = Vec::new();
-        let _ = stdout.read_to_end(&mut bytes).await;
-        bytes
-    });
-    let stderr_task = tokio::spawn(async move {
-        let mut bytes = Vec::new();
-        let _ = stderr.read_to_end(&mut bytes).await;
-        bytes
-    });
+    let stdout_task =
+        tokio::spawn(async move { read_capped(&mut stdout, MAX_CAPTURED_BYTES, false).await });
+    let stderr_task =
+        tokio::spawn(async move { read_capped(&mut stderr, MAX_CAPTURED_BYTES, true).await });
     let status = tokio::select! {
         status = child.wait() => Some(status?),
         _ = tokio::time::sleep(timeout) => None,
@@ -307,6 +334,18 @@ mod tests {
         assert!(matches!(outcome, CheckOutcome::TimedOut));
         // The step's `sleep` is gone too, so nothing holds the pipes or keeps working.
         assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn captured_output_is_capped_keeping_the_head_or_the_tail() {
+        let data = (0..100_000_u32)
+            .flat_map(|n| n.to_le_bytes())
+            .collect::<Vec<u8>>();
+        let head = read_capped(&data[..], 1000, false).await;
+        assert_eq!(head, data[..1000]);
+        let tail = read_capped(&data[..], 1000, true).await;
+        assert_eq!(tail, data[data.len() - 1000..]);
+        assert_eq!(read_capped(&data[..10], 1000, true).await, data[..10]);
     }
 
     #[cfg(unix)]
