@@ -30,7 +30,7 @@ use crate::{
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
     stage_queue::StageQueue,
-    step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
+    step::{Command, CommandEffect, EXPR_CTX, OutputSummary, RunType, Step, eval_condition},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -115,7 +115,7 @@ pub struct Hook {
     #[serde(default)]
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
-    pub report: Option<Script>,
+    pub report: Option<Command>,
 }
 
 fn default_true() -> bool {
@@ -501,6 +501,10 @@ impl HookContext {
 impl Hook {
     pub fn init(&mut self, hook_name: &str) -> Result<()> {
         self.name = hook_name.to_string();
+        if let Some(report) = &self.report {
+            validate_report_command(report)
+                .map_err(|err| eyre::eyre!("hook `{hook_name}`: report: {err}"))?;
+        }
         for (name, step_or_group) in self.steps.iter_mut() {
             step_or_group.init(name)?;
             // Merge hook-level env into steps (step-level env takes precedence)
@@ -619,7 +623,7 @@ impl Hook {
 
         let skip_steps = build_skip_steps(&settings, &opts);
         if opts.safe {
-            validate_safe_commands(&groups, &files, run_type, &skip_steps)?;
+            validate_safe_commands(&groups, self.report.as_ref(), &files, run_type, &skip_steps)?;
         }
 
         let expr_ctx = build_expr_ctx(&git_status, &opts.hook_vars);
@@ -1201,6 +1205,7 @@ impl Hook {
         if opts.safe
             && let Err(err) = validate_safe_commands(
                 &groups,
+                self.report.as_ref(),
                 &files.iter().cloned().collect::<Vec<_>>(),
                 run_type,
                 &skip_steps,
@@ -1528,19 +1533,18 @@ impl Hook {
         if let Some(report) = &self.report
             && let Ok(json) = hook_ctx.timing.to_json_string()
         {
-            let mut cmd = ensembler::CmdLineRunner::new("sh")
-                .arg("-o")
-                .arg("errexit")
-                .arg("-c");
-            let run = report.to_string();
-            cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
-            let pr = ProgressJobBuilder::new()
-                .body("report: {{message}}")
-                .prop("message", &run)
-                .start();
-            cmd = cmd.with_pr(pr);
-            if let Err(err) = cmd.execute().await {
-                warn!("Report command failed: {err}");
+            match report_runner(report) {
+                Ok((cmd, run)) => {
+                    let pr = ProgressJobBuilder::new()
+                        .body("report: {{message}}")
+                        .prop("message", &run)
+                        .start();
+                    let cmd = cmd.env("HK_REPORT_JSON", json).with_pr(pr);
+                    if let Err(err) = cmd.execute().await {
+                        warn!("Report command failed: {err}");
+                    }
+                }
+                Err(err) => warn!("Report command failed: {err}"),
             }
         }
         // Emit collected fix suggestions at the end (after progress bars and summaries)
@@ -1932,13 +1936,69 @@ fn build_skip_steps(settings: &Settings, opts: &HookOptions) -> IndexMap<String,
     m
 }
 
+/// Builds the process for a hook-level `report` command and the text shown for it.
+///
+/// Like before `report` accepted structured commands, the command is not
+/// rendered as a template: `HK_REPORT_JSON` carries the data.
+fn report_runner(report: &Command) -> Result<(ensembler::CmdLineRunner, String)> {
+    match report {
+        Command::Spec(spec) => report_runner(&spec.command),
+        Command::Argv(command) => {
+            validate_report_command(report)?;
+            // The same launcher step argv commands use, so a Windows `.cmd` or
+            // `.bat` executable gets batch-file handling and arguments are not
+            // re-parsed by `cmd.exe`.
+            let cwd = std::env::current_dir()?;
+            let cmd = crate::step::argv_runner(&command.argv, &cwd, None, None)?;
+            Ok((cmd, command.argv.join(" ")))
+        }
+        Command::Shell(script) => {
+            let run = script.to_string();
+            let cmd = ensembler::CmdLineRunner::new("sh")
+                .arg("-o")
+                .arg("errexit")
+                .arg("-c")
+                .arg(&run);
+            Ok((cmd, run))
+        }
+    }
+}
+
+/// Rejects a structured `report` argv without an executable, as step commands do.
+fn validate_report_command(report: &Command) -> Result<()> {
+    match report {
+        Command::Spec(spec) => validate_report_command(&spec.command),
+        Command::Argv(command) => {
+            if command.argv.first().is_none_or(|exe| exe.trim().is_empty()) {
+                eyre::bail!("structured argv command must contain an executable");
+            }
+            Ok(())
+        }
+        Command::Shell(_) => Ok(()),
+    }
+}
+
 fn validate_safe_commands(
     groups: &[StepGroup],
+    report: Option<&Command>,
     files: &[PathBuf],
     run_type: RunType,
     skip_steps: &IndexMap<String, SkipReason>,
 ) -> Result<()> {
     let mut blockers = BTreeSet::new();
+    // The report command runs after every hook, so --safe must classify it
+    // like a step command.
+    if let Some(report) = report {
+        match report.effect() {
+            None => {
+                blockers.insert("report: effect is unknown".to_string());
+            }
+            Some(CommandEffect::Destructive) => {
+                blockers.insert("report: effect is destructive".to_string());
+            }
+            Some(CommandEffect::Read | CommandEffect::Write) => {}
+        }
+    }
     for group in groups {
         let files_in_contention = group.files_in_contention_for(files, run_type)?;
         for (step_name, step) in &group.steps {
@@ -2076,6 +2136,42 @@ fn skip_reason_to_reason(reason: &SkipReason) -> Reason {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn argv_report(argv: &[&str]) -> Command {
+        Command::Argv(crate::step::ArgvCommand {
+            argv: argv.iter().map(|arg| arg.to_string()).collect(),
+        })
+    }
+
+    #[test]
+    fn report_argv_without_an_executable_is_a_config_error() {
+        for argv in [&[][..], &[""], &["  ", "x"]] {
+            let report = argv_report(argv);
+            let err = validate_report_command(&report).unwrap_err().to_string();
+            assert!(
+                err.contains("must contain an executable"),
+                "{argv:?}: {err}"
+            );
+            assert!(report_runner(&report).is_err(), "{argv:?}");
+        }
+        assert!(validate_report_command(&argv_report(&["true"])).is_ok());
+    }
+
+    #[test]
+    fn report_hook_init_rejects_an_empty_argv() {
+        let mut hook = Hook {
+            report: Some(argv_report(&[])),
+            ..Hook::default()
+        };
+        let err = hook.init("check").unwrap_err().to_string();
+        assert!(err.contains("hook `check`: report:"), "{err}");
+    }
+
+    #[test]
+    fn report_argv_is_displayed_and_runs_directly() {
+        let (_, shown) = report_runner(&argv_report(&["echo", "a b"])).unwrap();
+        assert_eq!(shown, "echo a b");
+    }
 
     #[test]
     fn normalize_lexically_resolves_dot_segments() {
