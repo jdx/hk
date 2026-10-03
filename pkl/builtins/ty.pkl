@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Fast Python type checker"
   project_indicators {
     new { file = "ty.toml" }
-    new { file = "pyproject.toml"; contains_regex = #"^\[tool\.ty[\].]"# }
+    new { file = "pyproject.toml"; contains_regex = #"^[ \t]*\[tool\.ty[\].]"# }
   }
 }
 ty = new Config.Step {

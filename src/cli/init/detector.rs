@@ -522,6 +522,19 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_indented_toml_tables_and_gems() {
+        let pyproject = "  [tool.ty.rules]\n\t[tool.pylint.main]\n    [tool.isort]\n";
+        let names = detected_names(&[("pyproject.toml", pyproject)]);
+        for builtin in ["ty", "pylint", "isort"] {
+            assert!(names.contains(&builtin), "{builtin} should be detected");
+        }
+        let gemfile = "  gem \"brakeman\"\n\tgem 'bundler-audit'\n";
+        let names = detected_names(&[("Gemfile", gemfile)]);
+        assert!(names.contains(&"brakeman"));
+        assert!(names.contains(&"bundle_audit"));
+    }
+
+    #[test]
     fn test_detect_gemfile_requires_active_declaration() {
         let commented = "# gem \"brakeman\"\n  # gem 'bundler-audit'\n";
         let names = detected_names(&[("Gemfile", commented)]);
