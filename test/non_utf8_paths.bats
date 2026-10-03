@@ -122,6 +122,33 @@ EOF
     done
 }
 
+@test "two non-UTF-8 names that look alike lossily are both reported" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["list"] { glob = List("*.txt"); check = "true" }
+    }
+  }
+}
+EOF
+    echo a > $'file\xfe.txt'
+    echo b > $'file\xff.txt'
+    git add -A
+    git commit -qm init
+    # Unstaged changes make the status read skip both, then selection sees them
+    echo more >> $'file\xfe.txt'
+    echo more >> $'file\xff.txt'
+
+    for libgit2 in 1 0; do
+        HK_LIBGIT2=$libgit2 run hk check --all
+        assert_success
+        assert_output --partial 'file\xFE.txt'
+        assert_output --partial 'file\xFF.txt'
+    done
+}
+
 @test "stash sets aside non-UTF-8 unstaged and untracked files while steps run" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

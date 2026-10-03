@@ -1675,7 +1675,7 @@ impl Hook {
             crate::git::warn_non_utf8_paths(
                 non_utf8
                     .iter()
-                    .map(|p| (p.to_string_lossy().into_owned(), format!("{p:?}"))),
+                    .map(|p| (p.as_os_str().as_encoded_bytes().to_vec(), format!("{p:?}"))),
             );
             files.retain(|f| f.to_str().is_some());
         }

@@ -3312,6 +3312,9 @@ fn libgit2_cannot_read_index(err: &eyre::Report) -> bool {
 struct SkippedPaths {
     /// The paths, shown lossily
     names: Vec<String>,
+    /// The same paths as git printed them, which tell apart names that differ
+    /// only in bytes that are not valid UTF-8
+    raw: Vec<Vec<u8>>,
     /// Whether any of them has changes in the worktree
     unstaged: bool,
     /// Whether any of them is untracked
@@ -3388,6 +3391,7 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
             skipped
                 .names
                 .push(String::from_utf8_lossy(bytes).into_owned());
+            skipped.raw.push(bytes.to_vec());
             None
         }
     }
@@ -3398,22 +3402,23 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
 fn warn_skipped_paths(skipped: &SkippedPaths) {
     warn_non_utf8_paths(
         skipped
-            .names
+            .raw
             .iter()
-            .map(|name| (name.clone(), format!("{name:?}"))),
+            .map(|raw| (raw.clone(), format!("{:?}", path_from_raw(raw)))),
     );
 }
 
 /// Warns that hk skipped paths that are not valid UTF-8, once per path for the
 /// whole run: a status read and the file selection can both come across the
-/// same file. Each path is a lossy name that identifies it, and how to show it.
-pub(crate) fn warn_non_utf8_paths(paths: impl IntoIterator<Item = (String, String)>) {
-    static WARNED: std::sync::Mutex<BTreeSet<String>> = std::sync::Mutex::new(BTreeSet::new());
+/// same file. Each path is its raw bytes, which identify it (two names can
+/// differ only in bytes that show the same lossily), and how to show it.
+pub(crate) fn warn_non_utf8_paths(paths: impl IntoIterator<Item = (Vec<u8>, String)>) {
+    static WARNED: std::sync::Mutex<BTreeSet<Vec<u8>>> = std::sync::Mutex::new(BTreeSet::new());
     let shown = {
         let mut warned = WARNED.lock().unwrap();
         paths
             .into_iter()
-            .filter(|(name, _)| warned.insert(name.clone()))
+            .filter(|(raw, _)| warned.insert(raw.clone()))
             .map(|(_, shown)| shown)
             .collect_vec()
     };
