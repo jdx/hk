@@ -6,6 +6,9 @@ setup() {
 }
 
 teardown() {
+    if [ -n "${server_pid:-}" ]; then
+        kill "$server_pid" 2>/dev/null || true
+    fi
     _common_teardown
 }
 
@@ -53,7 +56,6 @@ EOF
 
     HK_PKL_EMBEDDED=0 HK_PKL_CACHE_DIR="$PWD/pkl-cache" \
         HK_PKL_HTTP_REWRITE="https://example.com/=http://alice:s3cret@127.0.0.1:$port/" run hk check
-    kill "$server_pid"
     assert_failure
     assert_output --partial "127.0.0.1:$port"
     refute_output --partial "s3cret"

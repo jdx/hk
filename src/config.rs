@@ -1106,10 +1106,11 @@ fn get_no_proxy() -> Option<String> {
 ///
 /// An `HK_PKL_HTTP_REWRITE` target may carry credentials
 /// (`https://user:token@mirror.example/`), and pklr echoes the rewritten URL
-/// in its download errors.
+/// in its download errors. The user-info runs through the last `@` before the
+/// path, so a password that itself contains `@` is hidden too.
 fn redact_url_credentials(text: &str) -> String {
     static USERINFO: LazyLock<regex::Regex> =
-        LazyLock::new(|| regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/?#\s@]+@").unwrap());
+        LazyLock::new(|| regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/?#\s]*@").unwrap());
     USERINFO.replace_all(text, "${1}***@").into_owned()
 }
 
@@ -1610,6 +1611,10 @@ mod tests {
                 "HTTP fetch failed for http://alice:s3cret@127.0.0.1:1/a.zip: error (https://tok@host/x?y=a@b)"
             ),
             "HTTP fetch failed for http://***@127.0.0.1:1/a.zip: error (https://***@host/x?y=a@b)"
+        );
+        assert_eq!(
+            redact_url_credentials("failed for http://alice@corp:s3cret@mirror.example/a.zip"),
+            "failed for http://***@mirror.example/a.zip"
         );
         let plain = "failed for https://example.com/a@1.0.zip (user@example.com)";
         assert_eq!(redact_url_credentials(plain), plain);
