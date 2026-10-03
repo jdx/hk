@@ -36,6 +36,7 @@ impl Config {
         config.load_subprojects()?;
         config.materialize_default_hooks()?;
         config.apply_hkrc()?;
+        config.apply_subproject_skip_steps();
         config.validate()?;
         Ok(config)
     }
@@ -939,6 +940,15 @@ impl Config {
             None => subdir.to_string(),
         };
         let sub_env = std::mem::take(&mut sub.env);
+        let sub_skip_steps = sub.skip_steps.take().unwrap_or_default();
+        let ignored = sub.ignored_subproject_settings();
+        if !ignored.is_empty() {
+            warn!(
+                "subprojects: ignoring top-level {} in {}; only `steps`, `hooks`, `env` and `skip_steps` of a subproject config apply, so set these in the root config",
+                ignored.join(", "),
+                sub.path.display()
+            );
+        }
         for (hook_name, sub_hook) in std::mem::take(&mut sub.hooks) {
             if !sub_hook.enabled {
                 continue;
@@ -1008,7 +1018,76 @@ impl Config {
                 root_hook.steps.insert(scoped_name, step_or_group);
             }
         }
+        // The subproject's `skip_steps` name its own steps, which the root
+        // config knows by their scoped names. Execution matches skips against
+        // step names only, and the steps inside a group keep their unscoped
+        // names, so a group (or a step inside one) cannot be skipped by name.
+        for name in sub_skip_steps {
+            let scoped_name = format!("{subdir}:{name}");
+            let mut is_step = false;
+            let mut is_group = false;
+            for step_or_group in self
+                .hooks
+                .values()
+                .filter_map(|hook| hook.steps.get(&scoped_name))
+            {
+                match step_or_group {
+                    crate::hook::StepOrGroup::Step(_) => is_step = true,
+                    crate::hook::StepOrGroup::Group(_) => is_group = true,
+                }
+            }
+            if !is_step {
+                let reason = if is_group {
+                    "names a group, and skipping a group is not supported"
+                } else {
+                    "names no step of that subproject"
+                };
+                warn!(
+                    "subprojects: skip_steps entry '{name}' in {} {reason}, so it is ignored (a step inside a group cannot be skipped from a subproject)",
+                    sub.path.display()
+                );
+                continue;
+            }
+            self.subproject_skip_steps.insert(scoped_name);
+        }
         Ok(())
+    }
+
+    /// Adds the steps subprojects skip to `skip_steps`, after the user config
+    /// has been merged so that it neither hides nor is hidden by them.
+    fn apply_subproject_skip_steps(&mut self) {
+        if self.subproject_skip_steps.is_empty() {
+            return;
+        }
+        let skip_steps = self.skip_steps.get_or_insert_default();
+        for name in std::mem::take(&mut self.subproject_skip_steps) {
+            if !skip_steps.contains(&name) {
+                skip_steps.push(name);
+            }
+        }
+    }
+
+    /// Names of the top-level settings this config sets that have no effect
+    /// when it is loaded as a subproject.
+    fn ignored_subproject_settings(&self) -> Vec<&'static str> {
+        [
+            ("default_branch", self.default_branch.is_some()),
+            ("display_skip_reasons", self.display_skip_reasons.is_some()),
+            ("exclude", self.exclude.is_some()),
+            ("fail_fast", self.fail_fast.is_some()),
+            ("hide_warnings", self.hide_warnings.is_some()),
+            ("jobs", self.jobs.is_some()),
+            ("profiles", self.profiles.is_some()),
+            ("skip_hooks", self.skip_hooks.is_some()),
+            ("stage", self.stage.is_some()),
+            ("stash_backup_count", self.stash_backup_count.is_some()),
+            ("terminal_progress", self.terminal_progress.is_some()),
+            ("walk_ignore", self.walk_ignore.is_some()),
+            ("warnings", self.warnings.is_some()),
+        ]
+        .into_iter()
+        .filter_map(|(name, set)| set.then_some(name))
+        .collect()
     }
 
     fn scope_subproject_step(
@@ -1429,6 +1508,12 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     implicit_default_hooks: IndexSet<String>,
+    /// Scoped names of steps that subprojects' `skip_steps` skip. Kept apart
+    /// from `skip_steps` until the user config is merged, which uses its own
+    /// `skip_steps` only when the project sets none.
+    #[serde(skip)]
+    #[serde(default)]
+    subproject_skip_steps: IndexSet<String>,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
     /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
@@ -2356,6 +2441,123 @@ mod tests {
         assert_eq!(fmt.dir.as_deref(), Some("packages/web/nested"));
         // step env wins over subproject config env
         assert_eq!(fmt.env.get("FOO").map(String::as_str), Some("from-step"));
+    }
+
+    #[test]
+    fn merge_subproject_scopes_skip_steps_to_the_subproject() {
+        let mut root = Config {
+            skip_steps: Some(vec!["root-step".to_string()]),
+            ..Default::default()
+        };
+        let mut sub = Config {
+            skip_steps: Some(vec![
+                "lint".to_string(),
+                "grouped".to_string(),
+                "missing".to_string(),
+            ]),
+            ..Default::default()
+        };
+        let mut check = hook("check");
+        check.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        check
+            .steps
+            .insert("fmt".to_string(), StepOrGroup::Step(Box::new(step("fmt"))));
+        let group = crate::step_group::StepGroup {
+            name: Some("grouped".to_string()),
+            ..Default::default()
+        };
+        check
+            .steps
+            .insert("grouped".to_string(), StepOrGroup::Group(Box::new(group)));
+        sub.hooks.insert("check".to_string(), check);
+
+        root.merge_subproject("web", None, sub).unwrap();
+
+        // Only the subproject's own steps are skipped, by scoped name; `fmt`
+        // still runs, and a group or a name that matches nothing is dropped.
+        // The root's own list is untouched until the user config is merged.
+        assert_eq!(root.skip_steps, Some(vec!["root-step".to_string()]));
+        assert_eq!(
+            root.subproject_skip_steps,
+            IndexSet::from(["web:lint".to_string()])
+        );
+        root.apply_subproject_skip_steps();
+        assert_eq!(
+            root.skip_steps,
+            Some(vec!["root-step".to_string(), "web:lint".to_string()])
+        );
+    }
+
+    #[test]
+    fn merge_subproject_skip_steps_do_not_leak_to_other_subprojects() {
+        let mut root = Config::default();
+        for dir in ["a", "b"] {
+            let mut sub = Config::default();
+            if dir == "a" {
+                sub.skip_steps = Some(vec!["lint".to_string()]);
+            }
+            let mut check = hook("check");
+            check.steps.insert(
+                "lint".to_string(),
+                StepOrGroup::Step(Box::new(step("lint"))),
+            );
+            sub.hooks.insert("check".to_string(), check);
+            root.merge_subproject(dir, None, sub).unwrap();
+        }
+
+        root.apply_subproject_skip_steps();
+        assert_eq!(root.skip_steps, Some(vec!["a:lint".to_string()]));
+    }
+
+    #[test]
+    fn subproject_skip_steps_do_not_displace_the_user_configs() {
+        // The root sets no `skip_steps`, so the user config's apply; a
+        // subproject's skip must add to them, not replace them.
+        let mut root = Config::default();
+        let mut sub = Config {
+            skip_steps: Some(vec!["lint".to_string()]),
+            ..Default::default()
+        };
+        let mut check = hook("check");
+        check.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("check".to_string(), check);
+        root.merge_subproject("web", None, sub).unwrap();
+
+        let user = Config {
+            skip_steps: Some(vec!["user-step".to_string()]),
+            ..Default::default()
+        };
+        root.merge_from_hkrc(user).unwrap();
+        root.apply_subproject_skip_steps();
+
+        assert_eq!(
+            root.skip_steps,
+            Some(vec!["user-step".to_string(), "web:lint".to_string()])
+        );
+    }
+
+    #[test]
+    fn subproject_settings_with_no_effect_are_listed() {
+        let sub = Config {
+            fail_fast: Some(false),
+            exclude: Some(Exclude::default()),
+            jobs: Some(2),
+            skip_steps: Some(vec!["lint".to_string()]),
+            env: IndexMap::from([("FOO".to_string(), "bar".to_string())]),
+            ..Default::default()
+        };
+        // `skip_steps` and `env` are honored, so they are not listed
+        assert_eq!(
+            sub.ignored_subproject_settings(),
+            ["exclude", "fail_fast", "jobs"]
+        );
+        assert!(Config::default().ignored_subproject_settings().is_empty());
     }
 
     #[test]
