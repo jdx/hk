@@ -12,6 +12,8 @@ rumdl = new Config.Step {
     command = new Config.Command { argv = List("rumdl", "check", "{{files}}") }
     effect = "read"
   }
+  // Findings are `path:line:column: [MD012] message [*]`; hk ignores the trailing `Issues:` summary
+  diagnostic_format = "gcc"
   check_diff = new Config.CommandSpec {
     command = new Config.Command { argv = List("rumdl", "check", "--diff", "{{files}}") }
     effect = "read"
@@ -24,6 +26,18 @@ rumdl = new Config.Step {
   tests {
     local const testMaker = new helpers.TestMaker { filename = "file.md" }
     ["check bad file"] = testMaker.checkFail("# Hello\n\n\nParagraph\n", 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "# Hello\n\n\nParagraph\n",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "file.md"
+          line = 3
+          column = 1
+          severity = "error"
+          message = "[MD012] Multiple consecutive blank lines between content"
+        }),
+      )
     ["check good file"] = testMaker.checkPass("# Hello\n\nParagraph\n")
     ["fix bad file violations remain"] =
       testMaker.fixFail(

@@ -12,6 +12,8 @@ ktlint = new Config.Step {
     command = new Config.Command { argv = List("ktlint", "{{files}}") }
     effect = "read"
   }
+  // Findings are `path:line:column: message (rule)`; hk ignores ktlint's WARN log line and summary
+  diagnostic_format = "gcc"
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("ktlint", "-F", "{{files}}") }
     effect = "write"
@@ -19,6 +21,26 @@ ktlint = new Config.Step {
   tests {
     local const testMaker = new helpers.TestMaker { filename = "Test.kt" }
     ["check bad file"] = testMaker.checkFail("const val FOO_1  =  \"foo1\"", 1)
+    // ktlint prints absolute paths, so this test does not assert one
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "const val FOO_1  =  \"foo1\"",
+        1,
+        List(
+          new Config.StepTestDiagnostic {
+            line = 1
+            column = 17
+            severity = "error"
+            message = "Unnecessary long whitespace (standard:no-multi-spaces)"
+          },
+          new Config.StepTestDiagnostic {
+            line = 1
+            column = 26
+            severity = "error"
+            message = "File must end with a newline (\\n) (standard:final-newline)"
+          },
+        ),
+      )
     ["check good file"] = testMaker.checkPass("const val FOO_1 = \"foo1\"\n")
     ["fix bad file"] =
       testMaker.fixPass("const val FOO_1  =  \"foo1\"", "const val FOO_1 = \"foo1\"\n")

@@ -30,6 +30,8 @@ buildifier_lint = new Config.Step {
     }
     effect = "read"
   }
+  // Findings are `path:line: rule: message` (no column); hk ignores the `path # reformat` lines
+  diagnostic_format = "gcc"
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("buildifier", "-lint=fix", "{{files}}") }
     effect = "write"
@@ -53,6 +55,17 @@ buildifier_lint = new Config.Step {
       )
       """
     ["check bad file"] = testMaker.checkFail(before, 4)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        before,
+        4,
+        List(new Config.StepTestDiagnostic {
+          path = "BUILD.bazel"
+          line = 1
+          severity = "error"
+          message = "native-cc-library: Function \"cc_library\" is not global anymore"
+        }),
+      )
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)

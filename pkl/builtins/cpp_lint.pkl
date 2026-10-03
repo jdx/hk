@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Other Languages"
@@ -11,5 +12,24 @@ cpp_lint = new Config.Step {
   check = new Config.CommandSpec {
     command = new Config.Command { argv = List("cpplint", "{{files}}") }
     effect = "read"
+  }
+  // Findings are `path:line:  message  [category] [confidence]` (no column); hk ignores the `Done processing` and `Total errors found` lines
+  diagnostic_format = "gcc"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.cc" }
+    local const unformatted = "int main(){int x=1;return x;}\n"
+    ["check bad file"] = testMaker.checkFail(unformatted, 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        unformatted,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.cc"
+          line = 1
+          severity = "error"
+          rule = "whitespace/operators"
+          message = "Missing spaces around ="
+        }),
+      )
   }
 }
