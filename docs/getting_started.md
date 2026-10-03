@@ -63,6 +63,72 @@ Unknown, remote, dynamic, missing, unreadable, or malformed includes suppress in
 Builtins configure commands; they do not install the tools they invoke. Install the selected linters with your project’s package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`.
 :::
 
+## Your first configuration
+
+This complete example needs no extra tools. The `trailing_whitespace` and `newlines` builtins run hk's own `hk util` commands, so you can try hk before installing any linters. The two fixers run in parallel, and hk's file locks keep them from colliding on the same file.
+
+Replace the contents of the `hk.pkl` that `hk init` generated with this example. If `hk init` detected linters, its steps need those tools on `PATH`; the example below does not.
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
+
+steps {
+  ["trailing_whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+}
+```
+
+The `amends` line loads hk’s configuration schema. `Builtins` supplies reusable step definitions. Top-level `steps` is the recommended starting point: hk creates `check`, `fix`, and `pre-commit` hooks that share these steps.
+
+In this configuration, `pre-commit` fixes staged files while unstaged work is stashed. `check` checks your working tree, and `fix` applies fixes to it. Steps whose file patterns do not match any selected files are skipped.
+
+When you are ready for language-specific linters, add entries to the existing `steps` block; a second top-level `steps` block would stop the configuration from loading. These builtins invoke external tools, so install and configure Prettier, ESLint, and Ruff first, or choose [builtins](/builtins) that match your project:
+
+```pkl
+steps {
+  ["trailing_whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+  ["prettier"] = Builtins.prettier
+  ["eslint"] = Builtins.eslint
+  ["ruff"] = Builtins.ruff
+}
+```
+
+Top-level `steps` is optional. You can instead define steps only inside explicit `hooks`, or use explicit hooks to customize the shared setup. See [hook defaults](/configuration#hook-defaults).
+
+Validate the configuration without running its linters:
+
+```sh
+hk validate
+```
+
+## Checking and fixing code
+
+```sh
+hk check             # Check modified files
+hk fix               # Apply available fixes
+hk check --all       # Check all files, useful for CI
+hk check src/main.ts # Check a specific file
+hk check --step newlines
+```
+
+With the configuration above, modified files include staged, unstaged, and untracked files. `--all` selects tracked files plus eligible untracked files; ignore rules and exclusions still apply. Hook settings and flags can change file selection.
+
+Check commands should be read-only. Fix commands may edit files, and some findings need a manual fix. `hk fix` leaves fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached`.
+
+## Preview a run
+
+Use the plan to see which steps and files hk selects:
+
+```sh
+hk check --plan
+hk check --why newlines
+hk check --all --plan --json
+```
+
+These commands do not execute the hook’s steps. See [troubleshooting](/logging) if a step is missing or behaves unexpectedly.
+
 ## Install hooks
 
 Choose the scope that fits your setup:
@@ -83,59 +149,6 @@ On Git 2.54+, use the recommended `hk install --global --mise` to launch hooks t
 Commit `hk.pkl` so your team can share the configuration. Hook installation is local to each developer’s machine or clone.
 
 To remove an installation, use `hk uninstall` or `hk uninstall --global`. See the [install reference](/cli/install) for all options.
-
-## Your first configuration
-
-This complete example runs Prettier, ESLint, and Ruff. Install and configure those tools first, or replace them with [builtins](/builtins) that match your project.
-
-```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
-
-steps {
-  ["prettier"] = Builtins.prettier
-  ["eslint"] = Builtins.eslint
-  ["ruff"] = Builtins.ruff
-}
-```
-
-The `amends` line loads hk’s configuration schema. `Builtins` supplies reusable step definitions. Top-level `steps` is the recommended starting point: hk creates `check`, `fix`, and `pre-commit` hooks that share these steps.
-
-In this configuration, `pre-commit` fixes staged files while unstaged work is stashed. `check` checks your working tree, and `fix` applies fixes to it. Steps whose file patterns do not match any selected files are skipped.
-
-Top-level `steps` is optional. You can instead define steps only inside explicit `hooks`, or use explicit hooks to customize the shared setup. See [hook defaults](/configuration#hook-defaults).
-
-Validate the configuration without running its linters:
-
-```sh
-hk validate
-```
-
-## Checking and fixing code
-
-```sh
-hk check             # Check modified files
-hk fix               # Apply available fixes
-hk check --all       # Check all files, useful for CI
-hk check src/main.ts # Check a specific file
-hk check --step eslint
-```
-
-With the configuration above, modified files include staged, unstaged, and untracked files. `--all` selects tracked files plus eligible untracked files; ignore rules and exclusions still apply. Hook settings and flags can change file selection.
-
-Check commands should be read-only. Fix commands may edit files, and some findings need a manual fix. `hk fix` leaves fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached`.
-
-## Preview a run
-
-Use the plan to see which steps and files hk selects:
-
-```sh
-hk check --plan
-hk check --why eslint
-hk check --all --plan --json
-```
-
-These commands do not execute the hook’s steps. See [troubleshooting](/logging) if a step is missing or behaves unexpectedly.
 
 ## Running hooks
 

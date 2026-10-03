@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: 223d6d9ff73a
+sourceHash: 05c1c9f04f24
 ---
 
 # Getting under way
@@ -60,6 +60,72 @@ When `hk init --mise` is used, hk merges into an existing `mise.toml` only the e
 Builtins, the standing crew, configure commands; they do not install the tools those commands invoke. Bring the linters ye chose aboard with yer project's package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`.
 :::
 
+## Yer first charts {#your-first-configuration}
+
+This complete example needs no extra tools. The `trailing_whitespace` and `newlines` builtins, the standing crew, run hk's own `hk util` commands, so ye can try hk before bringing a single linter aboard. The two sailmakers haul at once, and a lashing on each file keeps them from colliding on the same cargo.
+
+Replace the whole of the `hk.pkl` that `hk init` drew up with this example. If `hk init` spotted linters, its steps need those tools aboard on `PATH`; the example below does not.
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
+
+steps {
+  ["trailing_whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+}
+```
+
+The `amends` line loads hk's configuration schema. `Builtins` supplies reusable step definitions: the standing crew. Top-level `steps` is the recommended place to start: from it hk creates `check`, `fix`, and `pre-commit` hooks that share these steps, so all three muster the self-same crew.
+
+With these charts, `pre-commit` fixes the staged files while yer unstaged work is stowed in the hold. `check` inspects yer working tree, and `fix` applies fixes to it. A step whose file patterns match none of the selected files is skipped.
+
+When ye're ready for lookouts that know yer language, sign on more hands by adding entries to the existing `steps` block; a second top-level `steps` block would keep the charts from loading. These builtins call on outside tools, so bring Prettier, ESLint, and Ruff aboard and configure them first, or swap them for [builtins](/builtins) that suit yer project:
+
+```pkl
+steps {
+  ["trailing_whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+  ["prettier"] = Builtins.prettier
+  ["eslint"] = Builtins.eslint
+  ["ruff"] = Builtins.ruff
+}
+```
+
+Top-level `steps` is optional, matey. Ye can instead define steps only inside explicit `hooks`, giving each pipe its own hands, or use explicit hooks to customize the shared setup. See [hook defaults](/configuration#hook-defaults).
+
+Make sure the charts are sound without sending any linters aloft:
+
+```sh
+hk validate
+```
+
+## Checking the cargo and mending the canvas {#checking-and-fixing-code}
+
+```sh
+hk check             # Check modified files
+hk fix               # Apply available fixes
+hk check --all       # Check all files, useful for CI
+hk check src/main.ts # Check a specific file
+hk check --step newlines
+```
+
+With the charts above, the modified files include the staged, unstaged, and untracked ones: cargo loaded aboard, cargo left on the dock, and cargo Git doesn't track yet. `--all` selects the tracked files plus eligible untracked ones; ignore rules and exclusions still apply. Hook settings and flags can change which files are selected.
+
+Check commands should be read-only: lookouts look, they don't touch. Fix commands may edit files, and some findings need mending by hand. `hk fix` leaves its fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached` to see what the sailmakers changed.
+
+## Read the passage plan {#preview-a-run}
+
+Use the passage plan to see which steps and files hk selects:
+
+```sh
+hk check --plan
+hk check --why newlines
+hk check --all --plan --json
+```
+
+These commands do not execute the hook's steps; no hand goes aloft. See [troubleshooting](/logging) if a step is missing or behaves strangely.
+
 ## Rig the hooks {#install-hooks}
 
 Choose the scope that fits how ye sail:
@@ -80,59 +146,6 @@ On Git 2.54+, the recommended course is `hk install --global --mise`, which laun
 Commit `hk.pkl` so all yer shipmates sail by the same charts. Installing the hooks is local to each developer's machine or clone.
 
 To take an installation down, use `hk uninstall` or `hk uninstall --global`. The [install reference](/cli/install) lists every option.
-
-## Yer first charts {#your-first-configuration}
-
-This complete example puts Prettier, ESLint, and Ruff to work. Bring those tools aboard and configure them first, or swap them for [builtins](/builtins) that suit yer project.
-
-```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
-
-steps {
-  ["prettier"] = Builtins.prettier
-  ["eslint"] = Builtins.eslint
-  ["ruff"] = Builtins.ruff
-}
-```
-
-The `amends` line loads hk's configuration schema. `Builtins` supplies reusable step definitions: the standing crew. Top-level `steps` is the recommended place to start: from it hk creates `check`, `fix`, and `pre-commit` hooks that share these steps, so all three muster the self-same crew.
-
-With these charts, `pre-commit` fixes the staged files while yer unstaged work is stowed in the hold. `check` inspects yer working tree, and `fix` applies fixes to it. A step whose file patterns match none of the selected files is skipped.
-
-Top-level `steps` is optional, matey. Ye can instead define steps only inside explicit `hooks`, giving each pipe its own hands, or use explicit hooks to customize the shared setup. See [hook defaults](/configuration#hook-defaults).
-
-Make sure the charts are sound without sending any linters aloft:
-
-```sh
-hk validate
-```
-
-## Checking the cargo and mending the canvas {#checking-and-fixing-code}
-
-```sh
-hk check             # Check modified files
-hk fix               # Apply available fixes
-hk check --all       # Check all files, useful for CI
-hk check src/main.ts # Check a specific file
-hk check --step eslint
-```
-
-With the charts above, the modified files include the staged, unstaged, and untracked ones: cargo loaded aboard, cargo left on the dock, and cargo Git doesn't track yet. `--all` selects the tracked files plus eligible untracked ones; ignore rules and exclusions still apply. Hook settings and flags can change which files are selected.
-
-Check commands should be read-only: lookouts look, they don't touch. Fix commands may edit files, and some findings need mending by hand. `hk fix` leaves its fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached` to see what the sailmakers changed.
-
-## Read the passage plan {#preview-a-run}
-
-Use the passage plan to see which steps and files hk selects:
-
-```sh
-hk check --plan
-hk check --why eslint
-hk check --all --plan --json
-```
-
-These commands do not execute the hook's steps; no hand goes aloft. See [troubleshooting](/logging) if a step is missing or behaves strangely.
 
 ## Calling all hands: running hooks {#running-hooks}
 
