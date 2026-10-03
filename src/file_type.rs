@@ -157,8 +157,18 @@ fn shebang_words(text: &str) -> impl Iterator<Item = &str> {
             return None;
         }
         let mut quote = None;
+        let mut escaped = false;
         let mut end = rest.len();
         for (i, c) in rest.char_indices() {
+            // A backslash escapes the next character, except inside single quotes
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if c == '\\' && quote != Some('\'') {
+                escaped = true;
+                continue;
+            }
             match quote {
                 Some(q) if c == q => quote = None,
                 Some(_) => {}
@@ -721,6 +731,13 @@ mod tests {
             ("#!/usr/bin/env FOO=bar python3\n", "python3"),
             ("#!/usr/bin/env -S FOO=bar BAZ=1 python3 -u\n", "python3"),
             ("#!/usr/bin/env -S FOO=\"a b\" python3\n", "python3"),
+            // An escaped quote does not end a quoted value; an escaped
+            // backslash does not escape the closing quote
+            ("#!/usr/bin/env -S FOO=\"a\\\" b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\\\\" python3\n", "python3"),
+            // Backslashes are literal inside single quotes
+            ("#!/usr/bin/env -S FOO='a\\' python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=a\\ b python3\n", "python3"),
             ("#!/usr/bin/env -S FOO='a b' BAR=\"c  d\" ruby -w\n", "ruby"),
             ("#!/usr/bin/env -u HOME -i ruby\n", "ruby"),
             ("#!/usr/bin/env -C /tmp node\n", "node"),
