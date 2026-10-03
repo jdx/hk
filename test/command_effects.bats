@@ -283,7 +283,7 @@ EOF
 }
 
 @test "safe mode rejects a hook report with no declared effect" {
-    cat <<'EOF2' > hk.pkl
+    cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
@@ -311,7 +311,7 @@ EOF2
 }
 
 @test "safe mode rejects a destructive hook report" {
-    cat <<'EOF2' > hk.pkl
+    cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
@@ -339,11 +339,11 @@ EOF2
 }
 
 @test "safe mode runs a hook report that declares a read effect" {
-    cat <<'EOF2' > hk.pkl
+    cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
-        report = new CommandSpec { command = "echo \"$HK_REPORT_JSON\" > report-ran"; effect = "read" }
+        report = new CommandSpec { command = "echo \"\$HK_REPORT_JSON\" > report-ran"; effect = "read" }
         steps {
             ["known"] {
                 check = new CommandSpec {
@@ -365,7 +365,7 @@ EOF2
 }
 
 @test "hook report accepts a structured argv command with an effect" {
-    cat <<'EOF2' > hk.pkl
+    cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
@@ -391,7 +391,7 @@ EOF2
 }
 
 @test "hook report rejects a structured argv command with no executable" {
-    cat <<'EOF2' > hk.pkl
+    cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
@@ -418,7 +418,7 @@ EOF2
 }
 
 @test "plain string hook report still runs outside safe mode" {
-    cat <<'EOF2' > hk.pkl
+    cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
