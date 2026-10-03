@@ -192,16 +192,14 @@ mod tests {
     fn rejects_newlines_in_batch_commands() {
         let args = vec!["safe".to_string(), "unsafe\ncommand".to_string()];
         let error = reject_batch_newlines(Path::new("tool.cmd"), &args)
-            .err()
-            .expect("newline should be rejected");
+            .expect_err("newline should be rejected");
         assert_eq!(
             error.to_string(),
             "Windows batch command argument 2 contains a newline"
         );
 
         let error = reject_batch_newlines(Path::new("unsafe\rtool.cmd"), &[])
-            .err()
-            .expect("newline should be rejected");
+            .expect_err("newline should be rejected");
         assert_eq!(
             error.to_string(),
             "Windows batch command path contains a newline"

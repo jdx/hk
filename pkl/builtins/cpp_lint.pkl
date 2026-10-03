@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "C++ style checker"
+  project_indicators {
+    new { file = "CPPLINT.cfg" }
+  }
 }
 cpp_lint = new Config.Step {
   glob =

@@ -56,6 +56,9 @@ class EditorconfigCheckerStep extends Config.Step {
 @Builtins.meta {
   category = "EditorConfig"
   description = "Validate files against EditorConfig rules"
+  project_indicators {
+    new { file = ".ecrc" }
+  }
 }
 // Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
 // instance when it is inserted into Mapping<String, Config.Step>.

@@ -109,8 +109,14 @@ impl Install {
                 warn!(
                     "no hooks configured in hk.pkl — removed {removed} previously-installed hk hook(s) and did not install any new ones"
                 );
+            } else if config.hooks.is_empty() {
+                warn!(
+                    "no hooks configured in hk.pkl — nothing to install. Add steps to hk.pkl first (`hk init --force` re-detects linters)"
+                );
             } else {
-                warn!("no hooks configured in hk.pkl — nothing to install");
+                warn!(
+                    "no installable hooks are enabled in hk.pkl — only `check`/`fix` or disabled hooks are defined, so nothing to install. Enable a hook such as `pre-commit` (see https://hk.jdx.dev/configuration)"
+                );
             }
             return Ok(());
         }
