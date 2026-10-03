@@ -202,10 +202,26 @@ fn create_in_place(path: &Path, journal: &Journal) -> Result<bool> {
 /// Replaces the journal at `path` atomically.
 fn replace(path: &Path, journal: &Journal) -> Result<()> {
     let tmp = write_temp(path, journal)?;
-    std::fs::rename(&tmp, path).wrap_err_with(|| {
-        let _ = std::fs::remove_file(&tmp);
-        format!("failed to write {}", path.display())
-    })?;
+    // Windows refuses to replace a file that a scanner or indexer has open for
+    // a moment, so a denied rename is tried again
+    let mut attempt = 0;
+    loop {
+        match std::fs::rename(&tmp, path) {
+            Ok(()) => break,
+            Err(err)
+                if cfg!(windows)
+                    && err.kind() == std::io::ErrorKind::PermissionDenied
+                    && attempt < 20 =>
+            {
+                attempt += 1;
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+            Err(err) => {
+                let _ = std::fs::remove_file(&tmp);
+                return Err(err).wrap_err_with(|| format!("failed to write {}", path.display()));
+            }
+        }
+    }
     sync_parent(path);
     Ok(())
 }
