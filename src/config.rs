@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail, eyre};
@@ -637,6 +638,7 @@ impl Config {
         }
 
         // Scalar settings: project wins — fall back to hkrc when project has None
+        self.jobs = self.jobs.or(hkrc.jobs);
         self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
         self.stage = self.stage.or(hkrc.stage);
         self.display_skip_reasons = self
@@ -1080,7 +1082,7 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
     let outcome =
         block_on_pklr(evaluator.eval(path))?.map_err(|e| match pklr_syntax_error(&e) {
             Some(err) => eyre::Report::new(err),
-            None => handle_pklr_eval_error(&e.to_string(), path),
+            None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
         })?;
     let value = serde_json::from_value(outcome.json)
         .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))?;
@@ -1241,6 +1243,18 @@ fn pklr_error_report(error: &pklr::Error) -> eyre::Report {
         Some(err) => eyre::Report::new(err),
         None => eyre::eyre!("{error}"),
     }
+}
+
+/// Replaces the `user:password@` part of every URL in `text` with `***@`.
+///
+/// An `HK_PKL_HTTP_REWRITE` target may carry credentials
+/// (`https://user:token@mirror.example/`), and pklr echoes the rewritten URL
+/// in its download errors. The user-info runs through the last `@` before the
+/// path, so a password that itself contains `@` is hidden too.
+fn redact_url_credentials(text: &str) -> String {
+    static USERINFO: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/?#\s]*@").unwrap());
+    USERINFO.replace_all(text, "${1}***@").into_owned()
 }
 
 fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
@@ -1428,6 +1442,8 @@ pub struct Config {
     pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Parallel steps; `0` or unset means auto-detect.
+    pub jobs: Option<usize>,
     pub fail_fast: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
@@ -1483,6 +1499,22 @@ impl Config {
         }
         self.default_hooks_materialized = true;
         Ok(())
+    }
+
+    /// The project config exactly as Pkl evaluated it, before hk drops
+    /// properties it does not know. `None` when there is no project config.
+    pub fn project_config_json() -> Result<Option<serde_json::Value>> {
+        let paths = Self::project_config_search_paths();
+        let Some(path) = Self::find_project_config(&paths) else {
+            return Ok(None);
+        };
+        Ok(Some(eval_pklr::<serde_json::Value>(&path)?.0))
+    }
+
+    /// Warnings about a config that loads but probably does not do what its
+    /// author meant. Run by `hk validate`; never fatal.
+    pub fn lint(&self) -> Vec<String> {
+        crate::lint::lint_hooks(&self.hooks, &self.implicit_default_hooks)
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -1812,6 +1844,22 @@ mod tests {
     use crate::hook::{Hook, StepOrGroup};
     use crate::step::Step;
     use crate::step_group::StepGroup;
+
+    #[test]
+    fn redact_url_credentials_hides_userinfo_only() {
+        assert_eq!(
+            redact_url_credentials(
+                "HTTP fetch failed for http://alice:s3cret@127.0.0.1:1/a.zip: error (https://tok@host/x?y=a@b)"
+            ),
+            "HTTP fetch failed for http://***@127.0.0.1:1/a.zip: error (https://***@host/x?y=a@b)"
+        );
+        assert_eq!(
+            redact_url_credentials("failed for http://alice@corp:s3cret@mirror.example/a.zip"),
+            "failed for http://***@mirror.example/a.zip"
+        );
+        let plain = "failed for https://example.com/a@1.0.zip (user@example.com)";
+        assert_eq!(redact_url_credentials(plain), plain);
+    }
 
     fn exclude_from(value: serde_json::Value) -> Exclude {
         serde_json::from_value(value).unwrap()
