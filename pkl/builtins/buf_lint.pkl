@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "Protocol Buffers linter"
+  project_indicators {
+    new { file = "buf.yaml" }
+    new { file = "buf.work.yaml" }
+  }
 }
 buf_lint = new Config.Step {
   glob = "**/*.proto"

@@ -1144,6 +1144,13 @@ class StepTestExpect {
   /// least one parsed diagnostic. The step must set `diagnostic_format`, and the test must use
   /// `run = "check"`. Fields you leave out match anything.
   ///
+  /// The test parses one invocation's output, so it fails with an explanation instead of passing
+  /// for two kinds of step it can't model: a check-first step (`check_failed_files` with
+  /// `check_diff` or `check_list_files`, whose real check also captures the file-reporting
+  /// command's output), and a `batch` or `workspace_indicator` step whose `diagnostic_format` is
+  /// `sarif` or `eslint-json` (a real check joins every job's output before parsing, so separate
+  /// documents would not parse).
+  ///
   /// ```pkl
   /// expect {
   ///   code = 1
@@ -1152,11 +1159,13 @@ class StepTestExpect {
   ///   }
   /// }
   /// ```
-  diagnostics: Listing<StepTestDiagnostic> = new Listing {}
+  diagnostics: Listing<StepTestDiagnostic> = new Listing<StepTestDiagnostic> {}
 }
 
 class StepTestDiagnostic {
-  /// File path as the tool printed it; a leading `./` is ignored.
+  /// File path as the tool printed it; a leading `./` is ignored. If the tool printed an absolute
+  /// path, as tools do for the test's temporary sandbox, a relative path here matches when the
+  /// absolute path ends with it at a directory boundary.
   path: String?
 
   /// Line where the diagnostic starts.

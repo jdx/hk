@@ -154,7 +154,7 @@ fn select_test_files(step: &Step, test: &StepTest, files: Vec<PathBuf>) -> Resul
 
 fn check_diff_not_applied_reason(code: i32) -> String {
     format!(
-        "check_diff exited {code} but its output did not apply with `git apply`; check_diff must print a unified diff naming each file"
+        "check_diff exited {code} but hk could not apply its output as a patch; check_diff must print a unified diff naming each file"
     )
 }
 
@@ -192,9 +192,16 @@ fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<Stri
     None
 }
 
-/// Whether `path` names the same file as `expected`, ignoring a leading `./`.
+/// Whether `path` names the same file as `expected`, ignoring a leading `./`. A tool that
+/// prints an absolute path (the sandbox is a temporary directory) matches the relative
+/// `expected` path when it ends with it at a directory boundary.
 fn same_path(path: &str, expected: &str) -> bool {
-    path.strip_prefix("./").unwrap_or(path) == expected.strip_prefix("./").unwrap_or(expected)
+    let path = path.strip_prefix("./").unwrap_or(path);
+    let expected = expected.strip_prefix("./").unwrap_or(expected);
+    path == expected
+        || (Path::new(path).is_absolute()
+            && !Path::new(expected).is_absolute()
+            && path.ends_with(&format!("/{expected}")))
 }
 
 fn diagnostic_matches(diagnostic: &Diagnostic, expected: &StepTestDiagnostic) -> bool {
@@ -255,6 +262,24 @@ fn check_diagnostics(step: &Step, test: &StepTest, combined: &str) -> Vec<String
     let Some(format) = step.diagnostic_format else {
         return vec!["expect.diagnostics requires the step to set diagnostic_format".to_string()];
     };
+    // A real check feeds the parser more than this one invocation's output in two cases the
+    // test can't reproduce, so a passing assertion could misrepresent `hk check --sarif`.
+    if step.check_failed_files && (step.check_diff.is_some() || step.check_list_files.is_some()) {
+        return vec![
+            "expect.diagnostics can't model a check-first step (check_failed_files with check_diff or check_list_files): a real check captures the file-reporting command's output too before parsing"
+                .to_string(),
+        ];
+    }
+    if matches!(
+        format,
+        crate::step::DiagnosticFormat::Sarif | crate::step::DiagnosticFormat::EslintJson
+    ) && (step.batch || step.workspace_indicator.is_some())
+    {
+        return vec![
+            "expect.diagnostics can't model a batched or workspace step with a single-document diagnostic_format (sarif, eslint-json): a real check joins every job's output before parsing, so separate documents would not parse"
+                .to_string(),
+        ];
+    }
     let tool = step.diagnostic_tool.as_deref().unwrap_or(&step.name);
     let parsed = diagnostics::parse(format, &step.name, tool, combined);
     expected
@@ -646,6 +671,14 @@ mod tests {
     }
 
     #[test]
+    fn relative_path_matches_the_tail_of_an_absolute_path() {
+        assert!(same_path("/tmp/x/proto/a.proto", "proto/a.proto"));
+        assert!(same_path("./a.c", "a.c"));
+        assert!(!same_path("/tmp/x/myproto/a.proto", "proto/a.proto"));
+        assert!(!same_path("sub/a.c", "a.c"));
+    }
+
+    #[test]
     fn unmatched_diagnostic_lists_what_was_parsed() {
         let test = expecting(vec![StepTestDiagnostic {
             line: Some(9),
@@ -675,6 +708,57 @@ mod tests {
             check_diagnostics(&gcc_step(), &fix, "a.c:2:4: error: bad\n"),
             vec!["expect.diagnostics requires run = \"check\""]
         );
+    }
+
+    #[test]
+    fn check_first_steps_are_rejected() {
+        let test = expecting(vec![StepTestDiagnostic::default()]);
+        let step = Step {
+            check_failed_files: true,
+            check_list_files: Some(crate::step::Command::Shell("list".parse().unwrap())),
+            ..gcc_step()
+        };
+        let reasons = check_diagnostics(&step, &test, "a.c:2:4: error: bad\n");
+        assert_eq!(reasons.len(), 1);
+        assert!(reasons[0].contains("check-first"), "{reasons:?}");
+
+        // check_failed_files without a file-reporting command runs only `check`
+        let step = Step {
+            check_failed_files: true,
+            ..gcc_step()
+        };
+        assert!(check_diagnostics(&step, &test, "a.c:2:4: error: bad\n").is_empty());
+    }
+
+    #[test]
+    fn batched_steps_reject_single_document_formats_only() {
+        let test = expecting(vec![StepTestDiagnostic::default()]);
+        let sarif = r#"{"runs":[{"results":[{"message":{"text":"m"}}]}]}"#;
+        for format in [
+            crate::step::DiagnosticFormat::Sarif,
+            crate::step::DiagnosticFormat::EslintJson,
+        ] {
+            let step = Step {
+                batch: true,
+                diagnostic_format: Some(format),
+                ..gcc_step()
+            };
+            let reasons = check_diagnostics(&step, &test, sarif);
+            assert_eq!(reasons.len(), 1);
+            assert!(reasons[0].contains("batched"), "{reasons:?}");
+        }
+        // Line-oriented formats concatenate safely across jobs.
+        let step = Step {
+            batch: true,
+            ..gcc_step()
+        };
+        assert!(check_diagnostics(&step, &test, "a.c:2:4: error: bad\n").is_empty());
+        // An unbatched single-document step is parsed as a real check would.
+        let step = Step {
+            diagnostic_format: Some(crate::step::DiagnosticFormat::Sarif),
+            ..gcc_step()
+        };
+        assert!(check_diagnostics(&step, &test, sarif).is_empty());
     }
 
     #[test]
