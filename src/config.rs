@@ -1370,7 +1370,7 @@ fn validate_patterns(step: &crate::step::Step, step_name: &str, location: &str) 
     .chain(selectors);
     for (field, pattern) in patterns {
         if let Some(pattern) = pattern {
-            crate::glob::validate_pattern(pattern)
+            crate::glob::validate_pattern(pattern, step.dir_prefix())
                 .map_err(|e| eyre!("Step '{step_name}' {location} has an invalid {field}: {e}"))?;
         }
     }
@@ -1724,6 +1724,21 @@ mod tests {
         later.exclusive = true;
         let config = config_with_steps(vec![step_depending_on("a", &["b"]), later]);
         config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_compiles_globs_with_the_steps_dir() {
+        let mut globby = step("lint");
+        globby.dir = Some("foo[".into());
+        globby.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![globby]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob '*'"),
+            "{err}"
+        );
     }
 
     #[test]

@@ -20,6 +20,11 @@ EOF
     hk validate
 }
 
+# `timeout` is not on macOS; perl's alarm kills a hang with SIGALRM (status 142).
+_timeout() {
+    perl -e 'alarm shift; exec @ARGV' "$@"
+}
+
 @test "validate rejects a dependency cycle instead of hanging" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -33,16 +38,16 @@ hooks {
     }
 }
 EOF
-    run timeout 20 hk validate
+    run _timeout 20 hk validate
     assert_failure
-    refute [ "$status" -eq 124 ]
+    refute [ "$status" -eq 142 ]
     assert_output --partial "circular dependency"
     assert_output --partial "hook 'check'"
     assert_output --partial "a -> b -> c -> a"
     # The same config used to hang `hk check` forever.
-    run timeout 20 hk check --all
+    run _timeout 20 hk check --all
     assert_failure
-    refute [ "$status" -eq 124 ]
+    refute [ "$status" -eq 142 ]
     assert_output --partial "circular dependency"
 }
 
@@ -57,9 +62,9 @@ hooks {
     }
 }
 EOF
-    run timeout 20 hk validate
+    run _timeout 20 hk validate
     assert_failure
-    refute [ "$status" -eq 124 ]
+    refute [ "$status" -eq 142 ]
     assert_output --partial "Step 'lint' in hook 'check' depends on itself"
 }
 
@@ -76,7 +81,7 @@ hooks {
     }
 }
 EOF
-    run timeout 20 hk validate
+    run _timeout 20 hk validate
     assert_success
 }
 

@@ -23,16 +23,30 @@ fn build_glob(glob: &str, literal_separator: bool) -> Result<globset::Glob> {
     Ok(builder.build()?)
 }
 
-/// Check that a step pattern compiles, so a bad glob or regex is reported when
-/// the config loads instead of when a step first filters files.
-pub fn validate_pattern(pattern: &Pattern) -> std::result::Result<(), String> {
+/// The globs `get_pattern_matches` compiles for `globs`: with a `dir` each is
+/// prefixed with it and matched strictly.
+fn pattern_globs(globs: &[String], dir: Option<&str>) -> (Vec<String>, bool) {
+    match dir {
+        Some(dir) => (
+            globs
+                .iter()
+                .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
+                .collect(),
+            true,
+        ),
+        None => (globs.to_vec(), false),
+    }
+}
+
+/// Check that a step pattern compiles exactly as `get_pattern_matches` will
+/// compile it, so a bad glob or regex is reported when the config loads instead
+/// of when a step first filters files.
+pub fn validate_pattern(pattern: &Pattern, dir: Option<&str>) -> std::result::Result<(), String> {
     match pattern {
         Pattern::Globs(globs) => {
-            for glob in globs {
-                // `dir` makes the runtime match strictly, so check that mode too.
-                build_glob(glob, false)
-                    .and_then(|_| build_glob(glob, true))
-                    .map_err(|e| format!("invalid glob '{glob}': {e}"))?;
+            let (compiled, strict) = pattern_globs(globs, dir);
+            for (glob, original) in compiled.iter().zip(globs) {
+                build_glob(glob, strict).map_err(|e| format!("invalid glob '{original}': {e}"))?;
             }
         }
         Pattern::Regex { pattern, .. } => {
@@ -81,11 +95,8 @@ pub fn get_pattern_matches<P: AsRef<Path>>(
     match pattern {
         Pattern::Globs(globs) => {
             // When dir is set, prefix globs with the directory and use strict matching
-            if let Some(dir) = dir {
-                let dir_globs = globs
-                    .iter()
-                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                    .collect::<Vec<_>>();
+            if dir.is_some() {
+                let (dir_globs, _) = pattern_globs(globs, dir);
                 // Use strict matching (literal_separator=true) to ensure proper path semantics
                 get_matches_strict(&dir_globs, &files_vec)
             } else {
