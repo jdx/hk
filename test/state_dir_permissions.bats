@@ -37,3 +37,23 @@ EOF
     run ls -ld "$BATS_TEST_TMPDIR/state-parent"
     refute_output --regexp '^drwx------'
 }
+
+@test "a relative HK_STATE_DIR with a single component still works" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["fail"] { check = "echo boom; false" }
+        }
+    }
+}
+EOF
+    echo hi > a.txt
+
+    export HK_STATE_DIR="state"
+    unset HK_OUTPUT_FILE HK_LOG_FILE
+    run hk check --all
+    assert_failure
+    [ -f state/output.log ]
+}

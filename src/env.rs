@@ -29,7 +29,7 @@ pub fn create_state_dir_all(path: &std::path::Path) -> std::io::Result<()> {
     }
     // Directories above the state directory, such as ~/.local/state, are not
     // ours to restrict.
-    if let Some(parent) = state.parent() {
+    if let Some(parent) = state.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent)?;
     }
     let mut builder = std::fs::DirBuilder::new();
