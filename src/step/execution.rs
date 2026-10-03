@@ -21,10 +21,85 @@ use std::collections::{BTreeSet, HashSet};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
+use std::time::Duration;
 use tokio::sync::OwnedSemaphorePermit;
 
 use super::expr_env::eval_condition;
 use super::types::{AllowFailure, CheckFirstCmd, RunType, Step};
+
+/// How long jobs get to wind down after a fail-fast cancellation before they
+/// are aborted. Cancelled commands are killed at once, so this only bounds a
+/// job stuck somewhere unexpected.
+const CANCELLED_JOBS_GRACE: Duration = Duration::from_secs(10);
+
+/// Wait for every job task and return their results, or the first error.
+///
+/// A failed job does not end the wait. Dropping the set instead would abort
+/// sibling jobs wherever they happen to be, including after their command
+/// finished but before they recorded its diagnostics, so which diagnostics a
+/// failed run reported depended on timing.
+///
+/// `on_first_failure` runs once, with the first error. It may return a future
+/// that cancels the siblings' commands (fail-fast); the siblings then get
+/// `CANCELLED_JOBS_GRACE` to return before they are aborted. Without one
+/// (`--no-fail-fast`, an allowed failure) siblings run to completion. Later
+/// errors, such as a sibling reporting its command was cancelled, are only
+/// logged: the first error is the one returned.
+async fn join_jobs<T, Fut>(
+    mut set: tokio::task::JoinSet<Result<T>>,
+    grace: Duration,
+    on_first_failure: impl FnOnce(&eyre::Report) -> Option<Fut>,
+) -> Result<Vec<T>>
+where
+    T: 'static,
+    Fut: Future<Output = ()>,
+{
+    let mut done = Vec::new();
+    let mut first_error: Option<eyre::Report> = None;
+    let mut on_first_failure = Some(on_first_failure);
+    let mut deadline = None;
+    loop {
+        let next = match deadline {
+            Some(at) => match tokio::time::timeout_at(at, set.join_next()).await {
+                Ok(next) => next,
+                Err(_) => {
+                    debug!(
+                        "jobs did not stop within the grace period after cancellation, aborting them"
+                    );
+                    set.abort_all();
+                    deadline = None;
+                    continue;
+                }
+            },
+            None => set.join_next().await,
+        };
+        let Some(res) = next else { break };
+        let err = match res {
+            Ok(Ok(value)) => {
+                done.push(value);
+                continue;
+            }
+            Ok(Err(err)) => err,
+            Err(e) => match e.try_into_panic() {
+                Ok(panic) => std::panic::resume_unwind(panic),
+                Err(e) => e.into(),
+            },
+        };
+        if first_error.is_some() {
+            debug!("another job failed after the first: {err:#}");
+            continue;
+        }
+        if let Some(cancel) = on_first_failure.take().and_then(|f| f(&err)) {
+            cancel.await;
+            deadline = Some(tokio::time::Instant::now() + grace);
+        }
+        first_error = Some(err);
+    }
+    match first_error {
+        Some(err) => Err(err),
+        None => Ok(done),
+    }
+}
 
 /// Default stage pattern for steps with fix commands when staging is enabled.
 static DEFAULT_STAGE: LazyLock<Vec<String>> = LazyLock::new(|| vec!["<JOB_FILES>".to_string()]);
@@ -65,6 +140,7 @@ impl Step {
         self: Arc<Self>,
         ctx: Arc<StepContext>,
         semaphore: Option<OwnedSemaphorePermit>,
+        fail_fast: bool,
     ) -> Result<()> {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
         let ctx = Arc::new(ctx);
@@ -498,25 +574,18 @@ impl Step {
                 Ok(files_to_return.into_iter().collect())
             });
         }
-        let mut actual_job_files: IndexSet<PathBuf> = IndexSet::new();
-        while let Some(res) = set.join_next().await {
-            match res {
-                Ok(Ok(files)) => {
-                    actual_job_files.extend(files);
-                }
-                Ok(Err(err)) => {
-                    ctx.status_errored(&format!("{err}"));
-                    return Err(err);
-                }
-                Err(e) => match e.try_into_panic() {
-                    Ok(e) => std::panic::resume_unwind(e),
-                    Err(e) => {
-                        ctx.status_errored(&format!("{e}"));
-                        return Err(e.into());
-                    }
-                },
-            }
-        }
+        // Every job is awaited, even after one fails, so a job that already
+        // ran its check still records its diagnostics. See `join_jobs`.
+        let job_files = join_jobs(set, CANCELLED_JOBS_GRACE, |err| {
+            ctx.status_errored(&format!("{err}"));
+            let allowed = crate::error::is_command_failure(err)
+                && self
+                    .failure_is_allowed(&ctx.hook_ctx.expr_ctx())
+                    .unwrap_or(false);
+            (fail_fast && !allowed).then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
+        })
+        .await?;
+        let actual_job_files: IndexSet<PathBuf> = job_files.into_iter().flatten().collect();
         if ctx.hook_ctx.failed.is_cancelled() {
             ctx.status_aborted();
             return Ok(());
@@ -824,5 +893,94 @@ fn push_stage_globs(globs: &mut Vec<String>, roots: &[String], pat: &str) {
         } else {
             globs.push(format!("{root}/{pat}"));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+    use tokio_util::sync::CancellationToken;
+
+    const GRACE: Duration = Duration::from_secs(10);
+
+    /// A job that records something after a delay, standing in for a job whose
+    /// command has finished but which has not yet recorded its diagnostics.
+    fn recorder(
+        set: &mut tokio::task::JoinSet<Result<()>>,
+        recorded: &Arc<Mutex<Vec<&'static str>>>,
+        name: &'static str,
+        delay: Duration,
+    ) {
+        let recorded = recorded.clone();
+        set.spawn(async move {
+            tokio::time::sleep(delay).await;
+            recorded.lock().unwrap().push(name);
+            Ok(())
+        });
+    }
+
+    #[tokio::test]
+    async fn join_jobs_waits_for_siblings_after_a_failure() {
+        let recorded = Arc::new(Mutex::new(Vec::new()));
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        set.spawn(async { Err(eyre::eyre!("first failure")) });
+        recorder(&mut set, &recorded, "slow", Duration::from_millis(200));
+        let result = join_jobs(set, GRACE, |_| None::<std::future::Ready<()>>).await;
+        assert_eq!(result.unwrap_err().to_string(), "first failure");
+        assert_eq!(*recorded.lock().unwrap(), ["slow"]);
+    }
+
+    #[tokio::test]
+    async fn join_jobs_cancels_siblings_but_lets_them_finish() {
+        let recorded = Arc::new(Mutex::new(Vec::new()));
+        let cancel = CancellationToken::new();
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        set.spawn(async { Err(eyre::eyre!("first failure")) });
+        {
+            // Stops waiting as soon as it is cancelled, then still records.
+            let (recorded, cancel) = (recorded.clone(), cancel.clone());
+            set.spawn(async move {
+                tokio::select! {
+                    _ = cancel.cancelled() => {}
+                    _ = tokio::time::sleep(Duration::from_secs(60)) => {}
+                }
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                recorded.lock().unwrap().push("cancelled");
+                Err(eyre::eyre!("cancelled"))
+            });
+        }
+        let started = tokio::time::Instant::now();
+        let result = join_jobs(set, GRACE, |_| Some(async move { cancel.cancel() })).await;
+        // The first error wins, the cancelled sibling's own error is dropped,
+        // and the sibling was not waited for beyond its cancellation.
+        assert_eq!(result.unwrap_err().to_string(), "first failure");
+        assert_eq!(*recorded.lock().unwrap(), ["cancelled"]);
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn join_jobs_aborts_siblings_that_ignore_cancellation() {
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        set.spawn(async { Err(eyre::eyre!("first failure")) });
+        set.spawn(async {
+            std::future::pending::<()>().await;
+            Ok(())
+        });
+        let result = join_jobs(set, Duration::from_millis(50), |_| Some(async {})).await;
+        assert_eq!(result.unwrap_err().to_string(), "first failure");
+    }
+
+    #[tokio::test]
+    async fn join_jobs_returns_every_result_when_all_succeed() {
+        let mut set = tokio::task::JoinSet::new();
+        for n in 0..3 {
+            set.spawn(async move { Ok(n) });
+        }
+        let mut done = join_jobs(set, GRACE, |_| None::<std::future::Ready<()>>)
+            .await
+            .unwrap();
+        done.sort();
+        assert_eq!(done, [0, 1, 2]);
     }
 }

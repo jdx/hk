@@ -55,6 +55,17 @@ impl StepGroupContext {
     }
 }
 
+/// Stop everything that is running after a fail-fast failure.
+///
+/// Remaining steps are marked before their commands are cancelled so a woken
+/// runner cannot record cancellation as a command failure.
+pub(crate) async fn abort_running_steps(hook_ctx: &HookContext) {
+    for step_ctx in hook_ctx.step_contexts.lock().unwrap().values() {
+        step_ctx.status_aborted();
+    }
+    crate::step::cancel_running_steps(&hook_ctx.failed).await;
+}
+
 impl StepGroup {
     pub fn init(&mut self, name: &str) -> Result<()> {
         self.name = Some(name.to_string());
@@ -187,7 +198,10 @@ impl StepGroup {
                 let step_ctx = step_ctx.clone();
                 let hook_ctx = ctx.hook_ctx.clone();
                 async move {
-                    let result = step.clone().run_all_jobs(step_ctx.clone(), semaphore).await;
+                    let result = step
+                        .clone()
+                        .run_all_jobs(step_ctx.clone(), semaphore, fail_fast)
+                        .await;
                     let failure_allowed = match match &result {
                         Err(err) if crate::error::is_command_failure(err) => {
                             step.failure_is_allowed(&hook_ctx.expr_ctx())
@@ -232,12 +246,7 @@ impl StepGroup {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
                     if ctx.fail_fast {
-                        // Mark remaining steps before cancelling their commands so a
-                        // woken runner cannot record cancellation as a command failure.
-                        for step_ctx in ctx.hook_ctx.step_contexts.lock().unwrap().values() {
-                            step_ctx.status_aborted();
-                        }
-                        crate::step::cancel_running_steps(&ctx.hook_ctx.failed).await;
+                        abort_running_steps(&ctx.hook_ctx).await;
                         return Err(err);
                     } else if result.is_ok() {
                         result = Err(err);
