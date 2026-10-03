@@ -9,6 +9,67 @@ teardown() {
     _common_teardown
 }
 
+@test "HK_QUIET suppresses successful output" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["a"] { check = "echo check-success" } } } }
+EOF
+    git add hk.pkl
+    run env HK_QUIET=true hk check
+    assert_success
+    assert_output ""
+}
+
+@test "HK_QUIET preserves failed step diagnostics and output file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["a"] { check = "echo check-diagnostic && exit 1" } } } }
+EOF
+    git add hk.pkl
+    run env HK_QUIET=1 HK_OUTPUT_FILE="$PWD/output.log" hk check
+    assert_failure
+    assert_output --partial "check-diagnostic"
+    assert_file_contains output.log "check-diagnostic"
+}
+
+@test "HK_QUIET works with CLI output flags" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["a"] { check = "echo check-success" } } } }
+EOF
+    git add hk.pkl
+    run env HK_QUIET=0 hk check
+    assert_success
+    assert_output --partial "check-success"
+
+    run env HK_QUIET=0 hk check --quiet
+    assert_success
+    assert_output ""
+
+    run env HK_QUIET=1 hk check --verbose
+    assert_success
+    assert_output ""
+
+    run env HK_QUIET=1 hk check --silent
+    assert_success
+    assert_output ""
+}
+
+@test "git hooks inherit HK_QUIET" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["pre-commit"] { steps { ["a"] { check = "echo hook-success; touch hook-ran" } } } }
+EOF
+    run env HK_QUIET=1 hk install
+    assert_success
+    assert_output ""
+    git add hk.pkl
+    run env HK_QUIET=1 git commit -m "test hook"
+    assert_success
+    assert_file_exist hook-ran
+    refute_output --partial "hook-success"
+}
+
 @test "install --quiet suppresses output" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
