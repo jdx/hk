@@ -65,6 +65,50 @@ fn index_has_intent_to_add(repo: &git2::Repository) -> bool {
     })
 }
 
+/// Files in the git directory that record an operation in progress and that a
+/// hard reset deletes. They live in the worktree's own git directory, which
+/// `git rev-parse --git-path` finds.
+const OPERATION_STATE_FILES: [&str; 7] = [
+    "MERGE_HEAD",
+    "MERGE_MSG",
+    "MERGE_MODE",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "SQUASH_MSG",
+    "AUTO_MERGE",
+];
+
+/// The contents of the files in [`OPERATION_STATE_FILES`] that exist.
+fn snapshot_operation_state() -> Vec<(PathBuf, Vec<u8>)> {
+    OPERATION_STATE_FILES
+        .iter()
+        .filter_map(|name| {
+            let path = git_cmd_silent(["rev-parse", "--git-path", name])
+                .read()
+                .ok()
+                .map(|path| PathBuf::from(path.trim_end_matches('\n')))?;
+            let contents = std::fs::read(&path).ok()?;
+            Some((path, contents))
+        })
+        .collect()
+}
+
+/// Writes back the files of [`snapshot_operation_state`] that are now missing.
+fn restore_operation_state(state: Vec<(PathBuf, Vec<u8>)>) {
+    for (path, contents) in state {
+        if path.exists() {
+            continue;
+        }
+        match std::fs::write(&path, contents) {
+            Ok(()) => debug!("restored {}, which the stash deleted", path.display()),
+            Err(err) => warn!(
+                "failed to restore {}, which the stash deleted: {err:?}",
+                path.display()
+            ),
+        }
+    }
+}
+
 fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
     const LOCK_RETRY_DELAYS: [Duration; 5] = [
         Duration::from_millis(25),
@@ -1536,7 +1580,22 @@ impl Git {
 
     // removed patch-file custom path for now
 
+    /// Stashes the unstaged changes, leaving the state of a merge,
+    /// cherry-pick, revert or squash in progress as it was. `git stash push`
+    /// without a pathspec resets the worktree, which deletes those files and
+    /// turns the commit that finishes the operation into a plain one.
     fn push_stash(
+        &mut self,
+        paths: Option<&[PathBuf]>,
+        status: &GitStatus,
+    ) -> Result<Option<StashType>> {
+        let state = snapshot_operation_state();
+        let result = self.push_stash_inner(paths, status);
+        restore_operation_state(state);
+        result
+    }
+
+    fn push_stash_inner(
         &mut self,
         paths: Option<&[PathBuf]>,
         status: &GitStatus,
@@ -1559,7 +1618,7 @@ impl Git {
             if *env::HK_STASH_UNTRACKED {
                 // No tracked files to stash, but we want to stash all untracked files
                 // So do a full stash with --include-untracked (no pathspecs)
-                return self.push_stash(None, status);
+                return self.push_stash_inner(None, status);
             } else {
                 return Ok(None);
             }
