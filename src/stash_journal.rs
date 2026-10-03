@@ -217,14 +217,26 @@ pub struct StashRow {
     pub subject: String,
 }
 
-/// Whether a stash subject is one hk gives its entries: `hk`, or what git
-/// prefixes it with (`On main: hk`), or the intent-to-add entry's.
-fn is_hk_subject(subject: &str) -> bool {
+/// The text after `: ` or at the start of a stash subject, which git writes as
+/// `On <branch>: <message>`.
+fn stash_message(subject: &str) -> &str {
+    subject
+        .split_once(": ")
+        .map(|(_, rest)| rest)
+        .filter(|rest| rest.starts_with("hk: "))
+        .unwrap_or(subject)
+}
+
+/// The pid in the message hk gives its stash entries, `hk: <pid>-<nanos>-<n>`.
+fn message_pid(subject: &str) -> Option<u32> {
+    let rest = stash_message(subject).strip_prefix("hk: ")?;
+    rest.split('-').next()?.parse().ok()
+}
+
+/// Whether a stash subject is the intent-to-add entry's, which has no pid.
+fn is_intent_to_add(subject: &str) -> bool {
     const INTENT_TO_ADD: &str = "hk: intent-to-add files";
-    subject == "hk"
-        || subject.ends_with(": hk")
-        || subject == INTENT_TO_ADD
-        || subject.ends_with(&format!(": {INTENT_TO_ADD}"))
+    stash_message(subject) == INTENT_TO_ADD
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -266,7 +278,9 @@ pub fn decide(journal: &Journal, stash: &[StashRow], worktree_clean: bool) -> Ac
     let unrecorded: Vec<String> = stash
         .iter()
         .filter(|row| {
-            is_hk_subject(&row.subject)
+            (message_pid(&row.subject) == Some(journal.pid)
+                || (is_intent_to_add(&row.subject)
+                    && !journal.stashes_before.contains(&row.commit)))
                 && !journal.stashes_before.contains(&row.commit)
                 && !journal.entries.iter().any(|e| e.commit == row.commit)
         })
@@ -535,7 +549,7 @@ mod tests {
     fn recorded_entry_restores_when_clean() {
         let mut j = journal();
         j.entries.push(entry("new"));
-        let stash = [row("new", "On main: hk"), row("old", "x")];
+        let stash = [row("new", "On main: hk: 4242-9-0"), row("old", "x")];
         assert_eq!(
             decide(&j, &stash, true),
             Action::Restore(vec![entry("new")])
@@ -546,7 +560,7 @@ mod tests {
     fn recorded_entry_is_reported_when_worktree_is_dirty() {
         let mut j = journal();
         j.entries.push(entry("new"));
-        let stash = [row("new", "On main: hk")];
+        let stash = [row("new", "On main: hk: 4242-9-0")];
         assert_eq!(
             decide(&j, &stash, false),
             Action::Report {
@@ -566,7 +580,12 @@ mod tests {
     #[test]
     fn unrecorded_hk_entry_is_reported_never_restored() {
         // hk died between creating its entry and recording it
-        let stash = [row("new", "On main: hk"), row("old", "On main: hk")];
+        let stash = [
+            row("new", "On main: hk: 4242-1a2b-0"),
+            // Another process's entry, and one that predates the journal
+            row("other", "On main: hk: 777-1a2b-0"),
+            row("old", "On main: hk: 4242-1a2b-1"),
+        ];
         assert_eq!(
             decide(&journal(), &stash, true),
             Action::Report {
@@ -577,7 +596,10 @@ mod tests {
         // Also next to a recorded one
         let mut j = journal();
         j.entries.push(entry("a"));
-        let stash = [row("a", "hk"), row("b", "hk: intent-to-add files")];
+        let stash = [
+            row("a", "On main: hk: 4242-9-0"),
+            row("b", "On main: hk: intent-to-add files"),
+        ];
         assert_eq!(
             decide(&j, &stash, true),
             Action::Report {
@@ -585,6 +607,17 @@ mod tests {
                 commits: vec!["a".into(), "b".into()]
             }
         );
+    }
+
+    #[test]
+    fn message_pid_reads_hks_per_run_message() {
+        assert_eq!(message_pid("On main: hk: 4242-1f-3"), Some(4242));
+        assert_eq!(message_pid("hk: 4242-1f-3"), Some(4242));
+        assert_eq!(message_pid("WIP on main: hk: 7-1f-3"), Some(7));
+        assert_eq!(message_pid("On main: hk"), None);
+        assert_eq!(message_pid("On main: fix hk: 12-1-1"), None);
+        assert!(is_intent_to_add("On main: hk: intent-to-add files"));
+        assert!(!is_intent_to_add("On main: hk: 4242-1f-3"));
     }
 
     #[test]

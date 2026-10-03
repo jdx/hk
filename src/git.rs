@@ -2267,7 +2267,7 @@ impl Git {
             let journal = stash_journal::Journal::new(
                 &self.hook_name,
                 &std::env::current_dir()?,
-                stash_commit_ids(),
+                stash_entries()?.into_iter().map(|e| e.commit).collect(),
             );
             stash_journal::OwnedJournal::begin(path, journal)
         })();
@@ -2336,7 +2336,7 @@ impl Git {
             );
             return Ok(());
         }
-        let stash: Vec<stash_journal::StashRow> = stash_entries()
+        let stash: Vec<stash_journal::StashRow> = stash_entries()?
             .into_iter()
             .map(|e| stash_journal::StashRow {
                 commit: e.commit,
