@@ -7,7 +7,7 @@ import "../Config.pkl"
   project_indicators {
     new { file = ".pylintrc" }
     new { file = "pylintrc" }
-    new { file = "pyproject.toml"; contains = "[tool.pylint" }
+    new { file = "pyproject.toml"; contains_regex = #"^\[tool\.pylint[\].]"# }
   }
 }
 pylint = new Config.Step {

@@ -6,8 +6,6 @@ import "../Config.pkl"
   description = "Justfile formatter"
   project_indicators {
     new { file = "justfile" }
-    new { file = "Justfile" }
-    new { file = ".justfile" }
   }
 }
 just_format = new Config.Step {

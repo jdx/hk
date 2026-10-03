@@ -144,6 +144,21 @@ fn matches_root_indicator(
             }
             return None;
         }
+        if let Some(pattern) = indicator.contains_regex {
+            let regex = match regex::RegexBuilder::new(pattern).multi_line(true).build() {
+                Ok(regex) => regex,
+                Err(error) => {
+                    warn!("Invalid project indicator regex {pattern:?}: {error}");
+                    return None;
+                }
+            };
+            if path.is_file()
+                && std::fs::read_to_string(&path).is_ok_and(|content| regex.is_match(&content))
+            {
+                return Some(format!("{} matches {}", file, pattern));
+            }
+            return None;
+        }
         return Some(file.to_string());
     }
     let pattern = indicator.glob?;
@@ -485,6 +500,43 @@ mod tests {
         }
         let xo = r#"{"devDependencies": {"xo": "1"}}"#;
         assert!(detected_names(&[("package.json", xo)]).contains(&"xo"));
+    }
+
+    #[test]
+    fn test_detect_regex_indicators_ignore_look_alikes() {
+        let names = detected_names(&[(
+            "pyproject.toml",
+            "[tool.typos]\n[tool.tyro]\n[tool.pylintish]\n[tool.isortx]\n",
+        )]);
+        for builtin in ["ty", "pylint", "isort"] {
+            assert!(
+                !names.contains(&builtin),
+                "{builtin} should not be detected"
+            );
+        }
+        for table in ["[tool.ty]", "[tool.ty.rules]"] {
+            assert!(detected_names(&[("pyproject.toml", table)]).contains(&"ty"));
+        }
+        assert!(detected_names(&[("pyproject.toml", "[tool.pylint.main]")]).contains(&"pylint"));
+        assert!(detected_names(&[("pyproject.toml", "[tool.isort]")]).contains(&"isort"));
+    }
+
+    #[test]
+    fn test_detect_gemfile_requires_active_declaration() {
+        let commented = "# gem \"brakeman\"\n  # gem 'bundler-audit'\n";
+        let names = detected_names(&[("Gemfile", commented)]);
+        assert!(!names.contains(&"brakeman"));
+        assert!(!names.contains(&"bundle_audit"));
+        let active = "gem \"brakeman\", require: false\n  gem('bundler-audit')\n";
+        let names = detected_names(&[("Gemfile", active)]);
+        assert!(names.contains(&"brakeman"));
+        assert!(names.contains(&"bundle_audit"));
+    }
+
+    #[test]
+    fn test_detect_justfile_names_match_the_step_glob() {
+        assert!(detected_names(&[("justfile", "")]).contains(&"just_format"));
+        assert!(!detected_names(&[(".justfile", "")]).contains(&"just_format"));
     }
 
     #[test]

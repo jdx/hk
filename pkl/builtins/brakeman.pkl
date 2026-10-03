@@ -6,7 +6,7 @@ import "../Config.pkl"
   description = "Security scanner for Rails"
   project_indicators {
     new { file = "config/brakeman.yml" }
-    new { file = "Gemfile"; contains = "brakeman" }
+    new { file = "Gemfile"; contains_regex = #"^\s*gem\s*\(?\s*["']brakeman["']"# }
   }
 }
 brakeman = new Config.Step {

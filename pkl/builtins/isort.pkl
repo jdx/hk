@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Python import sorter"
   project_indicators {
     new { file = ".isort.cfg" }
-    new { file = "pyproject.toml"; contains = "[tool.isort]" }
+    new { file = "pyproject.toml"; contains_regex = #"^\[tool\.isort[\].]"# }
   }
 }
 isort = new Config.Step {
