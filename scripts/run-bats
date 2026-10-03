@@ -12,6 +12,13 @@ set -euo pipefail
 
 mode=${1:?usage: run-bats <with-git|without-git> [--filter-tags TAGS] [PATH...]}
 shift
+case "$mode" in
+  with-git | without-git) ;;
+  *)
+    echo "error: unknown mode '$mode' (expected with-git or without-git)" >&2
+    exit 2
+    ;;
+esac
 bats_args=()
 if [ "${1:-}" = "--filter-tags" ]; then
   bats_args+=(--filter-tags "${2:?--filter-tags needs a value}")

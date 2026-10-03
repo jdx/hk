@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #MISE depends=["build", "test:bats:setup"]
 #MISE env = { "HK_LIBGIT2" = "1" }
-#USAGE arg "<test>..." default="test"
 
 set -eu
 

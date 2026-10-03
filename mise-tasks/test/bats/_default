@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #MISE alias="tb"
 #MISE depends=["build", "test:bats:setup"]
-#USAGE arg "<test>..." default="test"
 
 # Runs the bats suite in the three git-backend modes. Needs bats, ripgrep (rg)
 # and GNU parallel on PATH; scripts/run-bats checks for them and fails when a
