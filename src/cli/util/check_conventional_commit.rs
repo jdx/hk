@@ -45,13 +45,28 @@ fn check_conventional_commit(path: &PathBuf, allowed_types: &[String]) -> Result
 }
 
 fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
-    // `git commit --fixup`/`--squash` and `rebase --autosquash` produce commits titled
-    // `fixup! <msg>` / `squash! <msg>` / `amend! <msg>`. These are meant to be squashed
-    // away by `git rebase --autosquash` and never carry a conventional format themselves,
-    // so skip validation for them.
-    if ["fixup! ", "squash! ", "amend! "]
-        .iter()
-        .any(|prefix| title.starts_with(prefix))
+    // Git generates some titles itself. They never follow the conventional format and
+    // are not written by the user, so skip validation for them:
+    //
+    // - `git commit --fixup`/`--squash` and `rebase --autosquash` use `fixup! <msg>`,
+    //   `squash! <msg>` and `amend! <msg>`; they are meant to be squashed away.
+    // - `git merge` uses `Merge branch '<name>'` and `Merge remote-tracking branch '<name>'`;
+    //   GitHub merge commits use `Merge pull request #<n> from <ref>`.
+    // - `git revert` uses `Revert "<original title>"`.
+    //
+    // Each prefix includes its trailing separator so lookalikes such as `Merged stuff`,
+    // `Merge: x` or `Reverted` are still validated.
+    if [
+        "fixup! ",
+        "squash! ",
+        "amend! ",
+        "Merge branch ",
+        "Merge remote-tracking branch ",
+        "Merge pull request ",
+        "Revert \"",
+    ]
+    .iter()
+    .any(|prefix| title.starts_with(prefix))
     {
         return Ok(true);
     }
@@ -268,6 +283,44 @@ mod tests {
 
         let result = check_conventional_commit(&path, &["test".to_string()]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_git_generated_titles_skipped() {
+        for title in [
+            "Merge branch 'main' into feature",
+            "Merge branch 'main' of github.com:jdx/hk",
+            "Merge remote-tracking branch 'origin/main'",
+            "Merge pull request #123 from jdx/feature",
+            "Revert \"feat: add thing\"",
+            "Revert \"Revert \"feat: add thing\"\"",
+        ] {
+            let f = NamedTempFile::new().unwrap();
+            fs::write(f.path(), title).unwrap();
+            let result = check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()]);
+            assert!(result.is_ok(), "{title} should be skipped");
+        }
+    }
+
+    #[test]
+    fn test_git_generated_lookalikes_not_skipped() {
+        for title in [
+            "Merged stuff",
+            "Merge stuff",
+            "Merge branches together",
+            "Merge: something",
+            "Merge pull requests",
+            "merge branch 'main'",
+            "Reverted something",
+            "Revert something",
+            "Revert: something",
+            "revert \"feat: x\"",
+        ] {
+            let f = NamedTempFile::new().unwrap();
+            fs::write(f.path(), title).unwrap();
+            let result = check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()]);
+            assert!(result.is_err(), "{title} should be rejected");
+        }
     }
 
     #[test]
