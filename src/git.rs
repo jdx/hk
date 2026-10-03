@@ -137,6 +137,21 @@ where
     Ok((paths, unnamed))
 }
 
+/// Runs git and splits its NUL-separated output into paths, keeping names
+/// that are not valid UTF-8 as they are. Reading the output as a `String`
+/// would cut it short at such a name or replace its bytes.
+fn git_read_raw_paths<I, S>(args: I) -> Result<Vec<PathBuf>>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    Ok(git_read_bytes(args)?
+        .split(|&b| b == 0)
+        .filter(|name| !name.is_empty())
+        .map(path_from_raw)
+        .collect())
+}
+
 /// A path git printed, which need not be valid UTF-8.
 fn path_from_raw(name: &[u8]) -> PathBuf {
     #[cfg(unix)]
@@ -1125,17 +1140,12 @@ impl Git {
                 })
                 .collect())
         } else {
-            let mut cmd = git_cmd(["ls-files", "-z"]);
+            let mut args = vec![OsString::from("ls-files"), OsString::from("-z")];
             if let Some(pathspec) = pathspec {
-                cmd = cmd.arg("--");
-                cmd = cmd.args(pathspec.iter().filter_map(|p| p.to_str()));
+                args.push(OsString::from("--"));
+                args.extend(pathspec.iter().filter(|p| p.to_str().is_some()).cloned());
             }
-            let output = cmd.read()?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            Ok(git_read_raw_paths(args)?.into_iter().collect())
         }
     }
 
@@ -2759,36 +2769,26 @@ impl Git {
                 None => format!("{from_ref}..{to_ref}"),
             };
 
-            let output = git_read([
+            git_read_raw_paths([
                 "diff",
                 "-z",
                 "--name-only",
                 "--diff-filter=ACMRTUXB",
                 "--end-of-options",
                 range.as_str(),
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         } else {
             // No resolvable base: lint every file at `to_ref`. `ls-tree` is
             // object-format agnostic, unlike a hard-coded empty-tree hash.
             debug!("could not resolve from-ref '{from_ref}'; listing all files at {to_ref}");
-            let output = git_read([
+            git_read_raw_paths([
                 "ls-tree",
                 "-z",
                 "-r",
                 "--name-only",
                 "--end-of-options",
                 to_ref,
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         }
     }
 }

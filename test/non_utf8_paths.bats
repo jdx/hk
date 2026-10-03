@@ -44,6 +44,59 @@ EOF
     done
 }
 
+# Runs `hk <args>` on the backend named by $1, then checks that it warned about
+# the non-UTF-8 names, did not panic, and gave the step exactly the files in $2
+# (newline-separated).
+assert_skips_non_utf8() {
+    local libgit2=$1 expected=$2
+    shift 2
+    rm -f "$BATS_TEST_TMPDIR/files.txt"
+    HK_LIBGIT2=$libgit2 run hk "$@"
+    assert_success
+    assert_output --partial 'WARN  skipped "'
+    assert_output --partial 'because hk cannot handle paths that are not valid UTF-8'
+    refute_output --partial 'panicked'
+    run cat "$BATS_TEST_TMPDIR/files.txt"
+    assert_output "$expected"
+}
+
+@test "non-UTF-8 tracked paths are skipped with a warning however files are selected" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["list"] { glob = List("*.txt"); check = "printf '%s\n' {{files}} > '$BATS_TEST_TMPDIR/files.txt'" }
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ["list"] { glob = List("*.txt"); check = "printf '%s\n' {{files}} > '$BATS_TEST_TMPDIR/files.txt'" }
+    }
+  }
+}
+EOF
+    echo base > base.txt
+    git add base.txt hk.pkl
+    git commit -qm base
+    echo a > a.txt
+    echo tracked > $'tracked\xff.txt'
+    echo later > $'later\xfe.txt'
+    git add a.txt $'tracked\xff.txt' $'later\xfe.txt'
+    git commit -qm "add files"
+
+    for libgit2 in 1 0; do
+        assert_skips_non_utf8 $libgit2 $'a.txt\nbase.txt' check --all
+        assert_skips_non_utf8 $libgit2 $'a.txt\nbase.txt' check --glob '*.txt'
+        assert_skips_non_utf8 $libgit2 a.txt check --from-ref HEAD~1
+        # A from-ref git cannot resolve lists every file at the to-ref
+        assert_skips_non_utf8 $libgit2 $'a.txt\nbase.txt' check --from-ref no-such-ref
+        assert_skips_non_utf8 $libgit2 a.txt check a.txt $'tracked\xff.txt' $'later\xfe.txt'
+        # pre-push receives the pushed range as from and to refs
+        assert_skips_non_utf8 $libgit2 a.txt run pre-push --from-ref HEAD~1 --to-ref HEAD
+    done
+}
+
 @test "stash sets aside non-UTF-8 unstaged and untracked files while steps run" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
