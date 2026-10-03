@@ -123,25 +123,9 @@ impl Step {
             j.skip_reason = Some(SkipReason::NoFilesToProcess);
             return Ok(vec![j]);
         }
-        let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
-            let mut files = files.clone();
-            let groups: Vec<_> = workspace_indicators
-                // Sort the files in reverse so the longest directory can take files in their directories
-                // and then the shortest path will take the rest of them.
-                .sorted_by(|a, b| b.as_os_str().len().cmp(&a.as_os_str().len()))
-                .map(|workspace_indicator| {
-                    let workspace_dir = workspace_indicator.parent();
-                    let remaining = std::mem::take(&mut files);
-                    let (workspace_files, other_files): (Vec<_>, Vec<_>) =
-                        remaining.into_iter().partition(|file| {
-                            workspace_dir
-                                .map(|dir| file.starts_with(dir))
-                                .unwrap_or(true)
-                        });
-                    files = other_files;
-                    (workspace_indicator, workspace_files)
-                })
-                .collect();
+        let mut jobs = if self.workspace_indicator.is_some() {
+            // One group per workspace, each file in its nearest workspace
+            let groups = self.workspace_groups(files);
 
             if self.batch {
                 // Share the job count across workspaces, so the total number of

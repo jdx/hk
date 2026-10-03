@@ -124,8 +124,14 @@ impl Install {
                 warn!(
                     "no hooks configured in hk.pkl — removed {removed} previously-installed hk hook(s) and did not install any new ones"
                 );
+            } else if config.hooks.is_empty() {
+                warn!(
+                    "no hooks configured in hk.pkl — nothing to install. Add steps to hk.pkl first (`hk init --force` re-detects linters)"
+                );
             } else {
-                warn!("no hooks configured in hk.pkl — nothing to install");
+                warn!(
+                    "no installable hooks are enabled in hk.pkl — only `check`/`fix` or disabled hooks are defined, so nothing to install. Enable a hook such as `pre-commit` (see https://hk.jdx.dev/configuration)"
+                );
             }
             return Ok(());
         }
@@ -166,6 +172,32 @@ fn is_hk_shim(content: &str) -> bool {
     content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run")
 }
 
+/// Why `path` must not be written as a legacy hook shim, if it must not.
+/// Fails if an existing hook cannot be read, rather than guessing who wrote it.
+fn legacy_target_problem(path: &Path) -> Result<Option<String>> {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return Ok(None);
+    };
+    if meta.file_type().is_symlink() {
+        return Ok(Some(format!(
+            "{} is a symlink (writing it would modify the file it points to)",
+            path.display()
+        )));
+    }
+    if !meta.is_file() {
+        return Ok(Some(format!("{} is not a regular file", path.display())));
+    }
+    let bytes = std::fs::read(path)
+        .map_err(|err| eyre::eyre!("could not read existing hook {}: {err}", path.display()))?;
+    if !is_hk_shim(&String::from_utf8_lossy(&bytes)) {
+        return Ok(Some(format!(
+            "{} is a hook that hk did not write",
+            path.display()
+        )));
+    }
+    Ok(None)
+}
+
 /// Refuse a legacy install that would overwrite a hook hk did not write, or
 /// write through a symlink, unless `force` is set. Looks at every target
 /// first and reports all problems at once.
@@ -176,27 +208,8 @@ fn check_legacy_targets(events: &[String], force: bool) -> Result<()> {
     let hooks = legacy_hooks_dir(false)?;
     let mut problems = Vec::new();
     for event in events {
-        let path = hooks.join(event);
-        let Ok(meta) = std::fs::symlink_metadata(&path) else {
-            continue;
-        };
-        if meta.file_type().is_symlink() {
-            problems.push(format!(
-                "{} is a symlink (writing it would modify the file it points to)",
-                path.display()
-            ));
-        } else if !meta.is_file() {
-            problems.push(format!("{} is not a regular file", path.display()));
-        } else {
-            let content = std::fs::read(&path)
-                .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
-                .unwrap_or_default();
-            if !is_hk_shim(&content) {
-                problems.push(format!(
-                    "{} is a hook that hk did not write",
-                    path.display()
-                ));
-            }
+        if let Some(problem) = legacy_target_problem(&hooks.join(event))? {
+            problems.push(problem);
         }
     }
     if problems.is_empty() {
@@ -436,23 +449,22 @@ fn install_local_shims(events: &[String], command: &OsStr, force: bool) -> Resul
     let hooks = legacy_hooks_dir(true)?;
     for event in events {
         let hook_file = hooks.join(event);
-        // Never write through a symlink, even if one appeared since the check.
-        if let Ok(meta) = std::fs::symlink_metadata(&hook_file)
-            && meta.file_type().is_symlink()
-        {
-            if !force {
-                bail!(
-                    "{} is a symlink; pass `--force` to replace it",
-                    hook_file.display()
-                );
-            }
-            xx::file::remove_file(&hook_file)?;
+        // Another process can change the hook after the up-front check, so
+        // look again right before writing.
+        if !force && let Some(problem) = legacy_target_problem(&hook_file)? {
+            bail!("{problem}; pass `--force` to replace it");
         }
-        xx::file::write(
-            &hook_file,
-            git_hook_content(&command.to_string_lossy(), event),
-        )?;
-        xx::file::make_executable(&hook_file)?;
+        // Write a new file and rename it over the hook. A rename replaces a
+        // symlink (even a dangling one) instead of following it, so the
+        // link's target is never written.
+        let temp = hooks.join(format!(".{event}.hk-install-{}", std::process::id()));
+        let _ = std::fs::remove_file(&temp);
+        xx::file::write(&temp, git_hook_content(&command.to_string_lossy(), event))?;
+        xx::file::make_executable(&temp)?;
+        if let Err(err) = std::fs::rename(&temp, &hook_file) {
+            let _ = std::fs::remove_file(&temp);
+            return Err(err.into());
+        }
         info!("Installed hk hook: {}", hook_file.display());
     }
     Ok(())

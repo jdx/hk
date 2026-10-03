@@ -101,3 +101,15 @@ teardown() {
     assert_output --partial "echo tracked"
     refute_output --partial "hk run"
 }
+
+@test "legacy install --force replaces a dangling symlink without creating its target" {
+    mkdir scripts
+    ln -s ../../scripts/missing.sh .git/hooks/pre-commit
+
+    run hk install --legacy --force
+    assert_success
+    [ ! -L .git/hooks/pre-commit ]
+    assert_file_not_exists scripts/missing.sh
+    run cat .git/hooks/pre-commit
+    assert_output --partial "hk run pre-commit"
+}

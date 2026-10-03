@@ -545,7 +545,7 @@ cmd util help="Utility commands for file operations" effect=read subcommand_requ
         long_help #"""
 Check that a commit message follows the Conventional Commits format
 
-Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.
+Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation, as do titles git generates itself: `Merge branch '`, `Merge branches '`, `Merge tag '`, `Merge tags '`, `Merge commit '`, `Merge remote-tracking branch '`, `Merge remote-tracking branches '`, `Merge pull request `, and `Revert "`.
 """#
         flag --allowed-types help="Comma-separated list of commit types to accept" var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test delimiter=, {
             arg <ALLOWED_TYPES>

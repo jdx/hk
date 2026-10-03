@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Go static analysis"
+  project_indicators {
+    new { file = "staticcheck.conf" }
+  }
 }
 staticcheck = new Config.Step {
   glob = "**/*.go"
