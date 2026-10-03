@@ -49,6 +49,7 @@ pub static HK_TIMING_JSON: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path
 
 pub static HK_LIBGIT2: LazyLock<bool> = LazyLock::new(|| !var_false("HK_LIBGIT2"));
 pub static HK_HIDE_WHEN_DONE: LazyLock<bool> = LazyLock::new(|| var_true("HK_HIDE_WHEN_DONE"));
+pub static HK_SILENT: LazyLock<bool> = LazyLock::new(|| var_true("HK_SILENT"));
 pub static HK_CHECK_FIRST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_CHECK_FIRST"));
 pub static HK_STASH: LazyLock<Option<StashMethod>> = LazyLock::new(|| {
     if var_false("HK_STASH") {
