@@ -227,18 +227,19 @@ enum RunScope {
     /// Every tracked file plus untracked files that are not ignored (`hk --all`).
     #[default]
     All,
-    /// Staged, unstaged, and untracked files: everything that differs from HEAD (no selection flag).
+    /// Staged, unstaged, and untracked files: everything that differs from HEAD (`hk --stash none`, so a configured stash method cannot narrow it to staged files).
     Changed,
     /// Unstaged and untracked files only, excluding staged files (`hk --unstaged`).
     Unstaged,
 }
 
 impl RunScope {
-    fn flag(self) -> Option<&'static str> {
+    fn args(self) -> &'static [&'static str] {
         match self {
-            Self::All => Some("--all"),
-            Self::Changed => None,
-            Self::Unstaged => Some("--unstaged"),
+            Self::All => &["--all"],
+            // With stashing off, hk's default selection is staged + unstaged + untracked.
+            Self::Changed => &["--stash", "none"],
+            Self::Unstaged => &["--unstaged"],
         }
     }
 }
@@ -434,9 +435,7 @@ impl HkMcpServer {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
-        if let Some(flag) = scope.flag() {
-            command.arg(flag);
-        }
+        command.args(scope.args());
         if kind.safe() {
             command.arg("--safe");
         }
@@ -1724,15 +1723,15 @@ mod tests {
     fn scope_defaults_to_all_and_maps_to_cli_flags() {
         let request: StartRequest = serde_json::from_value(serde_json::json!({})).unwrap();
         assert_eq!(request.scope, RunScope::All);
-        assert_eq!(request.scope.flag(), Some("--all"));
-        for (value, flag) in [
-            ("all", Some("--all")),
-            ("changed", None),
-            ("unstaged", Some("--unstaged")),
+        assert_eq!(request.scope.args(), ["--all"]);
+        for (value, args) in [
+            ("all", &["--all"][..]),
+            ("changed", &["--stash", "none"][..]),
+            ("unstaged", &["--unstaged"][..]),
         ] {
             let request: StartRequest =
                 serde_json::from_value(serde_json::json!({ "scope": value })).unwrap();
-            assert_eq!(request.scope.flag(), flag, "{value}");
+            assert_eq!(request.scope.args(), args, "{value}");
         }
     }
 
