@@ -99,3 +99,30 @@ HK
     assert_failure
     assert_output --partial "script.sh"
 }
+
+@test "util check-shebang-scripts-are-executable - uses the index mode for tracked files" {
+    printf '#!/bin/bash\necho hello\n' > script.sh
+    chmod +x script.sh
+    git add script.sh
+    git update-index --chmod=-x script.sh
+
+    run hk util check-shebang-scripts-are-executable script.sh
+    assert_failure
+    assert_output --partial "script.sh"
+}
+
+@test "util check-shebang-scripts-are-executable - works with core.fileMode=false" {
+    printf '#!/bin/bash\necho hello\n' > script.sh
+    git add script.sh
+    git config core.fileMode false
+    chmod +x script.sh
+
+    run hk util check-shebang-scripts-are-executable script.sh
+    assert_failure
+    assert_output --partial "script.sh"
+
+    git update-index --chmod=+x script.sh
+    chmod 644 script.sh
+    run hk util check-shebang-scripts-are-executable script.sh
+    assert_success
+}

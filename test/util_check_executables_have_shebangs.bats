@@ -87,3 +87,37 @@ HK
     assert_failure
     assert_output --partial "test.sh"
 }
+
+@test "util check-executables-have-shebangs - uses the index mode for tracked files" {
+    echo "echo hello" > script.sh
+    git add script.sh
+    git update-index --chmod=+x script.sh
+    chmod 644 script.sh
+
+    run hk util check-executables-have-shebangs script.sh
+    assert_failure
+    assert_output --partial "script.sh"
+}
+
+@test "util check-executables-have-shebangs - works with core.fileMode=false" {
+    echo "echo hello" > script.sh
+    git add script.sh
+    git update-index --chmod=+x script.sh
+    git config core.fileMode false
+    chmod 644 script.sh
+
+    run hk util check-executables-have-shebangs script.sh
+    assert_failure
+    assert_output --partial "script.sh"
+}
+
+@test "util check-executables-have-shebangs - ignores worktree exec bit when core.fileMode=false" {
+    echo "echo hello" > script.sh
+    git add script.sh
+    git config core.fileMode false
+    chmod +x script.sh
+
+    run hk util check-executables-have-shebangs script.sh
+    assert_success
+    refute_output
+}

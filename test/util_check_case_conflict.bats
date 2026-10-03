@@ -168,3 +168,18 @@ HK
     assert_output --partial "README.md"
     assert_output --partial "readme.md"
 }
+
+@test "util check-case-conflict - detects directory-level conflicts" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
+    mkdir Foo foo
+    echo "a" > Foo/a.txt
+    echo "b" > foo/b.txt
+
+    run hk util check-case-conflict Foo/a.txt foo/b.txt
+    assert_failure
+    assert_output --partial "Foo"
+    assert_output --partial "foo"
+}
