@@ -4,6 +4,14 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "Astro component checker"
+  project_indicators {
+    new { file = "astro.config.mjs" }
+    new { file = "astro.config.ts" }
+    new { file = "astro.config.js" }
+    new { file = "astro.config.cjs" }
+    new { file = "astro.config.mts" }
+    new { file = "package.json"; contains = "\"astro\"" }
+  }
 }
 astro = new Config.Step {
   glob = "**/*.astro"

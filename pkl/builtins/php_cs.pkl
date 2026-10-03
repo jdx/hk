@@ -4,6 +4,12 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "PHP"
   description = "PHP coding standards"
+  project_indicators {
+    new { file = "phpcs.xml" }
+    new { file = "phpcs.xml.dist" }
+    new { file = ".phpcs.xml" }
+    new { file = ".phpcs.xml.dist" }
+  }
 }
 php_cs = new Config.Step {
   glob = "**/*.php"

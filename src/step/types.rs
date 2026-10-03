@@ -666,6 +666,43 @@ impl<'a> CheckFirstCmd<'a> {
     }
 }
 
+impl Step {
+    /// Whether this step runs its check before its fix: when it sets
+    /// `check_first` (and another step writes the same files), and always when
+    /// its `check` and `fix` are the same command.
+    pub fn check_first(&self) -> bool {
+        self.check_first || self.check_is_fix()
+    }
+
+    /// Whether `check` and `fix` are the same command, as `hk migrate
+    /// pre-commit` writes pre-commit fixers. Such a fixer exits 1 after
+    /// fixing, and running it again is what lets it pass, so it always checks
+    /// first, whether or not another step writes the same files.
+    pub fn check_is_fix(&self) -> bool {
+        matches!((&self.check, &self.fix),
+            (Some(check), Some(fix)) if check.without_effect() == fix.without_effect())
+    }
+
+    /// Whether fix mode applies `check_diff` output instead of running `fix`.
+    /// A step without `fix` has no other way to fix files.
+    pub fn applies_check_diff(&self) -> bool {
+        self.check_diff.is_some() && (self.apply_check_diff != Some(false) || self.fix.is_none())
+    }
+
+    /// Whether fix mode can run `check_diff` under read locks and take write
+    /// locks only on the files its patch names, to apply it. That needs a
+    /// command declared read-only (`effect = "read"`); any other command could
+    /// change files while other steps read them.
+    pub fn diffs_under_read_locks(&self) -> bool {
+        self.applies_check_diff()
+            && !self.stomp
+            && matches!(
+                self.check_first_cmd(),
+                Some(CheckFirstCmd::Diff(command)) if command.effect() == Some(CommandEffect::Read)
+            )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -901,42 +938,5 @@ mod tests {
 
         assert_eq!(script.to_string(), "");
         assert!(script.to_string().trim().is_empty());
-    }
-}
-
-impl Step {
-    /// Whether this step runs its check before its fix: when it sets
-    /// `check_first` (and another step writes the same files), and always when
-    /// its `check` and `fix` are the same command.
-    pub fn check_first(&self) -> bool {
-        self.check_first || self.check_is_fix()
-    }
-
-    /// Whether `check` and `fix` are the same command, as `hk migrate
-    /// pre-commit` writes pre-commit fixers. Such a fixer exits 1 after
-    /// fixing, and running it again is what lets it pass, so it always checks
-    /// first, whether or not another step writes the same files.
-    pub fn check_is_fix(&self) -> bool {
-        matches!((&self.check, &self.fix),
-            (Some(check), Some(fix)) if check.without_effect() == fix.without_effect())
-    }
-
-    /// Whether fix mode applies `check_diff` output instead of running `fix`.
-    /// A step without `fix` has no other way to fix files.
-    pub fn applies_check_diff(&self) -> bool {
-        self.check_diff.is_some() && (self.apply_check_diff != Some(false) || self.fix.is_none())
-    }
-
-    /// Whether fix mode can run `check_diff` under read locks and take write
-    /// locks only on the files its patch names, to apply it. That needs a
-    /// command declared read-only (`effect = "read"`); any other command could
-    /// change files while other steps read them.
-    pub fn diffs_under_read_locks(&self) -> bool {
-        self.applies_check_diff()
-            && !self.stomp
-            && matches!(
-                self.check_first_cmd(),
-                Some(CheckFirstCmd::Diff(command)) if command.effect() == Some(CommandEffect::Read)
-            )
     }
 }
