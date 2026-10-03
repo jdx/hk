@@ -97,6 +97,31 @@ EOF
     done
 }
 
+@test "a non-UTF-8 path that status and file selection both skip is warned about once" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["list"] { glob = List("*.txt"); check = "true" }
+    }
+  }
+}
+EOF
+    echo a > a.txt
+    echo tracked > $'tracked\xff.txt'
+    git add -A
+    git commit -qm init
+    # An unstaged change makes the status read skip it too
+    echo more >> $'tracked\xff.txt'
+
+    for libgit2 in 1 0; do
+        HK_LIBGIT2=$libgit2 run hk check --all
+        assert_success
+        assert_equal "$(echo "$output" | grep -c 'cannot handle paths that are not valid UTF-8')" 1
+    done
+}
+
 @test "stash sets aside non-UTF-8 unstaged and untracked files while steps run" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

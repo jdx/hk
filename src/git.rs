@@ -3396,10 +3396,31 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
 /// Warns that a status read left out `skipped`, so that files hk does not
 /// check are not left out silently.
 fn warn_skipped_paths(skipped: &SkippedPaths) {
-    if !skipped.names.is_empty() {
+    warn_non_utf8_paths(
+        skipped
+            .names
+            .iter()
+            .map(|name| (name.clone(), format!("{name:?}"))),
+    );
+}
+
+/// Warns that hk skipped paths that are not valid UTF-8, once per path for the
+/// whole run: a status read and the file selection can both come across the
+/// same file. Each path is a lossy name that identifies it, and how to show it.
+pub(crate) fn warn_non_utf8_paths(paths: impl IntoIterator<Item = (String, String)>) {
+    static WARNED: std::sync::Mutex<BTreeSet<String>> = std::sync::Mutex::new(BTreeSet::new());
+    let shown = {
+        let mut warned = WARNED.lock().unwrap();
+        paths
+            .into_iter()
+            .filter(|(name, _)| warned.insert(name.clone()))
+            .map(|(_, shown)| shown)
+            .collect_vec()
+    };
+    if !shown.is_empty() {
         warn!(
             "skipped {} because hk cannot handle paths that are not valid UTF-8",
-            skipped.names.iter().map(|p| format!("{p:?}")).join(", ")
+            shown.join(", ")
         );
     }
 }

@@ -1672,9 +1672,10 @@ impl Hook {
         // name is not valid UTF-8, whichever way it was named or listed.
         let non_utf8 = files.iter().filter(|f| f.to_str().is_none()).collect_vec();
         if !non_utf8.is_empty() {
-            warn!(
-                "skipped {} because hk cannot handle paths that are not valid UTF-8",
-                non_utf8.iter().map(|p| format!("{p:?}")).join(", ")
+            crate::git::warn_non_utf8_paths(
+                non_utf8
+                    .iter()
+                    .map(|p| (p.to_string_lossy().into_owned(), format!("{p:?}"))),
             );
             files.retain(|f| f.to_str().is_some());
         }
