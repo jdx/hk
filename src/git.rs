@@ -65,6 +65,104 @@ fn index_has_intent_to_add(repo: &git2::Repository) -> bool {
     })
 }
 
+/// Files in the git directory that record an operation in progress and that a
+/// hard reset deletes. They live in the worktree's own git directory, which
+/// `git rev-parse --git-path` finds.
+const OPERATION_STATE_FILES: [&str; 7] = [
+    "MERGE_HEAD",
+    "MERGE_MSG",
+    "MERGE_MODE",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "SQUASH_MSG",
+    "AUTO_MERGE",
+];
+
+/// The directory with the todo list of a multi-commit cherry-pick or revert,
+/// which holds files such as `todo`, `head` and `opts`.
+const SEQUENCER_DIR: &str = "sequencer";
+
+/// The files that record an operation in progress, with their contents.
+type OperationState = Vec<(PathBuf, Vec<u8>)>;
+
+fn git_path(name: &str) -> Result<PathBuf> {
+    let path = git_read(["rev-parse", "--git-path", name])
+        .wrap_err_with(|| format!("failed to find {name} in the git directory"))?;
+    Ok(PathBuf::from(path.trim_end_matches('\n')))
+}
+
+/// Reads the files under `dir`, which may be missing.
+fn read_state_dir(dir: &std::path::Path, state: &mut OperationState) -> Result<()> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err).wrap_err_with(|| format!("failed to read {}", dir.display())),
+    };
+    for entry in entries {
+        let path = entry?.path();
+        if path.is_dir() {
+            read_state_dir(&path, state)?;
+        } else {
+            let contents = std::fs::read(&path)
+                .wrap_err_with(|| format!("failed to read {}", path.display()))?;
+            state.push((path, contents));
+        }
+    }
+    Ok(())
+}
+
+/// The contents of the files in [`OPERATION_STATE_FILES`] and the sequencer
+/// directory that exist. A file that exists but cannot be read is an error,
+/// because stashing could then lose it.
+fn snapshot_operation_state() -> Result<OperationState> {
+    let mut state = Vec::new();
+    for name in OPERATION_STATE_FILES {
+        let path = git_path(name)?;
+        match std::fs::read(&path) {
+            Ok(contents) => state.push((path, contents)),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(err).wrap_err_with(|| {
+                    format!(
+                        "failed to read {}, which the stash could delete",
+                        path.display()
+                    )
+                });
+            }
+        }
+    }
+    read_state_dir(&git_path(SEQUENCER_DIR)?, &mut state)?;
+    Ok(state)
+}
+
+/// Writes back the files of [`snapshot_operation_state`] that are now missing.
+/// Fails if one cannot be written, since the commit that finishes the
+/// operation would then be a different one.
+fn restore_operation_state(state: OperationState) -> Result<()> {
+    let mut failed = Vec::new();
+    for (path, contents) in state {
+        if path.exists() {
+            continue;
+        }
+        let written = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, contents));
+        match written {
+            Ok(()) => debug!("restored {}, which the stash deleted", path.display()),
+            Err(err) => failed.push(format!("{}: {err}", path.display())),
+        }
+    }
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(eyre!(
+            "failed to restore the state of the operation in progress that the stash deleted: {}",
+            failed.join("; ")
+        ))
+    }
+}
+
 fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
     const LOCK_RETRY_DELAYS: [Duration; 5] = [
         Duration::from_millis(25),
@@ -135,6 +233,21 @@ where
         }
     }
     Ok((paths, unnamed))
+}
+
+/// Runs git and splits its NUL-separated output into paths, keeping names
+/// that are not valid UTF-8 as they are. Reading the output as a `String`
+/// would cut it short at such a name or replace its bytes.
+fn git_read_raw_paths<I, S>(args: I) -> Result<Vec<PathBuf>>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    Ok(git_read_bytes(args)?
+        .split(|&b| b == 0)
+        .filter(|name| !name.is_empty())
+        .map(path_from_raw)
+        .collect())
 }
 
 /// A path git printed, which need not be valid UTF-8.
@@ -980,7 +1093,7 @@ impl Git {
     /// Get the patches directory for this repository
     fn patches_dir(&self) -> Result<PathBuf> {
         let patches_dir = env::HK_STATE_DIR.join("patches");
-        std::fs::create_dir_all(&patches_dir)?;
+        env::create_state_dir_all(&patches_dir)?;
         Ok(patches_dir)
     }
 
@@ -1226,17 +1339,12 @@ impl Git {
                 })
                 .collect())
         } else {
-            let mut cmd = git_cmd(["ls-files", "-z"]);
+            let mut args = vec![OsString::from("ls-files"), OsString::from("-z")];
             if let Some(pathspec) = pathspec {
-                cmd = cmd.arg("--");
-                cmd = cmd.args(pathspec.iter().filter_map(|p| p.to_str()));
+                args.push(OsString::from("--"));
+                args.extend(pathspec.iter().filter(|p| p.to_str().is_some()).cloned());
             }
-            let output = cmd.read()?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            Ok(git_read_raw_paths(args)?.into_iter().collect())
         }
     }
 
@@ -1250,9 +1358,15 @@ impl Git {
     /// threads and skips unchanged directories through the cache tree. With
     /// optional locks allowed, `git status` also writes the refreshed index
     /// back when it can take the lock, as `git update-index --refresh` would.
-    #[tracing::instrument(level = "info", name = "git.status", skip_all)]
     pub fn status(&self) -> Result<GitStatus> {
-        let include_untracked = *env::HK_STASH_UNTRACKED;
+        self.status_with_untracked(*env::HK_STASH_UNTRACKED)
+    }
+
+    /// Like [`Git::status`], but only looks for untracked files when
+    /// `include_untracked` is set, which spares `git status` a walk of the
+    /// whole worktree.
+    #[tracing::instrument(level = "info", name = "git.status", skip_all)]
+    pub fn status_with_untracked(&self, include_untracked: bool) -> Result<GitStatus> {
         let mut args = vec![
             "status",
             "--porcelain=v2",
@@ -1471,13 +1585,17 @@ impl Git {
         job.prop("message", "Fetching unstaged files");
         job.set_status(ProgressStatus::Running);
 
-        // Hardened detection of worktree-only changes (including partially staged files)
+        // `status` already lists every path with changes in the worktree, read
+        // with the index refreshed, so no further `git diff`, `git ls-files` or
+        // `git status` scan is needed to find what to stash.
         let mut files_to_stash: BTreeSet<PathBuf> = BTreeSet::new();
         // Intent-to-add entries whose files exist, which git diffs as added to
         // the worktree
-        let mut intent_to_add: Vec<PathBuf> = vec![];
-        // 1) git diff --name-status (worktree vs index)
-        {
+        let mut intent_to_add: BTreeSet<PathBuf> = status.intent_to_add_files.clone();
+        // A path that is not valid UTF-8 is left out of the status, which only
+        // records that something needs stashing. Intent-to-add files are set
+        // aside whatever their names, so look for those with `git diff`.
+        if status.skipped_unstaged {
             let args: Vec<OsString> = vec![
                 "diff".into(),
                 "--name-status".into(),
@@ -1487,69 +1605,27 @@ impl Git {
                 "--no-ext-diff".into(),
                 "--ignore-submodules".into(),
             ];
-            // Paths that are not valid UTF-8 are left out of the status, which
-            // records that they need stashing. Intent-to-add files are set
-            // aside whatever their names.
             let out = git_read_bytes(args).unwrap_or_default();
-            for (status, name) in out.split(|&b| b == 0).tuples() {
-                if name.is_empty() {
-                    continue;
-                }
-                if status == b"A" {
+            for (kind, name) in out.split(|&b| b == 0).tuples() {
+                if kind == b"A" && !name.is_empty() {
                     let p = path_from_raw(name);
                     if path_exists(&p) {
-                        intent_to_add.push(p);
-                    }
-                }
-                if let Ok(name) = std::str::from_utf8(name) {
-                    let p = PathBuf::from(name);
-                    if p.exists() {
-                        files_to_stash.insert(p);
+                        intent_to_add.insert(p);
                     }
                 }
             }
         }
-        // 2) git ls-files -m (modified in worktree)
-        {
-            let args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
-            let (paths, _) = git_read_paths(args).unwrap_or_default();
-            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
-        }
-        // 3) Parse porcelain to catch nuanced mixed states.
-        // We only look at worktree-side markers (M/T/R), so untracked entries
-        // are irrelevant here. Skip the untracked scan entirely when
-        // HK_STASH_UNTRACKED=false to avoid scanning a huge worktree (see #860).
-        {
-            let untracked_arg = if *env::HK_STASH_UNTRACKED {
-                "--untracked-files=all"
-            } else {
-                "--untracked-files=no"
-            };
-            let args: Vec<OsString> = vec![
-                "status".into(),
-                "--porcelain".into(),
-                "--no-renames".into(),
-                untracked_arg.into(),
-                "-z".into(),
-            ];
-            let out = git_read_bytes(args).unwrap_or_default();
-            for entry in out.split(|&b| b == 0).filter(|s| s.len() > 3) {
-                // worktree side has changes
-                if matches!(entry[1], b'M' | b'T' | b'R')
-                    && let Ok(path) = std::str::from_utf8(&entry[3..])
-                {
-                    let p = PathBuf::from(path);
-                    if p.exists() {
-                        files_to_stash.insert(p);
-                    }
-                }
-            }
-        }
-        // 4) Union with computed status for safety
+        let intent_to_add: Vec<PathBuf> = intent_to_add.into_iter().collect();
+        // `git diff` lists unmerged paths as changed; the status classifies them
+        // separately
+        files_to_stash.extend(status.unmerged_files.iter().cloned());
         for p in status.unstaged_files.iter() {
             files_to_stash.insert(p.clone());
         }
-        // 5) When HK_STASH_UNTRACKED=true, also include untracked files
+        // An empty intent-to-add file counts as staged, not unstaged. Setting
+        // the intent-to-add files aside removes them from the set again.
+        files_to_stash.extend(intent_to_add.iter().cloned());
+        // When HK_STASH_UNTRACKED=true, also include untracked files
         if *env::HK_STASH_UNTRACKED {
             for p in status.untracked_files.iter() {
                 files_to_stash.insert(p.clone());
@@ -1637,7 +1713,30 @@ impl Git {
 
     // removed patch-file custom path for now
 
+    /// Stashes the unstaged changes, leaving the state of a merge,
+    /// cherry-pick, revert or squash in progress as it was. `git stash push`
+    /// without a pathspec resets the worktree, which deletes those files and
+    /// turns the commit that finishes the operation into a plain one.
     fn push_stash(
+        &mut self,
+        paths: Option<&[PathBuf]>,
+        status: &GitStatus,
+    ) -> Result<Option<StashType>> {
+        // Refuse to stash when the state cannot be saved, since the stash
+        // would delete it
+        let state = snapshot_operation_state()?;
+        let result = self.push_stash_inner(paths, status);
+        let restored = restore_operation_state(state);
+        match (result, restored) {
+            (Ok(stash), Ok(())) => Ok(stash),
+            (Err(err), restored) => Err(with_restore_error(err, restored)),
+            (Ok(_), Err(err)) => Err(err.wrap_err(
+                "your unstaged changes are kept in the stash entry hk created (`git stash list`)",
+            )),
+        }
+    }
+
+    fn push_stash_inner(
         &mut self,
         paths: Option<&[PathBuf]>,
         status: &GitStatus,
@@ -1660,7 +1759,7 @@ impl Git {
             if *env::HK_STASH_UNTRACKED {
                 // No tracked files to stash, but we want to stash all untracked files
                 // So do a full stash with --include-untracked (no pathspecs)
-                return self.push_stash(None, status);
+                return self.push_stash_inner(None, status);
             } else {
                 return Ok(None);
             }
@@ -2956,36 +3055,26 @@ impl Git {
                 None => format!("{from_ref}..{to_ref}"),
             };
 
-            let output = git_read([
+            git_read_raw_paths([
                 "diff",
                 "-z",
                 "--name-only",
                 "--diff-filter=ACMRTUXB",
                 "--end-of-options",
                 range.as_str(),
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         } else {
             // No resolvable base: lint every file at `to_ref`. `ls-tree` is
             // object-format agnostic, unlike a hard-coded empty-tree hash.
             debug!("could not resolve from-ref '{from_ref}'; listing all files at {to_ref}");
-            let output = git_read([
+            git_read_raw_paths([
                 "ls-tree",
                 "-z",
                 "-r",
                 "--name-only",
                 "--end-of-options",
                 to_ref,
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         }
     }
 }
@@ -3119,6 +3208,10 @@ pub(crate) struct GitStatus {
     /// libgit2 leave this empty.
     #[serde(skip)]
     pub intent_to_add_files: BTreeSet<PathBuf>,
+    /// Paths with unresolved merge conflicts that exist. Statuses classified
+    /// like libgit2 list them as unstaged as well.
+    #[serde(skip)]
+    pub unmerged_files: BTreeSet<PathBuf>,
 }
 
 impl GitStatus {
@@ -3157,6 +3250,7 @@ impl GitStatus {
         self.unstaged_renamed_files
             .extend(other.unstaged_renamed_files);
         self.intent_to_add_files.extend(other.intent_to_add_files);
+        self.unmerged_files.extend(other.unmerged_files);
     }
 
     /// Classifies entries of `git status --porcelain=v2`.
@@ -3167,10 +3261,14 @@ impl GitStatus {
                 index,
                 worktree,
                 path,
+                unmerged,
                 ..
             } = entry;
             let exists = path_exists(&path);
             let is_modified = |c: u8| matches!(c, b'M' | b'T' | b'A' | b'R' | b'C');
+            if unmerged && exists {
+                status.unmerged_files.insert(path.clone());
+            }
 
             // Only consider staged files that still exist in the worktree to avoid AD cases
             if is_modified(index) && worktree != b'D' && exists {
@@ -3203,8 +3301,9 @@ impl GitStatus {
                 status.untracked_files.insert(path.clone());
             }
             // git reports an intent-to-add file as added to the worktree, or
-            // as the new path of a worktree rename
-            if index == b' ' && matches!(worktree, b'A' | b'R') && exists {
+            // as the new path of a worktree rename. Its index side is `D` when
+            // HEAD has a file at that path.
+            if matches!(index, b' ' | b'D') && matches!(worktree, b'A' | b'R') && exists {
                 status.intent_to_add_files.insert(path.clone());
             }
             // Track modified files only if the path exists
@@ -3244,9 +3343,16 @@ impl GitStatus {
             if entry.unmerged {
                 if exists {
                     status.staged_files.insert(path.clone());
+                    status.unmerged_files.insert(path.clone());
                     status.unstaged_files.insert(path);
                 }
                 continue;
+            }
+            // An intent-to-add file replacing one in HEAD reads as a deleted
+            // index entry, so the arm below, which needs an empty index side,
+            // does not see it
+            if entry.index == b'D' && matches!(entry.worktree, b'A' | b'R') && exists {
+                status.intent_to_add_files.insert(path.clone());
             }
             let (index, worktree) = match (entry.index, entry.worktree) {
                 // libgit2 reports an intent-to-add entry as added to the index
@@ -3482,6 +3588,9 @@ fn libgit2_cannot_read_index(err: &eyre::Report) -> bool {
 struct SkippedPaths {
     /// The paths, shown lossily
     names: Vec<String>,
+    /// The same paths as git printed them, which tell apart names that differ
+    /// only in bytes that are not valid UTF-8
+    raw: Vec<Vec<u8>>,
     /// Whether any of them has changes in the worktree
     unstaged: bool,
     /// Whether any of them is untracked
@@ -3558,6 +3667,7 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
             skipped
                 .names
                 .push(String::from_utf8_lossy(bytes).into_owned());
+            skipped.raw.push(bytes.to_vec());
             None
         }
     }
@@ -3566,10 +3676,32 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
 /// Warns that a status read left out `skipped`, so that files hk does not
 /// check are not left out silently.
 fn warn_skipped_paths(skipped: &SkippedPaths) {
-    if !skipped.names.is_empty() {
+    warn_non_utf8_paths(
+        skipped
+            .raw
+            .iter()
+            .map(|raw| (raw.clone(), format!("{:?}", path_from_raw(raw)))),
+    );
+}
+
+/// Warns that hk skipped paths that are not valid UTF-8, once per path for the
+/// whole run: a status read and the file selection can both come across the
+/// same file. Each path is its raw bytes, which identify it (two names can
+/// differ only in bytes that show the same lossily), and how to show it.
+pub(crate) fn warn_non_utf8_paths(paths: impl IntoIterator<Item = (Vec<u8>, String)>) {
+    static WARNED: std::sync::Mutex<BTreeSet<Vec<u8>>> = std::sync::Mutex::new(BTreeSet::new());
+    let shown = {
+        let mut warned = WARNED.lock().unwrap();
+        paths
+            .into_iter()
+            .filter(|(raw, _)| warned.insert(raw.clone()))
+            .map(|(_, shown)| shown)
+            .collect_vec()
+    };
+    if !shown.is_empty() {
         warn!(
             "skipped {} because hk cannot handle paths that are not valid UTF-8",
-            skipped.names.iter().map(|p| format!("{p:?}")).join(", ")
+            shown.join(", ")
         );
     }
 }
@@ -3700,6 +3832,7 @@ mod tests {
         );
         assert!(status.unstaged_renamed_files.is_empty());
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(status.unmerged_files, paths(d, &["conflict.txt"]));
         assert_eq!(
             status.intent_to_add_files,
             paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
@@ -3732,6 +3865,7 @@ mod tests {
         assert_eq!(status.unstaged_deleted_files, paths(d, &["gone.txt"]));
         assert_eq!(status.unstaged_renamed_files, paths(d, &["ita_moved.txt"]));
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(status.unmerged_files, paths(d, &["conflict.txt"]));
         assert_eq!(
             status.intent_to_add_files,
             paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
@@ -3758,6 +3892,24 @@ mod tests {
             assert!(status.unstaged_files.is_empty());
             assert_eq!(status.unstaged_deleted_files, paths(d, &["a.txt"]));
             assert_eq!(status.untracked_files, paths(d, &["b.txt"]));
+        }
+    }
+
+    #[test]
+    fn test_porcelain_status_intent_to_add_replacing_a_committed_file() {
+        // `git rm --cached a.txt`, then `git add -N a.txt`: the index drops
+        // the committed entry, and the worktree adds the new one
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        std::fs::write(d.join("a.txt"), "x").unwrap();
+        let a = "a".repeat(40);
+        let output = format!(
+            "1 DA N... 100644 000000 100644 {a} {a} {}/a.txt\0",
+            d.display()
+        );
+        let entries = || parse(output.as_bytes());
+        for status in [libgit2(entries()), GitStatus::from_entries(entries())] {
+            assert_eq!(status.intent_to_add_files, paths(d, &["a.txt"]));
         }
     }
 

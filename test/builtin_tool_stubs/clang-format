@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "23.1.2"
+tool = "pipx:clang-format"

@@ -101,8 +101,8 @@ env: Mapping<String, String> = new Mapping<String, String> {}
 ///
 /// - Patterns from all configuration sources are unioned together: the project
 ///   config, the user config, git config, `HK_EXCLUDE`, and `--exclude`
-/// - Simple directory names automatically match their contents
-///   (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
+/// - Directory names automatically match their contents: `"excluded"`,
+///   `"excluded/"`, and `"**/excluded"` also match everything inside them
 /// - Can be overridden per-step with `<STEP>.exclude`
 /// - Regex patterns use Rust regex syntax and search repo-relative paths, like
 ///   step-level regex excludes; anchor with `^` to match from the repo root
@@ -884,6 +884,8 @@ open class Step {
   /// ```
   ///
   /// Notes:
+  /// - A glob naming a directory (`"vendor"`, `"vendor/"`, `"**/vendor"`) also
+  ///   excludes every file inside it. A group's `exclude` is inherited as is.
   /// - Regex patterns use Rust regex syntax
   /// - The `(?x)` flag enables verbose mode for multi-line patterns with comments
   /// - Use raw strings (`#"..."#` or `#"""..."""#`) to avoid escaping backslashes
@@ -993,7 +995,22 @@ open class Step {
   /// ```
   output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
 
-  /// Parse command output into normalized diagnostics for structured output and SARIF export.
+  /// Parse the combined stdout and stderr of `check` runs into normalized diagnostics for
+  /// structured output (`--format json`), SARIF export (`--sarif`), and the MCP dashboard.
+  ///
+  /// A step reports diagnostics only when this is set; without it, `diagnostics` and its SARIF
+  /// results are empty and only the raw output is kept. hk does not add flags to the command, so
+  /// the command must print one of these formats itself:
+  ///
+  /// - `gcc`: `path:line:column: [severity:] message [rule]` lines
+  /// - `sarif`: a SARIF 2.1.0 log
+  /// - `eslint-json`: the output of `eslint --format json`
+  /// - `cargo-json`: the output of `cargo check --message-format=json`
+  ///
+  /// ```pkl
+  /// check = "my-compiler {{files}}"
+  /// diagnostic_format = "gcc"
+  /// ```
   diagnostic_format: DiagnosticFormat?
 
   /// Tool name recorded on normalized diagnostics. Defaults to the step name.

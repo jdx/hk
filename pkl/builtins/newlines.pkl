@@ -27,5 +27,15 @@ newlines = new Config.Step {
     ["fix bad file"] = testMaker.fixPass("content", "content\n")
     ["diff bad file"] = testMaker.diffPass("content", "content\n")
     ["fix good file"] = testMaker.fixPass("content\n", "content\n")
+    ["check good CRLF file"] = testMaker.checkPass("content\r\n")
+    ["check CRLF file with a blank line at the end"] = testMaker.checkFail("content\r\n\r\n", 1)
+    ["fix CRLF file without final newline appends CRLF"] =
+      testMaker.fixPass("one\r\ntwo", "one\r\ntwo\r\n")
+    ["diff CRLF file without final newline appends CRLF"] =
+      testMaker.diffPass("one\r\ntwo", "one\r\ntwo\r\n")
+    ["fix CRLF file removes trailing blank CRLF lines"] =
+      testMaker.fixPass("one\r\ntwo\r\n\r\n\r\n", "one\r\ntwo\r\n")
+    ["diff CRLF file removes trailing blank CRLF lines"] =
+      testMaker.diffPass("one\r\ntwo\r\n\r\n", "one\r\ntwo\r\n")
   }
 }
