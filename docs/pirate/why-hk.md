@@ -1,6 +1,6 @@
 ---
 description: Why sail with hk? Its lashings (file locks), how it works each lookout's strengths, the charts it steers by, and the tradeoffs ye take aboard.
-sourceHash: 60b70ac1c5ff
+sourceHash: 9f8ec8b3829f
 ---
 
 # Why sail with hk?
@@ -23,7 +23,7 @@ This holds only if the steps are charted true. A check must be read-only, and a 
 
 ## Work each lookout to its strengths {#use-each-linter-s-capabilities}
 
-A fix holds write locks on its step's files, so sailmakers on different files mend at once, and only two who share a sail take it in turns. hk's [builtins](/builtins) know quicker ways to work the tools that allow it.
+Sailmakers on different files mend at once. A fix holds write locks on its step's files, so only two who share a sail take it in turns. A step that only has a `check` command declaring `effect = "read"` changes no files, so even under `hk fix` it holds read locks and looks over the same sail alongside other hands that only read it; it still waits for a fixer that mends the sail. A check that does not declare a read effect, such as the builtin type checkers, whose caches may be written, holds write locks. hk's [builtins](/builtins) know quicker ways to work the tools that allow it.
 
 ### Diff output {#diff-output}
 
