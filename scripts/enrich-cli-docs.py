@@ -17,6 +17,7 @@ EXAMPLES = {
     "agent": ("Generate integration snippets for review before adding them to an agent host.", "hk agent instructions --target codex\nhk agent hooks --target claude-code\nhk agent mcp --target vscode"),
     "agent/instructions": ("Print project instructions without editing an agent configuration.", "hk agent instructions --target codex\nhk agent instructions --target generic"),
     "agent/hooks": ("Print a hook or task snippet to review and merge into your host configuration.", "hk agent hooks --target claude-code\nhk agent hooks --target vscode"),
+    "agent/stop-hook": ("Run as the command of a Claude Code or Codex Stop hook; see the hook snippet from hk agent hooks.", "hk agent stop-hook"),
     "agent/mcp": ("Print an MCP configuration for your host, then review its project path.", "hk agent mcp --target codex\nhk agent mcp --target claude-desktop"),
     "mcp": ("Start the STDIO MCP server with a fixed project root. Configure your host to launch this command.", "hk mcp --root /absolute/path/to/project"),
     "check": ("Check a full repository or inspect one step before running it.",

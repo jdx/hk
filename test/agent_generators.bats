@@ -44,3 +44,67 @@ assert_generator_snapshot() {
     after="$(find . -type f -print | LC_ALL=C sort)"
     assert_equal "$after" "$before"
 }
+
+write_stop_hook_config() {
+    local command="$1"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["probe"] {
+                check = new CommandSpec { command = "$command"; effect = "read" }
+            }
+        }
+    }
+}
+EOF
+}
+
+@test "agent hooks do not print hk run_result JSON" {
+    run hk agent hooks --target claude-code
+    assert_success
+    assert_output --partial '"command": "hk agent stop-hook"'
+    refute_output --partial "--format json"
+    run hk agent hooks --target codex
+    assert_success
+    assert_output --partial '"command": "hk agent stop-hook"'
+}
+
+@test "agent stop-hook is silent and exits 0 when the check passes" {
+    write_stop_hook_config "true"
+    run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook"
+    assert_success
+    assert_output ""
+}
+
+@test "agent stop-hook blocks with only a decision when the check fails" {
+    write_stop_hook_config "echo probe-failed; exit 1"
+    run bash -c "echo '{}' | hk agent stop-hook 2>/dev/null"
+    assert_success
+    assert_output --regexp '^\{"decision":"block","reason":"[^"]*probe-failed[^"]*"\}$'
+}
+
+@test "agent stop-hook blocks when --safe refuses an unclassified command" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["probe"] { check = "true" }
+        }
+    }
+}
+EOF
+    run bash -c "echo '{}' | hk agent stop-hook 2>/dev/null"
+    assert_success
+    assert_output --partial '{"decision":"block","reason":"'
+    assert_output --partial "--safe refused to run"
+}
+
+@test "agent stop-hook does nothing when stop_hook_active is true" {
+    write_stop_hook_config "exit 1"
+    run bash -c "echo '{\"stop_hook_active\":true}' | hk agent stop-hook"
+    assert_success
+    assert_output ""
+}

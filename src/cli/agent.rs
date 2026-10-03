@@ -1,5 +1,7 @@
 use crate::Result;
 
+mod stop_hook;
+
 /// Generate integration snippets for coding agents
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
@@ -31,6 +33,12 @@ enum Command {
         #[usage(long, value_enum)]
         target: McpTarget,
     },
+    /// Run `hk run check --safe` as an agent Stop hook
+    ///
+    /// Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is
+    /// true. Always exits 0. When the check fails or `--safe` refuses to run, prints only
+    /// `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept.
+    StopHook,
 }
 
 #[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
@@ -60,10 +68,14 @@ enum McpTarget {
 
 impl Agent {
     pub async fn run(self) -> Result<()> {
+        if matches!(self.command, Command::StopHook) {
+            return stop_hook::run().await;
+        }
         let output = match self.command {
             Command::Instructions { target } => instructions(target),
             Command::Hooks { target } => hooks(target),
             Command::Mcp { target } => mcp(target),
+            Command::StopHook => unreachable!("handled above"),
         };
         print!("{output}");
         Ok(())

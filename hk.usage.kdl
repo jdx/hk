@@ -152,6 +152,14 @@ cmd agent help="Generate integration snippets for coding agents" effect=read sub
         }
         flag "-h --help" help="Print help" action=help builtin=#true
     }
+    cmd stop-hook help="Run `hk run check --safe` as an agent Stop hook" {
+        long_help #"""
+Run `hk run check --safe` as an agent Stop hook
+
+Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept.
+"""#
+        flag "-h --help" help="Print help" action=help builtin=#true
+    }
 }
 cmd builtins help="List all available builtin linters" effect=read {
     flag "-h --help" help="Print help" action=help builtin=#true

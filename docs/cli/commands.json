@@ -205,6 +205,37 @@
             "hidden_aliases": [],
             "examples": [],
             "headings": []
+          },
+          "stop-hook": {
+            "full_cmd": ["agent", "stop-hook"],
+            "usage": "agent stop-hook",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Run `hk run check --safe` as an agent Stop hook",
+            "help_long": "Run `hk run check --safe` as an agent Stop hook\n\nReads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept.",
+            "name": "stop-hook",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
           }
         },
         "args": [],
