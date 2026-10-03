@@ -245,10 +245,12 @@ fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
         r"^(.*?):(\d+):(\d+):\s*(?:(error|warning|note|help):\s*)?(.*?){RULE}"
     ))
     .expect("valid GCC diagnostic regex");
-    // Without a column the message must follow whitespace and the path cannot
-    // start with whitespace, so indented sub-locations stay continuation lines.
+    // Without a column the finding is easy to confuse with source text that clang-format
+    // and gcc print under a finding, so the path must be one token (no whitespace,
+    // which also keeps indented sub-locations continuation lines), must not be a URL
+    // (`http://x:80: y`), and must not start a comment (`//note:12: text`).
     let without_column = regex::Regex::new(&format!(
-        r"^(\S.*?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){RULE}"
+        r"^(\S+?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){RULE}"
     ))
     .expect("valid column-less diagnostic regex");
     // Only go vet's prefix is stripped: any other `word: ` may be the start of a path.
@@ -311,6 +313,10 @@ fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
             )
         } else {
             let c = without_column.captures(line)?;
+            let path = &c[1];
+            if path.contains("://") || path.starts_with("//") || path.starts_with("/*") {
+                return None;
+            }
             (
                 c[1].to_string(),
                 c[2].to_string(),
@@ -546,8 +552,6 @@ mod tests {
         let parsed = gcc("notes: draft/main.c:4:2: error: bad\n");
         assert_eq!(parsed.diagnostics.len(), 1);
         assert_eq!(at(&parsed.diagnostics[0]), ("notes: draft/main.c", 4, 2));
-        let parsed = gcc("notes: draft/main.c:4: bad\n");
-        assert_eq!(at(&parsed.diagnostics[0]), ("notes: draft/main.c", 4, 1));
     }
 
     #[test]
@@ -574,6 +578,31 @@ mod tests {
         assert_eq!(
             parsed.diagnostics[1].message,
             "code should be clang-formatted\n#include  <stdio.h>\n        ^"
+        );
+    }
+
+    #[test]
+    fn gcc_does_not_read_source_lines_as_column_less_findings() {
+        // clang-format 23 on `//note:12: text` and `//http://x:80: y`
+        let output = "cm.c:1:3: error: code should be clang-formatted [-Wclang-format-violations]\n//note:12: text\n  ^\ncm.c:3:3: error: code should be clang-formatted [-Wclang-format-violations]\n//http://x:80: y\n  ^\n";
+        let parsed = gcc(output);
+        assert!(parsed.warnings.is_empty());
+        assert_eq!(parsed.diagnostics.len(), 2);
+        assert_eq!(
+            parsed.diagnostics[0].message,
+            "code should be clang-formatted\n//note:12: text\n  ^"
+        );
+        assert_eq!(
+            parsed.diagnostics[1].message,
+            "code should be clang-formatted\n//http://x:80: y\n  ^"
+        );
+        // Hand-written: source text with a space in the "path", or a bare URL.
+        let output = "a.c:1:3: error: bad\n// note:12: text\nhttp://x:80: y\n  ^\n";
+        let parsed = gcc(output);
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert_eq!(
+            parsed.diagnostics[0].message,
+            "bad\n// note:12: text\nhttp://x:80: y\n  ^"
         );
     }
 
