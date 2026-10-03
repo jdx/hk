@@ -1,6 +1,6 @@
 use crate::Result;
 use std::fs;
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use tempfile::NamedTempFile;
@@ -64,12 +64,8 @@ impl FixSmartQuotes {
     }
 }
 
-enum Scan {
-    /// Not valid UTF-8, so it cannot contain the quote code points we replace.
-    NonUtf8,
-    Clean,
-    HasSmartQuotes,
-}
+/// Bytes read per step. Memory use is bounded by this, whatever the file's line lengths.
+const CHUNK_SIZE: usize = 64 * 1024;
 
 fn is_smart_quote(c: char) -> bool {
     UTF8_DOUBLE_QUOTE_CODEPOINTS.contains(&c) || UTF8_SINGLE_QUOTE_CODEPOINTS.contains(&c)
@@ -80,23 +76,49 @@ fn fix_quotes(s: &str) -> String {
         .replace(UTF8_SINGLE_QUOTE_CODEPOINTS, "'")
 }
 
-/// Calls `f` with each line (including its newline) as validated UTF-8, holding
-/// one line in memory at a time. Splitting on `\n` never cuts a multi-byte
-/// character. Returns `false` if the file is not valid UTF-8, or `f` returns
-/// `false` to stop early.
-fn for_each_line(path: &Path, mut f: impl FnMut(&str) -> Result<bool>) -> Result<bool> {
-    let mut reader = BufReader::new(fs::File::open(path)?);
-    let mut buf = Vec::new();
+/// Calls `f` with successive pieces of the file, each valid UTF-8 that starts and
+/// ends on a character boundary, so a smart quote is never split between two
+/// pieces. Only `chunk_size` bytes plus an incomplete trailing sequence (at most 3
+/// bytes) are held at once. Returns `false` if the file is not valid UTF-8
+/// (including a truncated sequence at EOF); `f` may already have seen earlier pieces.
+fn for_each_chunk(
+    path: &Path,
+    chunk_size: usize,
+    mut f: impl FnMut(&str) -> Result<()>,
+) -> Result<bool> {
+    let mut file = fs::File::open(path)?;
+    let mut chunk = vec![0u8; chunk_size.max(1)];
+    let mut buf: Vec<u8> = Vec::with_capacity(chunk.len() + 4);
     loop {
-        buf.clear();
-        if reader.read_until(b'\n', &mut buf)? == 0 {
-            return Ok(true);
-        }
-        let Ok(line) = std::str::from_utf8(&buf) else {
-            return Ok(false);
+        let n = match file.read(&mut chunk) {
+            Ok(n) => n,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e.into()),
         };
-        if !f(line)? {
-            return Ok(false);
+        let eof = n == 0;
+        buf.extend_from_slice(&chunk[..n]);
+        match std::str::from_utf8(&buf) {
+            Ok(s) => {
+                if !s.is_empty() {
+                    f(s)?;
+                }
+                buf.clear();
+            }
+            Err(e) => {
+                // `error_len() == None` means the input just ended mid-character,
+                // which is only acceptable if more bytes follow.
+                if e.error_len().is_some() || eof {
+                    return Ok(false);
+                }
+                let valid = e.valid_up_to();
+                if valid > 0 {
+                    f(std::str::from_utf8(&buf[..valid]).expect("validated prefix"))?;
+                }
+                buf.drain(..valid);
+            }
+        }
+        if eof {
+            return Ok(true);
         }
     }
 }
@@ -104,28 +126,21 @@ fn for_each_line(path: &Path, mut f: impl FnMut(&str) -> Result<bool>) -> Result
 /// Streams the whole file once. The scan must reach the end, even after finding a
 /// quote, so that check and fix agree: a file that is not entirely UTF-8 is never
 /// reported and never rewritten.
-fn scan(path: &Path) -> Result<Scan> {
+fn has_smart_quotes_in(path: &Path, chunk_size: usize) -> Result<bool> {
     let mut found = false;
-    let utf8 = for_each_line(path, |line| {
-        found = found || line.contains(is_smart_quote);
-        Ok(true)
+    let utf8 = for_each_chunk(path, chunk_size, |s| {
+        found = found || s.contains(is_smart_quote);
+        Ok(())
     })?;
-    Ok(match (utf8, found) {
-        (false, _) => Scan::NonUtf8,
-        (true, false) => Scan::Clean,
-        (true, true) => Scan::HasSmartQuotes,
-    })
+    Ok(utf8 && found)
 }
 
 fn has_smart_quotes(path: &Path) -> Result<bool> {
-    Ok(matches!(scan(path)?, Scan::HasSmartQuotes))
+    has_smart_quotes_in(path, CHUNK_SIZE)
 }
 
 fn generate_diff(path: &Path) -> Result<Option<String>> {
-    // Scan first so clean and non-UTF-8 files never need to be held in memory.
-    if !has_smart_quotes(path)? {
-        return Ok(None);
-    }
+    // A diff needs the whole original and fixed text, so read once and validate then.
     let Ok(original) = String::from_utf8(fs::read(path)?) else {
         return Ok(None);
     };
@@ -146,25 +161,30 @@ fn generate_diff(path: &Path) -> Result<Option<String>> {
 }
 
 fn replace_smart_quotes(path: &Path) -> Result<()> {
-    // Non-UTF-8 and clean files are left untouched rather than truncated or rewritten.
-    if !has_smart_quotes(path)? {
-        return Ok(());
-    }
+    replace_smart_quotes_in(path, CHUNK_SIZE)
+}
 
+/// Single pass: the fixed text goes to a temp file next to the target while the
+/// file is read, and the temp file replaces the target only once the whole file
+/// proved to be UTF-8 and something changed. Otherwise it is dropped (deleted) and
+/// the original is never touched, so non-UTF-8 files stay intact.
+fn replace_smart_quotes_in(path: &Path, chunk_size: usize) -> Result<()> {
     // Write through symlinks: replace the target, not the link itself.
     let target = fs::canonicalize(path)?;
     let perms = fs::metadata(&target)?.permissions();
     let dir = target.parent().unwrap_or_else(|| Path::new("."));
     let mut tmpfile = NamedTempFile::new_in(dir)?;
     let mut out = BufWriter::new(tmpfile.as_file_mut());
-    let utf8 = for_each_line(&target, |line| {
-        out.write_all(fix_quotes(line).as_bytes())?;
-        Ok(true)
+    let mut changed = false;
+    let utf8 = for_each_chunk(&target, chunk_size, |s| {
+        let fixed = fix_quotes(s);
+        changed = changed || fixed != s;
+        out.write_all(fixed.as_bytes())?;
+        Ok(())
     })?;
     out.flush()?;
     drop(out);
-    if !utf8 {
-        // The file changed under us; the temp file is removed on drop.
+    if !utf8 || !changed {
         return Ok(());
     }
     tmpfile.as_file().sync_all()?;
@@ -355,6 +375,55 @@ mod tests {
         fs::write(file.path(), "a\n\u{2018}b\u{2019}\nc").unwrap();
         replace_smart_quotes(file.path()).unwrap();
         assert_eq!(fs::read(file.path()).unwrap(), b"a\n'b'\nc");
+    }
+
+    #[test]
+    fn test_quotes_split_across_chunk_boundaries() {
+        let input = "a\u{201C}b\u{2019}\u{FF02}c\u{00E9}\u{1F600}\u{2018}d\u{FF07}";
+        let expected = "a\"b'\"c\u{00E9}\u{1F600}'d'";
+        for chunk in 1..=9 {
+            let file = NamedTempFile::new().unwrap();
+            fs::write(file.path(), input).unwrap();
+            assert!(has_smart_quotes_in(file.path(), chunk).unwrap(), "{chunk}");
+            replace_smart_quotes_in(file.path(), chunk).unwrap();
+            assert_eq!(
+                fs::read_to_string(file.path()).unwrap(),
+                expected,
+                "{chunk}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_long_single_line_without_newlines() {
+        let file = NamedTempFile::new().unwrap();
+        let mut content = "x".repeat(CHUNK_SIZE * 5 + 1);
+        content.push('\u{201C}');
+        content.push_str(&"y".repeat(CHUNK_SIZE + 2));
+        fs::write(file.path(), &content).unwrap();
+
+        assert!(has_smart_quotes(file.path()).unwrap());
+        replace_smart_quotes(file.path()).unwrap();
+        assert_eq!(
+            fs::read_to_string(file.path()).unwrap(),
+            content.replace('\u{201C}', "\"")
+        );
+    }
+
+    #[test]
+    fn test_truncated_or_invalid_sequences_untouched() {
+        // Truncated at EOF, and invalid mid-file, each after a quote.
+        for tail in [&b"\xe2\x80"[..], &b"\xff more"[..]] {
+            for chunk in [1, 3, CHUNK_SIZE] {
+                let file = NamedTempFile::new().unwrap();
+                let mut content = "\u{201C}q\u{201D}".as_bytes().to_vec();
+                content.extend_from_slice(tail);
+                fs::write(file.path(), &content).unwrap();
+                replace_smart_quotes_in(file.path(), chunk).unwrap();
+                assert_eq!(fs::read(file.path()).unwrap(), content);
+                assert!(!has_smart_quotes_in(file.path(), chunk).unwrap());
+            }
+        }
     }
 
     #[test]
