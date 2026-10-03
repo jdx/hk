@@ -68,7 +68,7 @@ pub struct StepTestExpect {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct StepTestDiagnostic {
-    /// File path as the tool printed it
+    /// File path as the tool printed it, or the tail of an absolute path it printed
     pub path: Option<String>,
     /// Line where the diagnostic's range starts
     pub line: Option<u64>,

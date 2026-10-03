@@ -234,8 +234,9 @@ fn parse_eslint(step: &str, tool: &str, output: &str) -> ParseResult {
 /// tools print the same thing, without reading anything ambiguous:
 ///
 /// - the column is optional (`path:line: message`, as mypy and buildifier print);
-/// - a one-word tool prefix such as `vet: ` is ignored, and `# package` header
-///   lines (also `path:1: : # package`, as golangci-lint prints) are skipped;
+/// - go vet's `vet: ` prefix is ignored, and `# package` header lines (also
+///   `path:1: : # package`, as golangci-lint prints) are skipped, but not
+///   preprocessor lines such as `#define X`;
 /// - a message continues over the following lines only until a blank line or a
 ///   recognizable summary line, so trailing summaries never reach the last finding.
 fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
@@ -250,9 +251,33 @@ fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
         r"^(\S.*?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){RULE}"
     ))
     .expect("valid column-less diagnostic regex");
-    let tool_prefix =
-        regex::Regex::new(r"^[A-Za-z][A-Za-z0-9_-]*: (\S)").expect("valid prefix regex");
-    let header = regex::Regex::new(r"^(?:\S+:\d+:\s*:\s*)?#\s*\S").expect("valid header regex");
+    // Only go vet's prefix is stripped: any other `word: ` may be the start of a path.
+    let tool_prefix = regex::Regex::new(r"^vet: (\S)").expect("valid prefix regex");
+    // `# example.com/m`, `# [example.com/m]`, `# example.com/m [example.com/m.test]`
+    let header = regex::Regex::new(r"^(?:\S+:\d+:\s*:\s*)?# \[?([\w.~/-]+)\]?(?: \[[\w.~/-]+\])?$")
+        .expect("valid header regex");
+    let is_header = |line: &str| {
+        header.captures(line).is_some_and(|c| {
+            !matches!(
+                &c[1],
+                "include"
+                    | "include_next"
+                    | "import"
+                    | "define"
+                    | "undef"
+                    | "if"
+                    | "ifdef"
+                    | "ifndef"
+                    | "elif"
+                    | "else"
+                    | "endif"
+                    | "pragma"
+                    | "error"
+                    | "warning"
+                    | "line"
+            )
+        })
+    };
     let summary = regex::Regex::new(concat!(
         r"^(?:",
         // `Found 3 errors in 2 files`, `3 issues:`, `1 error generated.`
@@ -329,7 +354,7 @@ fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
         } else if let Some(diagnostic) = locate(line) {
             parsed.diagnostics.push(diagnostic);
             open = true;
-        } else if header.is_match(line) || summary.is_match(line) {
+        } else if is_header(line) || summary.is_match(line) {
             open = false;
         } else if open {
             if let Some(previous) = parsed.diagnostics.last_mut() {
@@ -514,6 +539,42 @@ mod tests {
         assert!(parsed.warnings.is_empty());
         assert_eq!(parsed.diagnostics.len(), 1);
         assert_eq!(at(&parsed.diagnostics[0]), ("./main.go", 9, 14));
+    }
+
+    #[test]
+    fn gcc_keeps_a_path_that_starts_with_a_word_and_colon() {
+        let parsed = gcc("notes: draft/main.c:4:2: error: bad\n");
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert_eq!(at(&parsed.diagnostics[0]), ("notes: draft/main.c", 4, 2));
+        let parsed = gcc("notes: draft/main.c:4: bad\n");
+        assert_eq!(at(&parsed.diagnostics[0]), ("notes: draft/main.c", 4, 1));
+    }
+
+    #[test]
+    fn gcc_keeps_preprocessor_source_lines_in_the_message() {
+        // gcc 13 with -fno-diagnostics-show-line-numbers
+        let output = "inc.c:1:10: fatal error: nonexistent.h: No such file or directory\n #include <nonexistent.h>\n          ^~~~~~~~~~~~~~~\ncompilation terminated.\n";
+        let parsed = gcc(output);
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert!(
+            parsed.diagnostics[0]
+                .message
+                .contains("#include <nonexistent.h>")
+        );
+        // clang-format prints source lines unindented, so `#define` and
+        // `#include` start the line.
+        let output = "fmt.c:1:8: error: code should be clang-formatted [-Wclang-format-violations]\n#define  FOO   1\n       ^\nfmt.c:2:9: error: code should be clang-formatted [-Wclang-format-violations]\n#include  <stdio.h>\n        ^\n";
+        let parsed = gcc(output);
+        assert!(parsed.warnings.is_empty());
+        assert_eq!(parsed.diagnostics.len(), 2);
+        assert_eq!(
+            parsed.diagnostics[0].message,
+            "code should be clang-formatted\n#define  FOO   1\n       ^"
+        );
+        assert_eq!(
+            parsed.diagnostics[1].message,
+            "code should be clang-formatted\n#include  <stdio.h>\n        ^"
+        );
     }
 
     #[test]

@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Special Purpose"
   description = "Prose linter for markup and code comments"
+  project_indicators {
+    new { file = ".vale.ini" }
+    new { file = "_vale.ini" }
+  }
 }
 vale = new Config.Step {
   types = List("text")
