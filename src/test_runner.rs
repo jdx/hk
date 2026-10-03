@@ -3,9 +3,11 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::{
-    Result, git_util,
+    Result,
+    diagnostics::{self, Diagnostic},
+    git_util,
     step::{RenderedCommand, RunType, Step, argv_runner},
-    step_test::{RunKind, StepTest},
+    step_test::{RunKind, StepTest, StepTestDiagnostic},
     tera,
 };
 use ensembler::CmdLineRunner;
@@ -30,6 +32,21 @@ async fn execute_cmd(
     command: &RenderedCommand,
     stdin: &Option<String>,
 ) -> Result<(String, String, i32)> {
+    let (stdout, stderr, code, _) =
+        execute_cmd_combined(step, tctx, base_dir, test, command, stdin).await?;
+    Ok((stdout, stderr, code))
+}
+
+/// Like `execute_cmd`, and also returns stdout and stderr interleaved as hk's own check runs
+/// capture them, which is what a step's `diagnostic_format` parses.
+async fn execute_cmd_combined(
+    step: &Step,
+    tctx: &tera::Context,
+    base_dir: &Path,
+    test: &StepTest,
+    command: &RenderedCommand,
+    stdin: &Option<String>,
+) -> Result<(String, String, i32, String)> {
     let rendered_step_env = step
         .env
         .iter()
@@ -77,8 +94,13 @@ async fn execute_cmd(
         runner = runner.env(k, v);
     }
     let result = runner.execute().await;
-    let (stdout, stderr, code) = match result {
-        Ok(r) => (r.stdout, r.stderr, r.status.code().unwrap_or(0)),
+    let (stdout, stderr, code, combined) = match result {
+        Ok(r) => (
+            r.stdout,
+            r.stderr,
+            r.status.code().unwrap_or(0),
+            r.combined_output,
+        ),
         Err(e) => {
             if let ensembler::Error::ScriptFailed(tuple) = &e {
                 let r = &tuple.3;
@@ -86,13 +108,14 @@ async fn execute_cmd(
                     r.stdout.clone(),
                     r.stderr.clone(),
                     r.status.code().unwrap_or(1),
+                    r.combined_output.clone(),
                 )
             } else {
                 return Err(e.into());
             }
         }
     };
-    Ok((stdout, stderr, code))
+    Ok((stdout, stderr, code, combined))
 }
 
 /// The files a test's command runs against, or the reason none are left.
@@ -167,6 +190,191 @@ fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<Stri
         return Some(format!("stderr missing: {}", needle));
     }
     None
+}
+
+/// No leading `./` and no trailing `/`. On Windows, where `\` separates directories, also
+/// forward slashes and no verbatim prefix (`\\?\`) and lower case, because its paths are case
+/// insensitive. Elsewhere `\` is an ordinary filename character and case matters.
+fn normalize_path(path: &str, windows: bool) -> String {
+    let mut path = path.to_string();
+    if windows {
+        path = path.replace('\\', "/").to_lowercase();
+        if let Some(rest) = path.strip_prefix("//?/") {
+            path = rest.to_string();
+        }
+    }
+    let path = path.strip_prefix("./").unwrap_or(&path);
+    if path.len() > 1 {
+        path.trim_end_matches('/').to_string()
+    } else {
+        path.to_string()
+    }
+}
+
+fn is_absolute_path(path: &str, windows: bool) -> bool {
+    let bytes = path.as_bytes();
+    path.starts_with('/')
+        || (windows && bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && &path[1..3] == ":/")
+}
+
+/// Canonicalize the nearest existing ancestor of `path` and re-append the components that don't
+/// exist (a file the tool or the test later removed), so a symlinked directory resolves even when
+/// the file under it is gone.
+fn canonicalize_existing(path: &Path) -> Option<PathBuf> {
+    let mut rest = Vec::new();
+    let mut ancestor = path;
+    loop {
+        if let Ok(canonical) = ancestor.canonicalize() {
+            return Some(rest.iter().rev().fold(canonical, |p, c| p.join(c)));
+        }
+        rest.push(ancestor.file_name()?);
+        ancestor = ancestor.parent()?;
+    }
+}
+
+/// The spellings of the directory a test runs its command in: as given and canonicalized, so a
+/// symlinked sandbox (such as macOS's `/var` for `/private/var`) is the same directory either way.
+fn sandbox_roots(base: &Path, windows: bool) -> Vec<String> {
+    let mut roots = vec![normalize_path(&base.display().to_string(), windows)];
+    if let Some(canonical) = canonicalize_existing(base) {
+        roots.push(normalize_path(&canonical.display().to_string(), windows));
+    }
+    roots.retain(|root| is_absolute_path(root, windows));
+    roots.dedup();
+    roots
+}
+
+/// Whether the diagnostic path a tool printed names the file `expected`. A relative printed path
+/// must equal `expected`. An absolute printed path matches only if it, or its canonicalized form
+/// when the file exists, lies inside one of the sandbox `roots` and the rest equals `expected`;
+/// an absolute path elsewhere never matches a relative expectation.
+fn same_path(printed: &str, expected: &str, roots: &[String], windows: bool) -> bool {
+    let expected = normalize_path(expected, windows);
+    let mut forms = vec![normalize_path(printed, windows)];
+    if forms[0] == expected {
+        return true;
+    }
+    if !is_absolute_path(&forms[0], windows) || is_absolute_path(&expected, windows) {
+        return false;
+    }
+    if let Some(canonical) = canonicalize_existing(Path::new(printed)) {
+        forms.push(normalize_path(&canonical.display().to_string(), windows));
+    }
+    forms.iter().any(|printed| {
+        roots.iter().any(|root| {
+            printed
+                .strip_prefix(root.as_str())
+                .and_then(|rest| rest.strip_prefix('/'))
+                == Some(expected.as_str())
+        })
+    })
+}
+
+fn diagnostic_matches(
+    diagnostic: &Diagnostic,
+    expected: &StepTestDiagnostic,
+    roots: &[String],
+) -> bool {
+    let start = diagnostic.range.as_ref().map(|range| &range.start);
+    expected.path.as_ref().is_none_or(|path| {
+        diagnostic
+            .path
+            .as_deref()
+            .is_some_and(|actual| same_path(actual, path, roots, cfg!(windows)))
+    }) && expected
+        .line
+        .is_none_or(|line| start.is_some_and(|start| start.line == line))
+        && expected
+            .column
+            .is_none_or(|column| start.is_some_and(|start| start.column == column))
+        && expected
+            .severity
+            .as_ref()
+            .is_none_or(|severity| *severity == diagnostic.severity)
+        && expected
+            .rule
+            .as_ref()
+            .is_none_or(|rule| diagnostic.rule.as_ref() == Some(rule))
+        && expected
+            .message
+            .as_ref()
+            .is_none_or(|message| diagnostic.message.contains(message))
+}
+
+fn describe(diagnostic: &Diagnostic) -> String {
+    let (line, column) = diagnostic
+        .range
+        .as_ref()
+        .map(|range| (range.start.line, range.start.column))
+        .unzip();
+    format!(
+        "{}:{}:{} {:?} {:?} {:?}",
+        diagnostic.path.as_deref().unwrap_or("-"),
+        line.map_or("-".to_string(), |line| line.to_string()),
+        column.map_or("-".to_string(), |column| column.to_string()),
+        diagnostic.severity,
+        diagnostic.rule,
+        diagnostic.message
+    )
+}
+
+/// Parse a `check` test's combined output with the step's `diagnostic_format`, as a real check
+/// does for structured output and SARIF, and report each expected diagnostic that no parsed
+/// diagnostic matches.
+fn check_diagnostics(step: &Step, test: &StepTest, combined: &str, sandbox: &Path) -> Vec<String> {
+    let expected = &test.expect.diagnostics;
+    if expected.is_empty() {
+        return vec![];
+    }
+    if !matches!(test.run, RunKind::Check) {
+        return vec!["expect.diagnostics requires run = \"check\"".to_string()];
+    }
+    let Some(format) = step.diagnostic_format else {
+        return vec!["expect.diagnostics requires the step to set diagnostic_format".to_string()];
+    };
+    // A real check feeds the parser more than this one invocation's output in two cases the
+    // test can't reproduce, so a passing assertion could misrepresent `hk check --sarif`.
+    if step.check_failed_files && (step.check_diff.is_some() || step.check_list_files.is_some()) {
+        return vec![
+            "expect.diagnostics can't model a check-first step (check_failed_files with check_diff or check_list_files): a real check captures the file-reporting command's output too before parsing"
+                .to_string(),
+        ];
+    }
+    if matches!(
+        format,
+        crate::step::DiagnosticFormat::Sarif | crate::step::DiagnosticFormat::EslintJson
+    ) && (step.batch || step.workspace_indicator.is_some())
+    {
+        return vec![
+            "expect.diagnostics can't model a batched or workspace step with a single-document diagnostic_format (sarif, eslint-json): a real check joins every job's output before parsing, so separate documents would not parse"
+                .to_string(),
+        ];
+    }
+    let tool = step.diagnostic_tool.as_deref().unwrap_or(&step.name);
+    let parsed = diagnostics::parse(format, &step.name, tool, combined);
+    let roots = sandbox_roots(sandbox, cfg!(windows));
+    expected
+        .iter()
+        .filter(|expected| {
+            !parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic_matches(diagnostic, expected, &roots))
+        })
+        .map(|expected| {
+            format!(
+                "no diagnostic matches {expected:?}; parsed {} diagnostic(s): [{}]; parse warnings: {:?}",
+                parsed.diagnostics.len(),
+                parsed
+                    .diagnostics
+                    .iter()
+                    .map(describe)
+                    .collect::<Vec<_>>()
+                    .join("; "),
+                parsed.warnings
+            )
+        })
+        .collect()
 }
 
 fn check_file_contents(
@@ -335,8 +543,8 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Run main command
 
-    let (mut stdout, mut stderr, mut code) =
-        execute_cmd(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
+    let (mut stdout, mut stderr, mut code, combined) =
+        execute_cmd_combined(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
 
     // A diff test applies the patch as fix mode would, but a patch that
     // doesn't apply fails the test instead of falling back to `fix`.
@@ -379,6 +587,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     reasons.extend(check_stdout_contains(&stdout, &test.expect.stdout));
     reasons.extend(check_stderr_contains(&stderr, &test.expect.stderr));
     reasons.extend(check_file_contents(&test.expect.files, &tctx, &base_dir)?);
+    reasons.extend(check_diagnostics(step, test, &combined, &base_dir));
 
     // TODO: Consider adding a user-defined "cleanup" script in hk.pkl that tests can use
     // to clean up after themselves. The previous automatic cleanup caused race conditions
@@ -490,6 +699,263 @@ mod tests {
         assert_eq!(
             select_test_files(&step, &test, paths(&["a.yaml", "b.tf"])).unwrap(),
             TestFiles::Selected(paths(&["a.yaml"]))
+        );
+    }
+
+    fn gcc_step() -> Step {
+        Step {
+            name: "lint".to_string(),
+            diagnostic_format: Some(crate::step::DiagnosticFormat::Gcc),
+            ..Default::default()
+        }
+    }
+
+    fn expecting(diagnostics: Vec<StepTestDiagnostic>) -> StepTest {
+        StepTest {
+            expect: crate::step_test::StepTestExpect {
+                diagnostics,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn expected_diagnostics_match_parsed_output() {
+        let test = expecting(vec![StepTestDiagnostic {
+            path: Some("a.c".to_string()),
+            line: Some(2),
+            column: Some(4),
+            severity: Some(diagnostics::Severity::Warning),
+            rule: Some("W1".to_string()),
+            message: Some("first".to_string()),
+        }]);
+
+        assert!(
+            check_diagnostics(
+                &gcc_step(),
+                &test,
+                "./a.c:2:4: warning: first line [W1]\n  context\n",
+                Path::new(".")
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn absolute_paths_match_only_inside_the_sandbox() {
+        let roots = vec!["/tmp/sandbox".to_string()];
+        let same = |printed, expected| same_path(printed, expected, &roots, false);
+        assert!(same("/tmp/sandbox/proto/a.proto", "proto/a.proto"));
+        assert!(same("./a.c", "a.c"));
+        // a different directory with the same tail
+        assert!(!same("/other/project/proto/a.proto", "proto/a.proto"));
+        assert!(!same("/tmp/sandbox2/proto/a.proto", "proto/a.proto"));
+        assert!(!same("/tmp/sandbox/x/proto/a.proto", "proto/a.proto"));
+        // relative printed paths stay exact
+        assert!(!same("sub/a.c", "a.c"));
+    }
+
+    #[test]
+    fn backslash_is_a_filename_character_off_windows() {
+        let roots = vec!["/tmp/sandbox".to_string()];
+        assert!(!same_path(r"a\b.c", "a/b.c", &roots, false));
+        assert!(same_path(r"a\b.c", r"a\b.c", &roots, false));
+        assert!(!same_path(r"/tmp/sandbox/a\b.c", "a/b.c", &roots, false));
+        // and case matters
+        assert!(!same_path("/tmp/sandbox/A.c", "a.c", &roots, false));
+    }
+
+    #[test]
+    fn windows_paths_are_normalized_and_case_insensitive() {
+        let roots = sandbox_roots(Path::new(r"C:\Tmp\Sandbox"), true);
+        let same = |printed, expected| same_path(printed, expected, &roots, true);
+        assert!(same(r"C:\tmp\sandbox\src\main.c", "src/main.c"));
+        assert!(same(r"c:\TMP\Sandbox\Src\Main.c", "src/main.c"));
+        assert!(same(r"\\?\C:\Tmp\Sandbox\src\main.c", "src/main.c"));
+        assert!(same(r"src\main.c", "src/main.c"));
+        assert!(!same(r"C:\other\src\main.c", "src/main.c"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn this_platform_normalizes_windows_paths() {
+        assert!(same_path(
+            r"C:\Sandbox\a.c",
+            "a.c",
+            &sandbox_roots(Path::new(r"c:\sandbox"), cfg!(windows)),
+            cfg!(windows)
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deleted_files_in_a_symlinked_sandbox_still_match() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().canonicalize().unwrap().join("real");
+        std::fs::create_dir_all(real.join("src")).unwrap();
+        let link = real.parent().unwrap().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let other = real.parent().unwrap().join("other");
+        std::fs::create_dir(&other).unwrap();
+
+        // neither printed file exists (the tool or an `after` command removed them)
+        let roots = sandbox_roots(&link, false);
+        let gone = real.join("src/gone.c").display().to_string();
+        assert!(same_path(&gone, "src/gone.c", &roots, false));
+        let roots = sandbox_roots(&real, false);
+        let gone = link.join("src/gone.c").display().to_string();
+        assert!(same_path(&gone, "src/gone.c", &roots, false));
+        // a deleted file in another directory is still different
+        let elsewhere = other.join("src/gone.c").display().to_string();
+        assert!(!same_path(&elsewhere, "src/gone.c", &roots, false));
+        // and a sandbox that no longer exists compares by its own spelling
+        assert!(canonicalize_existing(Path::new("/nonexistent-root-xyz/a/b")).is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_sandbox_is_the_same_directory() {
+        // macOS reaches its temporary directory through the `/var` symlink to `/private/var`;
+        // canonicalizing both sides makes that, and any other symlink, compare equal.
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().canonicalize().unwrap().join("real");
+        std::fs::create_dir(&real).unwrap();
+        std::fs::write(real.join("a.c"), "").unwrap();
+        let link = real.parent().unwrap().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let other = real.parent().unwrap().join("other");
+        std::fs::create_dir(&other).unwrap();
+        std::fs::write(other.join("a.c"), "").unwrap();
+
+        // the sandbox was reached through the link; the tool printed the real path
+        let roots = sandbox_roots(&link, false);
+        assert!(same_path(
+            &real.join("a.c").display().to_string(),
+            "a.c",
+            &roots,
+            false
+        ));
+        // the sandbox is the real directory; the tool printed the link path
+        let roots = sandbox_roots(&real, false);
+        assert!(same_path(
+            &link.join("a.c").display().to_string(),
+            "a.c",
+            &roots,
+            false
+        ));
+        // a different directory is still different
+        assert!(!same_path(
+            &other.join("a.c").display().to_string(),
+            "a.c",
+            &roots,
+            false
+        ));
+    }
+
+    #[test]
+    fn unmatched_diagnostic_lists_what_was_parsed() {
+        let test = expecting(vec![StepTestDiagnostic {
+            line: Some(9),
+            ..Default::default()
+        }]);
+
+        let reasons =
+            check_diagnostics(&gcc_step(), &test, "a.c:2:4: error: bad\n", Path::new("."));
+        assert_eq!(reasons.len(), 1);
+        assert!(reasons[0].contains("parsed 1 diagnostic(s)"), "{reasons:?}");
+        assert!(reasons[0].contains("a.c:2:4"), "{reasons:?}");
+    }
+
+    #[test]
+    fn diagnostics_need_a_format_and_a_check_run() {
+        let test = expecting(vec![StepTestDiagnostic::default()]);
+        let reasons = check_diagnostics(
+            &Step::default(),
+            &test,
+            "a.c:2:4: error: bad\n",
+            Path::new("."),
+        );
+        assert_eq!(
+            reasons,
+            vec!["expect.diagnostics requires the step to set diagnostic_format"]
+        );
+
+        let fix = StepTest {
+            run: RunKind::Fix,
+            ..test
+        };
+        assert_eq!(
+            check_diagnostics(&gcc_step(), &fix, "a.c:2:4: error: bad\n", Path::new(".")),
+            vec!["expect.diagnostics requires run = \"check\""]
+        );
+    }
+
+    #[test]
+    fn check_first_steps_are_rejected() {
+        let test = expecting(vec![StepTestDiagnostic::default()]);
+        let step = Step {
+            check_failed_files: true,
+            check_list_files: Some(crate::step::Command::Shell("list".parse().unwrap())),
+            ..gcc_step()
+        };
+        let reasons = check_diagnostics(&step, &test, "a.c:2:4: error: bad\n", Path::new("."));
+        assert_eq!(reasons.len(), 1);
+        assert!(reasons[0].contains("check-first"), "{reasons:?}");
+
+        // check_failed_files without a file-reporting command runs only `check`
+        let step = Step {
+            check_failed_files: true,
+            ..gcc_step()
+        };
+        assert!(
+            check_diagnostics(&step, &test, "a.c:2:4: error: bad\n", Path::new(".")).is_empty()
+        );
+    }
+
+    #[test]
+    fn batched_steps_reject_single_document_formats_only() {
+        let test = expecting(vec![StepTestDiagnostic::default()]);
+        let sarif = r#"{"runs":[{"results":[{"message":{"text":"m"}}]}]}"#;
+        for format in [
+            crate::step::DiagnosticFormat::Sarif,
+            crate::step::DiagnosticFormat::EslintJson,
+        ] {
+            let step = Step {
+                batch: true,
+                diagnostic_format: Some(format),
+                ..gcc_step()
+            };
+            let reasons = check_diagnostics(&step, &test, sarif, Path::new("."));
+            assert_eq!(reasons.len(), 1);
+            assert!(reasons[0].contains("batched"), "{reasons:?}");
+        }
+        // Line-oriented formats concatenate safely across jobs.
+        let step = Step {
+            batch: true,
+            ..gcc_step()
+        };
+        assert!(
+            check_diagnostics(&step, &test, "a.c:2:4: error: bad\n", Path::new(".")).is_empty()
+        );
+        // An unbatched single-document step is parsed as a real check would.
+        let step = Step {
+            diagnostic_format: Some(crate::step::DiagnosticFormat::Sarif),
+            ..gcc_step()
+        };
+        assert!(check_diagnostics(&step, &test, sarif, Path::new(".")).is_empty());
+    }
+
+    #[test]
+    fn no_expectations_skip_parsing() {
+        assert!(
+            check_diagnostics(
+                &Step::default(),
+                &StepTest::default(),
+                "anything",
+                Path::new(".")
+            )
+            .is_empty()
         );
     }
 

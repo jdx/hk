@@ -6,7 +6,13 @@ use std::fs;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
-/// Check for and optionally fix files to end with exactly one newline
+/// Check for and optionally fix missing final newlines
+///
+/// A missing final newline is added as the file's most frequent line ending,
+/// so a CRLF file gets CRLF. Every line ending in the file counts, as in
+/// `mixed-line-ending`, and a tie gives LF. Trailing blank lines, LF or CRLF,
+/// are removed. A file that already ends with exactly one newline is left as
+/// it is.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct EndOfFileFixer {
@@ -76,30 +82,47 @@ fn open_if_improper(path: &Path) -> Result<Option<(fs::File, Vec<u8>)>> {
     let Some(head) = read_text_probe(&mut file, len)? else {
         return Ok(None);
     };
-    let proper = if len == 1 {
-        head[0] == b'\n'
-    } else if head.len() as u64 == len {
-        ends_properly(&head[head.len() - 2..])
+    // The last four bytes are enough to see whether the file ends with
+    // exactly one terminator, whether `\n` or `\r\n`.
+    let tail = if head.len() as u64 == len {
+        head[head.len().saturating_sub(4)..].to_vec()
     } else {
-        // Read last 2 bytes to check for exactly one trailing newline
-        let mut last_two = [0u8; 2];
-        file.seek(SeekFrom::End(-2))?;
-        file.read_exact(&mut last_two)?;
+        let mut tail = [0u8; 4];
+        file.seek(SeekFrom::End(-4))?;
+        file.read_exact(&mut tail)?;
         file.seek(SeekFrom::Start(head.len() as u64))?;
-        ends_properly(&last_two)
+        tail.to_vec()
     };
+    let proper = ends_properly(&tail);
     Ok((!proper).then_some((file, head)))
 }
 
-/// Whether a file's last two bytes are exactly one trailing newline.
-fn ends_properly(last_two: &[u8]) -> bool {
-    last_two[1] == b'\n' && last_two[0] != b'\n'
+/// Whether a file's last bytes (up to four) are exactly one terminator: a
+/// final `\n` or `\r\n` that no blank line or stray `\r` precedes.
+fn ends_properly(tail: &[u8]) -> bool {
+    let Some((&b'\n', before)) = tail.split_last() else {
+        return false;
+    };
+    // A CRLF terminator's `\r` isn't part of the preceding line's content.
+    let before = before.strip_suffix(b"\r").unwrap_or(before);
+    !matches!(before.last(), Some(b'\n' | b'\r'))
 }
 
-/// Normalize content to end with exactly one newline
+/// The line ending most of the file's lines use, `"\r\n"` or `"\n"`, counting
+/// every line ending in the file, as `mixed-line-ending` does. A tie, or a file
+/// with no line ending, gives `"\n"`, so the two agree on which ending a mixed
+/// file is normalized to.
+fn dominant_terminator(content: &str) -> &'static str {
+    let lf = content.matches('\n').count();
+    let crlf = content.matches("\r\n").count();
+    if crlf > lf - crlf { "\r\n" } else { "\n" }
+}
+
+/// Normalize content to end with exactly one terminator, the file's dominant
+/// one. Trailing blank lines, whether LF or CRLF, and a stray `\r` are removed.
 fn normalize_ending(content: &str) -> String {
-    let trimmed = content.trim_end_matches('\n');
-    format!("{trimmed}\n")
+    let body = content.trim_end_matches(['\r', '\n']);
+    format!("{body}{}", dominant_terminator(content))
 }
 
 /// The file's content, if it is a text file that doesn't end properly.
@@ -272,6 +295,96 @@ mod tests {
         // Verify content
         let content = fs::read_to_string(&path).unwrap();
         assert_eq!(content, "line1\nline2\n");
+    }
+
+    #[test]
+    fn test_crlf_file_with_final_crlf_is_proper() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"line1\r\nline2\r\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(has_proper_ending(&path).unwrap());
+        fix_end_of_file(&path).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"line1\r\nline2\r\n");
+    }
+
+    #[test]
+    fn test_fix_missing_newline_appends_crlf_to_crlf_file() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"line1\r\nline2").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(!has_proper_ending(&path).unwrap());
+        fix_end_of_file(&path).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"line1\r\nline2\r\n");
+        assert!(has_proper_ending(&path).unwrap());
+    }
+
+    #[test]
+    fn test_fix_trailing_blank_crlf_lines() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"line1\r\nline2\r\n\r\n\r\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(!has_proper_ending(&path).unwrap());
+        fix_end_of_file(&path).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"line1\r\nline2\r\n");
+        assert!(has_proper_ending(&path).unwrap());
+    }
+
+    #[test]
+    fn test_normalize_ending_uses_dominant_terminator() {
+        assert_eq!(normalize_ending("a\nb\nc\r\nd"), "a\nb\nc\r\nd\n");
+        assert_eq!(normalize_ending("a\r\nb\r\nc\nd"), "a\r\nb\r\nc\nd\r\n");
+        // A tie, and a file with no line ending, get LF.
+        assert_eq!(normalize_ending("a\r\nb\nc"), "a\r\nb\nc\n");
+        assert_eq!(normalize_ending("a"), "a\n");
+    }
+
+    #[test]
+    fn test_normalize_ending_counts_every_line_ending_like_mixed_line_ending() {
+        // A tie goes to LF, even when the last line is CRLF.
+        assert_eq!(normalize_ending("a\nb\r\nc"), "a\nb\r\nc\n");
+        assert_eq!(normalize_ending("a\r\nb\nc"), "a\r\nb\nc\n");
+        // The blank lines being removed still count toward the majority.
+        assert_eq!(normalize_ending("a\r\nb\r\n\n\n\n\n"), "a\r\nb\n");
+        assert_eq!(normalize_ending("a\nb\n\r\n\r\n\r\n\r\n"), "a\nb\r\n");
+    }
+
+    #[test]
+    fn test_normalize_ending_is_proper_and_stable() {
+        for content in ["a\r\nb\r\n\n\n\n\n", "a\nb\r\nc"] {
+            let fixed = normalize_ending(content);
+            assert_eq!(normalize_ending(&fixed), fixed);
+            assert!(ends_properly(
+                &fixed.as_bytes()[fixed.len().saturating_sub(4)..]
+            ));
+        }
+    }
+
+    #[test]
+    fn test_normalize_ending_mixed_blank_lines() {
+        assert_eq!(normalize_ending("a\r\nb\r\n\n\r\n"), "a\r\nb\r\n");
+        assert_eq!(normalize_ending("a\nb\n\r\n"), "a\nb\n");
+        assert_eq!(normalize_ending("a\r\nb\r\n\r"), "a\r\nb\r\n");
+    }
+
+    #[test]
+    fn test_ends_properly() {
+        assert!(ends_properly(b"a\n"));
+        assert!(ends_properly(b"a\r\n"));
+        assert!(ends_properly(b"\n"));
+        assert!(ends_properly(b"\r\n"));
+        assert!(!ends_properly(b"a"));
+        assert!(!ends_properly(b"a\r"));
+        assert!(!ends_properly(b"a\n\n"));
+        assert!(!ends_properly(b"a\r\n\r\n"));
+        assert!(!ends_properly(b"a\n\r\n"));
+        assert!(!ends_properly(b"a\r\n\n"));
+        assert!(!ends_properly(b"a\r\r\n"));
     }
 
     #[test]

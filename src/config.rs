@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail, eyre};
@@ -66,7 +67,7 @@ impl Config {
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
         let mut local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
             .map(|v| v.into_iter().collect())
-            .map_err(|e| eyre::eyre!("{e}"))?;
+            .map_err(|e| pklr_error_report(&e))?;
         // Glob imports expand to whatever matched at analysis time, so the
         // patterns themselves have to be recorded to notice later additions.
         let glob_imports = Self::collect_glob_imports(path, &local_paths);
@@ -428,6 +429,40 @@ impl Config {
         Self::find_project_config_from(start, &Self::project_config_search_paths()).is_some()
     }
 
+    /// `hk.local.pkl` is picked instead of the shared `hk.pkl`, not merged with
+    /// it, so a local file that does not `amends` the shared file silently drops
+    /// the whole shared configuration. Say so, unless the warning is hidden.
+    fn warn_if_local_config_ignores_shared(path: &Path) {
+        if path.file_name().is_none_or(|n| n != "hk.local.pkl") {
+            return;
+        }
+        let Some(dir) = path.parent() else {
+            return;
+        };
+        let mut candidates = vec![dir.join("hk.pkl"), dir.join(".config").join("hk.pkl")];
+        if dir.file_name().is_some_and(|n| n == ".config")
+            && let Some(parent) = dir.parent()
+        {
+            candidates.push(parent.join("hk.pkl"));
+        }
+        let shared: Vec<PathBuf> = candidates.into_iter().filter(|p| p.is_file()).collect();
+        if shared.is_empty() || amends_chain_reaches(path, &shared) {
+            return;
+        }
+        let hidden = std::env::var("HK_HIDE_WARNINGS")
+            .is_ok_and(|v| v.split(',').any(|t| t.trim() == LOCAL_CONFIG_WARNING_TAG));
+        if hidden {
+            return;
+        }
+        warn!(
+            "{} does not amend {}, so it replaces the shared configuration instead of extending it. \
+            Add `amends \"{}\"` to keep the shared steps, or hide this warning with HK_HIDE_WARNINGS={LOCAL_CONFIG_WARNING_TAG}.",
+            xx::file::display_path(path),
+            xx::file::display_path(&shared[0]),
+            relative_module_path(dir, &shared[0])
+        );
+    }
+
     fn load_config_cached(path: PathBuf) -> Result<Config> {
         Self::load_config_cached_with(path, true)
     }
@@ -469,6 +504,7 @@ impl Config {
                     warn!("failed to write imports cache file: {err:#}");
                 }
             }
+            Self::warn_if_local_config_ignores_shared(&path);
             let has_untracked_imports = import_analysis.has_untracked_imports
                 || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
 
@@ -520,8 +556,14 @@ impl Config {
         let mut config = match build_config_cache_mgr(&env_values).get() {
             Some(config) => config,
             None => {
-                let (config, env_reads) = Self::read(&path, is_root)
-                    .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))?;
+                let (config, env_reads) = Self::read(&path, is_root).map_err(|err| {
+                    // A syntax error already names its own file, line and column.
+                    if err.downcast_ref::<PklSyntaxError>().is_some() {
+                        err
+                    } else {
+                        err.wrap_err(format!("Failed to read config file: {}", path.display()))
+                    }
+                })?;
                 // Keyed on every variable the evaluation read, so a later lookup
                 // hits only while all of them keep these values.
                 env_values.extend(env_reads);
@@ -596,13 +638,16 @@ impl Config {
         }
 
         // Scalar settings: project wins — fall back to hkrc when project has None
+        self.jobs = self.jobs.or(hkrc.jobs);
         self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
         self.stage = self.stage.or(hkrc.stage);
         self.display_skip_reasons = self
             .display_skip_reasons
             .take()
             .or(hkrc.display_skip_reasons);
-        self.hide_warnings = self.hide_warnings.take().or(hkrc.hide_warnings);
+        // List settings that settings.toml marks `merge = "union"` combine the
+        // project and user values instead of letting the project's replace them.
+        union_lists(&mut self.hide_warnings, hkrc.hide_warnings);
         self.warnings = self.warnings.take().or(hkrc.warnings);
         // Exclude patterns are unioned, like every other exclude source.
         match (&mut self.exclude, hkrc.exclude) {
@@ -611,8 +656,8 @@ impl Config {
             (Some(_), None) => {}
         }
         self.profiles = self.profiles.take().or(hkrc.profiles);
-        self.skip_hooks = self.skip_hooks.take().or(hkrc.skip_hooks);
-        self.skip_steps = self.skip_steps.take().or(hkrc.skip_steps);
+        union_lists(&mut self.skip_hooks, hkrc.skip_hooks);
+        union_lists(&mut self.skip_steps, hkrc.skip_steps);
         self.default_branch = self.default_branch.take().or(hkrc.default_branch);
         self.min_hk_version = self.min_hk_version.take().or(hkrc.min_hk_version);
         self.stash_backup_count = self.stash_backup_count.or(hkrc.stash_backup_count);
@@ -1034,8 +1079,11 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let outcome = block_on_pklr(evaluator.eval(path))?
-        .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
+    let outcome =
+        block_on_pklr(evaluator.eval(path))?.map_err(|e| match pklr_syntax_error(&e) {
+            Some(err) => eyre::Report::new(err),
+            None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
+        })?;
     let value = serde_json::from_value(outcome.json)
         .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))?;
     Ok((value, outcome.env_reads))
@@ -1099,6 +1147,114 @@ fn get_no_proxy() -> Option<String> {
         .or_else(|_| std::env::var("NO_PROXY"))
         .ok()
         .filter(|s| !s.is_empty())
+}
+
+/// A Pkl lex or parse error with the file it is in and where.
+#[derive(Debug, PartialEq, Eq)]
+struct PklSyntaxError {
+    /// `file:line:col`, as the source names itself (an imported file is
+    /// reported under its own name, not the config that imports it).
+    location: String,
+    message: String,
+    /// The offending source line, if the offset falls inside the source.
+    excerpt: Option<(usize, String, String)>,
+}
+
+impl std::fmt::Display for PklSyntaxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Failed to evaluate Pkl config\n\n{}: {}",
+            self.location, self.message
+        )?;
+        if let Some((line, text, pad)) = &self.excerpt {
+            let gutter = " ".repeat(line.to_string().len());
+            write!(f, "\n {gutter} |\n {line} | {text}\n {gutter} | {}^", pad)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for PklSyntaxError {}
+
+/// 1-based line and column of a byte `offset` into `source`. An offset past the
+/// end, or inside a multi-byte character, is clamped to the nearest position
+/// before it.
+fn line_col(source: &str, offset: usize) -> (usize, usize) {
+    let mut end = offset.min(source.len());
+    while !source.is_char_boundary(end) {
+        end -= 1;
+    }
+    let before = &source[..end];
+    let line = before.matches('\n').count() + 1;
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    (line, before[line_start..].chars().count() + 1)
+}
+
+/// A source name for display: `./` segments dropped, and relative to the
+/// current directory when the file lives under it.
+fn display_source_name(name: &str) -> String {
+    // A module fetched by URI keeps its name; treating it as a path would
+    // collapse the `//` after the scheme.
+    if name.contains("://") {
+        return name.to_string();
+    }
+    let path: PathBuf = Path::new(name).components().collect();
+    let relative = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| path.strip_prefix(cwd).ok().map(Path::to_path_buf));
+    relative.unwrap_or(path).display().to_string()
+}
+
+fn syntax_error(name: &str, source: &str, offset: usize, message: &str) -> PklSyntaxError {
+    let (line, col) = line_col(source, offset);
+    PklSyntaxError {
+        location: format!("{}:{line}:{col}", display_source_name(name)),
+        message: message.to_string(),
+        excerpt: source.lines().nth(line - 1).map(|text| {
+            // Keep tabs as tabs so the caret lines up whatever width the
+            // terminal gives them.
+            let pad = text
+                .chars()
+                .take(col.saturating_sub(1))
+                .map(|c| if c == '\t' { '\t' } else { ' ' })
+                .collect();
+            (line, text.trim_end().to_string(), pad)
+        }),
+    }
+}
+
+fn pklr_syntax_error(error: &pklr::Error) -> Option<PklSyntaxError> {
+    match error {
+        pklr::Error::Lex { src, span, message } | pklr::Error::Parse { src, span, message } => {
+            Some(syntax_error(
+                src.name(),
+                src.inner(),
+                span.offset(),
+                message,
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn pklr_error_report(error: &pklr::Error) -> eyre::Report {
+    match pklr_syntax_error(error) {
+        Some(err) => eyre::Report::new(err),
+        None => eyre::eyre!("{error}"),
+    }
+}
+
+/// Replaces the `user:password@` part of every URL in `text` with `***@`.
+///
+/// An `HK_PKL_HTTP_REWRITE` target may carry credentials
+/// (`https://user:token@mirror.example/`), and pklr echoes the rewritten URL
+/// in its download errors. The user-info runs through the last `@` before the
+/// path, so a password that itself contains `@` is hidden too.
+fn redact_url_credentials(text: &str) -> String {
+    static USERINFO: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/?#\s]*@").unwrap());
+    USERINFO.replace_all(text, "${1}***@").into_owned()
 }
 
 fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
@@ -1195,6 +1351,71 @@ fn failed_pkl_config_error(path: &Path, stderr: &str) -> eyre::Report {
     )
 }
 
+/// The target of a module's `amends "..."` declaration, if it is a local path.
+fn amends_target(module: &Path) -> Option<PathBuf> {
+    let source = std::fs::read_to_string(module).ok()?;
+    let line = source
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with("amends "))?;
+    let target = line
+        .strip_prefix("amends ")?
+        .trim_start()
+        .strip_prefix('"')?;
+    let target = &target[..target.find('"')?];
+    if let Some(path) = target.strip_prefix("file://") {
+        // `file:///C:/x` carries a leading slash before a Windows drive letter.
+        let bytes = path.as_bytes();
+        let path = if bytes.len() > 2 && bytes[0] == b'/' && bytes[2] == b':' {
+            &path[1..]
+        } else {
+            path
+        };
+        return Some(PathBuf::from(path));
+    }
+    if target.contains("://") {
+        // Other schemes cannot be traced back to a local file.
+        return None;
+    }
+    Some(module.parent()?.join(target))
+}
+
+/// True when following `amends` declarations from `start` (a plain `import` does
+/// not count, since it inherits nothing) reaches one of `shared`.
+fn amends_chain_reaches(start: &Path, shared: &[PathBuf]) -> bool {
+    let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let shared: Vec<PathBuf> = shared.iter().map(|p| canon(p)).collect();
+    let mut current = start.to_path_buf();
+    for _ in 0..16 {
+        let Some(next) = amends_target(&current) else {
+            return false;
+        };
+        if shared.contains(&canon(&next)) {
+            return true;
+        }
+        current = next;
+    }
+    false
+}
+
+/// How a module in `dir` refers to `target`, which sits in `dir`, `dir/.config`
+/// or the parent of `dir`.
+fn relative_module_path(dir: &Path, target: &Path) -> String {
+    let name = target.file_name().map_or_else(
+        || "hk.pkl".to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
+    match target.parent() {
+        Some(p) if p == dir => format!("./{name}"),
+        Some(p) if Some(p) == dir.parent() => format!("../{name}"),
+        Some(p) if p.file_name().is_some_and(|n| n == ".config") => format!("./.config/{name}"),
+        _ => target.display().to_string(),
+    }
+}
+
+/// `HK_HIDE_WARNINGS` tag for the "local config ignores the shared config" warning.
+const LOCAL_CONFIG_WARNING_TAG: &str = "local-config-replaces-shared";
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
@@ -1221,6 +1442,8 @@ pub struct Config {
     pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Parallel steps; `0` or unset means auto-detect.
+    pub jobs: Option<usize>,
     pub fail_fast: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
@@ -1276,6 +1499,22 @@ impl Config {
         }
         self.default_hooks_materialized = true;
         Ok(())
+    }
+
+    /// The project config exactly as Pkl evaluated it, before hk drops
+    /// properties it does not know. `None` when there is no project config.
+    pub fn project_config_json() -> Result<Option<serde_json::Value>> {
+        let paths = Self::project_config_search_paths();
+        let Some(path) = Self::find_project_config(&paths) else {
+            return Ok(None);
+        };
+        Ok(Some(eval_pklr::<serde_json::Value>(&path)?.0))
+    }
+
+    /// Warnings about a config that loads but probably does not do what its
+    /// author meant. Run by `hk validate`; never fatal.
+    pub fn lint(&self) -> Vec<String> {
+        crate::lint::lint_hooks(&self.hooks, &self.implicit_default_hooks)
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -1448,6 +1687,21 @@ fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> R
     Ok(())
 }
 
+/// Add the user's entries that the project's list does not already have.
+fn union_lists(project: &mut Option<Vec<String>>, user: Option<Vec<String>>) {
+    match (project, user) {
+        (Some(project), Some(user)) => {
+            for item in user {
+                if !project.contains(&item) {
+                    project.push(item);
+                }
+            }
+        }
+        (project @ None, user) => *project = user,
+        (Some(_), None) => {}
+    }
+}
+
 /// Top-level `exclude` patterns.
 ///
 /// Pkl accepts a glob string, a list of globs, or a `Regex`. Patterns from the
@@ -1590,6 +1844,22 @@ mod tests {
     use crate::hook::{Hook, StepOrGroup};
     use crate::step::Step;
     use crate::step_group::StepGroup;
+
+    #[test]
+    fn redact_url_credentials_hides_userinfo_only() {
+        assert_eq!(
+            redact_url_credentials(
+                "HTTP fetch failed for http://alice:s3cret@127.0.0.1:1/a.zip: error (https://tok@host/x?y=a@b)"
+            ),
+            "HTTP fetch failed for http://***@127.0.0.1:1/a.zip: error (https://***@host/x?y=a@b)"
+        );
+        assert_eq!(
+            redact_url_credentials("failed for http://alice@corp:s3cret@mirror.example/a.zip"),
+            "failed for http://***@mirror.example/a.zip"
+        );
+        let plain = "failed for https://example.com/a@1.0.zip (user@example.com)";
+        assert_eq!(redact_url_credentials(plain), plain);
+    }
 
     fn exclude_from(value: serde_json::Value) -> Exclude {
         serde_json::from_value(value).unwrap()
@@ -1734,16 +2004,23 @@ mod tests {
     }
 
     #[test]
-    fn validate_compiles_globs_with_the_steps_dir() {
-        let mut globby = step("lint");
-        globby.dir = Some("foo[".into());
-        globby.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+    fn validate_compiles_globs_relative_to_the_steps_dir() {
+        // Globs match paths relative to `dir`, so glob characters in the
+        // directory's name are literal and never make a pattern invalid.
+        let mut bracketed = step("lint");
+        bracketed.dir = Some("foo[".into());
+        bracketed.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        config_with_steps(vec![bracketed]).validate().unwrap();
+
+        let mut bad_glob = step("lint");
+        bad_glob.dir = Some("foo".into());
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
         let err = format!(
             "{:#}",
-            config_with_steps(vec![globby]).validate().unwrap_err()
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
         );
         assert!(
-            err.contains("Step 'lint'") && err.contains("invalid glob '*'"),
+            err.contains("Step 'lint'") && err.contains("invalid glob 'src/[abc'"),
             "{err}"
         );
     }
@@ -1771,6 +2048,64 @@ mod tests {
             config_with_steps(vec![bad_regex]).validate().unwrap_err()
         );
         assert!(err.contains("invalid exclude"), "{err}");
+    }
+
+    #[test]
+    fn line_col_counts_lines_and_characters() {
+        let source = "a = 1\nb = \"é\" +\n";
+        assert_eq!(line_col(source, 0), (1, 1));
+        assert_eq!(line_col(source, 4), (1, 5));
+        // `+` follows the two-byte `é`: column counts characters, not bytes.
+        let plus = source.find('+').unwrap();
+        assert_eq!(line_col(source, plus), (2, 9));
+        // Inside a multi-byte character, or past the end, clamps.
+        assert_eq!(line_col(source, plus - 2), (2, 7));
+        assert_eq!(line_col(source, 999), (3, 1));
+    }
+
+    #[test]
+    fn syntax_errors_report_the_failing_file_with_line_and_column() {
+        let err = syntax_error("steps/./lint.pkl", "a = 1\nglob = = 2\n", 13, "bad token");
+        let file = Path::new("steps").join("lint.pkl").display().to_string();
+        assert_eq!(err.location, format!("{file}:2:8"));
+        let text = err.to_string();
+        assert!(text.contains(&format!("{file}:2:8: bad token")), "{text}");
+        assert!(text.contains(" 2 | glob = = 2"), "{text}");
+        assert!(text.ends_with("|        ^"), "{text}");
+    }
+
+    #[test]
+    fn syntax_errors_keep_uri_names_and_tabs() {
+        let err = syntax_error("https://host/dir/m.pkl", "\tx = =\n", 5, "bad");
+        assert_eq!(err.location, "https://host/dir/m.pkl:1:6");
+        // The caret padding repeats the line's tab instead of one space.
+        assert!(err.to_string().ends_with("| \t    ^"), "{err}");
+    }
+
+    #[test]
+    fn pklr_lex_and_parse_errors_are_located() {
+        let source = "x = 1\ny = @\n";
+        let error = pklr::Error::parse("dir/other.pkl", source, 10, "unexpected".to_string());
+        let located = pklr_syntax_error(&error).unwrap();
+        let file = Path::new("dir").join("other.pkl").display().to_string();
+        assert_eq!(located.location, format!("{file}:2:5"));
+        assert!(pklr_syntax_error(&pklr::Error::Eval("boom".into())).is_none());
+    }
+
+    #[test]
+    fn union_lists_combines_project_and_user_entries() {
+        let list = |items: &[&str]| Some(items.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let mut project = list(&["a", "b"]);
+        union_lists(&mut project, list(&["b", "c"]));
+        assert_eq!(project, list(&["a", "b", "c"]));
+
+        let mut none = None;
+        union_lists(&mut none, list(&["x"]));
+        assert_eq!(none, list(&["x"]));
+
+        let mut kept = list(&["a"]);
+        union_lists(&mut kept, None);
+        assert_eq!(kept, list(&["a"]));
     }
 
     #[test]
@@ -2436,6 +2771,65 @@ mod tests {
                 ("PATH".to_string(), std::env::var("PATH").ok()),
             ])
         );
+    }
+
+    #[test]
+    fn relative_module_path_points_at_the_shared_file() {
+        let dir = Path::new("/repo/.config");
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/hk.pkl")),
+            "../hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/.config/hk.pkl")),
+            "./hk.pkl"
+        );
+        let root = Path::new("/repo");
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/hk.pkl")),
+            "./hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/.config/hk.pkl")),
+            "./.config/hk.pkl"
+        );
+    }
+
+    #[test]
+    fn file_uri_amends_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let local = dir.path().join("hk.local.pkl");
+        std::fs::write(&local, format!("amends \"file://{}\"\n", shared.display())).unwrap();
+        let other = dir.path().join("other.pkl");
+        std::fs::write(&other, "amends \"https://example.com/hk.pkl\"\n").unwrap();
+        let shared = [shared];
+        if cfg!(unix) {
+            assert!(amends_chain_reaches(&local, &shared));
+        }
+        assert!(!amends_chain_reaches(&other, &shared));
+    }
+
+    #[test]
+    fn only_amends_declarations_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let amending = dir.path().join("a.pkl");
+        std::fs::write(&amending, "amends \"./hk.pkl\"\n").unwrap();
+        let chained = dir.path().join("b.pkl");
+        std::fs::write(&chained, "amends \"./a.pkl\"\n").unwrap();
+        let importing = dir.path().join("c.pkl");
+        std::fs::write(
+            &importing,
+            "amends \"pkl/Config.pkl\"\nimport \"./hk.pkl\" as S\n",
+        )
+        .unwrap();
+        let shared = [shared];
+        assert!(amends_chain_reaches(&amending, &shared));
+        assert!(amends_chain_reaches(&chained, &shared));
+        assert!(!amends_chain_reaches(&importing, &shared));
     }
 
     #[test]

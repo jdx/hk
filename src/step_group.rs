@@ -237,7 +237,7 @@ impl StepGroup {
                         for step_ctx in ctx.hook_ctx.step_contexts.lock().unwrap().values() {
                             step_ctx.status_aborted();
                         }
-                        ctx.hook_ctx.failed.cancel();
+                        crate::step::cancel_running_steps(&ctx.hook_ctx.failed).await;
                         return Err(err);
                     } else if result.is_ok() {
                         result = Err(err);

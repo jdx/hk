@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: 0fc15dcdec44
+sourceHash: cd8393ddb4c1
 ---
 
 # Getting under way
@@ -111,6 +111,8 @@ hk check --step newlines
 ```
 
 With the charts above, the modified files include the staged, unstaged, and untracked ones: cargo loaded aboard, cargo left on the dock, and cargo Git doesn't track yet. `--all` selects the tracked files plus eligible untracked ones; ignore rules and exclusions still apply. Hook settings and flags can change which files are selected.
+
+`--step` fails with a suggestion when a name matches no step in the hook, so a typo cannot slip past CI after running nothing. An unknown `--skip-step` name only warns.
 
 Check commands should be read-only: lookouts look, they don't touch. Fix commands may edit files, and some findings need mending by hand. `hk fix` leaves its fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached` to see what the sailmakers changed.
 
