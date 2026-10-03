@@ -38,6 +38,11 @@ use crate::{
     version,
 };
 
+/// Set once a hook has already logged the error it is about to return, so
+/// `main` does not print it a second time.
+pub static ERROR_REPORTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 #[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
 #[strum(serialize_all = "kebab-case")]
 pub enum SkipReason {
@@ -674,20 +679,51 @@ impl Hook {
         }
     }
 
-    fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> StashMethod {
-        if opts.staged || opts.unstaged {
+    fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> Result<StashMethod> {
+        Ok(if opts.staged || opts.unstaged {
             StashMethod::None
         } else if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
                 .unwrap_or(StashMethod::None)
         } else {
-            self.resolve_stash_method(*env::HK_STASH)
-        }
+            let env_stash = match &*env::HK_STASH {
+                Ok(method) => *method,
+                Err(err) => eyre::bail!("{err}"),
+            };
+            self.resolve_stash_method(env_stash)
+        })
     }
 
     fn defaults_to_staged_files(&self) -> bool {
         self.name == "pre-commit"
+    }
+
+    /// Whether this run reads untracked files from `git status`.
+    ///
+    /// Finding them makes `git status` walk the whole worktree, which costs far
+    /// more than reading the index on a large repository, so it is skipped when
+    /// nothing below can see the result. The status then lists no untracked
+    /// files, which is what `HK_STASH_UNTRACKED=false` already produces.
+    fn needs_untracked_scan(
+        &self,
+        opts: &HookOptions,
+        stash_method: StashMethod,
+        should_stage: bool,
+    ) -> bool {
+        if !*env::HK_STASH_UNTRACKED {
+            return false;
+        }
+        // Stashing sets untracked files aside, and staging tells files that
+        // were already untracked from ones a fixer created.
+        if stash_method != StashMethod::None || should_stage {
+            return true;
+        }
+        if file_selection_reads_untracked(opts, self.defaults_to_staged_files()) {
+            return true;
+        }
+        // Conditions and command templates can read `git.untracked_files`.
+        serde_json::to_string(self).map_or(true, |hook| hook.contains("untracked"))
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
@@ -700,7 +736,7 @@ impl Hook {
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status()?;
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = self.resolve_stash_method_for_opts(&opts)?;
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -1043,7 +1079,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status()?;
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = self.resolve_stash_method_for_opts(&opts)?;
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -1221,7 +1257,21 @@ impl Hook {
                 return Err(err);
             }
         };
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = match self.resolve_stash_method_for_opts(&opts) {
+            Ok(method) => method,
+            Err(err) => {
+                crate::structured_output::emit_error_run(
+                    output_format,
+                    &self.name,
+                    started_at,
+                    run_started.elapsed().as_millis(),
+                    err.to_string(),
+                    reports,
+                )
+                .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
+                return Err(err);
+            }
+        };
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         // Exit before any side effects (notably stashing) when there are no steps to run.
         // Stashing here would strip the working tree, and the early return below used to
@@ -1246,7 +1296,8 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
-        let git_status = match repo.lock().await.status() {
+        let scan_untracked = self.needs_untracked_scan(&opts, stash_method, should_stage);
+        let git_status = match repo.lock().await.status_with_untracked(scan_untracked) {
             Ok(status) => status,
             Err(err) => {
                 crate::structured_output::emit_error_run(
@@ -1657,6 +1708,7 @@ impl Hook {
                 error!("{}", s);
             }
         }
+        let mut error_logged = false;
         if let Err(err) = &result {
             // ScriptFailed errors are displayed via output_by_step above, skip logging here
             // Other errors are unexpected, show full trace for debugging
@@ -1668,6 +1720,7 @@ impl Hook {
             });
             if !is_script_failed {
                 error!("{self}: hook finished with error: {err:?}");
+                error_logged = true;
             }
         } else {
             debug!("{self}: hook finished successfully");
@@ -1689,6 +1742,11 @@ impl Hook {
                 });
             }
             return Err(emit_err);
+        }
+        // main would print this same error again on exit. Only mark it when
+        // the returned error is the one logged above (not an emit failure).
+        if error_logged {
+            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         result
     }
@@ -2136,6 +2194,24 @@ fn validate_safe_commands(
         );
     }
     Ok(())
+}
+
+/// Whether `Hook::file_list` selects files from the untracked files in the
+/// status, for a run that does not stash. Keep it in step with the branches
+/// there, which pick the first matching selector in this order.
+fn file_selection_reads_untracked(opts: &HookOptions, defaults_to_staged: bool) -> bool {
+    if opts.files.is_some() {
+        false
+    } else if opts.glob.is_some() || opts.unstaged {
+        true
+    } else if opts.from_ref.is_some() {
+        false
+    } else if opts.all {
+        true
+    } else {
+        // Staged files only, or else staged, unstaged and untracked files
+        !(opts.staged || defaults_to_staged)
+    }
 }
 
 fn build_expr_ctx(

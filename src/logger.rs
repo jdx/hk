@@ -145,7 +145,7 @@ pub fn init(level: Option<LevelFilter>) {
 
 fn init_log_file(log_file: &Path) -> Result<File> {
     if let Some(log_dir) = log_file.parent() {
-        xx::file::mkdirp(log_dir)?;
+        env::create_state_dir_all(log_dir)?;
     }
     let file = OpenOptions::new()
         .create(true)

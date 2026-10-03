@@ -208,6 +208,8 @@ hk check --plan
 
 Validation evaluates the configuration without executing linter commands. A plan then shows how hk selects steps and files.
 
+Validation fails on configs hk cannot run, such as a dependency cycle between steps or a glob that does not compile. It also prints warnings, without failing, for settings that load but probably do not do what you meant: a misspelled property (release builds otherwise drop it silently), a `depends` entry that names an unknown step, a group, or a step in a later group, a step with no command, and a glob that starts with `./`, `/` or `!` or lists patterns with commas.
+
 If the Pkl CLI is installed, inspect the evaluated module with:
 
 ```sh
