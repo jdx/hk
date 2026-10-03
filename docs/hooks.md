@@ -80,6 +80,15 @@ hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used
 
 Intent-to-add files are kept in a separate stash entry named `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
 
+### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
+
+While hk has your unstaged changes stashed, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and deletes it once your changes are back. It records the stash commit ids, the process id, the hook and the time.
+
+- **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C, Ctrl+Break or closing the console on Windows): hk stops the running steps, puts your changes back, removes the journal and exits with `128` plus the signal number (for example `143` for SIGTERM, `130` for Ctrl+C). It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never writes to the terminal, so it also works when the terminal is already gone.
+- **SIGKILL, a crash or a power cut**: nothing can run, so your changes stay in the stash and the journal stays. The next hk run in that repository (any hook, `check`, `fix` or `run`) reads it before it stashes anything. If the process that wrote it is gone, hk puts the changes back when the working tree has no unstaged changes and no untracked files. Otherwise, or when it cannot tell which stash entries are its own, it changes nothing and prints the exact `git stash apply <commit-id>` command to run. A journal whose process is still running is never touched.
+
+hk reminds you on every run until the stash entry is gone: once you have applied it and dropped it, hk removes the journal itself, or you can delete the file. If another hk's journal is already in place, a run does not write its own.
+
 ## Review fixes before committing
 
 The generated pre-commit hook stages applicable fixes automatically. To apply fixes but stop the commit for review:

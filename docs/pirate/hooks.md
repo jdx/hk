@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: fa8bcccfa762
+sourceHash: cf6875dff9a3
 ---
 
 # Git hooks and stowing the hold
@@ -80,6 +80,15 @@ Read hk's error before ye change the working tree. Inspect `git status`, `git di
 hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls how many it keeps. Keep the stash and backup hk reports until ye have recovered and reviewed yer work. Don't blindly apply a stash again to files that already carry its changes.
 
 Intent-to-add files are kept in a separate stash entry named `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
+
+### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
+
+While hk has yer unstaged changes stowed in the hold, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and strikes it once yer changes are back up. It records the stash commit ids, the process id, the hook and the time.
+
+- **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C, Ctrl+Break or closing the console on Windows): hk stops the running hands, brings yer changes back up, removes the journal and exits with `128` plus the signal number (for example `143` for SIGTERM, `130` for Ctrl+C). It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never writes to the terminal, so it works even when the terminal is already lost overboard.
+- **SIGKILL, a crash or a power cut**: nothing can run, so yer changes stay in the hold and the journal stays. The next hk run in that repository (any hook, `check`, `fix` or `run`) reads it before it stows anything. If the process that wrote it is gone, hk brings the changes back up when the working tree has no unstaged changes and no untracked files. Otherwise, or when it cannot tell which stash entries are its own, it changes nothing and prints the exact `git stash apply <commit-id>` command to run. A journal whose process is still running is never touched.
+
+hk reminds ye on every run until the stash entry is gone: once ye have applied it and dropped it, hk removes the journal itself, or ye can delete the file. If another hk's journal is already in place, a run does not write its own.
 
 ## Look over the mending before ye set sail {#review-fixes-before-committing}
 
