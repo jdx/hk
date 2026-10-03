@@ -67,6 +67,12 @@ enum McpTarget {
 }
 
 impl Agent {
+    /// The stop hook's stdout carries only its decision, so hk's own JSON trace
+    /// records must go to stderr, as they do for structured `run` output.
+    pub(crate) fn is_stop_hook(&self) -> bool {
+        matches!(self.command, Command::StopHook)
+    }
+
     pub async fn run(self) -> Result<()> {
         if matches!(self.command, Command::StopHook) {
             return stop_hook::run().await;

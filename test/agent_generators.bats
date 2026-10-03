@@ -108,3 +108,17 @@ EOF
     assert_success
     assert_output ""
 }
+
+@test "agent stop-hook output stays a single decision when HK_TRACE=json is inherited" {
+    write_stop_hook_config "echo probe-failed; exit 1"
+    run bash -c "echo '{}' | HK_TRACE=json hk agent stop-hook 2>/dev/null"
+    assert_success
+    assert_output --regexp '^\{"decision":"block","reason":"[^"]*probe-failed[^"]*"\}$'
+}
+
+@test "agent stop-hook stays silent when the check passes under HK_TRACE=json" {
+    write_stop_hook_config "true"
+    run bash -c "echo '{}' | HK_TRACE=json hk agent stop-hook 2>/dev/null"
+    assert_success
+    assert_output ""
+}
