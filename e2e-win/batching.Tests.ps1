@@ -16,6 +16,7 @@ Describe 'batching' {
         New-Item -ItemType Directory -Path $testDir | Out-Null
         Set-Location $testDir
         $originalPath = $env:PATH
+        $originalHkLog = $env:HK_LOG
 
         try {
             git init | Out-Null
@@ -64,13 +65,13 @@ hooks {
             $env:HK_LOG = "debug"
             $output = hk check --all 2>&1 | Out-String
             $code = $LASTEXITCODE
-            Remove-Item Env:HK_LOG
             $code | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
             $calls = @(Get-ChildItem "calls-*.log" | ForEach-Object { [int](Get-Content $_.FullName) })
             $calls.Count | Should -BeGreaterThan 1 -Because "the files should be split; calls: $($calls -join ','); output:`n$output"
             ($calls | Measure-Object -Sum).Sum | Should -Be 300
         } finally {
             $env:PATH = $originalPath
+            $env:HK_LOG = $originalHkLog
             Set-Location $script:originalPath
             Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
         }
