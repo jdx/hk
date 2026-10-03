@@ -11,6 +11,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terragrunt HCL formatter"
+  project_indicators {
+    new { file = "terragrunt.hcl" }
+  }
 }
 terragrunt_hcl_fmt = new Config.Step {
   glob = "**/*.hcl"

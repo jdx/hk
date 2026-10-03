@@ -29,6 +29,9 @@ class ProjectIndicator {
 
   /// Content pattern to grep for (requires file to be set)
   contains: String?
+
+  /// Regular expression matched against each line of the file (requires file to be set)
+  contains_regex: String?
 }
 
 /// Internal class for annotating hk builtins for documentation generation
