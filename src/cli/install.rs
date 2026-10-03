@@ -127,7 +127,13 @@ impl Install {
             warn_if_global_overlap(&events);
             result
         } else {
-            install_local_shims(&events, &command, path_fallback.as_deref())
+            // Shims are written as text; a directory name that is not valid
+            // UTF-8 would be altered, so leave the fallback out of them
+            // rather than point it wrong. Config hooks carry the raw bytes.
+            let shim_fallback = path_fallback
+                .as_deref()
+                .filter(|dir| dir.to_str().is_some());
+            install_local_shims(&events, &command, shim_fallback)
         }
     }
 }
@@ -178,10 +184,7 @@ fn local_path_fallback(use_mise: bool) -> Option<PathBuf> {
     }
     let exe = std::env::current_exe().ok()?;
     let hk = stable_hk_path(&exe, std::env::var_os("PATH"));
-    let dir = hk.parent()?;
-    // Shims are written as text; a directory name that is not valid UTF-8
-    // would be altered, so leave the fallback out rather than point it wrong.
-    dir.to_str().is_some().then(|| dir.to_path_buf())
+    hk.parent().map(Path::to_path_buf)
 }
 
 /// A path to the running hk that survives upgrades.
@@ -218,14 +221,13 @@ fn stable_hk_path(exe: &Path, path_var: Option<OsString>) -> PathBuf {
 /// The mise shim for `exe` when it is inside mise's `installs` directory.
 fn mise_shim_for(exe: &Path) -> Option<PathBuf> {
     let components: Vec<_> = exe.components().collect();
-    let installs = components
-        .iter()
-        .position(|c| c.as_os_str() == "installs")?;
+    // `<data dir>/installs/<tool>/<version>/...`: the tool must be hk. A
+    // custom data dir may itself contain an `installs` component, so look
+    // for the first `installs` that is followed by `hk`.
+    let installs = (0..components.len().saturating_sub(1)).find(|&i| {
+        components[i].as_os_str() == "installs" && components[i + 1].as_os_str() == "hk"
+    })?;
     let data_dir: PathBuf = components[..installs].iter().collect();
-    // `<data dir>/installs/<tool>/<version>/...`: the tool must be hk.
-    if components.get(installs + 1)?.as_os_str() != "hk" {
-        return None;
-    }
     let shim = data_dir.join("shims").join(exe.file_name()?);
     std::fs::symlink_metadata(&shim).ok().map(|_| shim)
 }
@@ -785,6 +787,18 @@ mod tests {
             stable_hk_path(&exe, Some(path)),
             data.path().join("shims/hk")
         );
+    }
+
+    #[test]
+    fn mise_shim_is_found_when_the_data_dir_contains_an_installs_component() {
+        let root = tempfile::tempdir().unwrap();
+        let data = root.path().join("installs/mise-data");
+        let exe = data.join("installs/hk/2.3.1/bin/hk");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        std::fs::create_dir_all(data.join("shims")).unwrap();
+        std::fs::write(data.join("shims/hk"), "").unwrap();
+        assert_eq!(mise_shim_for(&exe), Some(data.join("shims/hk")));
     }
 
     #[test]
