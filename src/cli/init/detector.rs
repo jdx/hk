@@ -144,6 +144,21 @@ fn matches_root_indicator(
             }
             return None;
         }
+        if let Some(pattern) = indicator.contains_regex {
+            let regex = match regex::RegexBuilder::new(pattern).multi_line(true).build() {
+                Ok(regex) => regex,
+                Err(error) => {
+                    warn!("Invalid project indicator regex {pattern:?}: {error}");
+                    return None;
+                }
+            };
+            if path.is_file()
+                && std::fs::read_to_string(&path).is_ok_and(|content| regex.is_match(&content))
+            {
+                return Some(format!("{} matches {}", file, pattern));
+            }
+            return None;
+        }
         return Some(file.to_string());
     }
     let pattern = indicator.glob?;
@@ -422,5 +437,123 @@ mod tests {
 
         let names: Vec<_> = detections.iter().map(|d| d.builtin.name).collect();
         assert!(names.contains(&"shellcheck"));
+    }
+
+    fn detected_names(files: &[(&str, &str)]) -> Vec<&'static str> {
+        let tmp = tempfile::tempdir().unwrap();
+        for (path, content) in files {
+            let path = tmp.path().join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, content).unwrap();
+        }
+        detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect()
+    }
+
+    #[test]
+    fn test_detect_tool_config_files() {
+        for (file, builtin) in [
+            (".flake8", "flake8"),
+            (".pylintrc", "pylint"),
+            ("deno.json", "deno"),
+            ("stylua.toml", "stylua"),
+            (".luacheckrc", "luacheck"),
+            ("selene.toml", "selene"),
+            ("taplo.toml", "taplo_format"),
+            (".sqlfluff", "sql_fluff"),
+            (".yamlfmt", "yamlfmt"),
+            ("buf.yaml", "buf_lint"),
+            (".clang-format", "clang_format"),
+            ("justfile", "just_format"),
+            ("mix.exs", "mix_fmt"),
+            ("typos.toml", "typos"),
+            ("dprint.json", "dprint"),
+        ] {
+            assert!(
+                detected_names(&[(file, "")]).contains(&builtin),
+                "expected {builtin} for {file}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_detect_content_indicators_need_the_tool_named() {
+        let pyproject = "[tool.isort]\nprofile = \"black\"\n";
+        assert!(detected_names(&[("pyproject.toml", pyproject)]).contains(&"isort"));
+        let plain = "[project]\nname = \"x\"\n";
+        let names = detected_names(&[("pyproject.toml", plain)]);
+        for builtin in ["isort", "pylint", "ty"] {
+            assert!(
+                !names.contains(&builtin),
+                "{builtin} should not be detected"
+            );
+        }
+        let unrelated = r#"{"name": "astronomy", "dependencies": {"astro-utils": "1"}}"#;
+        let names = detected_names(&[("package.json", unrelated)]);
+        for builtin in ["astro", "standard_js", "xo"] {
+            assert!(
+                !names.contains(&builtin),
+                "{builtin} should not be detected"
+            );
+        }
+        let xo = r#"{"devDependencies": {"xo": "1"}}"#;
+        assert!(detected_names(&[("package.json", xo)]).contains(&"xo"));
+    }
+
+    #[test]
+    fn test_detect_regex_indicators_ignore_look_alikes() {
+        let names = detected_names(&[(
+            "pyproject.toml",
+            "[tool.typos]\n[tool.tyro]\n[tool.pylintish]\n[tool.isortx]\n",
+        )]);
+        for builtin in ["ty", "pylint", "isort"] {
+            assert!(
+                !names.contains(&builtin),
+                "{builtin} should not be detected"
+            );
+        }
+        for table in ["[tool.ty]", "[tool.ty.rules]"] {
+            assert!(detected_names(&[("pyproject.toml", table)]).contains(&"ty"));
+        }
+        assert!(detected_names(&[("pyproject.toml", "[tool.pylint.main]")]).contains(&"pylint"));
+        assert!(detected_names(&[("pyproject.toml", "[tool.isort]")]).contains(&"isort"));
+    }
+
+    #[test]
+    fn test_detect_indented_toml_tables_and_gems() {
+        let pyproject = "  [tool.ty.rules]\n\t[tool.pylint.main]\n    [tool.isort]\n";
+        let names = detected_names(&[("pyproject.toml", pyproject)]);
+        for builtin in ["ty", "pylint", "isort"] {
+            assert!(names.contains(&builtin), "{builtin} should be detected");
+        }
+        let gemfile = "  gem \"brakeman\"\n\tgem 'bundler-audit'\n";
+        let names = detected_names(&[("Gemfile", gemfile)]);
+        assert!(names.contains(&"brakeman"));
+        assert!(names.contains(&"bundle_audit"));
+    }
+
+    #[test]
+    fn test_detect_gemfile_requires_active_declaration() {
+        let commented = "# gem \"brakeman\"\n  # gem 'bundler-audit'\n";
+        let names = detected_names(&[("Gemfile", commented)]);
+        assert!(!names.contains(&"brakeman"));
+        assert!(!names.contains(&"bundle_audit"));
+        let active = "gem \"brakeman\", require: false\n  gem('bundler-audit')\n";
+        let names = detected_names(&[("Gemfile", active)]);
+        assert!(names.contains(&"brakeman"));
+        assert!(names.contains(&"bundle_audit"));
+    }
+
+    #[test]
+    fn test_detect_justfile_names_match_the_step_glob() {
+        assert!(detected_names(&[("justfile", "")]).contains(&"just_format"));
+        assert!(!detected_names(&[(".justfile", "")]).contains(&"just_format"));
+    }
+
+    #[test]
+    fn test_nested_tool_config_does_not_activate_root_indicator() {
+        assert!(!detected_names(&[("sub/.flake8", "")]).contains(&"flake8"));
     }
 }
