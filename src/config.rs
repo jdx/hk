@@ -1069,6 +1069,7 @@ impl Config {
             ("exclude", self.exclude.is_some()),
             ("fail_fast", self.fail_fast.is_some()),
             ("hide_warnings", self.hide_warnings.is_some()),
+            ("jobs", self.jobs.is_some()),
             ("profiles", self.profiles.is_some()),
             ("skip_hooks", self.skip_hooks.is_some()),
             ("stage", self.stage.is_some()),
@@ -2370,12 +2371,16 @@ mod tests {
         let sub = Config {
             fail_fast: Some(false),
             exclude: Some(Exclude::default()),
+            jobs: Some(2),
             skip_steps: Some(vec!["lint".to_string()]),
             env: IndexMap::from([("FOO".to_string(), "bar".to_string())]),
             ..Default::default()
         };
         // `skip_steps` and `env` are honored, so they are not listed
-        assert_eq!(sub.ignored_subproject_settings(), ["exclude", "fail_fast"]);
+        assert_eq!(
+            sub.ignored_subproject_settings(),
+            ["exclude", "fail_fast", "jobs"]
+        );
         assert!(Config::default().ignored_subproject_settings().is_empty());
     }
 

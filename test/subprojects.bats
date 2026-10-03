@@ -228,6 +228,7 @@ EOF
 amends "$PKL_PATH/Config.pkl"
 exclude = List("*.txt")
 fail_fast = false
+jobs = 2
 steps {
     ["lint"] { glob = "*.txt"; check = "echo LINT-SUB {{files}}" }
 }
@@ -238,7 +239,7 @@ EOF
 
     run hk check --all
     assert_success
-    assert_output --partial "ignoring top-level exclude, fail_fast"
+    assert_output --partial "ignoring top-level exclude, fail_fast, jobs"
     assert_output --partial "sub/hk.pkl"
     # The subproject's exclude is not applied; only the root config's is
     assert_output --partial "LINT-SUB a.txt"
