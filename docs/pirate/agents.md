@@ -1,5 +1,5 @@
 ---
-sourceHash: 79dd5c89ef89
+sourceHash: 18746cf6ff14
 ---
 
 # Clockwork hands: coding agents
@@ -69,4 +69,4 @@ The tunnel is a development bridge, a gangplank for development work. hk itself 
 
 ## Sailing instructions and hooks {#instructions-and-hooks}
 
-Use `hk agent instructions` for a short block of sailing instructions fit for `AGENTS.md`, `CLAUDE.md`, or a generic agent prompt. Use `hk agent hooks` for an optional Codex or Claude Code stop hook, or a VS Code task. Hook output is deliberately a snippet, not an automatic installation: inspect what it does to yer workflow before ye enable it.
+Use `hk agent instructions` for a short block of sailing instructions fit for `AGENTS.md`, `CLAUDE.md`, or a generic agent prompt. Use `hk agent hooks` for an optional Codex or Claude Code stop hook, or a VS Code task. The Codex and Claude Code snippets run `hk agent stop-hook`, which reads the Stop hook input from stdin, sits idle when `stop_hook_active` is true, and runs `hk run check --safe`. It always exits 0; if the check fails or `--safe` refuses to run, it prints only `{"decision":"block","reason":"..."}` so the clockwork hand keeps working with a short diagnosis. When the check passes, Claude Code's documented pass is exit 0 and silence, so the Claude Code snippet says nothing; Codex's scrolls argue with themselves about whether silence is accepted, so the Codex snippet passes `--target codex` and prints `{}`, which serves under either reading. Both agents document this top-level `decision`/`reason` JSON for Stop hooks, and Codex rejects any other stdout, so hk's own `run_result` JSON is never printed from these hooks. A check that runs longer than `--timeout` seconds (default 100, under Codex's 120 second hook timeout) is stopped, steps included, and reported as a block; the Claude Code snippet passes `--timeout 570` beside a hook `timeout` of 600 seconds, which is Claude Code's default for command hooks. Hook output is deliberately a snippet, not an automatic installation: inspect what it does to yer workflow before ye enable it.

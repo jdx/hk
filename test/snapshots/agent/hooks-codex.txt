@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "hk run check --safe --format json",
+            "command": "hk agent stop-hook --target codex",
             "timeout": 120
           }
         ]
