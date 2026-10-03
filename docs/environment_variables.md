@@ -167,7 +167,7 @@ This variable is read directly from the environment before `hk.pkl` is evaluated
 
 **Type:** path · **Default:** unset
 
-A path to a PEM bundle containing CA certificates trusted by the built-in pklr evaluator. This must be set before configuration is evaluated.
+A path to a PEM bundle containing CA certificates trusted by the built-in pklr evaluator, in addition to the system roots, when it downloads Pkl packages. This is useful behind an SSL-intercepting proxy. This must be set before configuration is evaluated.
 
 ## `HK_PKL_EMBEDDED` {#hk-pkl-embedded}
 
@@ -184,7 +184,7 @@ This variable is read directly from the environment before `hk.pkl` is evaluated
 
 **Type:** string · **Default:** unset
 
-A URL rewrite used by the built-in pklr evaluator. The value has the form `https://source.example/=https://mirror.example/` and must be set before evaluation.
+URL rewrites used by the built-in pklr evaluator: Pkl package and module downloads whose URL starts with the source are fetched from the mirror instead. Each rewrite has the form `https://source.example/=https://mirror.example/`; separate several with commas. This must be set before evaluation.
 
 ## `HK_PKL_OFFLINE` {#hk-pkl-offline}
 

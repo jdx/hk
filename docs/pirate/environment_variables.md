@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: 69a05c32b3c7
+sourceHash: 4ea2db6b229c
 ---
 
 # Standing orders (environment variables)
@@ -166,7 +166,7 @@ hk reads this one straight from the environment before `hk.pkl` is evaluated, so
 
 **Type:** path · **Unless ye say otherwise:** unset
 
-A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, the seals it will honour. This must be set before the configuration is evaluated.
+A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots, the seals it will honour when it downloads Pkl packages. This is useful behind an SSL-intercepting proxy. This must be set before the configuration is evaluated.
 
 ## `HK_PKL_EMBEDDED` {#hk-pkl-embedded}
 
@@ -183,7 +183,7 @@ hk reads this one straight from the environment before `hk.pkl` is evaluated, so
 
 **Type:** string · **Unless ye say otherwise:** unset
 
-A URL rewrite for the built-in pklr evaluator, so the boats it sends ashore land at another address. The value has the form `https://source.example/=https://mirror.example/`, and it must be set before evaluation.
+URL rewrites for the built-in pklr evaluator: Pkl package and module downloads whose URL starts with the source are fetched from the mirror instead, so the boats it sends ashore land at another address. Each rewrite has the form `https://source.example/=https://mirror.example/`; separate several with commas. This must be set before evaluation.
 
 ## `HK_PKL_OFFLINE` {#hk-pkl-offline}
 

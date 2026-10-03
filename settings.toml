@@ -173,12 +173,12 @@ type = "string"
 env_only = true
 sources.env = ["HK_PKL_HTTP_REWRITE"]
 docs = """
-A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`.
+URL rewrites for the built-in pklr evaluator, which hk uses to evaluate `hk.pkl`. Pkl package and module downloads whose URL starts with `<FROM>` are fetched from `<TO>` instead, for example through an internal mirror.
 
-This setting is read directly from the environment variable before pkl is invoked, \
+Each rewrite has the form `http(s)://<FROM>/=http(s)://<TO>/`. Separate several rewrites with commas.
+
+This setting is read directly from the environment variable before `hk.pkl` is evaluated, \
 so it cannot be configured in `hk.pkl`.
-
-(`pkl` expects this in the form `http(s)://<FROM>/=http(s)://<TO>/`)
 """
 
 [pkl_ca_certificates]
@@ -186,12 +186,12 @@ type = "path"
 env_only = true
 sources.env = ["HK_PKL_CA_CERTIFICATES"]
 docs = """
-A path to a CA certificates file to provide `pkl`'s `--ca-certificates` flag when invoking `pkl`.
+A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots, when it downloads Pkl packages.
 
-This setting is read directly from the environment variable before pkl is invoked, \
+This setting is read directly from the environment variable before `hk.pkl` is evaluated, \
 so it cannot be configured in `hk.pkl`.
 
-This is useful in corporate environments with SSL-intercepting proxies where pkl
+This is useful in corporate environments with SSL-intercepting proxies where hk
 needs to trust custom CA certificates to download packages.
 """
 
