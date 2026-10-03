@@ -1,5 +1,5 @@
 use crate::Result;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -62,18 +62,41 @@ fn get_repo_files() -> Result<Vec<PathBuf>> {
 }
 
 fn find_case_conflicts(files: &[PathBuf]) -> Vec<Vec<PathBuf>> {
-    let mut case_map: HashMap<String, Vec<PathBuf>> = HashMap::new();
-
-    // Group files by their lowercase representation
+    // Every file plus every ancestor directory, so `Foo/a` and `foo/b` conflict
+    // on their directory even though the file paths differ.
+    let mut paths: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut dirs: HashSet<PathBuf> = HashSet::new();
     for file in files {
-        let lowercase = file.to_string_lossy().to_lowercase();
-        case_map.entry(lowercase).or_default().push(file.clone());
+        paths.insert(file.clone());
+        for ancestor in file.ancestors().skip(1) {
+            if ancestor.as_os_str().is_empty() {
+                continue;
+            }
+            paths.insert(ancestor.to_path_buf());
+            dirs.insert(ancestor.to_path_buf());
+        }
     }
 
-    // Filter to only groups with conflicts (2+ files)
+    let mut case_map: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
+    for path in paths {
+        let lowercase = path.to_string_lossy().to_lowercase();
+        case_map.entry(lowercase).or_default().push(path);
+    }
+
     case_map
         .into_values()
         .filter(|group| group.len() > 1)
+        // A file group whose members differ only through a conflicting parent
+        // directory is already reported by that directory's group.
+        .filter(|group| {
+            group.iter().any(|p| dirs.contains(p))
+                || group
+                    .iter()
+                    .map(|p| p.parent())
+                    .collect::<HashSet<_>>()
+                    .len()
+                    == 1
+        })
         .collect()
 }
 
@@ -148,5 +171,25 @@ mod tests {
         let conflicts = find_case_conflicts(&files);
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].len(), 2);
+    }
+
+    #[test]
+    fn test_directory_level_conflict() {
+        let files = vec![PathBuf::from("Foo/a.txt"), PathBuf::from("foo/b.txt")];
+        let conflicts = find_case_conflicts(&files);
+        assert_eq!(
+            conflicts,
+            vec![vec![PathBuf::from("Foo"), PathBuf::from("foo")]]
+        );
+    }
+
+    #[test]
+    fn test_nested_directory_conflict_and_same_file_name() {
+        let files = vec![PathBuf::from("a/Foo/x.txt"), PathBuf::from("a/foo/x.txt")];
+        let conflicts = find_case_conflicts(&files);
+        assert_eq!(
+            conflicts,
+            vec![vec![PathBuf::from("a/Foo"), PathBuf::from("a/foo")]]
+        );
     }
 }
