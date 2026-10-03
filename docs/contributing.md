@@ -57,6 +57,8 @@ The build task generates the builtin registry before compiling hk. Development t
 | Lint including Clippy  | `hk check --all --slow`              |
 | Apply formatting fixes | `hk fix --all`                       |
 
+`mise run test:bats` accepts several files or directories (`mise run test:bats test/check.bats test/fix.bats`). It needs `bats`, ripgrep (`rg`) and GNU `parallel` on `PATH`, and it fails when a path does not exist, matches no `test/*.bats` file, or when no test runs.
+
 Run checks appropriate to the change. Integration tests use isolated temporary repositories and exercise Git backends. See the [test-suite guide](https://github.com/jdx/hk/blob/main/test/README.md) for fixtures and cache behavior.
 
 ## Add a builtin
