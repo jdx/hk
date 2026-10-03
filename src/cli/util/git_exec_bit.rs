@@ -27,7 +27,11 @@ fn normalize(path: &Path) -> String {
         Ok(cwd) if path.is_absolute() => path.strip_prefix(&cwd).unwrap_or(path),
         _ => path,
     };
-    let s = path.to_string_lossy().replace('\\', "/");
+    let s = path.to_string_lossy();
+    // Only Windows uses `\` as a separator; on unix it is a legal filename
+    // character and must match git's path exactly.
+    #[cfg(windows)]
+    let s = std::borrow::Cow::Owned(s.replace('\\', "/"));
     s.strip_prefix("./").unwrap_or(&s).to_string()
 }
 
@@ -47,31 +51,47 @@ fn parse_stage_output(out: &[u8]) -> HashMap<String, String> {
 }
 
 /// Index modes for the tracked files among `files`, keyed by normalized path.
-fn index_modes(files: &[PathBuf]) -> HashMap<String, String> {
+/// `None` means we are not in a git repository (worktree modes are used).
+fn index_modes(files: &[PathBuf]) -> Result<Option<HashMap<String, String>>> {
     if files.is_empty() {
-        return HashMap::new();
+        return Ok(Some(HashMap::new()));
     }
     let output = Command::new("git")
         .args(["--literal-pathspecs", "ls-files", "-z", "--stage", "--"])
         .args(files)
-        .output();
-    match output {
-        Ok(o) if o.status.success() => parse_stage_output(&o.stdout),
-        _ => HashMap::new(),
+        .output()?;
+    if output.status.success() {
+        return Ok(Some(parse_stage_output(&output.stdout)));
     }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.contains("not a git repository") {
+        return Ok(None);
+    }
+    Err(eyre::eyre!(
+        "failed to read git index modes: {}",
+        stderr.trim()
+    ))
 }
 
-/// Resolves executability for each file: the index mode when the file is
-/// tracked, otherwise the worktree mode when `core.fileMode` is trusted
-/// (unix only), otherwise "not executable" (git would add it as 100644).
-pub fn executable_flags(files: &[PathBuf]) -> Result<Vec<bool>> {
-    let modes = index_modes(files);
+/// Resolves executability for each file: `Some(executable)` for regular
+/// files, `None` for paths that are not regular files (directories,
+/// symlinks, submodules) and so should be skipped.
+///
+/// Tracked files use the index mode. Untracked files use the worktree mode
+/// when `core.fileMode` is trusted (unix only), otherwise "not executable"
+/// (git would add them as 100644).
+pub fn executable_flags(files: &[PathBuf]) -> Result<Vec<Option<bool>>> {
+    let modes = index_modes(files)?;
     let trust_worktree = file_mode_enabled();
     files
         .iter()
         .map(|file| {
-            if let Some(mode) = modes.get(&normalize(file)) {
-                return Ok(mode.ends_with("755"));
+            if let Some(mode) = modes.as_ref().and_then(|m| m.get(&normalize(file))) {
+                return Ok(match mode.as_str() {
+                    "100755" => Some(true),
+                    "100644" => Some(false),
+                    _ => None,
+                });
             }
             worktree_executable(file, trust_worktree)
         })
@@ -79,18 +99,21 @@ pub fn executable_flags(files: &[PathBuf]) -> Result<Vec<bool>> {
 }
 
 #[allow(unused_variables)]
-fn worktree_executable(path: &Path, trust: bool) -> Result<bool> {
-    let metadata = std::fs::metadata(path)?;
-    if metadata.is_dir() || !trust {
-        return Ok(false);
+fn worktree_executable(path: &Path, trust: bool) -> Result<Option<bool>> {
+    let metadata = std::fs::symlink_metadata(path)?;
+    if !metadata.is_file() {
+        return Ok(None);
+    }
+    if !trust {
+        return Ok(Some(false));
     }
     #[cfg(unix)]
     {
-        Ok(metadata.permissions().mode() & 0o111 != 0)
+        Ok(Some(metadata.permissions().mode() & 0o111 != 0))
     }
     #[cfg(not(unix))]
     {
-        Ok(false)
+        Ok(Some(false))
     }
 }
 
@@ -99,8 +122,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn normalize_strips_dot_slash_and_backslashes() {
+    fn normalize_strips_dot_slash_and_keeps_unix_backslashes() {
         assert_eq!(normalize(Path::new("./a/b.sh")), "a/b.sh");
+        #[cfg(unix)]
+        assert_eq!(normalize(Path::new("a\\b.sh")), "a\\b.sh");
+        #[cfg(windows)]
         assert_eq!(normalize(Path::new("a\\b.sh")), "a/b.sh");
     }
 

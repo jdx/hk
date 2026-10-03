@@ -17,7 +17,7 @@ impl CheckShebangScriptsAreExecutable {
 
         let flags = executable_flags(&self.files)?;
         for (file_path, executable) in self.files.iter().zip(flags) {
-            if !executable && has_shebang(file_path)? {
+            if executable == Some(false) && has_shebang(file_path)? {
                 println!(
                     "{}: has a shebang but is not marked executable",
                     file_path.display()
@@ -28,7 +28,10 @@ impl CheckShebangScriptsAreExecutable {
 
         if found_issues {
             println!();
-            println!("If it is supposed to be executable, run `chmod +x <file>`.");
+            println!("If it is supposed to be executable, run `chmod +x <file>`");
+            println!(
+                "and `git update-index --chmod=+x <file>` (git records the mode, not the filesystem)."
+            );
             println!("If not, remove the shebang.");
             return Err(eyre::eyre!("Non-executable files with shebangs found"));
         }

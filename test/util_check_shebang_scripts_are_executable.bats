@@ -126,3 +126,43 @@ HK
     run hk util check-shebang-scripts-are-executable script.sh
     assert_success
 }
+
+@test "util check-shebang-scripts-are-executable - suggests update-index when git mode is not executable" {
+    printf '#!/bin/bash\necho hello\n' > script.sh
+    git add script.sh
+    git config core.fileMode false
+    chmod +x script.sh
+
+    run hk util check-shebang-scripts-are-executable script.sh
+    assert_failure
+    assert_output --partial "git update-index --chmod=+x"
+}
+
+@test "util check-shebang-scripts-are-executable - skips tracked symlinks and directories" {
+    printf '#!/bin/bash\necho hello\n' > target.sh
+    chmod +x target.sh
+    ln -s target.sh link.sh
+    mkdir sub
+    git add target.sh link.sh
+
+    run hk util check-shebang-scripts-are-executable link.sh sub
+    assert_success
+    refute_output
+}
+
+@test "util check-shebang-scripts-are-executable - backslash in a filename is not treated as a separator" {
+    if [[ "$(uname)" != "Linux" && "$(uname)" != "Darwin" ]]; then
+        skip "backslash filenames are unix only"
+    fi
+    mkdir scripts
+    printf '#!/bin/bash\necho a\n' > 'scripts/foo\bar.sh'
+    printf '#!/bin/bash\necho b\n' > scripts/other.sh
+    git add scripts
+    git update-index --chmod=+x 'scripts/foo\bar.sh'
+    chmod +x 'scripts/foo\bar.sh'
+
+    run hk util check-shebang-scripts-are-executable 'scripts/foo\bar.sh'
+    assert_success
+    run hk util check-shebang-scripts-are-executable scripts/other.sh
+    assert_failure
+}

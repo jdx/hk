@@ -121,3 +121,13 @@ HK
     assert_success
     refute_output
 }
+
+@test "util check-executables-have-shebangs - errors when the git index cannot be read" {
+    printf '#!/bin/bash\n' > script.sh
+    git add script.sh
+    echo garbage > .git/index
+
+    run hk util check-executables-have-shebangs script.sh
+    assert_failure
+    assert_output --partial "failed to read git index modes"
+}
