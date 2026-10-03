@@ -6,9 +6,14 @@ usage: mcp_scope.py SCOPE   (run from the project directory; `hk` is on PATH)
 Prints `status=<final status>` once the run is no longer active.
 """
 import json
+import os
+import queue
 import subprocess
 import sys
+import threading
 import time
+
+REPLY_TIMEOUT = float(os.environ.get("MCP_SCOPE_REPLY_TIMEOUT", "30"))
 
 scope = sys.argv[1]
 server = subprocess.Popen(
@@ -20,6 +25,30 @@ server = subprocess.Popen(
 )
 next_id = 0
 
+# Read stdout on a thread so a reply wait can time out (works on Windows too,
+# where select() does not support pipes). A silent server fails the test
+# instead of hanging it; the `finally` below kills the child.
+lines = queue.Queue()
+
+
+def pump():
+    for line in server.stdout:
+        lines.put(line)
+    lines.put(None)
+
+
+threading.Thread(target=pump, daemon=True).start()
+
+
+def read_reply():
+    try:
+        line = lines.get(timeout=REPLY_TIMEOUT)
+    except queue.Empty:
+        raise TimeoutError(f"no reply from hk mcp within {REPLY_TIMEOUT}s")
+    if line is None:
+        raise EOFError("hk mcp closed stdout")
+    return json.loads(line)
+
 
 def rpc(method, params=None, notify=False):
     global next_id
@@ -30,7 +59,7 @@ def rpc(method, params=None, notify=False):
     server.stdin.write(json.dumps(message) + "\n")
     server.stdin.flush()
     while not notify:
-        response = json.loads(server.stdout.readline())
+        response = read_reply()
         if response.get("id") == next_id:
             return response
 

@@ -54,6 +54,7 @@ stage_one_edit() {
 
     run python3 "$PROJECT_ROOT/test/test_helper/mcp_scope.py" unstaged
     assert_success
+    assert_output "status=succeeded"
 
     run cat seen.txt
     assert_output "unstaged.txt"
