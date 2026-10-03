@@ -281,3 +281,70 @@ EOF
     # the write-effect fixer even though this successful run did not.
     assert_output "write"
 }
+
+write_report_config() {
+    local report="$1"
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = $report
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+}
+
+@test "safe mode rejects a hook report with no declared effect" {
+    write_report_config '"rm -f a.txt"'
+
+    run hk check --all --safe
+    assert_failure
+    assert_output --partial "report: effect is unknown"
+    assert_file_exists a.txt
+    assert_file_not_exists known-ran
+}
+
+@test "safe mode rejects a destructive hook report" {
+    write_report_config 'new CommandSpec { command = "rm -f a.txt"; effect = "destructive" }'
+
+    run hk check --all --safe
+    assert_failure
+    assert_output --partial "report: effect is destructive"
+    assert_file_exists a.txt
+    assert_file_not_exists known-ran
+}
+
+@test "safe mode runs a hook report that declares a read effect" {
+    write_report_config 'new CommandSpec { command = "echo \"$HK_REPORT_JSON\" > report-ran"; effect = "read" }'
+
+    run hk check --all --safe
+    assert_success
+    assert_file_exists report-ran
+}
+
+@test "hook report accepts a structured argv command with an effect" {
+    write_report_config 'new CommandSpec { command = new Command { argv = List("touch", "report-ran") }; effect = "write" }'
+
+    run hk check --all --safe
+    assert_success
+    assert_file_exists report-ran
+}
+
+@test "plain string hook report still runs outside safe mode" {
+    write_report_config '"touch report-ran"'
+
+    run hk check --all
+    assert_success
+    assert_file_exists report-ran
+}

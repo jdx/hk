@@ -30,7 +30,7 @@ use crate::{
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
     stage_queue::StageQueue,
-    step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
+    step::{Command, CommandEffect, EXPR_CTX, OutputSummary, RunType, Step, eval_condition},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -115,7 +115,7 @@ pub struct Hook {
     #[serde(default)]
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
-    pub report: Option<Script>,
+    pub report: Option<Command>,
 }
 
 fn default_true() -> bool {
@@ -744,7 +744,7 @@ impl Hook {
 
         let skip_steps = build_skip_steps(&settings, &opts);
         if opts.safe {
-            validate_safe_commands(&groups, &files, run_type, &skip_steps)?;
+            validate_safe_commands(&groups, self.report.as_ref(), &files, run_type, &skip_steps)?;
         }
 
         let expr_ctx = build_expr_ctx(&git_status, &opts.hook_vars);
@@ -1326,6 +1326,7 @@ impl Hook {
         if opts.safe
             && let Err(err) = validate_safe_commands(
                 &groups,
+                self.report.as_ref(),
                 &files.iter().cloned().collect::<Vec<_>>(),
                 run_type,
                 &skip_steps,
@@ -1653,12 +1654,8 @@ impl Hook {
         if let Some(report) = &self.report
             && let Ok(json) = hook_ctx.timing.to_json_string()
         {
-            let mut cmd = ensembler::CmdLineRunner::new("sh")
-                .arg("-o")
-                .arg("errexit")
-                .arg("-c");
-            let run = report.to_string();
-            cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
+            let (mut cmd, run) = report_runner(report);
+            cmd = cmd.env("HK_REPORT_JSON", json);
             let pr = ProgressJobBuilder::new()
                 .body("report: {{message}}")
                 .prop("message", &run)
@@ -2064,13 +2061,52 @@ fn build_skip_steps(settings: &Settings, opts: &HookOptions) -> IndexMap<String,
     m
 }
 
+/// Builds the process for a hook-level `report` command and the text shown for it.
+///
+/// Like before `report` accepted structured commands, the command is not
+/// rendered as a template: `HK_REPORT_JSON` carries the data.
+fn report_runner(report: &Command) -> (ensembler::CmdLineRunner, String) {
+    match report {
+        Command::Spec(spec) => report_runner(&spec.command),
+        Command::Argv(command) => {
+            let mut argv = command.argv.iter();
+            let program = argv.next().cloned().unwrap_or_default();
+            let cmd = ensembler::CmdLineRunner::new(&program).args(argv);
+            (cmd, command.argv.join(" "))
+        }
+        Command::Shell(script) => {
+            let run = script.to_string();
+            let cmd = ensembler::CmdLineRunner::new("sh")
+                .arg("-o")
+                .arg("errexit")
+                .arg("-c")
+                .arg(&run);
+            (cmd, run)
+        }
+    }
+}
+
 fn validate_safe_commands(
     groups: &[StepGroup],
+    report: Option<&Command>,
     files: &[PathBuf],
     run_type: RunType,
     skip_steps: &IndexMap<String, SkipReason>,
 ) -> Result<()> {
     let mut blockers = BTreeSet::new();
+    // The report command runs after every hook, so --safe must classify it
+    // like a step command.
+    if let Some(report) = report {
+        match report.effect() {
+            None => {
+                blockers.insert("report: effect is unknown".to_string());
+            }
+            Some(CommandEffect::Destructive) => {
+                blockers.insert("report: effect is destructive".to_string());
+            }
+            Some(CommandEffect::Read | CommandEffect::Write) => {}
+        }
+    }
     for group in groups {
         let files_in_contention = group.files_in_contention_for(files, run_type)?;
         for (step_name, step) in &group.steps {

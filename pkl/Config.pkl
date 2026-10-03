@@ -306,7 +306,10 @@ class Hook {
   fail_on_fix: Boolean = false
 
   /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
-  report: (String | Script)?
+  ///
+  /// A plain string or `Script` has an unknown effect, so `--safe` refuses to run the hook.
+  /// Use a `CommandSpec` to declare the report's `effect` (`read`, `write`, or `destructive`).
+  report: (String | Script | Command | CommandSpec)?
 
   /// Steps are the individual linters that make up a hook.
   /// Steps can run concurrently, subject to dependencies, groups, and file locks, up to
