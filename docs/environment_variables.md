@@ -89,7 +89,7 @@ Permit fix mode when the hook requests it. Setting this to `false` disables conf
 
 **Type:** comma-separated tags · **Default:** empty
 
-Suppress named warning categories, such as `missing-profiles`. Suppressed tags combine across configuration sources.
+Suppress named warning categories, such as `missing-profiles` or `local-config-replaces-shared`. Suppressed tags combine across configuration sources.
 
 ## `HK_HIDE_WHEN_DONE` {#hk-hide-when-done}
 
