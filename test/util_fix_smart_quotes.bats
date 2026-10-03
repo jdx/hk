@@ -110,6 +110,5 @@ sys.stdout.buffer.write(b'\xff\xfe one\n' + '“q”\n'.encode() + b'three \x80\
     [ -L link.txt ]
     run cat target.txt
     assert_output '"q"'
-    run python3 -c 'import os, stat; print(format(stat.S_IMODE(os.stat("target.txt").st_mode), "o"))'
-    assert_output 755
+    assert_file_permission 755 target.txt
 }
