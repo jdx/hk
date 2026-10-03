@@ -923,7 +923,7 @@ open class Step {
   /// ```pkl
   /// local linters = new Mapping {
   ///     ["prettier"] {
-  ///         condition = "exec('test -f check.js')"
+  ///         condition = "exec_ok('test -f check.js')"
   ///     }
   /// }
   /// ```
@@ -936,7 +936,7 @@ open class Step {
   /// ```pkl
   /// local linters = new Mapping {
   ///     ["prettier"] {
-  ///         condition = "exec('test -f check.js')"
+  ///         condition = "exec_ok('test -f check.js')"
   ///     }
   /// }
   /// ```

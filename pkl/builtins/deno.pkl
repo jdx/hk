@@ -4,6 +4,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Deno formatter"
+  project_indicators {
+    new { file = "deno.json" }
+    new { file = "deno.jsonc" }
+  }
 }
 deno = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")

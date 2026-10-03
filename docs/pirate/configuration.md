@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: 34fd4d6ebded
+sourceHash: 9cbd9bc313da
 ---
 
 # Configuration, the ship's charts
@@ -246,9 +246,9 @@ If the formatter fails on any file, no patch is printed and hk runs `fix`, which
 
 ### What the lookouts sang out: diagnostics {#diagnostics}
 
-`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a hand's `check` command, and it can't guess a tool's output format. A hand reports diagnostics only when it sets `diagnostic_format`. Without it the hand still runs, fails, and keeps its raw `output` in the results, but its `diagnostics` list and its SARIF results are empty.
+`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a hand's `check` command, and it can't guess a tool's output format. A hand reports diagnostics only when it sets `diagnostic_format`. Without it the hand still runs, fails, and keeps its raw `output` in the results, but its `diagnostics` list and its SARIF results are empty. In `--format jsonl` output, the findings are in the final `run_completed` result; each `step_completed` event carries an empty `diagnostics` array.
 
-The standing crew are no different. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Many builtins don't set it, so their hands sing out no diagnostics even when they fail. To get diagnostics from one of those, set `diagnostic_format` on yer own hand, and add the tool's flag for a supported format to its `check` command if ye accept the output changing.
+The standing crew are no different. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Most builtins don't set it (check a builtin's definition in `pkl/builtins`), so an unchanged builtin hand sings out no diagnostics even when it fails. To get diagnostics from one of those, set `diagnostic_format` on yer own hand, and add the tool's flag for a supported format to its `check` command if ye accept the output changing.
 
 | `diagnostic_format` | What hk reads                                                                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -257,7 +257,7 @@ The standing crew are no different. A builtin sets `diagnostic_format` only when
 | `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                        |
 | `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                 |
 
-hk parses the combined stdout and stderr of `check` runs, not of `fix` runs. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Output that doesn't parse becomes an entry in the hand's `parse_warnings`, and the raw output is kept. This hand reports each line of the compiler's `path:line:column: message` output as a diagnostic:
+hk parses the combined stdout and stderr of `check` runs. If a hand captured no `check` output, structured results fall back to the hand's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. The raw output is always kept. Output that can't be parsed usually becomes an entry in the hand's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, and the `cargo-json` parser skips valid JSON events that aren't `compiler-message`. This hand reports each line of the compiler's `path:line:column: message` output as a diagnostic:
 
 ```pkl
 ["compiler"] {
@@ -375,11 +375,13 @@ including per-directory mise environments and locally installed Node tools.
 
 ### Reading the weather: conditions and Git status {#conditions-and-git-status}
 
-A hand reads the weather before it hauls. `condition` is an expression evaluated for each job of a step. `step_condition` is evaluated once per step. Shell commands need an explicit `exec(...)` call:
+A hand reads the weather before it hauls. `condition` is an expression evaluated for each job of a step. `step_condition` is evaluated once per step. To haul a step only when a shell command succeeds, wrap it in `exec_ok(...)`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
+
+`exec_ok(command)` is true when the command exits with status 0 and false otherwise. `exec(command)` returns the command's standard output as a string, for comparisons such as `exec('git branch --show-current') == 'main\n'`. Use `exec` for its output, not to test success: a command that exits non-zero, or prints output that is not valid UTF-8, makes `exec` fail the hook, and a string result never skips a step.
 
 The `git` object gives ye common status checks without calling on Git itself:
 

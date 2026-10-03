@@ -243,9 +243,9 @@ If the formatter fails for any file, no patch is printed and hk runs `fix`, whic
 
 ### Diagnostics {#diagnostics}
 
-`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a step's `check` command, and it can't guess a tool's output format. A step reports diagnostics only when it sets `diagnostic_format`. Without it the step still runs, fails, and keeps its raw `output` in the results, but its `diagnostics` list and its SARIF results are empty.
+`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a step's `check` command, and it can't guess a tool's output format. A step reports diagnostics only when it sets `diagnostic_format`. Without it the step still runs, fails, and keeps its raw `output` in the results, but its `diagnostics` list and its SARIF results are empty. In `--format jsonl` output, the findings are in the final `run_completed` result; each `step_completed` event carries an empty `diagnostics` array.
 
-This applies to builtins too. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Many builtins don't set it, so their steps contribute no diagnostics even when they fail. To report diagnostics for one of those, set `diagnostic_format` on your own step, and add the tool's flag for a supported format to its `check` command if you accept the output changing.
+This applies to builtins too. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Most builtins don't set it (check a builtin's definition in `pkl/builtins`), so an unchanged builtin step contribute no diagnostics even when they fail. To report diagnostics for one of those, set `diagnostic_format` on your own step, and add the tool's flag for a supported format to its `check` command if you accept the output changing.
 
 | `diagnostic_format` | What hk reads                                                                                                                                                             |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -254,7 +254,7 @@ This applies to builtins too. A builtin sets `diagnostic_format` only when the t
 | `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                        |
 | `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                 |
 
-hk parses the combined stdout and stderr of `check` runs, not of `fix` runs. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Output that doesn't parse becomes an entry in the step's `parse_warnings`, and the raw output is kept. This step reports each line of the compiler's `path:line:column: message` output as a diagnostic:
+hk parses the combined stdout and stderr of `check` runs. If a step captured no `check` output, structured results fall back to the step's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. The raw output is always kept. Output that can't be parsed usually becomes an entry in the step's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, and the `cargo-json` parser skips valid JSON events that aren't `compiler-message`. This step reports each line of the compiler's `path:line:column: message` output as a diagnostic:
 
 ```pkl
 ["compiler"] {
@@ -372,11 +372,13 @@ including per-directory mise environments and locally installed Node tools.
 
 ### Conditions and Git status
 
-`condition` is an expression evaluated per step job. `step_condition` is evaluated once per step. Shell commands need an explicit `exec(...)` call:
+`condition` is an expression evaluated per step job. `step_condition` is evaluated once per step. To run a step only when a shell command succeeds, wrap it in `exec_ok(...)`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
+
+`exec_ok(command)` is true when the command exits with status 0 and false otherwise. `exec(command)` returns the command’s standard output as a string, for comparisons such as `exec('git branch --show-current') == 'main\n'`. Use `exec` for its output, not to test success: a command that exits non-zero, or prints output that is not valid UTF-8, makes `exec` fail the hook, and a string result never skips a step.
 
 The `git` object makes common status checks available without invoking Git:
 
