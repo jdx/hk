@@ -4,6 +4,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Elixir"
   description = "Format Elixir with Mix"
+  project_indicators {
+    new { file = "mix.exs" }
+    new { file = ".formatter.exs" }
+  }
 }
 mix_fmt = new Config.Step {
   glob = List("**/*.ex", "**/*.exs")
