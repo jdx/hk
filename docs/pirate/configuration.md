@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: fe134273e9e6
+sourceHash: 59ecddf544d3
 ---
 
 # Configuration, the ship's charts
@@ -163,7 +163,7 @@ large file lists.
 
 On Windows, a string command runs through `cmd.exe` unless the hand sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few of the standing crew (builtins) are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `typos`, and `yq`. `just_format` also needs a POSIX shell, with `xargs`, and `nix_fmt` has no Windows commands. Other builtins sail as they are.
 
-To run one of them, set its `shell` to a POSIX shell, such as the `sh` that comes aboard with Git for Windows. A value that contains quotes groups the quoted words, so a path with spaces can be quoted (on Windows backslashes stay literal):
+To run one of them, set its `shell` to a POSIX shell, such as the `sh` that comes aboard with Git for Windows. A value that contains quotes groups the quoted words, so a path with spaces can be quoted (on Windows backslashes stay literal, except before a double quote, as in `CommandLineToArgvW`):
 
 ```pkl
 ["jq"] = (Builtins.jq) {

@@ -8,10 +8,14 @@ use shell_quote::{QuoteInto, QuoteRefExt};
 
 /// Split a step's `shell` setting into the program and its arguments.
 ///
-/// Words are separated by whitespace. A value that contains a quote groups
-/// words so a program path with a space can be quoted. On Windows backslashes
-/// are ordinary characters, so `C:\tools\bash.exe --rcfile "C:/My Scripts/rc" -c`
-/// keeps its path; elsewhere the value is split the way a POSIX shell would.
+/// Words are separated by whitespace, and quotes group words, so a program path
+/// with a space can be quoted. Elsewhere the value is split the way a POSIX
+/// shell would. On Windows it follows the rules of `CommandLineToArgvW`:
+/// backslashes are ordinary characters, so `C:\tools\bash.exe` keeps its path,
+/// except before a double quote, where `2n` backslashes give `n` and the quote
+/// groups, and `2n+1` give `n` and a literal quote. That lets
+/// `sh -c "printf \"hello world\""` pass `printf "hello world"` as one argument.
+/// Single quotes also group, with no escapes inside.
 pub(crate) fn split_shell(shell: &str) -> Vec<String> {
     split_shell_for(shell, cfg!(windows))
 }
@@ -22,41 +26,67 @@ fn split_shell_for(shell: &str, windows: bool) -> Vec<String> {
         return whitespace();
     }
     let words = if windows {
-        split_quotes_only(shell)
+        split_windows(shell)
     } else {
         shell_words::split(shell).ok()
     };
     words.unwrap_or_else(whitespace)
 }
 
-/// Split on whitespace outside quotes, dropping the quotes and keeping every
-/// other character, backslashes included. `None` when a quote is left open.
-fn split_quotes_only(shell: &str) -> Option<Vec<String>> {
+/// Split like `CommandLineToArgvW`. `None` when a quote is left open.
+fn split_windows(shell: &str) -> Option<Vec<String>> {
+    let chars: Vec<char> = shell.chars().collect();
     let mut words = Vec::new();
     let mut word = String::new();
     let mut in_word = false;
-    let mut quote: Option<char> = None;
-    for c in shell.chars() {
-        match quote {
-            Some(q) if c == q => quote = None,
-            Some(_) => word.push(c),
-            None if c == '"' || c == '\'' => {
-                quote = Some(c);
-                in_word = true;
-            }
-            None if c.is_whitespace() => {
-                if in_word {
-                    words.push(std::mem::take(&mut word));
-                    in_word = false;
-                }
-            }
-            None => {
+    let mut double = false;
+    let mut single = false;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if single {
+            if c == '\'' {
+                single = false;
+            } else {
                 word.push(c);
-                in_word = true;
             }
+        } else if c == '\\' {
+            let start = i;
+            while i < chars.len() && chars[i] == '\\' {
+                i += 1;
+            }
+            let run = i - start;
+            in_word = true;
+            if chars.get(i) == Some(&'"') {
+                word.extend(std::iter::repeat_n('\\', run / 2));
+                if run % 2 == 1 {
+                    word.push('"');
+                } else {
+                    double = !double;
+                }
+                i += 1;
+            } else {
+                word.extend(std::iter::repeat_n('\\', run));
+            }
+            continue;
+        } else if c == '"' {
+            double = !double;
+            in_word = true;
+        } else if c == '\'' && !double {
+            single = true;
+            in_word = true;
+        } else if c.is_whitespace() && !double {
+            if in_word {
+                words.push(std::mem::take(&mut word));
+                in_word = false;
+            }
+        } else {
+            word.push(c);
+            in_word = true;
         }
+        i += 1;
     }
-    if quote.is_some() {
+    if double || single {
         return None;
     }
     if in_word {
@@ -260,6 +290,17 @@ mod tests {
     }
 
     #[test]
+    fn windows_passes_an_escaped_quote_script_as_one_argument() {
+        assert_eq!(
+            windows(r##"sh -c "printf \"hello world\"""##),
+            ["sh", "-c", r##"printf "hello world""##]
+        );
+        // 2n+1 backslashes: n backslashes and a literal quote; 2n: n and the quote groups.
+        assert_eq!(windows(r#"a \\\"b"#), ["a", r#"\"b"#]);
+        assert_eq!(windows(r#"a "b\\" c"#), ["a", r"b\", "c"]);
+    }
+
+    #[test]
     fn windows_groups_a_quoted_path_with_spaces() {
         assert_eq!(
             windows(r#""C:\Program Files\Git\usr\bin\sh.exe" -o errexit -c"#),
@@ -277,8 +318,8 @@ mod tests {
     }
 
     #[test]
-    fn windows_ends_a_quoted_path_at_a_trailing_backslash() {
-        assert_eq!(windows(r#""C:\dir\" -c"#), [r"C:\dir\", "-c"]);
+    fn windows_ends_a_quoted_path_at_a_trailing_backslash_pair() {
+        assert_eq!(windows(r#""C:\dir\\" -c"#), [r"C:\dir\", "-c"]);
     }
 
     #[test]
