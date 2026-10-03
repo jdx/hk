@@ -22,7 +22,7 @@ A repository you clone does not carry hooks installed with `hk install`, because
 
 ## What Pkl evaluation can do {#pkl-evaluation}
 
-hk evaluates Pkl with its built-in evaluator, not the `pkl` binary. Evaluation happens before any step runs, and every command that loads the project config does it, including `hk validate`, `hk install`, `hk check`, and the hooks Git runs. Evaluation can:
+hk evaluates Pkl with its built-in evaluator, not the `pkl` binary. On a cache miss, evaluation happens before any step runs; a fresh resolved configuration cache can be loaded without evaluating Pkl again. Commands that load project configuration include `hk validate`, `hk install`, `hk check`, and the hooks Git runs. Evaluation can:
 
 - **Read environment variables** with `read("env:NAME")`. hk records the variables a config reads and includes their values in its config cache key.
 - **Read local files** with `read("file:///path")` or a relative path. Nothing restricts the path to the project directory.
@@ -44,7 +44,7 @@ Three settings change where evaluation gets its input:
 
 ## Global hooks {#global-hooks}
 
-`hk install --global` (Git 2.54 or newer) writes `hook.hk-<event>.command` and `hook.hk-<event>.event` entries to `~/.gitconfig`. Run inside a project with a config, it installs that project's enabled hooks other than `check` and `fix`; run anywhere else, it installs `commit-msg`, `pre-commit`, `pre-push`, and `prepare-commit-msg`. Each hook runs `hk run <event> --from-hook` using the absolute path of the hk that installed it.
+`hk install --global` (Git 2.54 or newer) writes `hook.hk-<event>.command` and `hook.hk-<event>.event` entries to `~/.gitconfig`. Run inside a project with a config, it installs that project's enabled hooks other than `check` and `fix`; run anywhere else, it installs `commit-msg`, `pre-commit`, `pre-push`, and `prepare-commit-msg`. Each hook runs `hk run <event> --from-hook` using the absolute path of the hk that installed it; the `pre-commit` hook also passes `--staged`. With `--mise` (or `HK_MISE=1`), Git instead runs hk through mise, as `<mise path> x hk -- hk run <event> --from-hook`, using the absolute path of the mise found on `PATH`.
 
 Git then runs hk for those events in every repository on the machine:
 
