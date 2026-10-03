@@ -126,7 +126,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Keep both configuration-specific retry budgets. On macOS that is two
     # 15-minute libgit2 attempts, two 10-minute nogit attempts, and setup.
-    timeout-minutes: ${{ matrix.os == 'macos-latest' && 60 || 40 }}
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 60 || 50 }}
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -180,11 +180,6 @@ jobs:
           timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
           command: scripts/ci_attempt_notice "bats (libgit2)" mise run --skip-deps test:bats:libgit2
-      - name: Save libgit2 test timings
-        if: always()
-        run: |
-          f=target/test-timings/builtins-all.tsv
-          [ ! -f "$f" ] || cp "$f" target/test-timings/builtins-libgit2.tsv
       # Keep this step independent from libgit2 so one configuration's
       # failure still reports the other configuration before the job fails.
       - name: mise run test:bats:nogit
@@ -194,32 +189,6 @@ jobs:
           timeout_minutes: 10
           max_attempts: 2
           command: scripts/ci_attempt_notice "bats (nogit)" mise run --skip-deps test:bats:nogit
-      - name: Save nogit test timings
-        if: always()
-        run: |
-          f=target/test-timings/builtins-all.tsv
-          [ ! -f "$f" ] || cp "$f" target/test-timings/builtins-nogit.tsv
-      - name: Publish builtin test timings
-        if: always()
-        run: |
-          {
-            for config in libgit2 nogit; do
-              f="target/test-timings/builtins-$config.tsv"
-              [ -f "$f" ] || continue
-              echo "### Slowest builtin test cases ($config, ${{ matrix.os }})"
-              echo
-              echo "| ms | case |"
-              echo "| ---: | --- |"
-              head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
-              echo
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always()
-        with:
-          name: test-timings-hosted-bats-${{ matrix.os }}
-          path: target/test-timings/
-          if-no-files-found: ignore
   ci-nolibgit2:
     name: ci-nolibgit2 (${{ matrix.os }})
     needs: build
