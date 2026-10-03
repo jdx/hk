@@ -226,3 +226,15 @@ HK
     assert_success
     refute_output
 }
+
+@test "util check-shebang-scripts-are-executable - absolute path through a symlinked alias of the worktree uses the index mode" {
+    printf '#!/bin/bash\necho a\n' > x.sh
+    git add x.sh
+    git update-index --chmod=+x x.sh
+    chmod 644 x.sh
+    ln -s "$PWD" "$BATS_TEST_TMPDIR/alias"
+
+    run hk util check-shebang-scripts-are-executable "$BATS_TEST_TMPDIR/alias/x.sh"
+    assert_success
+    refute_output
+}

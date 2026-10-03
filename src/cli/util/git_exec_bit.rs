@@ -22,6 +22,34 @@ pub fn file_mode_enabled() -> bool {
     }
 }
 
+/// Canonicalizes the directory part of `path` (resolving symlinked aliases and,
+/// on Windows, spelling/case) and re-attaches the file name. The leaf is never
+/// followed, so a symlink keeps its own identity. Falls back to the lexical
+/// path when the parent cannot be canonicalized.
+fn canonical_parent(path: &Path) -> PathBuf {
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) => match std::fs::canonicalize(parent) {
+            Ok(parent) => parent.join(name),
+            Err(_) => path.to_path_buf(),
+        },
+        _ => path.to_path_buf(),
+    }
+}
+
+/// The repository top level exactly as git printed it (only the single
+/// trailing newline removed).
+fn toplevel_from_stdout(stdout: &[u8]) -> PathBuf {
+    let raw = stdout.strip_suffix(b"\n").unwrap_or(stdout);
+    #[cfg(unix)]
+    let top = {
+        use std::os::unix::ffi::OsStrExt;
+        PathBuf::from(std::ffi::OsStr::from_bytes(raw))
+    };
+    #[cfg(not(unix))]
+    let top = PathBuf::from(String::from_utf8_lossy(raw).into_owned());
+    top
+}
+
 /// Maps an argument path to the key used by the index map: the path relative
 /// to the repository top level (`top`), with `.`/`..` resolved lexically.
 /// Paths outside `top` keep their absolute spelling and so are never found.
@@ -44,7 +72,7 @@ fn normalize(path: &Path, top: Option<&Path>) -> String {
                     other => out.push(other.as_os_str()),
                 }
             }
-            resolved = out;
+            resolved = canonical_parent(&out);
             resolved.strip_prefix(top).unwrap_or(&resolved)
         }
         _ => path,
@@ -85,14 +113,15 @@ fn index_modes() -> Result<Option<(PathBuf, HashMap<String, String>)>> {
         .args(["rev-parse", "--show-toplevel"])
         .output()?;
     if top.status.success() {
-        let top = PathBuf::from(String::from_utf8_lossy(&top.stdout).trim_end());
+        let top = toplevel_from_stdout(&top.stdout);
         let output = Command::new("git")
             .arg("-C")
             .arg(&top)
             .args(["ls-files", "-z", "--stage"])
             .output()?;
         if output.status.success() {
-            return Ok(Some((top, parse_stage_output(&output.stdout))));
+            let canonical_top = std::fs::canonicalize(&top).unwrap_or(top);
+            return Ok(Some((canonical_top, parse_stage_output(&output.stdout))));
         }
         return Err(eyre::eyre!(
             "failed to read git index modes: {}",
