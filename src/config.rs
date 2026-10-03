@@ -1893,8 +1893,10 @@ mod tests {
             StepOrGroup::Step(Box::new(step("root"))),
         );
 
-        let mut sub = Config::default();
-        sub.path = PathBuf::from("packages/web/hk.pkl");
+        let mut sub = Config {
+            path: PathBuf::from("packages/web/hk.pkl"),
+            ..Default::default()
+        };
         let mut sub_check = hook("check");
         sub_check.fix = Some(true);
         sub_check.stage = Some(true);
