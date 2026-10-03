@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Python"
   description = "Python import sorter"
+  project_indicators {
+    new { file = ".isort.cfg" }
+    new { file = "pyproject.toml"; contains = "[tool.isort]" }
+  }
 }
 isort = new Config.Step {
   glob = "**/*.py"

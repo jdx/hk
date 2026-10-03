@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "Type checker for Ruby"
+  project_indicators {
+    new { file = "sorbet/config" }
+  }
 }
 sorbet = new Config.Step {
   types = List("ruby")

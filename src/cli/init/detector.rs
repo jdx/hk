@@ -423,4 +423,72 @@ mod tests {
         let names: Vec<_> = detections.iter().map(|d| d.builtin.name).collect();
         assert!(names.contains(&"shellcheck"));
     }
+
+    fn detected_names(files: &[(&str, &str)]) -> Vec<&'static str> {
+        let tmp = tempfile::tempdir().unwrap();
+        for (path, content) in files {
+            let path = tmp.path().join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, content).unwrap();
+        }
+        detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect()
+    }
+
+    #[test]
+    fn test_detect_tool_config_files() {
+        for (file, builtin) in [
+            (".flake8", "flake8"),
+            (".pylintrc", "pylint"),
+            ("deno.json", "deno"),
+            ("stylua.toml", "stylua"),
+            (".luacheckrc", "luacheck"),
+            ("selene.toml", "selene"),
+            ("taplo.toml", "taplo_format"),
+            (".sqlfluff", "sql_fluff"),
+            (".yamlfmt", "yamlfmt"),
+            ("buf.yaml", "buf_lint"),
+            (".clang-format", "clang_format"),
+            ("justfile", "just_format"),
+            ("mix.exs", "mix_fmt"),
+            ("typos.toml", "typos"),
+            ("dprint.json", "dprint"),
+        ] {
+            assert!(
+                detected_names(&[(file, "")]).contains(&builtin),
+                "expected {builtin} for {file}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_detect_content_indicators_need_the_tool_named() {
+        let pyproject = "[tool.isort]\nprofile = \"black\"\n";
+        assert!(detected_names(&[("pyproject.toml", pyproject)]).contains(&"isort"));
+        let plain = "[project]\nname = \"x\"\n";
+        let names = detected_names(&[("pyproject.toml", plain)]);
+        for builtin in ["isort", "pylint", "ty"] {
+            assert!(
+                !names.contains(&builtin),
+                "{builtin} should not be detected"
+            );
+        }
+        let unrelated = r#"{"name": "astronomy", "dependencies": {"astro-utils": "1"}}"#;
+        let names = detected_names(&[("package.json", unrelated)]);
+        for builtin in ["astro", "standard_js", "xo"] {
+            assert!(
+                !names.contains(&builtin),
+                "{builtin} should not be detected"
+            );
+        }
+        let xo = r#"{"devDependencies": {"xo": "1"}}"#;
+        assert!(detected_names(&[("package.json", xo)]).contains(&"xo"));
+    }
+
+    #[test]
+    fn test_nested_tool_config_does_not_activate_root_indicator() {
+        assert!(!detected_names(&[("sub/.flake8", "")]).contains(&"flake8"));
+    }
 }

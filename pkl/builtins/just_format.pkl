@@ -4,6 +4,11 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Special Purpose"
   description = "Justfile formatter"
+  project_indicators {
+    new { file = "justfile" }
+    new { file = "Justfile" }
+    new { file = ".justfile" }
+  }
 }
 just_format = new Config.Step {
   glob = List("**/justfile", "**/*.just")
