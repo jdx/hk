@@ -1683,7 +1683,13 @@ mod tests {
         git_in(repo, &["init", "-q"]);
         git_in(repo, &["config", "user.email", "t@t"]);
         git_in(repo, &["config", "user.name", "t"]);
-        let name = std::ffi::OsStr::from_bytes(b":(glob)*bad\xffname.txt");
+        // macOS filesystems reject non-UTF-8 names, so only the pathspec-looking name applies there.
+        let raw: &[u8] = if cfg!(target_os = "macos") {
+            b":(glob)*badname.txt"
+        } else {
+            b":(glob)*bad\xffname.txt"
+        };
+        let name = std::ffi::OsStr::from_bytes(raw);
         std::fs::write(repo.join(name), "base\n").unwrap();
         git_in(repo, &["add", "."]);
         git_in(repo, &["commit", "-qm", "base"]);
