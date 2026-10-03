@@ -993,7 +993,22 @@ open class Step {
   /// ```
   output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
 
-  /// Parse command output into normalized diagnostics for structured output and SARIF export.
+  /// Parse the combined stdout and stderr of `check` runs into normalized diagnostics for
+  /// structured output (`--format json`), SARIF export (`--sarif`), and the MCP dashboard.
+  ///
+  /// A step reports diagnostics only when this is set; without it, `diagnostics` and its SARIF
+  /// results are empty and only the raw output is kept. hk does not add flags to the command, so
+  /// the command must print one of these formats itself:
+  ///
+  /// - `gcc`: `path:line:column: [severity:] message [rule]` lines
+  /// - `sarif`: a SARIF 2.1.0 log
+  /// - `eslint-json`: the output of `eslint --format json`
+  /// - `cargo-json`: the output of `cargo check --message-format=json`
+  ///
+  /// ```pkl
+  /// check = "my-compiler {{files}}"
+  /// diagnostic_format = "gcc"
+  /// ```
   diagnostic_format: DiagnosticFormat?
 
   /// Tool name recorded on normalized diagnostics. Defaults to the step name.

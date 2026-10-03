@@ -699,6 +699,33 @@ impl Hook {
         self.name == "pre-commit"
     }
 
+    /// Whether this run reads untracked files from `git status`.
+    ///
+    /// Finding them makes `git status` walk the whole worktree, which costs far
+    /// more than reading the index on a large repository, so it is skipped when
+    /// nothing below can see the result. The status then lists no untracked
+    /// files, which is what `HK_STASH_UNTRACKED=false` already produces.
+    fn needs_untracked_scan(
+        &self,
+        opts: &HookOptions,
+        stash_method: StashMethod,
+        should_stage: bool,
+    ) -> bool {
+        if !*env::HK_STASH_UNTRACKED {
+            return false;
+        }
+        // Stashing sets untracked files aside, and staging tells files that
+        // were already untracked from ones a fixer created.
+        if stash_method != StashMethod::None || should_stage {
+            return true;
+        }
+        if file_selection_reads_untracked(opts, self.defaults_to_staged_files()) {
+            return true;
+        }
+        // Conditions and command templates can read `git.untracked_files`.
+        serde_json::to_string(self).map_or(true, |hook| hook.contains("untracked"))
+    }
+
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
         // Suppress progress output so plan output (especially JSON) is clean.
         clx::progress::set_output(ProgressOutput::Text);
@@ -1269,7 +1296,8 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
-        let git_status = match repo.lock().await.status() {
+        let scan_untracked = self.needs_untracked_scan(&opts, stash_method, should_stage);
+        let git_status = match repo.lock().await.status_with_untracked(scan_untracked) {
             Ok(status) => status,
             Err(err) => {
                 crate::structured_output::emit_error_run(
@@ -2166,6 +2194,24 @@ fn validate_safe_commands(
         );
     }
     Ok(())
+}
+
+/// Whether `Hook::file_list` selects files from the untracked files in the
+/// status, for a run that does not stash. Keep it in step with the branches
+/// there, which pick the first matching selector in this order.
+fn file_selection_reads_untracked(opts: &HookOptions, defaults_to_staged: bool) -> bool {
+    if opts.files.is_some() {
+        false
+    } else if opts.glob.is_some() || opts.unstaged {
+        true
+    } else if opts.from_ref.is_some() {
+        false
+    } else if opts.all {
+        true
+    } else {
+        // Staged files only, or else staged, unstaged and untracked files
+        !(opts.staged || defaults_to_staged)
+    }
 }
 
 fn build_expr_ctx(
