@@ -27,6 +27,7 @@ mod glob;
 mod hash;
 mod hook;
 mod hook_options;
+mod lint;
 mod logger;
 mod merge;
 mod mise_env;
