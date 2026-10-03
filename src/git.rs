@@ -897,7 +897,7 @@ impl Git {
     /// Get the patches directory for this repository
     fn patches_dir(&self) -> Result<PathBuf> {
         let patches_dir = env::HK_STATE_DIR.join("patches");
-        std::fs::create_dir_all(&patches_dir)?;
+        env::create_state_dir_all(&patches_dir)?;
         Ok(patches_dir)
     }
 

@@ -17,6 +17,28 @@ pub static HK_STATE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             .join("hk"),
     )
 });
+/// Create `path` and any missing parents, like `create_dir_all`, except that
+/// directories created at or below the state directory are private to the
+/// user (0700 on Unix). The state directory holds saved stash patches and
+/// command output, which can contain a repository's uncommitted changes.
+/// Directories that already exist keep their permissions.
+pub fn create_state_dir_all(path: &std::path::Path) -> std::io::Result<()> {
+    let state = &*HK_STATE_DIR;
+    if !path.starts_with(state) {
+        return std::fs::create_dir_all(path);
+    }
+    // Directories above the state directory, such as ~/.local/state, are not
+    // ours to restrict.
+    if let Some(parent) = state.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(path)
+}
+
 pub static HK_FILE: LazyLock<Option<String>> = LazyLock::new(|| var("HK_FILE").ok());
 pub static HK_CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     var_path("HK_CACHE_DIR").unwrap_or(
