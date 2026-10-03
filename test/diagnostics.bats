@@ -365,7 +365,7 @@ hooks {
                 glob = "**/*.mod"
                 workspace_indicator = "module.toml"
                 dir = "{{workspace}}"
-                check = "printf 'src/main.c:2:4: warning: first line [W1]\\\\n../shared/util.c:7:1: error: second [W2]\\\\n' >&2; exit 1"
+                check = "printf 'src/main.c:2:4: warning: first line [W1]\\\\n../shared/util.c:7:1: error: second [W2]\\\\n' >&2"
                 diagnostic_format = "gcc"
                 diagnostic_tool = "cc"
             }
@@ -383,9 +383,11 @@ EOF
 
 @test "diagnostics from a step run in a workspace are relative to the repository root" {
     write_workspace_config
+    # The check exits 0: a failing job aborts its sibling jobs, so which workspace's
+    # diagnostics get recorded would otherwise depend on timing.
 
     run hk check --all --sarif diagnostics.sarif
-    assert_failure
+    assert_success
     run jq -r '[.runs[0].results[] | .locations[0].physicalLocation.artifactLocation.uri] | unique | .[]' diagnostics.sarif
     assert_success
     # Each module reports under its own directory, with `..` resolved.
