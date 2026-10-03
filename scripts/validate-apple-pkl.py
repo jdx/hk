@@ -26,6 +26,7 @@ SHELL_EXPANSIONS = {
     "$check_diff_effect": "read",
     "$second_effect": "write",
     "$oversized": "x",
+    "$step_exclude": 'exclude = List("vendor")',
     "$stash_method": "git",
     "$method": "git",
     "$(pwd)": "/tmp/hk-apple-pkl",
@@ -48,6 +49,7 @@ EXPECTED_FAILURES = {
     ("pkl_config_errors.bats", "invalid module URI shows helpful error"),
     ("pkl_config_errors.bats", "pkl file with syntax errors shows original error"),
     ("top_level_exclude.bats", "top-level exclude - invalid regex fails validation"),
+    ("validate.bats", "validate names the step for an invalid exclude regex"),
     ("regex_patterns.bats", "Config.Regex fails with v2 migration guidance"),
     ("regex_patterns.bats", "Types.Regex fails with v2 migration guidance"),
     (
