@@ -436,7 +436,7 @@ impl HkMcpServer {
         match status {
             Ok(status) => {
                 run.exit_code = status.code();
-                let invalid_result = parse_run_result(run);
+                let invalid_result = parse_run_result(run, cancelled);
                 run.status = if cancelled {
                     "cancelled"
                 } else if invalid_result {
@@ -939,7 +939,9 @@ fn tool_success(summary: String, value: Value) -> CallToolResult {
     result
 }
 
-fn parse_run_result(run: &mut RunRecord) -> bool {
+/// `killed` is true only when hk was actually killed by a cancellation; a
+/// cancel that arrives after hk exited does not change the outcome.
+fn parse_run_result(run: &mut RunRecord, killed: bool) -> bool {
     if run.saw_run_completed && run.result.is_some() {
         return false;
     }
@@ -957,10 +959,8 @@ fn parse_run_result(run: &mut RunRecord) -> bool {
         );
     }
     // A partial result still says "running"; the run is over, so it failed.
-    // A cancelled run keeps the state it had when it was stopped.
-    if !run.cancel.is_cancelled()
-        && let Some(result) = run.result.as_mut()
-    {
+    // A killed run keeps the state it had when it was stopped.
+    if !killed && let Some(result) = run.result.as_mut() {
         result["status"] = json!("failed");
         if result.get("failure").is_none() {
             result["failure"] = json!(run.error);
@@ -1451,7 +1451,7 @@ mod tests {
         let mut run = test_run("malformed", "running", Vec::new());
         consume_jsonl_events(&mut run, b"not json\n");
 
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         assert!(run.result.is_none());
         assert!(
             run.error
@@ -1471,7 +1471,7 @@ mod tests {
         );
         run.stdout_truncated = true;
 
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         let result = run.result.as_ref().unwrap();
         assert_eq!(result["status"], "failed");
         assert!(
@@ -1483,12 +1483,41 @@ mod tests {
     }
 
     #[test]
+    fn late_cancel_after_exit_still_marks_partial_result_failed() {
+        let mut run = test_run("late-cancel", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        // Cancel arrives after hk exited on its own (child was not killed).
+        run.cancel.cancel();
+
+        assert!(parse_run_result(&mut run, false));
+        assert_eq!(run.result.as_ref().unwrap()["status"], "failed");
+    }
+
+    #[test]
+    fn killed_run_keeps_partial_result_state() {
+        let mut run = test_run("killed", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        run.cancel.cancel();
+
+        assert!(parse_run_result(&mut run, true));
+        assert_ne!(run.result.as_ref().unwrap()["status"], "failed");
+    }
+
+    #[test]
     fn missing_completion_reports_the_first_stderr_paragraph() {
         let stderr =
             b"Error: Failed to load configuration\n\nCaused by:\n    unterminated string\n";
         let mut run = test_run("no-result", "running", stderr.to_vec());
 
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         assert_eq!(
             run.error.as_deref(),
             Some("Error: Failed to load configuration")
@@ -1499,7 +1528,7 @@ mod tests {
     fn missing_completion_without_stderr_still_has_an_error() {
         let mut run = test_run("silent", "running", Vec::new());
 
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         assert_eq!(
             run.error.as_deref(),
             Some("hk exited without a structured result")
@@ -1536,7 +1565,7 @@ mod tests {
 "#,
         );
 
-        assert!(!parse_run_result(&mut run));
+        assert!(!parse_run_result(&mut run, false));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
         assert!(run.error.is_none());
     }
@@ -1551,7 +1580,7 @@ mod tests {
         );
         run.stdout_truncated = true;
 
-        assert!(!parse_run_result(&mut run));
+        assert!(!parse_run_result(&mut run, false));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
         assert!(run.error.is_none());
     }
