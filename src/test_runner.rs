@@ -192,9 +192,16 @@ fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<Stri
     None
 }
 
-/// Whether `path` names the same file as `expected`, ignoring a leading `./`.
+/// Whether `path` names the same file as `expected`, ignoring a leading `./`. A tool that
+/// prints an absolute path (the sandbox is a temporary directory) matches the relative
+/// `expected` path when it ends with it at a directory boundary.
 fn same_path(path: &str, expected: &str) -> bool {
-    path.strip_prefix("./").unwrap_or(path) == expected.strip_prefix("./").unwrap_or(expected)
+    let path = path.strip_prefix("./").unwrap_or(path);
+    let expected = expected.strip_prefix("./").unwrap_or(expected);
+    path == expected
+        || (Path::new(path).is_absolute()
+            && !Path::new(expected).is_absolute()
+            && path.ends_with(&format!("/{expected}")))
 }
 
 fn diagnostic_matches(diagnostic: &Diagnostic, expected: &StepTestDiagnostic) -> bool {
@@ -661,6 +668,14 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    #[test]
+    fn relative_path_matches_the_tail_of_an_absolute_path() {
+        assert!(same_path("/tmp/x/proto/a.proto", "proto/a.proto"));
+        assert!(same_path("./a.c", "a.c"));
+        assert!(!same_path("/tmp/x/myproto/a.proto", "proto/a.proto"));
+        assert!(!same_path("sub/a.c", "a.c"));
     }
 
     #[test]
