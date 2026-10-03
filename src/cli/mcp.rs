@@ -382,8 +382,7 @@ impl HkMcpServer {
         };
         let mut command = Command::new(executable);
         command
-            .arg("--cd")
-            .arg(&root)
+            .current_dir(&root)
             .args(["--format", "jsonl"])
             .arg(kind.command())
             .arg("--all")
@@ -391,6 +390,9 @@ impl HkMcpServer {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
+        // Own process group, so a stuck run can be killed together with its steps.
+        #[cfg(unix)]
+        command.process_group(0);
         if kind.safe() {
             command.arg("--safe");
         }
@@ -413,12 +415,16 @@ impl HkMcpServer {
         let (status, cancelled) = tokio::select! {
             status = child.wait() => (status, false),
             _ = cancel.cancelled() => {
-                let _ = child.kill().await;
-                (child.wait().await, true)
+                (stop_child(&mut child, CANCEL_GRACE).await, true)
             }
         };
-        let _ = stdout_task.await;
-        let _ = stderr_task.await;
+        // A step that outlives hk can keep an output pipe open; do not wait for it forever.
+        for task in [stdout_task, stderr_task] {
+            let abort = task.abort_handle();
+            if tokio::time::timeout(PIPE_DRAIN_GRACE, task).await.is_err() {
+                abort.abort();
+            }
+        }
         let diff = match diff_baseline {
             Ok(tree) => git_diff(&root, &tree).await.unwrap_or_default(),
             Err(_) => CapturedDiff::default(),
@@ -1083,11 +1089,38 @@ fn append_capped(target: &mut Vec<u8>, bytes: &[u8]) -> bool {
     bytes.len() > remaining
 }
 
+/// How long a cancelled hk run gets to stop its own steps before it is killed.
+const CANCEL_GRACE: Duration = Duration::from_secs(10);
+
+/// How long to keep reading output after hk has exited.
+const PIPE_DRAIN_GRACE: Duration = Duration::from_secs(5);
+
+/// Stop a run the way Ctrl-C would: SIGINT lets hk stop its steps and clean up,
+/// and SIGKILL follows only if it has not exited after the grace period.
+async fn stop_child(
+    child: &mut tokio::process::Child,
+    grace: Duration,
+) -> std::io::Result<std::process::ExitStatus> {
+    #[cfg(unix)]
+    if let Some(pid) = child.id() {
+        // SAFETY: plain signal delivery to a child process we spawned and have not reaped.
+        unsafe { libc::kill(pid as libc::pid_t, libc::SIGINT) };
+        if let Ok(status) = tokio::time::timeout(grace, child.wait()).await {
+            return status;
+        }
+        // hk did not stop in time: kill its whole process group, steps included.
+        // SAFETY: the child leads its own group (see `process_group(0)`), so this
+        // signals only hk and the processes it started.
+        unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+    }
+    let _ = child.kill().await;
+    child.wait().await
+}
+
 async fn run_hk_capture(root: &Path, args: &[&str]) -> Result<std::process::Output, String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let output = Command::new(executable)
-        .arg("--cd")
-        .arg(root)
+        .current_dir(root)
         .args(args)
         .stdin(std::process::Stdio::null())
         .output()
@@ -1467,6 +1500,30 @@ mod tests {
         assert_eq!(result["steps"][0]["name"], "cargo-check");
         assert_eq!(result["steps"][0]["status"], "running");
         assert!(!run.saw_run_completed);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stop_child_kills_the_process_group_when_sigint_is_ignored() {
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "trap '' INT; sleep 300 & wait"])
+            .stdout(std::process::Stdio::piped())
+            .process_group(0)
+            .kill_on_drop(true);
+        let mut child = command.spawn().unwrap();
+        let mut stdout = child.stdout.take().unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let status = stop_child(&mut child, Duration::from_millis(300))
+            .await
+            .unwrap();
+        assert!(!status.success());
+        // The step's `sleep` held stdout open; it must be gone so the pipe closes.
+        let mut rest = Vec::new();
+        tokio::time::timeout(Duration::from_secs(5), stdout.read_to_end(&mut rest))
+            .await
+            .expect("output pipe was still held by a surviving step")
+            .unwrap();
     }
 
     #[test]
