@@ -9,6 +9,11 @@ teardown() {
     _common_teardown
 }
 
+# `timeout` is not on macOS; perl's alarm kills a hang with SIGALRM (status 142).
+_timeout() {
+    perl -e 'alarm shift; exec @ARGV' "$@"
+}
+
 @test "depends" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -152,7 +157,7 @@ EOF
 
     # No `marker` file exists in any ancestor of test.txt, so `workspace` has no jobs.
     # `timeout` makes a regression fail instead of hanging on the dependency.
-    run timeout 8 hk check --all
+    run _timeout 8 hk check --all
     assert_success
     refute_output --partial "WORKSPACE_RAN"
     assert_output --partial "AFTER_RAN"
@@ -181,7 +186,7 @@ EOF
 
     # Clean tree: nothing is staged or changed, so the batch step has no jobs.
     # `timeout` makes a regression fail instead of hanging on the dependency.
-    run timeout 8 hk check
+    run _timeout 8 hk check
     assert_success
     assert_output --partial "AFTER_RAN"
 }
