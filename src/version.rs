@@ -5,6 +5,9 @@ pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// The default every published `Config.pkl` ships, never rendered.
+const PLACEHOLDER: &str = "{{version | truncate(length=1)}}.0.0";
+
 /// How a `min_hk_version` string reads.
 #[derive(Debug, PartialEq, Eq)]
 pub enum MinVersion {
@@ -19,7 +22,7 @@ pub enum MinVersion {
 /// patch (`2`, `2.1`, `v2.1.0`) in addition to full semver.
 pub fn parse_min_version(v: &str) -> MinVersion {
     let v = v.trim();
-    if v.contains("{{") {
+    if v == PLACEHOLDER {
         return MinVersion::Placeholder;
     }
     let v = v.strip_prefix(['v', 'V']).unwrap_or(v);
@@ -87,6 +90,9 @@ mod tests {
         let placeholder = "{{version | truncate(length=1)}}.0.0";
         assert_eq!(parse_min_version(placeholder), MinVersion::Placeholder);
         version_cmp_or_bail(placeholder).unwrap();
+        // Only the exact published text is the placeholder; a typo is not.
+        assert_eq!(parse_min_version("v999.0.0{{typo}}"), MinVersion::Invalid);
+        assert_eq!(parse_min_version("{{version}}.0.0"), MinVersion::Invalid);
     }
 
     #[test]

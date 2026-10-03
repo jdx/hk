@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "SQL linter and formatter"
+  project_indicators {
+    new { file = ".sqlfluff" }
+  }
 }
 sql_fluff = new Config.Step {
   glob = "**/*.sql"

@@ -352,100 +352,6 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn command_text_unwraps_shell_command_specs() {
-        let command = json!({
-            "command": "cargo fmt --check --manifest-path {{workspace_indicator}}",
-            "effect": "read"
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("cargo fmt --check --manifest-path {{workspace_indicator}}")
-        );
-    }
-
-    #[test]
-    fn command_text_formats_structured_argv() {
-        let command = json!({
-            "command": {
-                "argv": ["prettier", "--check", "{{files}}"]
-            },
-            "effect": "read"
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("prettier --check {{files}}")
-        );
-    }
-
-    #[test]
-    fn command_text_preserves_argv_boundaries() {
-        let command = json!({
-            "argv": ["tool", "--message", "hello world"]
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("tool --message 'hello world'")
-        );
-    }
-
-    #[test]
-    fn command_text_quotes_shell_metacharacters() {
-        let command = json!({
-            "argv": ["tool", "a\"b", "$(printf expanded)", "it's"]
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some(r#"tool 'a"b' '$(printf expanded)' 'it'\''s'"#)
-        );
-    }
-
-    #[test]
-    fn command_text_quotes_brace_expansion() {
-        let command = json!({
-            "argv": ["tool", "{a,b}", "{{files}}", "{{workspace_files}}"]
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("tool '{a,b}' {{files}} {{workspace_files}}")
-        );
-    }
-
-    #[test]
-    fn command_docs_use_fences_for_multiline_scripts() {
-        let step = json!({
-            "check": {
-                "command": "first line\nsecond line",
-                "effect": "read"
-            }
-        });
-        let mut md = String::new();
-
-        push_command_doc(&mut md, &step, "check", "Check");
-
-        assert_eq!(
-            md,
-            "- **Check:**\n\n  ```sh\n  first line\n  second line\n  ```\n"
-        );
-    }
-
-    #[test]
-    fn command_text_ignores_missing_commands() {
-        assert_eq!(command_text(&serde_json::Value::Null), None);
-        assert_eq!(command_text(&json!({"effect": "read"})), None);
-    }
-}
-
 fn format_property_doc(name: &str, value: &serde_json::Value, heading_level: &str) -> String {
     let mut doc = format!(
         "{} `{}: {}`\n\n",
@@ -563,4 +469,98 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
     fs::write("docs/gen/pkl-config.md", md)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn command_text_unwraps_shell_command_specs() {
+        let command = json!({
+            "command": "cargo fmt --check --manifest-path {{workspace_indicator}}",
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("cargo fmt --check --manifest-path {{workspace_indicator}}")
+        );
+    }
+
+    #[test]
+    fn command_text_formats_structured_argv() {
+        let command = json!({
+            "command": {
+                "argv": ["prettier", "--check", "{{files}}"]
+            },
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("prettier --check {{files}}")
+        );
+    }
+
+    #[test]
+    fn command_text_preserves_argv_boundaries() {
+        let command = json!({
+            "argv": ["tool", "--message", "hello world"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("tool --message 'hello world'")
+        );
+    }
+
+    #[test]
+    fn command_text_quotes_shell_metacharacters() {
+        let command = json!({
+            "argv": ["tool", "a\"b", "$(printf expanded)", "it's"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some(r#"tool 'a"b' '$(printf expanded)' 'it'\''s'"#)
+        );
+    }
+
+    #[test]
+    fn command_text_quotes_brace_expansion() {
+        let command = json!({
+            "argv": ["tool", "{a,b}", "{{files}}", "{{workspace_files}}"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("tool '{a,b}' {{files}} {{workspace_files}}")
+        );
+    }
+
+    #[test]
+    fn command_docs_use_fences_for_multiline_scripts() {
+        let step = json!({
+            "check": {
+                "command": "first line\nsecond line",
+                "effect": "read"
+            }
+        });
+        let mut md = String::new();
+
+        push_command_doc(&mut md, &step, "check", "Check");
+
+        assert_eq!(
+            md,
+            "- **Check:**\n\n  ```sh\n  first line\n  second line\n  ```\n"
+        );
+    }
+
+    #[test]
+    fn command_text_ignores_missing_commands() {
+        assert_eq!(command_text(&serde_json::Value::Null), None);
+        assert_eq!(command_text(&json!({"effect": "read"})), None);
+    }
 }

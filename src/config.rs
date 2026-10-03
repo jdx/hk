@@ -2,12 +2,12 @@ use indexmap::IndexMap;
 use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
-use eyre::{WrapErr, bail};
+use eyre::{WrapErr, bail, eyre};
 
 pub const V2_MIGRATION_URL: &str = "https://hk.jdx.dev/migration-v2";
 
@@ -303,12 +303,15 @@ impl Config {
         if let Some(path) = Self::find_project_config(&paths) {
             let mut config = Self::load_config_cached(path)?;
             config.apply_implicit_root_dir()?;
+            config.project_config_loaded = true;
             return Ok(config);
         }
         if env::HK_FILE.is_none()
             && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
         {
-            return Ok(Self::read(&path, true)?.0);
+            let mut config = Self::read(&path, true)?.0;
+            config.project_config_loaded = true;
+            return Ok(config);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
@@ -1212,6 +1215,10 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     pub path: PathBuf,
+    /// True when a project config file (not just the built-in default or the
+    /// user-level config) was found and loaded.
+    #[serde(skip)]
+    pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
     pub fail_fast: Option<bool>,
@@ -1284,7 +1291,7 @@ impl Config {
     /// Warnings about a config that loads but probably does not do what its
     /// author meant. Run by `hk validate`; never fatal.
     pub fn lint(&self) -> Vec<String> {
-        crate::lint::lint_hooks(&self.hooks, &self.steps, &self.implicit_default_hooks)
+        crate::lint::lint_hooks(&self.hooks, &self.implicit_default_hooks)
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -1309,12 +1316,92 @@ impl Config {
                     }
                 }
             }
+            validate_dependencies(hook_name, hook)?;
         }
         Ok(())
     }
 }
 
+/// Reject `depends` that can never be satisfied. `depends` only orders steps
+/// that run in the same execution group, so each group is checked on its own;
+/// a hook-wide graph would reject configs that run fine today.
+fn validate_dependencies(hook_name: &str, hook: &crate::hook::Hook) -> Result<()> {
+    let groups = crate::step_group::StepGroup::build_all(hook.steps.values().cloned().collect());
+    for group in groups {
+        for (name, step) in &group.steps {
+            if step.depends.iter().any(|dep| dep == name) {
+                bail!("Step '{name}' in hook '{hook_name}' depends on itself.");
+            }
+        }
+        // Depth-first search; `state` is 1 while a step is on the stack, 2 once done.
+        fn visit<'a>(
+            name: &'a str,
+            group: &'a crate::step_group::StepGroup,
+            state: &mut HashMap<&'a str, u8>,
+            stack: &mut Vec<&'a str>,
+        ) -> Option<Vec<&'a str>> {
+            match state.get(name) {
+                Some(2) => return None,
+                Some(_) => {
+                    let start = stack.iter().position(|n| *n == name).unwrap_or(0);
+                    let mut cycle = stack[start..].to_vec();
+                    cycle.push(name);
+                    return Some(cycle);
+                }
+                None => {}
+            }
+            state.insert(name, 1);
+            stack.push(name);
+            if let Some(step) = group.steps.get(name) {
+                for dep in &step.depends {
+                    if group.steps.contains_key(dep.as_str())
+                        && let Some(cycle) = visit(dep, group, state, stack)
+                    {
+                        return Some(cycle);
+                    }
+                }
+            }
+            stack.pop();
+            state.insert(name, 2);
+            None
+        }
+        let mut state = HashMap::new();
+        for name in group.steps.keys() {
+            if let Some(cycle) = visit(name, &group, &mut state, &mut vec![]) {
+                bail!(
+                    "Steps in hook '{hook_name}' have a circular dependency: {}. \
+                    These steps would wait on each other forever.",
+                    cycle.join(" -> ")
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_patterns(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    let selectors = step
+        .match_any
+        .iter()
+        .flatten()
+        .map(|s| ("match_any glob", s.glob.as_ref()));
+    let patterns = [
+        ("glob", step.glob.as_ref()),
+        ("exclude", step.exclude.as_ref()),
+    ]
+    .into_iter()
+    .chain(selectors);
+    for (field, pattern) in patterns {
+        if let Some(pattern) = pattern {
+            crate::glob::validate_pattern(pattern, step.dir_prefix())
+                .map_err(|e| eyre!("Step '{step_name}' {location} has an invalid {field}: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    validate_patterns(step, step_name, location)?;
     if step.stage.is_some() && step.fix.is_none() {
         bail!(
             "Step '{}' {} has 'stage' attribute but no 'fix' command. \
@@ -1619,6 +1706,89 @@ mod tests {
         assert!(format!("{err:#}").contains("invalid regex in top-level 'exclude'"));
     }
 
+    fn step_depending_on(name: &str, depends: &[&str]) -> Step {
+        Step {
+            name: name.to_string(),
+            depends: depends.iter().map(|d| d.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    fn config_with_steps(steps: Vec<Step>) -> Config {
+        let mut hook = hook("check");
+        for step in steps {
+            hook.steps.insert(
+                step.name.clone(),
+                crate::hook::StepOrGroup::Step(Box::new(step)),
+            );
+        }
+        let mut config = Config::default();
+        config.hooks.insert("check".to_string(), hook);
+        config
+    }
+
+    #[test]
+    fn validate_rejects_dependency_cycles_and_self_dependencies() {
+        let cycle = config_with_steps(vec![
+            step_depending_on("a", &["b"]),
+            step_depending_on("b", &["a"]),
+        ]);
+        let err = format!("{:#}", cycle.validate().unwrap_err());
+        assert!(err.contains("a -> b -> a"), "{err}");
+
+        let selfish = config_with_steps(vec![step_depending_on("a", &["a"])]);
+        let err = format!("{:#}", selfish.validate().unwrap_err());
+        assert!(err.contains("depends on itself"), "{err}");
+    }
+
+    #[test]
+    fn validate_scopes_dependency_cycles_to_execution_groups() {
+        let mut later = step_depending_on("b", &["a"]);
+        later.exclusive = true;
+        let config = config_with_steps(vec![step_depending_on("a", &["b"]), later]);
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_compiles_globs_with_the_steps_dir() {
+        let mut globby = step("lint");
+        globby.dir = Some("foo[".into());
+        globby.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![globby]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob '*'"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_step_patterns() {
+        let mut bad_glob = step("lint");
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob"),
+            "{err}"
+        );
+
+        let mut bad_regex = step("lint");
+        bad_regex.exclude = Some(crate::step::Pattern::Regex {
+            _type: "regex".into(),
+            pattern: "a(".into(),
+        });
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_regex]).validate().unwrap_err()
+        );
+        assert!(err.contains("invalid exclude"), "{err}");
+    }
+
     #[test]
     fn untracked_import_detection_covers_declarations_and_expressions() {
         let untracked = [
@@ -1909,8 +2079,10 @@ mod tests {
             StepOrGroup::Step(Box::new(step("root"))),
         );
 
-        let mut sub = Config::default();
-        sub.path = PathBuf::from("packages/web/hk.pkl");
+        let mut sub = Config {
+            path: PathBuf::from("packages/web/hk.pkl"),
+            ..Default::default()
+        };
         let mut sub_check = hook("check");
         sub_check.fix = Some(true);
         sub_check.stage = Some(true);

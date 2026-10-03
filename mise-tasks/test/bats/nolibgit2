@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
 #MISE depends=["build", "test:bats:setup"]
 #MISE env = { "HK_LIBGIT2" = "0" }
-#USAGE arg "<test>..." default="test"
 
 set -eu
 
-# --sort path keeps the test order, and so the test numbers, the same between
-# runs and retry attempts.
-tests=$(rg --files-with-matches --sort path --word-regexp git "${usage_test}" --glob "test/*.bats" || true | tr '\n' ' ')
-if [ "$tests" ]; then
-  bats --jobs 16 $tests
-fi
+exec "$(dirname "$0")/../../../scripts/run-bats" with-git "$@"

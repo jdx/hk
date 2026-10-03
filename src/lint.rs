@@ -16,6 +16,7 @@ use crate::{
 
 const CONFIG_KEYS: &[&str] = &[
     "min_hk_version",
+    "jobs",
     "steps",
     "hooks",
     "default_branch",
@@ -190,27 +191,20 @@ fn check_step(object: &serde_json::Map<String, Value>, location: &str, out: &mut
     }
 }
 
-/// Suspicious but loadable settings in a resolved config. `implicit` names the
-/// hooks hk derived from top-level `steps`; those are linted once, as `steps`,
-/// instead of once per derived hook.
-pub fn lint_hooks(
-    hooks: &IndexMap<String, Hook>,
-    top_level_steps: &IndexMap<String, StepOrGroup>,
-    implicit: &IndexSet<String>,
-) -> Vec<String> {
+/// Suspicious but loadable settings in a resolved config. Takes the final,
+/// initialized hooks, so steps are named and everything merged in from
+/// subprojects or the user config is covered. `implicit` names the hooks hk
+/// derived from top-level `steps`; they share one label, so a warning about a
+/// top-level step prints once instead of once per derived hook.
+pub fn lint_hooks(hooks: &IndexMap<String, Hook>, implicit: &IndexSet<String>) -> Vec<String> {
     let mut out = IndexSet::new();
-    if !top_level_steps.is_empty() {
-        let synthetic = Hook {
-            name: "steps".to_string(),
-            steps: top_level_steps.clone(),
-            ..Default::default()
-        };
-        lint_hook("steps", &synthetic, &mut out);
-    }
     for (name, hook) in hooks {
-        if !implicit.contains(name) {
-            lint_hook(name, hook, &mut out);
-        }
+        let label = if implicit.contains(name) {
+            "the default hooks"
+        } else {
+            name.as_str()
+        };
+        lint_hook(label, hook, &mut out);
     }
     out.into_iter().collect()
 }
@@ -223,37 +217,41 @@ fn lint_hook(hook_name: &str, hook: &Hook, out: &mut IndexSet<String>) {
         .map(|(name, _)| name.as_str())
         .collect();
     let groups = StepGroup::build_all(hook.steps.values().cloned().collect());
-    let mut group_of: IndexMap<&str, usize> = IndexMap::new();
-    for (index, group) in groups.iter().enumerate() {
-        for name in group.steps.keys() {
-            group_of.insert(name, index);
-        }
-    }
+    let all_steps: IndexSet<&str> = groups
+        .iter()
+        .flat_map(|g| g.steps.keys().map(String::as_str))
+        .collect();
     let where_ = |name: &str| format!("Step '{name}' in hook '{hook_name}'");
     for (index, group) in groups.iter().enumerate() {
         for (name, step) in &group.steps {
             for dep in &step.depends {
-                if dep == name {
-                    continue; // already an error
+                if dep == name || group.steps.contains_key(dep.as_str()) {
+                    continue; // a self-dependency is already an error
                 }
-                match group_of.get(dep.as_str()) {
-                    Some(dep_index) if *dep_index > index => out.insert(format!(
+                if groups[index + 1..]
+                    .iter()
+                    .any(|later| later.steps.contains_key(dep.as_str()))
+                {
+                    out.insert(format!(
                         "{} depends on '{dep}', which runs in a later group. `depends` only \
                         orders steps in the same group, so this has no effect.",
                         where_(name)
-                    )),
-                    Some(_) => false,
-                    None if group_names.contains(dep.as_str()) => out.insert(format!(
+                    ));
+                } else if all_steps.contains(dep.as_str()) {
+                    // Runs in an earlier group, so it is already done.
+                } else if group_names.contains(dep.as_str()) {
+                    out.insert(format!(
                         "{} depends on '{dep}', which is a group. `depends` names steps; \
                         list the steps inside the group instead.",
                         where_(name)
-                    )),
-                    None => out.insert(format!(
+                    ));
+                } else {
+                    out.insert(format!(
                         "{} depends on unknown step '{dep}'.{}",
                         where_(name),
-                        did_you_mean_hint(dep, group_of.keys().copied())
-                    )),
-                };
+                        did_you_mean_hint(dep, all_steps.iter().copied())
+                    ));
+                }
             }
             if step.check.is_none()
                 && step.fix.is_none()
@@ -265,6 +263,8 @@ fn lint_hook(hook_name: &str, hook: &Hook, out: &mut IndexSet<String>) {
                     where_(name)
                 ));
             }
+            // Group-level `exclude` is copied onto its steps when the config
+            // initializes, so the step's own fields cover it.
             let selectors = step.match_any.iter().flatten().map(|s| s.glob.as_ref());
             let patterns = [step.glob.as_ref(), step.exclude.as_ref()]
                 .into_iter()
@@ -404,7 +404,7 @@ mod tests {
                 .insert(name.into(), StepOrGroup::Group(Box::new(group)));
         }
         let hooks = IndexMap::from([("check".to_string(), hook)]);
-        lint_hooks(&hooks, &IndexMap::new(), &IndexSet::new())
+        lint_hooks(&hooks, &IndexSet::new())
     }
 
     #[test]
@@ -453,6 +453,61 @@ mod tests {
             "{all}"
         );
         assert!(!all.contains("'*.{js,ts}'"), "{all}");
+    }
+
+    #[test]
+    fn same_named_steps_in_different_groups_do_not_misreport_depends() {
+        // `a` exists in both groups; the second group's `b` depends on its own
+        // group's `a`, and the first group's `b` on the first group's `a`.
+        let mut first_b = named("b", &["a"]);
+        first_b.exclusive = false;
+        let g1 = vec![named("a", &[]), first_b];
+        let g2 = vec![named("a", &[]), named("b", &["a"])];
+        let out = lint(vec![], vec![("g1", g1), ("g2", g2)]);
+        assert!(out.is_empty(), "{out:?}");
+    }
+
+    #[test]
+    fn lints_default_hooks_once_with_real_step_names() {
+        let mut hook = Hook::default();
+        let mut step = named("lint", &["fmt"]);
+        step.name = "lint".into();
+        hook.steps
+            .insert("lint".into(), StepOrGroup::Step(Box::new(step)));
+        let hooks = IndexMap::from([
+            ("check".to_string(), hook.clone()),
+            ("fix".to_string(), hook),
+        ]);
+        let implicit = IndexSet::from(["check".to_string(), "fix".to_string()]);
+        let out = lint_hooks(&hooks, &implicit);
+        assert_eq!(out.len(), 1, "{out:?}");
+        assert!(
+            out[0].starts_with("Step 'lint' in hook 'the default hooks'"),
+            "{out:?}"
+        );
+    }
+
+    #[test]
+    fn config_keys_cover_every_top_level_pkl_property() {
+        let schema = include_str!("../pkl/Config.pkl");
+        let mut found = 0;
+        for line in schema.lines() {
+            let Some(name) = line
+                .split([':', ' '])
+                .next()
+                .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
+            else {
+                continue;
+            };
+            if line[name.len()..].starts_with(':') || line[name.len()..].starts_with(" =") {
+                found += 1;
+                assert!(
+                    CONFIG_KEYS.contains(&name),
+                    "Config.pkl property {name} missing"
+                );
+            }
+        }
+        assert!(found >= 15, "parsed only {found} Config.pkl properties");
     }
 
     #[test]
