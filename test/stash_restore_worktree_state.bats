@@ -432,7 +432,9 @@ EOF
 # to run on the reverted contents and stage them over the staged edit.
 @test "a fix step keeps a staged edit when the worktree copy was reverted to HEAD" {
     unset HK_STASH_UNTRACKED
-    for fixer in "true" "sed -i s/l1/L1/ f.txt"; do
+    export HK_STATE_DIR="$TEST_TEMP_DIR/state"
+    # sed -i differs between GNU and BSD, so the changing fixer writes a copy
+    for fixer in "true" "sed s/l1/L1/ f.txt > f.tmp && mv f.tmp f.txt"; do
         cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -451,6 +453,7 @@ EOF
             printf 'l1\nl2\nl3\nstaged\n' > f.txt
             git add f.txt
             printf 'l1\nl2\nl3\n' > f.txt
+            rm -rf "$HK_STATE_DIR"
 
             HK_LIBGIT2=$libgit2 run hk run pre-commit
             assert_success
@@ -466,7 +469,50 @@ EOF
             assert_equal "$(git show :f.txt)" "$index"
             assert_equal "$(cat f.txt)" "$worktree"
             assert_equal "$(git stash list)" ""
+            # The backup patch has the reverted edit, which `git stash show`
+            # would not, since the stash matches HEAD
+            run cat "$HK_STATE_DIR"/patches/*.patch
+            assert_output --partial "-staged"
             reset_repo
         done
+    done
+}
+
+@test "reverted files are restored when checking out the staged contents fails midway" {
+    unset HK_STASH_UNTRACKED
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps { ["fixer"] { glob = "**/*.txt"; fix = "true" } }
+  }
+}
+EOF
+    mkdir sub
+    printf 'one\n' > a.txt
+    printf 'one\n' > sub/b.txt
+    git add .
+    git commit -qm "files"
+    for libgit2 in 1 0; do
+        printf 'one\nstaged\n' > a.txt
+        printf 'one\nstaged\n' > sub/b.txt
+        git add a.txt sub/b.txt
+        printf 'one\n' > a.txt
+        printf 'one\n' > sub/b.txt
+        # a.txt is checked out first; then sub/b.txt cannot be replaced
+        chmod 555 sub
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        chmod 755 sub
+        assert_failure
+
+        # The files the checkout reached are back as the user left them
+        assert_equal "$(cat a.txt)" one
+        assert_equal "$(cat sub/b.txt)" one
+        assert_equal "$(git show :a.txt)" "$(printf 'one\nstaged')"
+        assert_equal "$(git stash list)" ""
+        reset_repo
     done
 }

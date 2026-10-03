@@ -1030,6 +1030,13 @@ impl Git {
 
     /// Save a patch backup of the stash
     fn save_stash_patch(&mut self, stash_ref: &str) {
+        self.save_patch_backup(stash_ref, None);
+    }
+
+    /// Saves a patch backup of what the stash set aside. `trees` names the
+    /// staged and the worktree tree to diff when `git stash show` cannot show
+    /// it, because it compares with HEAD.
+    fn save_patch_backup(&mut self, stash_ref: &str, trees: Option<(&str, &str)>) {
         // If backup_count is 0, skip patch backup entirely
         let backup_count = Settings::get().stash_backup_count;
         if backup_count == 0 {
@@ -1060,11 +1067,22 @@ impl Git {
         let patch_path = patches_dir.join(&patch_filename);
 
         // Generate patch using git stash show
-        let mut cmd = git_cmd_silent(["stash", "show", "-p"]);
-        if *env::HK_STASH_UNTRACKED {
-            cmd = cmd.arg("--include-untracked");
-        }
-        cmd = cmd.arg(stash_ref);
+        let cmd = if let Some((index_tree, worktree_tree)) = trees {
+            git_cmd_silent([
+                "diff",
+                "--binary",
+                "--no-ext-diff",
+                "--no-color",
+                index_tree,
+                worktree_tree,
+            ])
+        } else {
+            let mut cmd = git_cmd_silent(["stash", "show", "-p"]);
+            if *env::HK_STASH_UNTRACKED {
+                cmd = cmd.arg("--include-untracked");
+            }
+            cmd.arg(stash_ref)
+        };
 
         // Read patch content from git
         let mut patch_content = match cmd.read() {
@@ -1860,7 +1878,9 @@ impl Git {
             .run()
             .wrap_err("failed to stash reverted files")?;
         self.stash_commit = Some(commit.clone());
-        self.save_stash_patch(&commit);
+        // `git stash show` compares with HEAD, which these files match, so
+        // back up how the worktree differs from the staged contents
+        self.save_patch_backup(&commit, Some((&index_tree, &worktree_tree)));
         // The worktree now equals the index, as `--keep-index` leaves it
         if let Err(err) = git_cmd(["checkout-index", "--force", "-z", "--stdin"])
             .stdin_bytes(
@@ -1871,11 +1891,45 @@ impl Git {
             )
             .run()
         {
-            // The files are untouched, so the entry has nothing to restore
-            if let Some(stash_ref) = find_stash_ref(&commit) {
-                let _ = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run();
-            }
+            // Some of the files may already hold the staged contents. Put
+            // the stashed worktree contents back, and keep the entry unless
+            // that worked.
+            let restored = (|| -> Result<()> {
+                // Only the files that no longer match
+                let mut args: Vec<OsString> = ["diff", "--name-only", "-z", "--no-ext-diff"]
+                    .into_iter()
+                    .map(OsString::from)
+                    .collect();
+                args.push(commit.clone().into());
+                args.push("--".into());
+                args.extend(reverted.iter().map(|p| {
+                    let mut spec = OsString::from(":(literal)");
+                    spec.push(p.as_os_str());
+                    spec
+                }));
+                let (changed, _) = git_read_paths(args)?;
+                if changed.is_empty() {
+                    return Ok(());
+                }
+                git_cmd([
+                    "restore",
+                    &format!("--source={commit}"),
+                    "--worktree",
+                    "--pathspec-from-file=-",
+                    "--pathspec-file-nul",
+                ])
+                .stdin_bytes(literal_pathspecs(&changed))
+                .run()?;
+                Ok(())
+            })();
             self.stash_commit = None;
+            let stash_ref = find_stash_ref(&commit).unwrap_or_else(|| commit.clone());
+            if let Err(restore_err) = restored {
+                return Err(err).wrap_err(format!(
+                    "failed to check out the staged contents, and restoring the reverted files failed ({restore_err}); their contents are kept in {stash_ref}"
+                ));
+            }
+            let _ = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run();
             return Err(err).wrap_err("failed to check out the staged contents");
         }
         debug!("stashed reverted files {reverted:?} in {commit}");
