@@ -60,6 +60,39 @@ hooks {
 
 Without top-level steps, hk does not create the three default hooks. The example above declares only `check` and `pre-commit`; declare a `fix` hook too if you want `hk fix`. Existing typed mappings such as `local linters = new Mapping<String, Step> { ... }` and `steps = linters` remain supported.
 
+### Staging generated files
+
+Hook-level `stage` enables staging for a hook; step-level `stage` filters which
+paths hk adds after a fix. They solve different problems. Staging is enabled by
+default for `pre-commit`, but not for manual `hk fix` or custom hooks. A step's
+`stage` list does not enable staging by itself. When set, it is the allowlist:
+include both changed inputs you want committed and any generated outputs that
+are outside the step's input file list.
+
+For example, a dependency checker can read a changed manifest but regenerate a
+repository-wide snapshot that is outside its input file list:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["dependency-snapshot"] {
+        glob = List("package.json")
+        fix = "dependency-checker --fix {{files}}"
+        stage = List("package.json", ".github/dependency-snapshot.json")
+      }
+    }
+  }
+}
+```
+
+The `pre-commit` hook enables staging, and the step-level allowlist includes
+both the manifest edit and the generated snapshot. When `fail_on_fix` is not
+`true`, enable staging for a custom hook with `stage = true` or for a manual
+run with `hk fix --stage`. When `fail_on_fix = true`, hk does not stage fix
+output. Prefer declaring generated outputs on the step rather than running
+`git add` inside the command.
+
 ### Config file paths
 
 Starting in the current directory, hk walks upward. At each directory it checks these paths in order, using the first match:
