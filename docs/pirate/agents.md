@@ -1,5 +1,5 @@
 ---
-sourceHash: e464ba245dcf
+sourceHash: 182640722e3c
 ---
 
 # Clockwork hands: coding agents
@@ -23,7 +23,7 @@ Every generator writes only to stdout. Look the result over, then place or merge
 1. Look the ship over and ask for a passage plan.
 2. Keep the work to the cargo that changed. Use `--files0-from` when exact filenames matter, and `--cd` to choose the project root.
 3. Inspect each command's effects on the cargo, and prefer safe execution. `--safe` refuses a run before any step starts if a runnable command is unknown or destructive.
-4. Read the JSON or JSONL diagnostics, and keep the raw output when ye investigate parser warnings.
+4. Read the JSON or JSONL diagnostics, and keep the raw output when ye investigate parser warnings. A step's `output` in a structured result is capped at 64 KiB and ends with a marker stating the cap; the MCP server fails a run whose structured stream outgrows 16 MiB. A run that founders before any step starts, such as a configuration error, still produces a failed `run_result` with the reason in `failure`.
 5. Review the resulting diff before ye accept a fix.
 
 Without MCP, here's a portable way to hail hk:
