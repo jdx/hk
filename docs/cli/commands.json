@@ -7227,7 +7227,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Check that a commit message follows the Conventional Commits format",
-            "help_long": "Check that a commit message follows the Conventional Commits format\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.",
+            "help_long": "Check that a commit message follows the Conventional Commits format\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation, as do titles git generates itself: `Merge branch '`, `Merge branches '`, `Merge tag '`, `Merge tags '`, `Merge commit '`, `Merge remote-tracking branch '`, `Merge remote-tracking branches '`, `Merge pull request `, and `Revert \"`.",
             "name": "check-conventional-commit",
             "aliases": [],
             "hidden_aliases": [],

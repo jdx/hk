@@ -85,6 +85,16 @@ more trailing"
     assert_output --partial "file1.txt"
 }
 
+@test "util trailing-whitespace - detects trailing whitespace when a multibyte char spans the 8 KiB probe" {
+    # 'é' (2 bytes) straddles byte 8192, so the probe alone ends mid-character.
+    head -c 8191 /dev/zero | tr '\0' a > multibyte.txt
+    printf 'é\ntrailing  \n' >> multibyte.txt
+
+    run hk util trailing-whitespace multibyte.txt
+    assert_failure
+    assert_output --partial "multibyte.txt"
+}
+
 @test "util trailing-whitespace - diff mode outputs unified diff" {
     echo "trailing  " > file1.txt
 

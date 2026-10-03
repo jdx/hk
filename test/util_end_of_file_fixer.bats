@@ -16,6 +16,15 @@ teardown() {
     assert_output --partial "file.txt"
 }
 
+@test "util end-of-file-fixer - detects missing newline when a multibyte char spans the 8 KiB probe" {
+    head -c 8191 /dev/zero | tr '\0' a > multibyte.txt
+    printf 'é\nlast' >> multibyte.txt
+
+    run hk util end-of-file-fixer multibyte.txt
+    assert_failure
+    assert_output --partial "multibyte.txt"
+}
+
 @test "util end-of-file-fixer - passes file with final newline" {
     printf "has newline\n" > file.txt
 

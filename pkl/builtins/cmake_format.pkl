@@ -4,6 +4,12 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "Source code formatter for cmake listfiles"
+  project_indicators {
+    new { file = ".cmake-format.json" }
+    new { file = ".cmake-format.yaml" }
+    new { file = ".cmake-format.yml" }
+    new { file = ".cmake-format.py" }
+  }
 }
 cmake_format = new Config.Step {
   glob = List("**/CMakeLists.txt", "**/*.cmake")
