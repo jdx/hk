@@ -16,8 +16,6 @@ golangci_lint = new Config.Step {
     command = "golangci-lint run --fix=false ./..."
     effect = "write"
   }
-  // Findings are `path:line:column: message (linter)`; hk ignores the trailing `N issues:` summary
-  diagnostic_format = "gcc"
   fix = new Config.CommandSpec {
     command = "golangci-lint run --fix ./..."
     effect = "write"
@@ -41,40 +39,6 @@ golangci_lint = new Config.Step {
           """
       }
       expect { code = 0 }
-    }
-    ["check bad file reports diagnostics"] {
-      run = "check"
-      tmpdir = true
-      write = new Mapping<String, String> {
-        ["go.mod"] =
-          """
-          module example.com/test
-
-          go 1.21
-          """
-        ["main.go"] =
-          """
-          package main
-
-          import "os"
-
-          func main() {
-            os.Remove("x")
-          }
-          """
-      }
-      expect {
-        code = 1
-        diagnostics {
-          new Config.StepTestDiagnostic {
-            path = "main.go"
-            line = 6
-            column = 12
-            severity = "error"
-            message = "Error return value of `os.Remove` is not checked (errcheck)"
-          }
-        }
-      }
     }
   }
 }

@@ -13,9 +13,6 @@ go_vet = new Config.Step {
     command = "go vet ./..."
     effect = "write"
   }
-  // Analyzer findings are `path:line:column: message`; a package that does not compile
-  // prints `# pkg` headers and a `vet: ` prefix, which the parser ignores
-  diagnostic_format = "gcc"
   tests {
     ["check good file"] {
       run = "check"
@@ -56,72 +53,6 @@ go_vet = new Config.Step {
           """
       }
       expect { code = 1 }
-    }
-    ["check bad file reports diagnostics"] {
-      run = "check"
-      tmpdir = true
-      write = new Mapping<String, String> {
-        ["go.mod"] =
-          """
-          module example.com/test
-
-          go 1.21
-          """
-        ["main.go"] =
-          """
-          package main
-
-          import "fmt"
-
-          func main() {}
-          """
-      }
-      expect {
-        code = 1
-        diagnostics {
-          new Config.StepTestDiagnostic {
-            path = "main.go"
-            line = 3
-            column = 8
-            severity = "error"
-            message = "\"fmt\" imported and not used"
-          }
-        }
-      }
-    }
-    ["check analyzer finding reports diagnostics"] {
-      run = "check"
-      tmpdir = true
-      write = new Mapping<String, String> {
-        ["go.mod"] =
-          """
-          module example.com/test
-
-          go 1.21
-          """
-        ["main.go"] =
-          """
-          package main
-
-          import "fmt"
-
-          func main() {
-            fmt.Printf("%d\\n", "x")
-          }
-          """
-      }
-      expect {
-        code = 1
-        diagnostics {
-          new Config.StepTestDiagnostic {
-            path = "main.go"
-            line = 6
-            column = 15
-            severity = "error"
-            message = "format %d has arg \"x\" of wrong type string"
-          }
-        }
-      }
     }
     ["check multi-package"] {
       run = "check"
