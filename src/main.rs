@@ -124,7 +124,7 @@ fn write_output_file(result: &ensembler::CmdResult) {
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
     {
-        std::fs::create_dir_all(parent)
+        env::create_state_dir_all(parent)
     } else {
         Ok(())
     };

@@ -1969,3 +1969,47 @@ EOF
     run git show :a.txt
     assert_output "new"
 }
+
+@test "check_diff patches that name the .git directory are refused and the fixer runs" {
+    # `git apply` refuses paths inside .git; the in-process applier must too,
+    # or a patch could install a hook that runs on the next commit.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf -- '--- /dev/null\n+++ .git/hooks/post-commit\n@@ -0,0 +1 @@\n+touch pwned\n'
+printf -- '--- %s\n+++ %s\n@@ -1 +1 @@\n-hello\n+formatted\n' "$1" "$1"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXED" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "hello" > test.txt
+    run hk fix test.txt
+    assert_success
+    assert_output --partial "patches may not touch git's own directory"
+    [ ! -e .git/hooks/post-commit ]
+
+    # The whole patch was refused, not just the .git part.
+    run cat test.txt
+    assert_output "FIXED"
+}
