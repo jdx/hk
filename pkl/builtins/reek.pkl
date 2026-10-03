@@ -4,6 +4,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "Code smell detector"
+  project_indicators {
+    new { file = ".reek.yml" }
+    new { file = "config.reek" }
+  }
 }
 reek = new Config.Step {
   types = List("ruby")

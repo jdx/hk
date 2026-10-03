@@ -1,0 +1,14 @@
+# cargo-deny configuration. CI runs `cargo deny check advisories sources`.
+# Licenses and duplicate-version bans are intentionally not checked.
+
+[advisories]
+# RustSec advisory database
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Yanked releases are reported but do not fail the check.
+yanked = "warn"
+
+[sources]
+allow-git        = []
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
+unknown-git      = "deny"
+unknown-registry = "deny"

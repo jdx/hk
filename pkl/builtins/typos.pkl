@@ -5,6 +5,11 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Special Purpose"
   description = "Source code spell checker"
+  project_indicators {
+    new { file = "typos.toml" }
+    new { file = "_typos.toml" }
+    new { file = ".typos.toml" }
+  }
 }
 typos = new Config.Step {
   types = List("text")
