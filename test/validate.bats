@@ -180,6 +180,7 @@ EOF
     if [[ "$output" == *"unknown field"* ]]; then
         # Debug builds reject unknown properties while loading, before the
         # lint runs; release builds drop them and warn.
+        assert_failure
         assert_output --partial "unknown field `chek`"
     else
         assert_success
