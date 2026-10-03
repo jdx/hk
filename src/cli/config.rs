@@ -97,6 +97,25 @@ impl Config {
     }
 }
 
+fn drop_nulls(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter()
+                .filter(|(_, v)| !v.is_null())
+                .map(|(k, v)| (k, drop_nulls(v)))
+                .collect(),
+        ),
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .filter(|v| !v.is_null())
+                .map(drop_nulls)
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
 impl ConfigDump {
     fn run(&self) -> Result<()> {
         let settings = Settings::try_get()?;
@@ -129,6 +148,8 @@ impl ConfigDump {
         match self.format.as_str() {
             "json" => println!("{}", serde_json::to_string_pretty(&output)?),
             "toml" => {
+                // TOML has no null, so leave unset settings out instead of failing.
+                let output = drop_nulls(output);
                 let toml_value: toml::Value = serde_json::from_value(output)?;
                 println!("{}", toml::to_string_pretty(&toml_value)?);
             }

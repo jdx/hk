@@ -631,6 +631,7 @@ impl Config {
         }
 
         // Scalar settings: project wins — fall back to hkrc when project has None
+        self.jobs = self.jobs.or(hkrc.jobs);
         self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
         self.stage = self.stage.or(hkrc.stage);
         self.display_skip_reasons = self
@@ -1323,6 +1324,8 @@ pub struct Config {
     pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Parallel steps; `0` or unset means auto-detect.
+    pub jobs: Option<usize>,
     pub fail_fast: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
@@ -1378,6 +1381,22 @@ impl Config {
         }
         self.default_hooks_materialized = true;
         Ok(())
+    }
+
+    /// The project config exactly as Pkl evaluated it, before hk drops
+    /// properties it does not know. `None` when there is no project config.
+    pub fn project_config_json() -> Result<Option<serde_json::Value>> {
+        let paths = Self::project_config_search_paths();
+        let Some(path) = Self::find_project_config(&paths) else {
+            return Ok(None);
+        };
+        Ok(Some(eval_pklr::<serde_json::Value>(&path)?.0))
+    }
+
+    /// Warnings about a config that loads but probably does not do what its
+    /// author meant. Run by `hk validate`; never fatal.
+    pub fn lint(&self) -> Vec<String> {
+        crate::lint::lint_hooks(&self.hooks, &self.implicit_default_hooks)
     }
 
     pub fn validate(&self) -> Result<()> {
