@@ -48,19 +48,19 @@ golangci_lint = new Config.Step {
       write = new Mapping<String, String> {
         ["go.mod"] =
           """
-            module example.com/test
+          module example.com/test
 
-            go 1.21
+          go 1.21
           """
         ["main.go"] =
           """
-            package main
+          package main
 
-            import "os"
+          import "os"
 
-            func main() {
-              os.Remove("x")
-            }
+          func main() {
+            os.Remove("x")
+          }
           """
       }
       expect {

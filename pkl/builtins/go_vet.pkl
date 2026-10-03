@@ -63,17 +63,17 @@ go_vet = new Config.Step {
       write = new Mapping<String, String> {
         ["go.mod"] =
           """
-            module example.com/test
+          module example.com/test
 
-            go 1.21
+          go 1.21
           """
         ["main.go"] =
           """
-            package main
+          package main
 
-            import "fmt"
+          import "fmt"
 
-            func main() {}
+          func main() {}
           """
       }
       expect {
@@ -95,19 +95,19 @@ go_vet = new Config.Step {
       write = new Mapping<String, String> {
         ["go.mod"] =
           """
-            module example.com/test
+          module example.com/test
 
-            go 1.21
+          go 1.21
           """
         ["main.go"] =
           """
-            package main
+          package main
 
-            import "fmt"
+          import "fmt"
 
-            func main() {
-              fmt.Printf("%d\\n", "x")
-            }
+          func main() {
+            fmt.Printf("%d\\n", "x")
+          }
           """
       }
       expect {
