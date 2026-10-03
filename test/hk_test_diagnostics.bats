@@ -9,23 +9,22 @@ teardown() {
     _common_teardown
 }
 
-write_config() {
-    local format_line="$1" expectation="$2"
+@test "hk test passes when check output parses into the expected diagnostics" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
   ["check"] {
     steps {
       ["compiler"] {
-        check = "printf 'src/main.c:2:4: warning: first line [W1]\\\\n  second line\\\\n' >&2; exit 1"
-        $format_line
+        check = "printf 'src/main.c:2:4: warning: first line [W1]\\n  second line\\n' >&2; exit 1"
+        diagnostic_format = "gcc"
         tests {
           ["reports a warning"] {
             run = "check"
             expect {
               code = 1
               diagnostics {
-                $expectation
+                new { path = "src/main.c"; line = 2; column = 4; severity = "warning"; rule = "W1"; message = "second line" }
               }
             }
           }
@@ -35,10 +34,6 @@ hooks {
   }
 }
 PKL
-}
-
-@test "hk test passes when check output parses into the expected diagnostics" {
-    write_config 'diagnostic_format = "gcc"' 'new { path = "src/main.c"; line = 2; column = 4; severity = "warning"; rule = "W1"; message = "second line" }'
 
     run hk test --step compiler
     assert_success
@@ -46,7 +41,30 @@ PKL
 }
 
 @test "hk test fails and lists parsed diagnostics when none match" {
-    write_config 'diagnostic_format = "gcc"' 'new { path = "src/main.c"; line = 3 }'
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["compiler"] {
+        check = "printf 'src/main.c:2:4: warning: first line [W1]\\n' >&2; exit 1"
+        diagnostic_format = "gcc"
+        tests {
+          ["wrong line"] {
+            run = "check"
+            expect {
+              code = 1
+              diagnostics {
+                new { path = "src/main.c"; line = 3 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+PKL
 
     run hk test --step compiler
     assert_failure
@@ -65,7 +83,7 @@ hooks {
   ["check"] {
     steps {
       ["compiler"] {
-        check = "printf 'main.c:2:4: error: bad\\\\n' >&2; exit 1"
+        check = "printf 'main.c:2:4: error: bad\\n' >&2; exit 1"
         diagnostic_format = "gcc"
         tests {
           ["bad file"] = testMaker.checkDiagnostics(
@@ -86,9 +104,96 @@ PKL
 }
 
 @test "hk test fails when the step sets no diagnostic_format" {
-    write_config '' 'new { line = 2 }'
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["compiler"] {
+        check = "printf 'src/main.c:2:4: warning: first line [W1]\\n' >&2; exit 1"
+        tests {
+          ["no format"] {
+            run = "check"
+            expect {
+              code = 1
+              diagnostics {
+                new { line = 2 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+PKL
 
     run hk test --step compiler
     assert_failure
     assert_output --partial "requires the step to set diagnostic_format"
+}
+
+@test "hk test rejects diagnostics for a check-first step" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["compiler"] {
+        check = "printf 'src/main.c:2:4: warning: first line [W1]\\n' >&2; exit 1"
+        check_list_files = "echo src/main.c"
+        check_failed_files = true
+        diagnostic_format = "gcc"
+        tests {
+          ["check first"] {
+            run = "check"
+            expect {
+              code = 1
+              diagnostics {
+                new { line = 2 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+PKL
+
+    run hk test --step compiler
+    assert_failure
+    assert_output --partial "can't model a check-first step"
+}
+
+@test "hk test rejects diagnostics for a batched step with a single-document format" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["scanner"] {
+        batch = true
+        check = "printf '{\"version\":\"2.1.0\",\"runs\":[{\"results\":[{\"message\":{\"text\":\"bad\"}}]}]}'; exit 1"
+        diagnostic_format = "sarif"
+        tests {
+          ["batched"] {
+            run = "check"
+            expect {
+              code = 1
+              diagnostics {
+                new { message = "bad" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+PKL
+
+    run hk test --step scanner
+    assert_failure
+    assert_output --partial "can't model a batched or workspace step"
 }
