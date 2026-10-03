@@ -1581,7 +1581,7 @@ impl Git {
                     "HEAD",
                     "--",
                 ])
-                .args(ts)
+                .args(ts.iter().map(|p| literal_pathspec(p)))
                 .status()
                 .wrap_err("failed to check whether stash pathspec has changes")?;
             match diff_status.code() {
@@ -1607,7 +1607,11 @@ impl Git {
                 if *env::HK_STASH_UNTRACKED {
                     cmd = cmd.arg("--include-untracked");
                 }
-                let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
+                let utf8_paths: Vec<OsString> = paths
+                    .iter()
+                    .filter(|p| p.to_str().is_some())
+                    .map(|p| literal_pathspec(p))
+                    .collect();
                 if !utf8_paths.is_empty() {
                     cmd = cmd.arg("--");
                     cmd = cmd.args(utf8_paths);
@@ -1664,7 +1668,11 @@ impl Git {
                 cmd = cmd.arg("--include-untracked");
             }
             if let Some(paths) = tracked_subset.as_deref() {
-                let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
+                let utf8_paths: Vec<OsString> = paths
+                    .iter()
+                    .filter(|p| p.to_str().is_some())
+                    .map(|p| literal_pathspec(p))
+                    .collect();
                 if !utf8_paths.is_empty() {
                     cmd = cmd.arg("--");
                     cmd = cmd.args(utf8_paths);
@@ -1819,7 +1827,7 @@ impl Git {
         }
         let mut args: Vec<OsString> = vec!["ls-files".into(), "-s".into(), "-z".into()];
         args.push("--".into());
-        args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+        args.extend(paths.iter().map(|p| literal_pathspec(p)));
         let out = git_read(args)?;
         let mut entries: Vec<(u32, String, PathBuf)> = vec![];
         let mut wt_map: std::collections::HashMap<PathBuf, String> =
@@ -1973,11 +1981,7 @@ impl Git {
                             "-z".into(),
                             "--".into(),
                         ];
-                        args.extend(
-                            candidate_paths
-                                .iter()
-                                .map(|p| OsString::from(p.as_os_str())),
-                        );
+                        args.extend(candidate_paths.iter().map(|p| literal_pathspec(p)));
                         git_read(args)?
                             .split('\0')
                             .filter(|s| !s.is_empty())
@@ -2004,8 +2008,8 @@ impl Git {
                     args.extend(
                         stash_paths
                             .iter()
-                            .filter_map(|p| p.to_str())
-                            .map(OsString::from),
+                            .filter(|p| p.to_str().is_some())
+                            .map(|p| literal_pathspec(p)),
                     );
                     if let Ok(list) = git_read(args) {
                         for rec in list.split('\0').filter(|s| !s.is_empty()) {
@@ -2800,6 +2804,14 @@ fn with_restore_error(err: eyre::Report, restore: Result<()>) -> eyre::Report {
         Ok(()) => err,
         Err(restore_err) => eyre!("{err:#}\n{restore_err:#}"),
     }
+}
+
+/// `path` as a pathspec that names exactly that path. Without it, a name that
+/// starts with `:` or holds glob characters is read as pathspec syntax.
+fn literal_pathspec(path: &std::path::Path) -> OsString {
+    let mut pathspec = OsString::from(":(literal)");
+    pathspec.push(path.as_os_str());
+    pathspec
 }
 
 /// `paths` as NUL-terminated literal pathspecs, for
