@@ -39,14 +39,14 @@ buf_lint = new Config.Step {
     }
     local const badProto =
       """
-        syntax = "proto3";
+      syntax = "proto3";
 
-        package weather;
+      package weather;
 
-        enum Condition {
-          SUNNY = 0;
-          RAINY = 1;
-        }
+      enum Condition {
+        SUNNY = 0;
+        RAINY = 1;
+      }
       """
     ["check bad file"] = testMaker.withFilename("proto/condition.proto").checkFail(badProto, 100)
     ["check bad file reports diagnostics"] =
