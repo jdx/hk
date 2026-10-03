@@ -117,7 +117,7 @@ impl Install {
 
         if use_config_hooks {
             let result = install_local_config(&events, &command);
-            warn_if_global_overlap(&events);
+            note_global_overlap(&events);
             result
         } else {
             install_local_shims(&events, &command)
@@ -296,10 +296,12 @@ fn shell_quote_path(path: &Path) -> OsString {
         }
     }
 }
-/// Git aggregates `hook.<name>.command` values across scopes, so a local
-/// install on top of a global one fires hk twice per event. Warn the user
-/// and point them at the `enabled = false` escape hatch.
-fn warn_if_global_overlap(events: &[String]) {
+/// Local and global installs share the hook name `hk-<event>`. Git keeps a
+/// single `command` per hook name and the repo-local value replaces the global
+/// one, so a forced local install does not fire hk twice. It also means
+/// `hook.hk-<event>.enabled = false` would switch off the local hook as well,
+/// so tell the user about the override instead of suggesting that setting.
+fn note_global_overlap(events: &[String]) {
     let mut overlapping: Vec<&str> = Vec::new();
     for event in events {
         let key = format!("hook.hk-{event}.command");
@@ -315,14 +317,9 @@ fn warn_if_global_overlap(events: &[String]) {
     if overlapping.is_empty() {
         return;
     }
-    warn!(
-        "both global (~/.gitconfig) and local hk hooks are active for: {}. Git will run hk twice per event. To run only the local install, disable the global entries in this repo: {}",
-        overlapping.join(", "),
-        overlapping
-            .iter()
-            .map(|e| format!("`git config --local hook.hk-{e}.enabled false`"))
-            .collect::<Vec<_>>()
-            .join(" ; ")
+    info!(
+        "global hooks (~/.gitconfig) also exist for: {}. In this repo the local hook replaces the global one, so hk runs once per event. Run `hk uninstall` here to go back to the global hooks.",
+        overlapping.join(", ")
     );
 }
 

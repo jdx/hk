@@ -96,3 +96,29 @@ _install_global_hook() {
     assert_failure
     assert_output --partial "cannot be used with"
 }
+
+@test "hk install --force-local on top of a global install runs hk once and does not suggest disabling it" {
+    if ! git version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=54))}'; then
+        skip "git 2.54+ required for config-based hooks"
+    fi
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["pre-commit"] { steps { ["count"] { check = "echo ran >> \$PWD/runs.log" } } } }
+EOF
+    git add hk.pkl
+
+    hk install --global
+    run hk install --force-local
+    assert_success
+    # The local hook shares the global hook's name, so `enabled false` would
+    # silence the local hook too. The message must not recommend it.
+    refute_output --partial "enabled false"
+    assert_output --partial "local hook replaces the global one"
+
+    echo x > file.txt
+    git add file.txt
+    git commit -m one
+    # Local and global hooks share one name: hk runs once, not twice.
+    run wc -l < runs.log
+    assert_output --regexp '^ *1$'
+}
