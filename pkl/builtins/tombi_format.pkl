@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "TOML formatter"
+  project_indicators {
+    new { file = "tombi.toml" }
+  }
 }
 tombi_format = new Config.Step {
   glob = "**/*.toml"

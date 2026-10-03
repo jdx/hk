@@ -5,6 +5,13 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Markdown"
   description = "Markdown linter"
+  project_indicators {
+    new { file = ".markdownlint.json" }
+    new { file = ".markdownlint.jsonc" }
+    new { file = ".markdownlint.yaml" }
+    new { file = ".markdownlint.yml" }
+    new { file = ".markdownlintrc" }
+  }
 }
 markdown_lint = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
