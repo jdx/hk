@@ -38,6 +38,11 @@ use crate::{
     version,
 };
 
+/// Set once a hook has already logged the error it is about to return, so
+/// `main` does not print it a second time.
+pub static ERROR_REPORTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 #[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
 #[strum(serialize_all = "kebab-case")]
 pub enum SkipReason {
@@ -674,16 +679,20 @@ impl Hook {
         }
     }
 
-    fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> StashMethod {
-        if opts.staged || opts.unstaged {
+    fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> Result<StashMethod> {
+        Ok(if opts.staged || opts.unstaged {
             StashMethod::None
         } else if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
                 .unwrap_or(StashMethod::None)
         } else {
-            self.resolve_stash_method(*env::HK_STASH)
-        }
+            let env_stash = match &*env::HK_STASH {
+                Ok(method) => *method,
+                Err(err) => eyre::bail!("{err}"),
+            };
+            self.resolve_stash_method(env_stash)
+        })
     }
 
     fn defaults_to_staged_files(&self) -> bool {
@@ -700,7 +709,7 @@ impl Hook {
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status()?;
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = self.resolve_stash_method_for_opts(&opts)?;
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -1043,7 +1052,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status()?;
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = self.resolve_stash_method_for_opts(&opts)?;
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -1221,7 +1230,21 @@ impl Hook {
                 return Err(err);
             }
         };
-        let stash_method = self.resolve_stash_method_for_opts(&opts);
+        let stash_method = match self.resolve_stash_method_for_opts(&opts) {
+            Ok(method) => method,
+            Err(err) => {
+                crate::structured_output::emit_error_run(
+                    output_format,
+                    &self.name,
+                    started_at,
+                    run_started.elapsed().as_millis(),
+                    err.to_string(),
+                    reports,
+                )
+                .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
+                return Err(err);
+            }
+        };
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         // Exit before any side effects (notably stashing) when there are no steps to run.
         // Stashing here would strip the working tree, and the early return below used to
@@ -1657,6 +1680,7 @@ impl Hook {
                 error!("{}", s);
             }
         }
+        let mut error_logged = false;
         if let Err(err) = &result {
             // ScriptFailed errors are displayed via output_by_step above, skip logging here
             // Other errors are unexpected, show full trace for debugging
@@ -1668,6 +1692,7 @@ impl Hook {
             });
             if !is_script_failed {
                 error!("{self}: hook finished with error: {err:?}");
+                error_logged = true;
             }
         } else {
             debug!("{self}: hook finished successfully");
@@ -1689,6 +1714,11 @@ impl Hook {
                 });
             }
             return Err(emit_err);
+        }
+        // main would print this same error again on exit. Only mark it when
+        // the returned error is the one logged above (not an emit failure).
+        if error_logged {
+            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         result
     }

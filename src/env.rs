@@ -17,6 +17,28 @@ pub static HK_STATE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             .join("hk"),
     )
 });
+/// Create `path` and any missing parents, like `create_dir_all`, except that
+/// directories created at or below the state directory are private to the
+/// user (0700 on Unix). The state directory holds saved stash patches and
+/// command output, which can contain a repository's uncommitted changes.
+/// Directories that already exist keep their permissions.
+pub fn create_state_dir_all(path: &std::path::Path) -> std::io::Result<()> {
+    let state = &*HK_STATE_DIR;
+    if !path.starts_with(state) {
+        return std::fs::create_dir_all(path);
+    }
+    // Directories above the state directory, such as ~/.local/state, are not
+    // ours to restrict.
+    if let Some(parent) = state.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(path)
+}
+
 pub static HK_FILE: LazyLock<Option<String>> = LazyLock::new(|| var("HK_FILE").ok());
 pub static HK_CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
     var_path("HK_CACHE_DIR").unwrap_or(
@@ -50,15 +72,28 @@ pub static HK_TIMING_JSON: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path
 pub static HK_LIBGIT2: LazyLock<bool> = LazyLock::new(|| !var_false("HK_LIBGIT2"));
 pub static HK_HIDE_WHEN_DONE: LazyLock<bool> = LazyLock::new(|| var_true("HK_HIDE_WHEN_DONE"));
 pub static HK_CHECK_FIRST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_CHECK_FIRST"));
-pub static HK_STASH: LazyLock<Option<StashMethod>> = LazyLock::new(|| {
-    if var_false("HK_STASH") {
-        Some(StashMethod::None)
-    } else {
-        var("HK_STASH")
-            .map(|v| Some(v.parse().expect("invalid HK_STASH value")))
-            .unwrap_or(None)
-    }
+/// `HK_STASH` as set, or an error naming the bad value. The method names are
+/// `git`, `patch-file` and `none`; `true`/`1` mean `git` and `false`/`0` mean `none`.
+pub static HK_STASH: LazyLock<Result<Option<StashMethod>, String>> = LazyLock::new(|| {
+    var("HK_STASH")
+        .ok()
+        .map(|v| parse_stash_method(&v))
+        .transpose()
 });
+
+/// Parse an `HK_STASH` value.
+pub fn parse_stash_method(value: &str) -> Result<StashMethod, String> {
+    let value = value.trim().to_lowercase();
+    match value.as_str() {
+        "true" | "1" => Ok(StashMethod::Git),
+        "false" | "0" => Ok(StashMethod::None),
+        _ => value.parse().map_err(|_| {
+            format!(
+                "invalid HK_STASH value {value:?}: expected git, patch-file, none, true or false"
+            )
+        }),
+    }
+}
 pub static HK_STASH_UNTRACKED: LazyLock<bool> = LazyLock::new(|| !var_false("HK_STASH_UNTRACKED"));
 pub static HK_MISE: LazyLock<bool> = LazyLock::new(|| var_true("HK_MISE"));
 pub static HK_SKIP_STEPS: LazyLock<IndexSet<String>> = LazyLock::new(|| {
@@ -168,6 +203,24 @@ fn var_false(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_hk_stash_values() {
+        for (value, method) in [
+            ("git", StashMethod::Git),
+            ("patch-file", StashMethod::PatchFile),
+            ("none", StashMethod::None),
+            ("true", StashMethod::Git),
+            ("1", StashMethod::Git),
+            ("TRUE", StashMethod::Git),
+            ("false", StashMethod::None),
+            ("0", StashMethod::None),
+        ] {
+            assert_eq!(parse_stash_method(value), Ok(method), "{value}");
+        }
+        let err = parse_stash_method("bogus").unwrap_err();
+        assert!(err.contains("invalid HK_STASH value \"bogus\""), "{err}");
+    }
 
     #[test]
     fn test_arg_max_is_valid() {
