@@ -425,6 +425,45 @@ impl Config {
         Self::find_project_config_from(start, &Self::project_config_search_paths()).is_some()
     }
 
+    /// `hk.local.pkl` is picked instead of the shared `hk.pkl`, not merged with
+    /// it, so a local file that does not `amends "./hk.pkl"` silently drops the
+    /// whole shared configuration. Say so, unless the warning is hidden.
+    fn warn_if_local_config_ignores_shared(path: &Path, imports: &IndexSet<PathBuf>) {
+        if path.file_name().is_none_or(|n| n != "hk.local.pkl") {
+            return;
+        }
+        let Some(dir) = path.parent() else {
+            return;
+        };
+        let mut shared = vec![dir.join("hk.pkl"), dir.join(".config").join("hk.pkl")];
+        if dir.file_name().is_some_and(|n| n == ".config")
+            && let Some(parent) = dir.parent()
+        {
+            shared.push(parent.join("hk.pkl"));
+        }
+        let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        let imported: IndexSet<PathBuf> = imports.iter().map(|p| canon(p)).collect();
+        let shared: Vec<&PathBuf> = shared.iter().filter(|p| p.is_file()).collect();
+        if shared.is_empty() || shared.iter().any(|p| imported.contains(&canon(p))) {
+            return;
+        }
+        let hidden = std::env::var("HK_HIDE_WARNINGS")
+            .is_ok_and(|v| v.split(',').any(|t| t.trim() == LOCAL_CONFIG_WARNING_TAG));
+        if hidden {
+            return;
+        }
+        warn!(
+            "{} does not amend {}, so it replaces the shared configuration instead of extending it. \
+            Add `amends \"./{}\"` to keep the shared steps, or hide this warning with HK_HIDE_WARNINGS={LOCAL_CONFIG_WARNING_TAG}.",
+            xx::file::display_path(path),
+            xx::file::display_path(shared[0]),
+            shared[0]
+                .strip_prefix(dir)
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "hk.pkl".to_string())
+        );
+    }
+
     fn load_config_cached(path: PathBuf) -> Result<Config> {
         Self::load_config_cached_with(path, true)
     }
@@ -465,6 +504,9 @@ impl Config {
                 if let Err(err) = imports_cache_mgr.write(&import_analysis) {
                     warn!("failed to write imports cache file: {err:#}");
                 }
+            }
+            if is_root {
+                Self::warn_if_local_config_ignores_shared(&path, &import_analysis.local_paths);
             }
             let has_untracked_imports = import_analysis.has_untracked_imports
                 || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
@@ -599,7 +641,9 @@ impl Config {
             .display_skip_reasons
             .take()
             .or(hkrc.display_skip_reasons);
-        self.hide_warnings = self.hide_warnings.take().or(hkrc.hide_warnings);
+        // List settings that settings.toml marks `merge = "union"` combine the
+        // project and user values instead of letting the project's replace them.
+        union_lists(&mut self.hide_warnings, hkrc.hide_warnings);
         self.warnings = self.warnings.take().or(hkrc.warnings);
         // Exclude patterns are unioned, like every other exclude source.
         match (&mut self.exclude, hkrc.exclude) {
@@ -608,8 +652,8 @@ impl Config {
             (Some(_), None) => {}
         }
         self.profiles = self.profiles.take().or(hkrc.profiles);
-        self.skip_hooks = self.skip_hooks.take().or(hkrc.skip_hooks);
-        self.skip_steps = self.skip_steps.take().or(hkrc.skip_steps);
+        union_lists(&mut self.skip_hooks, hkrc.skip_hooks);
+        union_lists(&mut self.skip_steps, hkrc.skip_steps);
         self.default_branch = self.default_branch.take().or(hkrc.default_branch);
         self.min_hk_version = self.min_hk_version.take().or(hkrc.min_hk_version);
         self.stash_backup_count = self.stash_backup_count.or(hkrc.stash_backup_count);
@@ -1192,6 +1236,9 @@ fn failed_pkl_config_error(path: &Path, stderr: &str) -> eyre::Report {
     )
 }
 
+/// `HK_HIDE_WARNINGS` tag for the "local config ignores the shared config" warning.
+const LOCAL_CONFIG_WARNING_TAG: &str = "local-config-replaces-shared";
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
@@ -1359,6 +1406,21 @@ fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> R
     }
 
     Ok(())
+}
+
+/// Add the user's entries that the project's list does not already have.
+fn union_lists(project: &mut Option<Vec<String>>, user: Option<Vec<String>>) {
+    match (project, user) {
+        (Some(project), Some(user)) => {
+            for item in user {
+                if !project.contains(&item) {
+                    project.push(item);
+                }
+            }
+        }
+        (project @ None, user) => *project = user,
+        (Some(_), None) => {}
+    }
 }
 
 /// Top-level `exclude` patterns.
@@ -1601,6 +1663,22 @@ mod tests {
         };
         let err = config.validate().unwrap_err();
         assert!(format!("{err:#}").contains("invalid regex in top-level 'exclude'"));
+    }
+
+    #[test]
+    fn union_lists_combines_project_and_user_entries() {
+        let list = |items: &[&str]| Some(items.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let mut project = list(&["a", "b"]);
+        union_lists(&mut project, list(&["b", "c"]));
+        assert_eq!(project, list(&["a", "b", "c"]));
+
+        let mut none = None;
+        union_lists(&mut none, list(&["x"]));
+        assert_eq!(none, list(&["x"]));
+
+        let mut kept = list(&["a"]);
+        union_lists(&mut kept, None);
+        assert_eq!(kept, list(&["a"]));
     }
 
     #[test]
