@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "JavaScript Standard Style"
+  project_indicators {
+    new { file = "package.json"; contains = "\"standard\"" }
+  }
 }
 standard_js = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")

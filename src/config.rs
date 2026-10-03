@@ -2,12 +2,12 @@ use indexmap::IndexMap;
 use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
-use eyre::{WrapErr, bail};
+use eyre::{WrapErr, bail, eyre};
 
 pub const V2_MIGRATION_URL: &str = "https://hk.jdx.dev/migration-v2";
 
@@ -35,6 +35,7 @@ impl Config {
         config.load_subprojects()?;
         config.materialize_default_hooks()?;
         config.apply_hkrc()?;
+        config.apply_subproject_skip_steps();
         config.validate()?;
         Ok(config)
     }
@@ -303,12 +304,15 @@ impl Config {
         if let Some(path) = Self::find_project_config(&paths) {
             let mut config = Self::load_config_cached(path)?;
             config.apply_implicit_root_dir()?;
+            config.project_config_loaded = true;
             return Ok(config);
         }
         if env::HK_FILE.is_none()
             && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
         {
-            return Ok(Self::read(&path, true)?.0);
+            let mut config = Self::read(&path, true)?.0;
+            config.project_config_loaded = true;
+            return Ok(config);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
@@ -969,27 +973,53 @@ impl Config {
                 root_hook.steps.insert(scoped_name, step_or_group);
             }
         }
-        // The subproject's `skip_steps` name its own steps and groups, which
-        // the root config knows by their scoped names.
+        // The subproject's `skip_steps` name its own steps, which the root
+        // config knows by their scoped names. Execution matches skips against
+        // step names only, and the steps inside a group keep their unscoped
+        // names, so a group (or a step inside one) cannot be skipped by name.
         for name in sub_skip_steps {
             let scoped_name = format!("{subdir}:{name}");
-            if !self
+            let mut is_step = false;
+            let mut is_group = false;
+            for step_or_group in self
                 .hooks
                 .values()
-                .any(|hook| hook.steps.contains_key(&scoped_name))
+                .filter_map(|hook| hook.steps.get(&scoped_name))
             {
+                match step_or_group {
+                    crate::hook::StepOrGroup::Step(_) => is_step = true,
+                    crate::hook::StepOrGroup::Group(_) => is_group = true,
+                }
+            }
+            if !is_step {
+                let reason = if is_group {
+                    "names a group, and skipping a group is not supported"
+                } else {
+                    "names no step of that subproject"
+                };
                 warn!(
-                    "subprojects: skip_steps entry '{name}' in {} names no step or group of that subproject, so it is ignored (a step inside a group cannot be skipped from a subproject)",
+                    "subprojects: skip_steps entry '{name}' in {} {reason}, so it is ignored (a step inside a group cannot be skipped from a subproject)",
                     sub.path.display()
                 );
                 continue;
             }
-            let skip_steps = self.skip_steps.get_or_insert_default();
-            if !skip_steps.contains(&scoped_name) {
-                skip_steps.push(scoped_name);
-            }
+            self.subproject_skip_steps.insert(scoped_name);
         }
         Ok(())
+    }
+
+    /// Adds the steps subprojects skip to `skip_steps`, after the user config
+    /// has been merged so that it neither hides nor is hidden by them.
+    fn apply_subproject_skip_steps(&mut self) {
+        if self.subproject_skip_steps.is_empty() {
+            return;
+        }
+        let skip_steps = self.skip_steps.get_or_insert_default();
+        for name in std::mem::take(&mut self.subproject_skip_steps) {
+            if !skip_steps.contains(&name) {
+                skip_steps.push(name);
+            }
+        }
     }
 
     /// Names of the top-level settings this config sets that have no effect
@@ -1256,6 +1286,12 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     implicit_default_hooks: IndexSet<String>,
+    /// Scoped names of steps that subprojects' `skip_steps` skip. Kept apart
+    /// from `skip_steps` until the user config is merged, which uses its own
+    /// `skip_steps` only when the project sets none.
+    #[serde(skip)]
+    #[serde(default)]
+    subproject_skip_steps: IndexSet<String>,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
     /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
@@ -1263,6 +1299,10 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     pub path: PathBuf,
+    /// True when a project config file (not just the built-in default or the
+    /// user-level config) was found and loaded.
+    #[serde(skip)]
+    pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
     pub fail_fast: Option<bool>,
@@ -1344,12 +1384,92 @@ impl Config {
                     }
                 }
             }
+            validate_dependencies(hook_name, hook)?;
         }
         Ok(())
     }
 }
 
+/// Reject `depends` that can never be satisfied. `depends` only orders steps
+/// that run in the same execution group, so each group is checked on its own;
+/// a hook-wide graph would reject configs that run fine today.
+fn validate_dependencies(hook_name: &str, hook: &crate::hook::Hook) -> Result<()> {
+    let groups = crate::step_group::StepGroup::build_all(hook.steps.values().cloned().collect());
+    for group in groups {
+        for (name, step) in &group.steps {
+            if step.depends.iter().any(|dep| dep == name) {
+                bail!("Step '{name}' in hook '{hook_name}' depends on itself.");
+            }
+        }
+        // Depth-first search; `state` is 1 while a step is on the stack, 2 once done.
+        fn visit<'a>(
+            name: &'a str,
+            group: &'a crate::step_group::StepGroup,
+            state: &mut HashMap<&'a str, u8>,
+            stack: &mut Vec<&'a str>,
+        ) -> Option<Vec<&'a str>> {
+            match state.get(name) {
+                Some(2) => return None,
+                Some(_) => {
+                    let start = stack.iter().position(|n| *n == name).unwrap_or(0);
+                    let mut cycle = stack[start..].to_vec();
+                    cycle.push(name);
+                    return Some(cycle);
+                }
+                None => {}
+            }
+            state.insert(name, 1);
+            stack.push(name);
+            if let Some(step) = group.steps.get(name) {
+                for dep in &step.depends {
+                    if group.steps.contains_key(dep.as_str())
+                        && let Some(cycle) = visit(dep, group, state, stack)
+                    {
+                        return Some(cycle);
+                    }
+                }
+            }
+            stack.pop();
+            state.insert(name, 2);
+            None
+        }
+        let mut state = HashMap::new();
+        for name in group.steps.keys() {
+            if let Some(cycle) = visit(name, &group, &mut state, &mut vec![]) {
+                bail!(
+                    "Steps in hook '{hook_name}' have a circular dependency: {}. \
+                    These steps would wait on each other forever.",
+                    cycle.join(" -> ")
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_patterns(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    let selectors = step
+        .match_any
+        .iter()
+        .flatten()
+        .map(|s| ("match_any glob", s.glob.as_ref()));
+    let patterns = [
+        ("glob", step.glob.as_ref()),
+        ("exclude", step.exclude.as_ref()),
+    ]
+    .into_iter()
+    .chain(selectors);
+    for (field, pattern) in patterns {
+        if let Some(pattern) = pattern {
+            crate::glob::validate_pattern(pattern, step.dir_prefix())
+                .map_err(|e| eyre!("Step '{step_name}' {location} has an invalid {field}: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    validate_patterns(step, step_name, location)?;
     if step.stage.is_some() && step.fix.is_none() {
         bail!(
             "Step '{}' {} has 'stage' attribute but no 'fix' command. \
@@ -1654,6 +1774,89 @@ mod tests {
         assert!(format!("{err:#}").contains("invalid regex in top-level 'exclude'"));
     }
 
+    fn step_depending_on(name: &str, depends: &[&str]) -> Step {
+        Step {
+            name: name.to_string(),
+            depends: depends.iter().map(|d| d.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    fn config_with_steps(steps: Vec<Step>) -> Config {
+        let mut hook = hook("check");
+        for step in steps {
+            hook.steps.insert(
+                step.name.clone(),
+                crate::hook::StepOrGroup::Step(Box::new(step)),
+            );
+        }
+        let mut config = Config::default();
+        config.hooks.insert("check".to_string(), hook);
+        config
+    }
+
+    #[test]
+    fn validate_rejects_dependency_cycles_and_self_dependencies() {
+        let cycle = config_with_steps(vec![
+            step_depending_on("a", &["b"]),
+            step_depending_on("b", &["a"]),
+        ]);
+        let err = format!("{:#}", cycle.validate().unwrap_err());
+        assert!(err.contains("a -> b -> a"), "{err}");
+
+        let selfish = config_with_steps(vec![step_depending_on("a", &["a"])]);
+        let err = format!("{:#}", selfish.validate().unwrap_err());
+        assert!(err.contains("depends on itself"), "{err}");
+    }
+
+    #[test]
+    fn validate_scopes_dependency_cycles_to_execution_groups() {
+        let mut later = step_depending_on("b", &["a"]);
+        later.exclusive = true;
+        let config = config_with_steps(vec![step_depending_on("a", &["b"]), later]);
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_compiles_globs_with_the_steps_dir() {
+        let mut globby = step("lint");
+        globby.dir = Some("foo[".into());
+        globby.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![globby]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob '*'"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_step_patterns() {
+        let mut bad_glob = step("lint");
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob"),
+            "{err}"
+        );
+
+        let mut bad_regex = step("lint");
+        bad_regex.exclude = Some(crate::step::Pattern::Regex {
+            _type: "regex".into(),
+            pattern: "a(".into(),
+        });
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_regex]).validate().unwrap_err()
+        );
+        assert!(err.contains("invalid exclude"), "{err}");
+    }
+
     #[test]
     fn untracked_import_detection_covers_declarations_and_expressions() {
         let untracked = [
@@ -1937,15 +2140,18 @@ mod tests {
 
         root.merge_subproject("web", None, sub).unwrap();
 
-        // Only the subproject's own steps and groups are skipped, by scoped
-        // name; `fmt` still runs and a name that matches nothing is dropped
+        // Only the subproject's own steps are skipped, by scoped name; `fmt`
+        // still runs, and a group or a name that matches nothing is dropped.
+        // The root's own list is untouched until the user config is merged.
+        assert_eq!(root.skip_steps, Some(vec!["root-step".to_string()]));
+        assert_eq!(
+            root.subproject_skip_steps,
+            IndexSet::from(["web:lint".to_string()])
+        );
+        root.apply_subproject_skip_steps();
         assert_eq!(
             root.skip_steps,
-            Some(vec![
-                "root-step".to_string(),
-                "web:lint".to_string(),
-                "web:grouped".to_string()
-            ])
+            Some(vec!["root-step".to_string(), "web:lint".to_string()])
         );
     }
 
@@ -1966,7 +2172,38 @@ mod tests {
             root.merge_subproject(dir, None, sub).unwrap();
         }
 
+        root.apply_subproject_skip_steps();
         assert_eq!(root.skip_steps, Some(vec!["a:lint".to_string()]));
+    }
+
+    #[test]
+    fn subproject_skip_steps_do_not_displace_the_user_configs() {
+        // The root sets no `skip_steps`, so the user config's apply; a
+        // subproject's skip must add to them, not replace them.
+        let mut root = Config::default();
+        let mut sub = Config {
+            skip_steps: Some(vec!["lint".to_string()]),
+            ..Default::default()
+        };
+        let mut check = hook("check");
+        check.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("check".to_string(), check);
+        root.merge_subproject("web", None, sub).unwrap();
+
+        let user = Config {
+            skip_steps: Some(vec!["user-step".to_string()]),
+            ..Default::default()
+        };
+        root.merge_from_hkrc(user).unwrap();
+        root.apply_subproject_skip_steps();
+
+        assert_eq!(
+            root.skip_steps,
+            Some(vec!["user-step".to_string(), "web:lint".to_string()])
+        );
     }
 
     #[test]
@@ -2023,8 +2260,10 @@ mod tests {
             StepOrGroup::Step(Box::new(step("root"))),
         );
 
-        let mut sub = Config::default();
-        sub.path = PathBuf::from("packages/web/hk.pkl");
+        let mut sub = Config {
+            path: PathBuf::from("packages/web/hk.pkl"),
+            ..Default::default()
+        };
         let mut sub_check = hook("check");
         sub_check.fix = Some(true);
         sub_check.stage = Some(true);

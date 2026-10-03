@@ -338,7 +338,8 @@ Keep these composition rules in mind:
   run in `pre-commit` or `fix`; add it to every event where it should run.
 - Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
   the root config. Subprojects contribute steps and their local environment.
-- A subproject's `skip_steps` name its own steps and groups, and skip only those. Other
+- A subproject's `skip_steps` name its own steps, and skip only those. A group, or a step
+  inside a group, cannot be skipped from a subproject; hk warns when an entry names one. Other
   top-level settings in a subproject config, such as `exclude`, `fail_fast`, or `profiles`,
   have no effect; hk warns that they are ignored. Set them in the root config.
 - Subprojects are loaded one level deep. A `subprojects` declaration inside a
@@ -352,11 +353,13 @@ including per-directory mise environments and locally installed Node tools.
 
 ### Conditions and Git status
 
-`condition` is an expression evaluated per step job. `step_condition` is evaluated once per step. Shell commands need an explicit `exec(...)` call:
+`condition` is an expression evaluated per step job. `step_condition` is evaluated once per step. To run a step only when a shell command succeeds, wrap it in `exec_ok(...)`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
+
+`exec_ok(command)` is true when the command exits with status 0 and false otherwise. `exec(command)` returns the command’s standard output as a string, for comparisons such as `exec('git branch --show-current') == 'main\n'`. Use `exec` for its output, not to test success: a command that exits non-zero, or prints output that is not valid UTF-8, makes `exec` fail the hook, and a string result never skips a step.
 
 The `git` object makes common status checks available without invoking Git:
 

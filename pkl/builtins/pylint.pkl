@@ -4,6 +4,11 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Python"
   description = "Python code analysis"
+  project_indicators {
+    new { file = ".pylintrc" }
+    new { file = "pylintrc" }
+    new { file = "pyproject.toml"; contains_regex = #"^[ \t]*\[tool\.pylint[\].]"# }
+  }
 }
 pylint = new Config.Step {
   glob = "**/*.py"
