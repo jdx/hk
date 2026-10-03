@@ -34,6 +34,15 @@ hk --version
 
 Prebuilt binaries are also available from [GitHub releases](https://github.com/jdx/hk/releases). hk uses the built-in [pklr evaluator](/pkl_introduction#evaluators) by default, so you do not need to install the Pkl CLI.
 
+hk's GitHub releases are immutable and carry GitHub release attestations. To check that a downloaded binary is exactly what was published for that release, use the [GitHub CLI](https://cli.github.com/) (2.81 or newer):
+
+```sh
+VERSION=v2.4.0 # replace with the tag of your downloaded release
+gh release verify-asset "$VERSION" hk-x86_64-unknown-linux-gnu.tar.gz --repo jdx/hk
+```
+
+`gh release verify "$VERSION" --repo jdx/hk` checks the release itself. Verification confirms that the file came from the release; it does not review what the release contains.
+
 ## Project setup
 
 From the root of your repository, generate a configuration:
@@ -105,6 +114,8 @@ hk check --step newlines
 ```
 
 With the configuration above, modified files include staged, unstaged, and untracked files. `--all` selects tracked files plus eligible untracked files; ignore rules and exclusions still apply. Hook settings and flags can change file selection.
+
+`--step` fails with a suggestion when a name matches no step in the hook, so a typo cannot pass in CI after running nothing. An unknown `--skip-step` name only warns.
 
 Check commands should be read-only. Fix commands may edit files, and some findings need a manual fix. `hk fix` leaves fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached`.
 

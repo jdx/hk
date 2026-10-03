@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: b4f4aee8cd69
+sourceHash: b0406d1b5c57
 ---
 
 # Getting under way
@@ -34,6 +34,15 @@ hk --version
 ```
 
 Prebuilt binaries are also waiting at [GitHub releases](https://github.com/jdx/hk/releases). By default hk reads its charts with the built-in [pklr evaluator](/pkl_introduction#evaluators), so ye do not need to install the Pkl CLI.
+
+hk's GitHub releases are immutable and carry GitHub release attestations. To check that a binary ye hauled down is exactly what was published for that release, use the [GitHub CLI](https://cli.github.com/) (2.81 or newer):
+
+```sh
+VERSION=v2.4.0 # replace with the tag of your downloaded release
+gh release verify-asset "$VERSION" hk-x86_64-unknown-linux-gnu.tar.gz --repo jdx/hk
+```
+
+`gh release verify "$VERSION" --repo jdx/hk` checks the release itself. Verification confirms that the file came from the release; it does not review what the release contains.
 
 ## Rigging the ship {#project-setup}
 
@@ -102,6 +111,8 @@ hk check --step newlines
 ```
 
 With the charts above, the modified files include the staged, unstaged, and untracked ones: cargo loaded aboard, cargo left on the dock, and cargo Git doesn't track yet. `--all` selects the tracked files plus eligible untracked ones; ignore rules and exclusions still apply. Hook settings and flags can change which files are selected.
+
+`--step` fails with a suggestion when a name matches no step in the hook, so a typo cannot slip past CI after running nothing. An unknown `--skip-step` name only warns.
 
 Check commands should be read-only: lookouts look, they don't touch. Fix commands may edit files, and some findings need mending by hand. `hk fix` leaves its fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached` to see what the sailmakers changed.
 
