@@ -19,7 +19,7 @@ Every generator writes only to stdout. Review the result and place or merge it i
 1. Inspect the project and request a plan.
 2. Scope execution to changed files. Use `--files0-from` when exact filenames matter and `--cd` to choose the project root.
 3. Inspect command effects and prefer safe execution. `--safe` rejects a run before any step starts if a runnable command is unknown or destructive. That includes the hook's `report` command, so declare its effect with a `CommandSpec` (`report = new CommandSpec { command = "node scripts/report-timings.js"; effect = "read" }`). `--safe` checks declared effects only. It is not a sandbox, and hk does not verify that a command behaves as declared.
-4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings.
+4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings. A step with no `diagnostic_format` has no diagnostics, so read its raw `output` field instead, when present (see [diagnostics](/configuration#diagnostics)).
 5. Review the resulting diff before accepting a fix.
 
 Without MCP, a portable invocation is:

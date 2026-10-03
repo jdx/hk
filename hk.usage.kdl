@@ -661,6 +661,11 @@ Example: `hk util sarif-diff -- pinact run --check --format sarif a.yml`
     }
 }
 cmd validate help="Validate the config file" effect=read {
+    long_help #"""
+Validate the config file
+
+Errors for configs hk cannot run. Also prints warnings for settings that load but probably do not do what was meant: unknown properties (which release builds silently drop), `depends` that never orders anything, steps without a command, and globs that cannot match.
+"""#
     flag "-h --help" help="Print help" action=help builtin=#true
 }
 cmd version help="Print the version of hk" effect=read {

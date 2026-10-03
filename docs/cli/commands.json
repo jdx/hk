@@ -8189,6 +8189,7 @@
         "hide": false,
         "args_override_self": true,
         "help": "Validate the config file",
+        "help_long": "Validate the config file\n\nErrors for configs hk cannot run. Also prints warnings for settings that load but probably do not do what was meant: unknown properties (which release builds silently drop), `depends` that never orders anything, steps without a command, and globs that cannot match.",
         "name": "validate",
         "aliases": [],
         "hidden_aliases": [],

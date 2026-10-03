@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: 3858af749b42
+sourceHash: 2a342e26d6f2
 ---
 
 # Configuration, the ship's charts
@@ -246,6 +246,29 @@ check_diff = "hk util format-diff {{files}} -- stylua --stdin-filepath {} -"
 
 If the formatter fails on any file, no patch is printed and hk runs `fix`, which reports the error. Beware: a formatter's stdin mode can ignore excludes in its own configuration that it does apply to files named on the command line, as yamlfmt's and taplo's do. Their builtins ask the tool which files would change before formatting those.
 
+### What the lookouts sang out: diagnostics {#diagnostics}
+
+`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a hand's `check` command, and it can't guess a tool's output format. A hand reports diagnostics only when it sets `diagnostic_format`. Without it the hand still runs, fails, and can carry its raw text in the result's `output` field (separate from `diagnostics`; `output_summary` and other step settings decide when it is present), but its `diagnostics` list and its SARIF results are empty. In `--format jsonl` output, the findings are in the final `run_completed` result; each `step_completed` event carries an empty `diagnostics` array.
+
+The standing crew are no different. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Most builtins don't set it (check a builtin's definition in `pkl/builtins`), so an unchanged builtin hand sings out no diagnostics even when it fails. To get diagnostics from one of those, set `diagnostic_format` on yer own hand, and add the tool's flag for a supported format to its `check` command if ye accept the output changing.
+
+| `diagnostic_format` | What hk reads                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gcc`               | Lines like `path:line:column: warning: message [rule]`. The severity and the trailing `[rule]` are optional, and lines that follow a diagnostic are added to its message. |
+| `sarif`             | A SARIF 2.1.0 log. Each result becomes a diagnostic, with its rule and help link.                                                                                         |
+| `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                        |
+| `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                 |
+
+hk parses the combined stdout and stderr of `check` runs. If a hand captured no `check` output, structured results fall back to the hand's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Raw text is reported in the separate `output` field, and `output_summary` and other step settings decide when it is present. Output that can't be parsed usually becomes an entry in the hand's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, and the `cargo-json` parser skips valid JSON events that aren't `compiler-message`. This hand reports each line of the compiler's `path:line:column: message` output as a diagnostic:
+
+```pkl
+["compiler"] {
+    check = "my-compiler {{files}}"
+    diagnostic_format = "gcc"
+    diagnostic_tool = "my-compiler"
+}
+```
+
 ### Refit a standing hand: customize a builtin {#customize-a-builtin}
 
 ```pkl
@@ -386,14 +409,14 @@ Mind: conditions are expr-lang expressions, not Tera templates. Name variables d
 
 Runtime settings are settled from lowest precedence to highest, like a chain of command:
 
-| Precedence | Where it hails from                                                   |
-| ---------- | --------------------------------------------------------------------- |
-| 1          | Built-in defaults                                                     |
-| 2          | User configuration, typically `~/.config/hk/config.pkl`               |
-| 3          | The selected project configuration                                    |
-| 4          | Git configuration, with local values overriding global/system values  |
-| 5          | `HK_*` environment variables, the standing orders                     |
-| 6          | CLI flags, flown on the call itself                                   |
+| Precedence | Where it hails from                                                  |
+| ---------- | -------------------------------------------------------------------- |
+| 1          | Built-in defaults                                                    |
+| 2          | User configuration, typically `~/.config/hk/config.pkl`              |
+| 3          | The selected project configuration                                   |
+| 4          | Git configuration, with local values overriding global/system values |
+| 5          | `HK_*` environment variables, the standing orders                    |
+| 6          | CLI flags, flown on the call itself                                  |
 
 For scalar settings, a higher layer's value overrides the ones below it. List settings such as `exclude`, `skip_steps`, `skip_hooks`, and `hide_warnings` are different: they gather up their values from every source.
 

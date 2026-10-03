@@ -1,6 +1,6 @@
 ---
 description: Learn the Pkl ye need to draw hk's charts, muster the same hands across hooks, and find out why the charts won't evaluate.
-sourceHash: 1040306b8f58
+sourceHash: 8747ce496cf7
 ---
 
 # Pkl essentials for the chart room
@@ -210,6 +210,8 @@ hk check --plan
 ```
 
 Validation evaluates the charts without running a single linter command. A passage plan then shows how hk selects its hands and its cargo: the steps and the files.
+
+Validation fails on charts hk cannot sail, such as a dependency cycle between steps or a glob that does not compile. It also hollers warnings, without failing, for settings that load but likely aren't what ye meant: a misspelled property (release builds otherwise drop it silently), a `depends` entry that names an unknown step, a group, or a step in a later group, a step with no command, and a glob that starts with `./`, `/` or `!` or lists patterns with commas.
 
 If ye have the Pkl CLI on hand, look over the evaluated module with:
 
