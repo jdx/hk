@@ -674,6 +674,93 @@ impl Hook {
         }
     }
 
+    /// Every step this hook can run by name: top-level steps and the steps
+    /// inside groups. Subproject steps keep their `subdir:` prefix.
+    fn step_names(&self) -> indexmap::IndexSet<&str> {
+        self.steps
+            .iter()
+            .flat_map(|(name, step_or_group)| match step_or_group {
+                StepOrGroup::Step(_) => vec![name.as_str()],
+                StepOrGroup::Group(group) => group.steps.keys().map(String::as_str).collect(),
+            })
+            .collect()
+    }
+
+    /// Reject `--step` names that match no step in this hook. Without this a
+    /// typo selects nothing, and `hk check --step typo` passes after running
+    /// zero steps, which in CI looks like a green check.
+    fn validate_requested_steps(&self, opts: &HookOptions) -> Result<()> {
+        let known = self.step_names();
+        let unknown: Vec<&String> = opts
+            .step
+            .iter()
+            .filter(|name| !known.contains(name.as_str()))
+            .collect();
+        if unknown.is_empty() {
+            return Ok(());
+        }
+        let group_names: indexmap::IndexSet<&str> = self
+            .steps
+            .iter()
+            .filter(|(_, s)| matches!(s, StepOrGroup::Group(_)))
+            .map(|(name, _)| name.as_str())
+            .collect();
+        let mut message = String::new();
+        for name in unknown {
+            message.push_str(&format!("unknown step '{name}' for hook '{}'.", self.name));
+            let namespaced: Vec<&str> = known
+                .iter()
+                .copied()
+                .filter(|k| k.rsplit_once(':').is_some_and(|(_, step)| step == name))
+                .collect();
+            if let Some(group) = group_names.get(name.as_str()) {
+                let inner = self
+                    .steps
+                    .get(*group)
+                    .and_then(|g| match g {
+                        StepOrGroup::Group(g) => Some(g.steps.keys().join(", ")),
+                        StepOrGroup::Step(_) => None,
+                    })
+                    .unwrap_or_default();
+                message.push_str(&format!(
+                    " '{name}' is a group; name its steps instead: {inner}."
+                ));
+            } else if !namespaced.is_empty() {
+                message.push_str(&format!(
+                    " Did you mean {}?",
+                    namespaced.iter().map(|n| format!("'{n}'")).join(" or ")
+                ));
+            } else {
+                message.push_str(&crate::suggest::did_you_mean_hint(
+                    name,
+                    known.iter().copied(),
+                ));
+            }
+            message.push('\n');
+        }
+        if known.is_empty() {
+            message.push_str(&format!("Hook '{}' has no steps.", self.name));
+        } else {
+            message.push_str(&format!("Available steps: {}", known.iter().join(", ")));
+        }
+        eyre::bail!("{message}")
+    }
+
+    /// Warn about `--skip-step` names that match no step. Unlike `--step`, a
+    /// stale skip is harmless, so it stays a warning.
+    fn warn_unknown_skipped_steps(&self, opts: &HookOptions) {
+        let known = self.step_names();
+        for name in &opts.skip_step {
+            if !known.contains(name.as_str()) {
+                warn!(
+                    "--skip-step {name}: no such step in hook '{}'.{}",
+                    self.name,
+                    crate::suggest::did_you_mean_hint(name, known.iter().copied())
+                );
+            }
+        }
+    }
+
     fn get_step_groups(&self, opts: &HookOptions) -> Vec<StepGroup> {
         let mut steps = self.steps.values().cloned().collect_vec();
         if !opts.step.is_empty() {
@@ -729,6 +816,7 @@ impl Hook {
         clx::progress::set_output(ProgressOutput::Text);
         let settings = Settings::get();
         let run_type = self.run_type(&opts);
+        self.validate_requested_steps(&opts)?;
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status()?;
@@ -1097,6 +1185,7 @@ impl Hook {
         println!();
 
         // Collect stats for each step
+        self.validate_requested_steps(&opts)?;
         let groups = self.get_step_groups(&opts);
         let mut step_stats: Vec<(String, usize, Option<SkipReason>)> = Vec::new();
 
@@ -1216,6 +1305,19 @@ impl Hook {
         let run_type = self.run_type(&opts);
         // fail_on_fix exists to surface fixes for review; staging would defeat that.
         let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
+        if let Err(err) = self.validate_requested_steps(&opts) {
+            crate::structured_output::emit_error_run(
+                output_format,
+                &self.name,
+                started_at,
+                run_started.elapsed().as_millis(),
+                err.to_string(),
+                reports,
+            )
+            .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
+            return Err(err);
+        }
+        self.warn_unknown_skipped_steps(&opts);
         let groups = self.get_step_groups(&opts);
         crate::structured_output::emit_run_planned(
             output_format,

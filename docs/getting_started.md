@@ -114,6 +114,8 @@ hk check --step eslint
 
 With the configuration above, modified files include staged, unstaged, and untracked files. `--all` selects tracked files plus eligible untracked files; ignore rules and exclusions still apply. Hook settings and flags can change file selection.
 
+`--step` fails with a suggestion when a name matches no step in the hook, so a typo cannot pass in CI after running nothing. An unknown `--skip-step` name only warns.
+
 Check commands should be read-only. Fix commands may edit files, and some findings need a manual fix. `hk fix` leaves fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached`.
 
 ## Preview a run
