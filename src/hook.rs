@@ -1118,7 +1118,21 @@ impl Hook {
                 return Err(err);
             }
         };
-        let stash_method = self.resolve_stash_method_for_opts(&opts)?;
+        let stash_method = match self.resolve_stash_method_for_opts(&opts) {
+            Ok(method) => method,
+            Err(err) => {
+                crate::structured_output::emit_error_run(
+                    output_format,
+                    &self.name,
+                    started_at,
+                    run_started.elapsed().as_millis(),
+                    err.to_string(),
+                    reports,
+                )
+                .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
+                return Err(err);
+            }
+        };
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         // Exit before any side effects (notably stashing) when there are no steps to run.
         // Stashing here would strip the working tree, and the early return below used to
