@@ -17,6 +17,7 @@ mod diagnostics;
 mod diff;
 mod env;
 mod error;
+mod error_report;
 mod file_rw_locks;
 mod file_type;
 mod git;
@@ -55,6 +56,7 @@ use tokio::signal;
 use tokio::signal::unix::SignalKind;
 
 fn main() -> Result<()> {
+    error_report::install();
     if is_bare_builtins_invocation(std::env::args_os().skip(1)) {
         return write_builtins(io::stdout().lock());
     }
@@ -96,6 +98,10 @@ async fn async_main() -> Result<()> {
     match result {
         Ok(Some(status)) => std::process::exit(status.code().unwrap_or(1)),
         Ok(None) => Ok(()),
+        // The hook already logged this error (with its cause chain).
+        Err(_) if hook::ERROR_REPORTED.load(std::sync::atomic::Ordering::Relaxed) => {
+            std::process::exit(1)
+        }
         Err(e) if !log::log_enabled!(log::Level::Debug) => friendly_error(e),
         Err(e) => Err(e),
     }

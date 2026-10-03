@@ -38,6 +38,11 @@ use crate::{
     version,
 };
 
+/// Set once a hook has already logged the error it is about to return, so
+/// `main` does not print it a second time.
+pub static ERROR_REPORTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 #[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
 #[strum(serialize_all = "kebab-case")]
 pub enum SkipReason {
@@ -1675,6 +1680,7 @@ impl Hook {
                 error!("{}", s);
             }
         }
+        let mut error_logged = false;
         if let Err(err) = &result {
             // ScriptFailed errors are displayed via output_by_step above, skip logging here
             // Other errors are unexpected, show full trace for debugging
@@ -1686,6 +1692,7 @@ impl Hook {
             });
             if !is_script_failed {
                 error!("{self}: hook finished with error: {err:?}");
+                error_logged = true;
             }
         } else {
             debug!("{self}: hook finished successfully");
@@ -1707,6 +1714,11 @@ impl Hook {
                 });
             }
             return Err(emit_err);
+        }
+        // main would print this same error again on exit. Only mark it when
+        // the returned error is the one logged above (not an emit failure).
+        if error_logged {
+            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         result
     }
