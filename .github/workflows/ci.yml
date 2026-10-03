@@ -45,6 +45,10 @@ jobs:
             echo "::error::runtime inputs must select full CI"
             exit 1
           fi
+          if jq -en '[{filename: ".github/workflows/ci.yml"}] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))'; then
+            echo "::error::workflow inputs must select full CI"
+            exit 1
+          fi
           if jq -en '[{filename: "docs/main.md", previous_filename: "src/main.rs"}] | all(.[]; ([.filename, .previous_filename?] | map(select(. != null)) | all(.[]; test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))))'; then
             echo "::error::renamed runtime inputs must select full CI"
             exit 1
