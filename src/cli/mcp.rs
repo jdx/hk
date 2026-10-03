@@ -372,10 +372,11 @@ impl HkMcpServer {
 
     async fn execute(&self, id: String, root: PathBuf, kind: RunKind, cancel: CancellationToken) {
         // A root that is not a git repository has no diff to capture; that is not an error.
-        let diff_baseline = if is_git_repository(&root).await {
-            Some(snapshot_tree(&root).await)
-        } else {
-            None
+        // If git itself cannot run, that is a capture failure rather than "not a repository".
+        let diff_baseline = match git_repository_state(&root).await {
+            Ok(true) => Some(snapshot_tree(&root).await),
+            Ok(false) => None,
+            Err(error) => Some(Err(error)),
         };
         let executable = match std::env::current_exe() {
             Ok(path) => path,
@@ -1110,6 +1111,11 @@ async fn run_hk_capture(root: &Path, args: &[&str]) -> Result<std::process::Outp
 }
 
 async fn is_git_repository(root: &Path) -> bool {
+    git_repository_state(root).await.unwrap_or(false)
+}
+
+/// Whether `root` is inside a git repository; `Err` when git could not be started.
+async fn git_repository_state(root: &Path) -> Result<bool, String> {
     Command::new("git")
         .arg("-C")
         .arg(root)
@@ -1119,7 +1125,8 @@ async fn is_git_repository(root: &Path) -> bool {
         .stderr(std::process::Stdio::null())
         .status()
         .await
-        .is_ok_and(|status| status.success())
+        .map(|status| status.success())
+        .map_err(|error| format!("failed to run git rev-parse --git-dir: {error}"))
 }
 
 #[derive(Debug, Default)]
@@ -1204,7 +1211,7 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
     let temp_index = temp_dir.path().join("index");
     run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
     // Tracked files first, so tracked files that .gitignore also matches are included.
-    let tracked = run_git(root, &["ls-files", "-z"], None).await?;
+    let tracked = tracked_files_without_gitlinks(root).await?;
     let raw = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"];
     let attr_source = format!("--attr-source={EMPTY_TREE}");
     for use_attr_source in [true, false] {
@@ -1233,6 +1240,36 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
     }
     let tree = run_git(root, &["write-tree"], Some(&temp_index)).await?;
     Ok(String::from_utf8_lossy(&tree).trim().to_string())
+}
+
+/// Lists tracked paths NUL-separated, leaving out gitlinks (submodules): on disk those are
+/// directories, which `update-index` cannot hash as files. `add -A` records initialized ones.
+async fn tracked_files_without_gitlinks(root: &Path) -> Result<Vec<u8>, String> {
+    let staged = run_git(root, &["ls-files", "-z", "--stage"], None).await?;
+    let mut paths: Vec<&[u8]> = Vec::new();
+    for entry in staged
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+    {
+        // Each entry is "<mode> <object> <stage>\t<path>".
+        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
+            continue;
+        };
+        if entry.starts_with(b"160000 ") {
+            continue;
+        }
+        let path = &entry[tab + 1..];
+        // Unmerged paths appear once per stage.
+        if paths.last() != Some(&path) {
+            paths.push(path);
+        }
+    }
+    let mut out = Vec::new();
+    for path in paths {
+        out.extend_from_slice(path);
+        out.push(0);
+    }
+    Ok(out)
 }
 
 /// Git's well-known empty tree, which always exists.
@@ -1672,6 +1709,30 @@ mod tests {
         let diff = git_diff(root, &baseline, &after).await.unwrap();
         assert!(diff.text.contains("+two"), "{}", diff.text);
         assert!(!diff.text.contains("ignored.log"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn snapshot_tree_tolerates_gitlink_entries() {
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        std::fs::write(repo.join("file.txt"), "x\n").unwrap();
+        // An uninitialized submodule: a gitlink in the index with only an empty directory on disk.
+        git_in(
+            repo,
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                "160000,1111111111111111111111111111111111111111,sub",
+            ],
+        );
+        std::fs::create_dir(repo.join("sub")).unwrap();
+        let baseline = snapshot_tree(repo).await.unwrap();
+        std::fs::write(repo.join("new.txt"), "y\n").unwrap();
+        let after = snapshot_tree(repo).await.unwrap();
+        let diff = git_diff(repo, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+++ b/new.txt"), "{}", diff.text);
     }
 
     #[cfg(unix)]
