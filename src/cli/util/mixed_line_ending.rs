@@ -1,9 +1,13 @@
-use memchr::{memchr, memchr2};
+use memchr::memchr;
 
 use crate::Result;
 use std::fs;
 use std::path::PathBuf;
 
+/// Detect and fix mixed line endings
+///
+/// Fixing normalizes every line to the file's most frequent ending, or LF
+/// when LF and CRLF are tied. A lone CR is left alone.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct MixedLineEnding {
@@ -11,7 +15,7 @@ pub struct MixedLineEnding {
     #[usage(short, long, conflicts = "--fix")]
     pub diff: bool,
 
-    /// Fix mixed line endings by normalizing to LF
+    /// Fix mixed line endings by normalizing to the most frequent one (LF on a tie)
     #[usage(short, long)]
     pub fix: bool,
 
@@ -26,9 +30,7 @@ impl MixedLineEnding {
 
         for file_path in &self.files {
             if self.fix {
-                if has_mixed_line_endings(file_path)? {
-                    fix_line_endings(file_path)?;
-                }
+                fix_line_endings(file_path)?;
             } else if self.diff {
                 if let Some(diff) = generate_diff(file_path)? {
                     print!("{}", diff);
@@ -54,7 +56,8 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
     }
 
     let original = fs::read_to_string(path)?;
-    let fixed = original.replace("\r\n", "\n");
+    let fixed = String::from_utf8(normalize(original.as_bytes()))
+        .expect("replacing ASCII line endings keeps the text UTF-8");
     let path_str = path.display().to_string();
     let diff = crate::diff::render_unified_diff(
         &original,
@@ -64,6 +67,25 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
     );
 
     Ok(Some(diff))
+}
+
+/// Count the line endings that are bare LF and the ones that are CRLF. A lone
+/// CR is ignored: it is the line ending of legacy systems, particularly old
+/// Mac OS, which hk doesn't target.
+fn count_line_endings(content: &[u8]) -> (usize, usize) {
+    let mut lf = 0;
+    let mut crlf = 0;
+    let mut i = 0;
+    while let Some(offset) = memchr(b'\n', &content[i..]) {
+        let pos = i + offset;
+        if pos > 0 && content[pos - 1] == b'\r' {
+            crlf += 1;
+        } else {
+            lf += 1;
+        }
+        i = pos + 1;
+    }
+    (lf, crlf)
 }
 
 fn has_mixed_line_endings(path: &PathBuf) -> Result<bool> {
@@ -79,63 +101,40 @@ fn has_mixed_line_endings(path: &PathBuf) -> Result<bool> {
         return Ok(false);
     }
 
-    let mut found_lf = false;
-    let mut found_crlf = false;
+    let (lf, crlf) = count_line_endings(&content);
+    Ok(lf > 0 && crlf > 0)
+}
 
+/// Rewrite every LF and CRLF line ending as the most frequent one, which is LF
+/// when they are tied. A lone CR passes through.
+fn normalize(content: &[u8]) -> Vec<u8> {
+    let (lf, crlf) = count_line_endings(content);
+    let ending: &[u8] = if crlf > lf { b"\r\n" } else { b"\n" };
+
+    let mut normalized = Vec::with_capacity(content.len());
     let mut i = 0;
-    while let Some(offset) = memchr2(b'\r', b'\n', &content[i..]) {
+    while let Some(offset) = memchr(b'\n', &content[i..]) {
         let pos = i + offset;
-        match content[pos] {
-            b'\r' if content.get(pos + 1) == Some(&b'\n') => {
-                found_crlf = true;
-                i = pos + 2;
-            }
-            b'\r' => {
-                // Ignore this case. CR is the line ending on certain legacy systems,
-                // particularly old Mac OS, but we don't target those.
-                i = pos + 1;
-                continue;
-            }
-            b'\n' => {
-                found_lf = true;
-                i = pos + 1;
-            }
-            _ => unreachable!(),
-        }
+        let line_end = if pos > i && content[pos - 1] == b'\r' {
+            pos - 1
+        } else {
+            pos
+        };
+        normalized.extend_from_slice(&content[i..line_end]);
+        normalized.extend_from_slice(ending);
+        i = pos + 1;
     }
-
-    Ok(found_lf && found_crlf)
+    normalized.extend_from_slice(&content[i..]);
+    normalized
 }
 
 fn fix_line_endings(path: &PathBuf) -> Result<()> {
-    // Skip directories
-    if path.is_dir() {
+    if !has_mixed_line_endings(path)? {
         return Ok(());
     }
 
     let content = fs::read(path)?;
-
-    // Convert all CRLF to LF
-    let mut normalized = Vec::new();
-    let mut i = 0;
-    while let Some(offset) = memchr2(b'\r', b'\n', &content[i..]) {
-        let pos = i + offset;
-        normalized.extend_from_slice(&content[i..pos]);
-        match content[pos] {
-            b'\r' if content.get(pos + 1) == Some(&b'\n') => {
-                normalized.push(b'\n');
-                i = pos + 2;
-            }
-            // Other cases pass through.
-            _ => {
-                normalized.push(content[pos]);
-                i = pos + 1;
-            }
-        }
-    }
-    normalized.extend_from_slice(&content[i..]);
-
-    fs::write(path, normalized)?;
+    fs::write(path, normalize(&content))?;
     Ok(())
 }
 
@@ -180,7 +179,38 @@ mod tests {
         fix_line_endings(&file.path().to_path_buf()).unwrap();
 
         let content = fs::read(file.path()).unwrap();
-        assert_eq!(content, b"line1\nline2\nline3\n");
+        // CRLF is the most frequent ending here
+        assert_eq!(content, b"line1\r\nline2\r\nline3\r\n");
+    }
+
+    #[test]
+    fn test_fix_normalizes_to_most_frequent_ending() {
+        assert_eq!(normalize(b"a\r\nb\nc\nd\r\ne\n"), b"a\nb\nc\nd\ne\n");
+        assert_eq!(normalize(b"a\r\nb\r\nc\nd"), b"a\r\nb\r\nc\r\nd");
+    }
+
+    #[test]
+    fn test_fix_ties_go_to_lf() {
+        assert_eq!(normalize(b"a\r\nb\n"), b"a\nb\n");
+    }
+
+    #[test]
+    fn test_fix_leaves_lone_cr_alone() {
+        assert_eq!(normalize(b"a\rb\r\nc\nd\r\n"), b"a\rb\r\nc\r\nd\r\n");
+    }
+
+    #[test]
+    fn test_fix_leaves_unmixed_file_untouched() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"a\r\nb\r\n").unwrap();
+        fix_line_endings(&file.path().to_path_buf()).unwrap();
+        assert_eq!(fs::read(file.path()).unwrap(), b"a\r\nb\r\n");
+    }
+
+    #[test]
+    fn test_fix_is_idempotent() {
+        let once = normalize(b"a\r\nb\nc\r\nd\r");
+        assert_eq!(normalize(&once), once);
     }
 
     #[test]

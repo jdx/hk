@@ -12,6 +12,8 @@ description: "Check first, or request an in-place fix explicitly."
 
 Check for and optionally fix missing final newlines
 
+The newline added or kept is the file's most frequent line ending, so a CRLF file ends with CRLF and trailing blank CRLF lines are removed.
+
 ## Arguments
 
 - **`<FILES>…`** — Files to check/fix
