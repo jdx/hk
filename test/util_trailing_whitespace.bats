@@ -140,19 +140,63 @@ HK
     assert_output "trailing"
 }
 
+@test "util trailing-whitespace - clean CRLF file passes" {
+    printf "contents\r\nmore\r\n" > crlf.txt
+
+    run hk util trailing-whitespace crlf.txt
+    assert_success
+    refute_output
+
+    run hk util trailing-whitespace --diff crlf.txt
+    assert_success
+    refute_output
+
+    run hk util trailing-whitespace --fix crlf.txt
+    assert_success
+    assert_equal "$(od -An -c crlf.txt | tr -s ' ')" "$(printf 'contents\r\nmore\r\n' | od -An -c | tr -s ' ')"
+}
+
 @test "util trailing-whitespace - works on windows" {
-    printf "contents  \r\n" > crlf.txt
+    printf "contents  \r\nmore\r\n" > crlf.txt
 
     run hk util trailing-whitespace crlf.txt
     assert_failure
     assert_output --partial "crlf.txt"
 
+    # The diff only removes the spaces; the CRLF terminator stays
     run hk util trailing-whitespace --diff crlf.txt
     assert_failure
-    printf "--- a/crlf.txt\n+++ b/crlf.txt\n@@ -1 +1 @@\n-contents  \r\n+contents" | assert_output
+    printf -- "--- a/crlf.txt\n+++ b/crlf.txt\n@@ -1,2 +1,2 @@\n-contents  \r\n+contents\r\n more\r\n" | assert_output
 
     run hk util trailing-whitespace --fix crlf.txt
     assert_success
-    run cat crlf.txt
-    echo "contents\n" | assert_output
+    assert_equal "$(od -An -c crlf.txt | tr -s ' ')" "$(printf 'contents\r\nmore\r\n' | od -An -c | tr -s ' ')"
+}
+
+@test "util trailing-whitespace - keeps each line's terminator" {
+    printf "a  \r\nb \nc\t\r\nd  " > mixed.txt
+
+    run hk util trailing-whitespace --fix mixed.txt
+    assert_success
+    assert_equal "$(od -An -c mixed.txt | tr -s ' ')" "$(printf 'a\r\nb\nc\r\nd' | od -An -c | tr -s ' ')"
+}
+
+@test "util trailing-whitespace - spaces around a stray CR are fixed in one pass" {
+    printf "x   \r \ny\n" > stray.txt
+
+    run hk util trailing-whitespace --fix stray.txt
+    assert_success
+
+    run hk util trailing-whitespace stray.txt
+    assert_success
+    refute_output
+    assert_equal "$(od -An -c stray.txt | tr -s ' ')" "$(printf 'x\r\ny\n' | od -An -c | tr -s ' ')"
+}
+
+@test "util trailing-whitespace - only strips spaces and tabs" {
+    printf "form\fgap\f\nlone cr\r" > odd.txt
+
+    run hk util trailing-whitespace odd.txt
+    assert_success
+    refute_output
 }

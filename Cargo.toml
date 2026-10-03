@@ -80,6 +80,11 @@ xx                 = { version = "2", features = ["hash"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi-util = "0.1"
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Threading",
+] }
 
 [build-dependencies]
 codegen    = "0.3"
