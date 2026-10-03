@@ -8,7 +8,8 @@ Describe 'stash journal' {
     }
 
     It 'restores the stash left by a killed hk on the next run' {
-        $testDir = Join-Path $TestDrive ([System.Guid]::NewGuid().ToString())
+        # Outside TestDrive: Pester fails the whole file if the killed run's leftovers still hold the directory
+        $testDir = Join-Path ([System.IO.Path]::GetTempPath()) ('hk-sj-repo-' + [System.Guid]::NewGuid())
         New-Item -ItemType Directory -Path $testDir | Out-Null
         Set-Location $testDir
 
@@ -87,7 +88,10 @@ hooks {
                 Where-Object { $_.CommandLine -like '*ping -n 60*' } |
                 ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
             Set-Location $script:originalPath
-            Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+            for ($i = 0; $i -lt 10 -and (Test-Path $testDir); $i++) {
+                Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+                if (Test-Path $testDir) { Start-Sleep -Milliseconds 500 }
+            }
             if ($outDir) { Remove-Item -Path $outDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
     }
