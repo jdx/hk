@@ -75,6 +75,13 @@ teardown() {
     assert_output --partial 'run pre-commit --from-hook "$@"'
 }
 
+@test "legacy install recreates a missing hooks directory" {
+    rm -rf .git/hooks
+    run hk install --legacy
+    assert_success
+    assert_file_exists .git/hooks/pre-commit
+}
+
 @test "legacy install writes hooks world-readable and executable (0755)" {
     [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]] && skip "no POSIX permissions"
     hk install --legacy

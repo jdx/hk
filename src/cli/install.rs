@@ -149,18 +149,19 @@ impl Install {
 /// The directory legacy hook shims are written to.
 fn legacy_hooks_dir(create: bool) -> Result<PathBuf> {
     let git_path = git_util::find_git_path()?;
-    Ok(match git_util::worktree_hooks_path() {
-        Some(path) => {
-            if create {
-                xx::file::mkdirp(&path)?;
-            }
-            path
-        }
+    let hooks = match git_util::worktree_hooks_path() {
+        Some(path) => path,
         None => {
             check_hooks_path_config()?;
             git_util::resolve_git_hooks_dir(&git_path)?
         }
-    })
+    };
+    // A missing or deleted hooks directory is recreated, as writing the
+    // shim directly used to do.
+    if create {
+        xx::file::mkdirp(&hooks)?;
+    }
+    Ok(hooks)
 }
 
 /// Whether `content` is a hook script written by hk.
