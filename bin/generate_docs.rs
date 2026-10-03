@@ -168,13 +168,21 @@ fn script_text(command: &serde_json::Map<String, serde_json::Value>) -> Option<S
         .map(|script| script.trim_end().to_string())
 }
 
+/// Flatten a glob string, a list of globs, or a Regex object
+/// (`{"_type": "regex", "pattern": ...}`, alone or inside a list) into display
+/// strings. Regexes render as `/pattern/` so they read differently from globs.
 fn string_list(value: &serde_json::Value) -> Vec<String> {
     match value {
         serde_json::Value::String(s) => vec![s.clone()],
-        serde_json::Value::Array(arr) => arr
-            .iter()
-            .filter_map(|v| v.as_str().map(str::to_string))
-            .collect(),
+        serde_json::Value::Array(arr) => arr.iter().flat_map(string_list).collect(),
+        serde_json::Value::Object(map)
+            if map.get("_type").and_then(|v| v.as_str()) == Some("regex") =>
+        {
+            map.get("pattern")
+                .and_then(|v| v.as_str())
+                .map(|pattern| vec![format!("/{pattern}/")])
+                .unwrap_or_default()
+        }
         _ => vec![],
     }
 }
@@ -437,6 +445,30 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn string_list_renders_globs_and_regexes() {
+        assert_eq!(string_list(&json!("*.rs")), vec!["*.rs"]);
+        assert_eq!(
+            string_list(&json!({"_type": "regex", "pattern": "\\.rs$"})),
+            vec!["/\\.rs$/"]
+        );
+        assert_eq!(
+            string_list(&json!(["*.md", {"_type": "regex", "pattern": "^docs"}])),
+            vec!["*.md", "/^docs/"]
+        );
+        assert!(string_list(&json!({"pattern": "x"})).is_empty());
+    }
+
+    #[test]
+    fn selector_and_options_keep_regex_patterns() {
+        let step = json!({
+            "glob": {"_type": "regex", "pattern": "\\.rs$"},
+            "exclude": [{"_type": "regex", "pattern": "^gen/"}]
+        });
+        assert_eq!(files_doc(&step).as_deref(), Some("`/\\.rs$/`"));
+        assert!(options_doc(&step).unwrap().contains("/^gen/"));
+    }
 
     #[test]
     fn command_text_unwraps_shell_command_specs() {
