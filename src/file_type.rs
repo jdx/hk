@@ -123,7 +123,8 @@ fn shebang_interpreter(line: &str) -> &str {
         program.rsplit('/').next().unwrap_or(program)
     }
 
-    let mut tokens = shebang_words(line.trim().trim_start_matches("#!"));
+    let text = line.trim().trim_start_matches("#!");
+    let mut tokens = shebang_words(text);
     let program = base_name(tokens.next().unwrap_or(""));
     if program != "env" {
         return program;
@@ -135,6 +136,11 @@ fn shebang_interpreter(line: &str) -> &str {
             return "";
         };
         if let Some(command) = split_string_command(token) {
+            // GNU env refuses to run a script whose `-S` string has an escape
+            // it does not know, so the script has no interpreter to type by.
+            if has_invalid_env_escape(text) {
+                return "";
+            }
             pending = Some(command).filter(|command| !command.is_empty());
         } else if token.starts_with('-') {
             // These options take the next token as their argument.
@@ -160,14 +166,18 @@ fn shebang_words(text: &str) -> impl Iterator<Item = &str> {
         let mut escaped = false;
         let mut end = rest.len();
         for (i, c) in rest.char_indices() {
-            // A backslash escapes the next character, except inside single quotes
+            // A backslash escapes the next character; inside single quotes
+            // only a backslash or a quote
             if escaped {
                 escaped = false;
                 continue;
             }
-            if c == '\\' && quote != Some('\'') {
-                escaped = true;
-                continue;
+            if c == '\\' {
+                let next = rest[i + 1..].chars().next();
+                if quote != Some('\'') || matches!(next, Some('\\' | '\'')) {
+                    escaped = true;
+                    continue;
+                }
             }
             match quote {
                 Some(q) if c == q => quote = None,
@@ -184,6 +194,31 @@ fn shebang_words(text: &str) -> impl Iterator<Item = &str> {
         rest = remainder;
         Some(word)
     })
+}
+
+/// Whether `text`, split by env's `-S`, has a backslash escape GNU env rejects.
+/// Outside single quotes it knows `\c \f \n \r \t \v \_ \# \$ \" \\`; inside
+/// them only `\\` and `\'` are escapes, and other backslashes are literal.
+fn has_invalid_env_escape(text: &str) -> bool {
+    let mut quote = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (Some('\''), '\\') => {
+                if matches!(chars.peek(), Some('\\' | '\'')) {
+                    chars.next();
+                }
+            }
+            (_, '\\') => match chars.next() {
+                Some('c' | 'f' | 'n' | 'r' | 't' | 'v' | '_' | '#' | '$' | '"' | '\\') => {}
+                _ => return true,
+            },
+            _ => {}
+        }
+    }
+    false
 }
 
 /// If `token` is env's `-S` / `--split-string` option, the start of the command
@@ -736,8 +771,13 @@ mod tests {
             ("#!/usr/bin/env -S FOO=\"a\\\" b\" python3\n", "python3"),
             ("#!/usr/bin/env -S FOO=\"a\\\\\" python3\n", "python3"),
             // Backslashes are literal inside single quotes
-            ("#!/usr/bin/env -S FOO='a\\' python3\n", "python3"),
-            ("#!/usr/bin/env -S FOO=a\\ b python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a\\b' python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a\\\\' python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\$b\" python3\n", "python3"),
+            // GNU env rejects other escapes, such as a backslash and a space,
+            // so the script cannot start and has no interpreter
+            ("#!/usr/bin/env -S FOO=a\\ b python3\n", ""),
+            ("#!/usr/bin/env -S FOO=\"a\\qb\" python3\n", ""),
             ("#!/usr/bin/env -S FOO='a b' BAR=\"c  d\" ruby -w\n", "ruby"),
             ("#!/usr/bin/env -u HOME -i ruby\n", "ruby"),
             ("#!/usr/bin/env -C /tmp node\n", "node"),
