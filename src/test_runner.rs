@@ -192,25 +192,74 @@ fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<Stri
     None
 }
 
-/// Whether `path` names the same file as `expected`, ignoring a leading `./`. A tool that
-/// prints an absolute path (the sandbox is a temporary directory) matches the relative
-/// `expected` path when it ends with it at a directory boundary.
-fn same_path(path: &str, expected: &str) -> bool {
+/// Forward slashes, no Windows verbatim prefix (`\\?\`), no leading `./`, no trailing `/`.
+fn normalize_path(path: &str) -> String {
+    let path = path.replace('\\', "/");
+    let path = path.strip_prefix("//?/").unwrap_or(&path);
     let path = path.strip_prefix("./").unwrap_or(path);
-    let expected = expected.strip_prefix("./").unwrap_or(expected);
-    path == expected
-        || (Path::new(path).is_absolute()
-            && !Path::new(expected).is_absolute()
-            && path.ends_with(&format!("/{expected}")))
+    if path.len() > 1 {
+        path.trim_end_matches('/').to_string()
+    } else {
+        path.to_string()
+    }
 }
 
-fn diagnostic_matches(diagnostic: &Diagnostic, expected: &StepTestDiagnostic) -> bool {
+fn is_absolute_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    path.starts_with('/')
+        || (bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && &path[1..3] == ":/")
+}
+
+/// The spellings of the directory a test runs its command in: as given, canonicalized, and with
+/// the macOS `/private` alias added or removed, so a tool's absolute path can be made relative.
+fn sandbox_roots(base: &Path) -> Vec<String> {
+    let mut roots = vec![normalize_path(&base.display().to_string())];
+    if let Ok(canonical) = base.canonicalize() {
+        roots.push(normalize_path(&canonical.display().to_string()));
+    }
+    for root in roots.clone() {
+        match root.strip_prefix("/private/") {
+            Some(rest) => roots.push(format!("/{rest}")),
+            None => roots.push(format!("/private{root}")),
+        }
+    }
+    roots.retain(|root| is_absolute_path(root));
+    roots.dedup();
+    roots
+}
+
+/// Whether the diagnostic path a tool printed names the file `expected`. A relative printed path
+/// must equal `expected` (a leading `./` and `\` separators are ignored). An absolute printed
+/// path matches only if it lies inside one of the sandbox `roots` and the rest equals
+/// `expected`; an absolute path elsewhere never matches a relative expectation.
+fn same_path(printed: &str, expected: &str, roots: &[String]) -> bool {
+    let printed = normalize_path(printed);
+    let expected = normalize_path(expected);
+    if printed == expected {
+        return true;
+    }
+    if !is_absolute_path(&printed) || is_absolute_path(&expected) {
+        return false;
+    }
+    roots.iter().any(|root| {
+        printed
+            .strip_prefix(root.as_str())
+            .and_then(|rest| rest.strip_prefix('/'))
+            == Some(expected.as_str())
+    })
+}
+
+fn diagnostic_matches(
+    diagnostic: &Diagnostic,
+    expected: &StepTestDiagnostic,
+    roots: &[String],
+) -> bool {
     let start = diagnostic.range.as_ref().map(|range| &range.start);
     expected.path.as_ref().is_none_or(|path| {
         diagnostic
             .path
             .as_deref()
-            .is_some_and(|actual| same_path(actual, path))
+            .is_some_and(|actual| same_path(actual, path, roots))
     }) && expected
         .line
         .is_none_or(|line| start.is_some_and(|start| start.line == line))
@@ -251,7 +300,7 @@ fn describe(diagnostic: &Diagnostic) -> String {
 /// Parse a `check` test's combined output with the step's `diagnostic_format`, as a real check
 /// does for structured output and SARIF, and report each expected diagnostic that no parsed
 /// diagnostic matches.
-fn check_diagnostics(step: &Step, test: &StepTest, combined: &str) -> Vec<String> {
+fn check_diagnostics(step: &Step, test: &StepTest, combined: &str, sandbox: &Path) -> Vec<String> {
     let expected = &test.expect.diagnostics;
     if expected.is_empty() {
         return vec![];
@@ -282,13 +331,14 @@ fn check_diagnostics(step: &Step, test: &StepTest, combined: &str) -> Vec<String
     }
     let tool = step.diagnostic_tool.as_deref().unwrap_or(&step.name);
     let parsed = diagnostics::parse(format, &step.name, tool, combined);
+    let roots = sandbox_roots(sandbox);
     expected
         .iter()
         .filter(|expected| {
             !parsed
                 .diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic_matches(diagnostic, expected))
+                .any(|diagnostic| diagnostic_matches(diagnostic, expected, &roots))
         })
         .map(|expected| {
             format!(
@@ -516,7 +566,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     reasons.extend(check_stdout_contains(&stdout, &test.expect.stdout));
     reasons.extend(check_stderr_contains(&stderr, &test.expect.stderr));
     reasons.extend(check_file_contents(&test.expect.files, &tctx, &base_dir)?);
-    reasons.extend(check_diagnostics(step, test, &combined));
+    reasons.extend(check_diagnostics(step, test, &combined, &base_dir));
 
     // TODO: Consider adding a user-defined "cleanup" script in hk.pkl that tests can use
     // to clean up after themselves. The previous automatic cleanup caused race conditions
@@ -664,18 +714,70 @@ mod tests {
             check_diagnostics(
                 &gcc_step(),
                 &test,
-                "./a.c:2:4: warning: first line [W1]\n  context\n"
+                "./a.c:2:4: warning: first line [W1]\n  context\n",
+                Path::new(".")
             )
             .is_empty()
         );
     }
 
     #[test]
-    fn relative_path_matches_the_tail_of_an_absolute_path() {
-        assert!(same_path("/tmp/x/proto/a.proto", "proto/a.proto"));
-        assert!(same_path("./a.c", "a.c"));
-        assert!(!same_path("/tmp/x/myproto/a.proto", "proto/a.proto"));
-        assert!(!same_path("sub/a.c", "a.c"));
+    fn absolute_paths_match_only_inside_the_sandbox() {
+        let roots = vec!["/tmp/sandbox".to_string()];
+        assert!(same_path(
+            "/tmp/sandbox/proto/a.proto",
+            "proto/a.proto",
+            &roots
+        ));
+        assert!(same_path("./a.c", "a.c", &roots));
+        // a different directory with the same tail
+        assert!(!same_path(
+            "/other/project/proto/a.proto",
+            "proto/a.proto",
+            &roots
+        ));
+        assert!(!same_path(
+            "/tmp/sandbox2/proto/a.proto",
+            "proto/a.proto",
+            &roots
+        ));
+        assert!(!same_path(
+            "/tmp/sandbox/x/proto/a.proto",
+            "proto/a.proto",
+            &roots
+        ));
+        // relative printed paths stay exact
+        assert!(!same_path("sub/a.c", "a.c", &roots));
+    }
+
+    #[test]
+    fn backslash_and_verbatim_paths_are_normalized() {
+        let roots = sandbox_roots(Path::new(r"C:\tmp\sandbox"));
+        assert!(same_path(
+            r"C:\tmp\sandbox\src\main.c",
+            "src/main.c",
+            &roots
+        ));
+        assert!(same_path(
+            r"\\?\C:\tmp\sandbox\src\main.c",
+            "src/main.c",
+            &roots
+        ));
+        assert!(same_path(r"src\main.c", "src/main.c", &roots));
+        assert!(!same_path(r"C:\other\src\main.c", "src/main.c", &roots));
+    }
+
+    #[test]
+    fn macos_private_alias_is_the_same_sandbox() {
+        let roots = sandbox_roots(Path::new("/var/folders/x/T/.tmpabc"));
+        assert!(same_path(
+            "/private/var/folders/x/T/.tmpabc/a.c",
+            "a.c",
+            &roots
+        ));
+        let roots = sandbox_roots(Path::new("/private/var/folders/x/T/.tmpabc"));
+        assert!(same_path("/var/folders/x/T/.tmpabc/a.c", "a.c", &roots));
+        assert!(!same_path("/var/folders/x/T/.other/a.c", "a.c", &roots));
     }
 
     #[test]
@@ -685,7 +787,8 @@ mod tests {
             ..Default::default()
         }]);
 
-        let reasons = check_diagnostics(&gcc_step(), &test, "a.c:2:4: error: bad\n");
+        let reasons =
+            check_diagnostics(&gcc_step(), &test, "a.c:2:4: error: bad\n", Path::new("."));
         assert_eq!(reasons.len(), 1);
         assert!(reasons[0].contains("parsed 1 diagnostic(s)"), "{reasons:?}");
         assert!(reasons[0].contains("a.c:2:4"), "{reasons:?}");
@@ -694,7 +797,12 @@ mod tests {
     #[test]
     fn diagnostics_need_a_format_and_a_check_run() {
         let test = expecting(vec![StepTestDiagnostic::default()]);
-        let reasons = check_diagnostics(&Step::default(), &test, "a.c:2:4: error: bad\n");
+        let reasons = check_diagnostics(
+            &Step::default(),
+            &test,
+            "a.c:2:4: error: bad\n",
+            Path::new("."),
+        );
         assert_eq!(
             reasons,
             vec!["expect.diagnostics requires the step to set diagnostic_format"]
@@ -705,7 +813,7 @@ mod tests {
             ..test
         };
         assert_eq!(
-            check_diagnostics(&gcc_step(), &fix, "a.c:2:4: error: bad\n"),
+            check_diagnostics(&gcc_step(), &fix, "a.c:2:4: error: bad\n", Path::new(".")),
             vec!["expect.diagnostics requires run = \"check\""]
         );
     }
@@ -718,7 +826,7 @@ mod tests {
             check_list_files: Some(crate::step::Command::Shell("list".parse().unwrap())),
             ..gcc_step()
         };
-        let reasons = check_diagnostics(&step, &test, "a.c:2:4: error: bad\n");
+        let reasons = check_diagnostics(&step, &test, "a.c:2:4: error: bad\n", Path::new("."));
         assert_eq!(reasons.len(), 1);
         assert!(reasons[0].contains("check-first"), "{reasons:?}");
 
@@ -727,7 +835,9 @@ mod tests {
             check_failed_files: true,
             ..gcc_step()
         };
-        assert!(check_diagnostics(&step, &test, "a.c:2:4: error: bad\n").is_empty());
+        assert!(
+            check_diagnostics(&step, &test, "a.c:2:4: error: bad\n", Path::new(".")).is_empty()
+        );
     }
 
     #[test]
@@ -743,7 +853,7 @@ mod tests {
                 diagnostic_format: Some(format),
                 ..gcc_step()
             };
-            let reasons = check_diagnostics(&step, &test, sarif);
+            let reasons = check_diagnostics(&step, &test, sarif, Path::new("."));
             assert_eq!(reasons.len(), 1);
             assert!(reasons[0].contains("batched"), "{reasons:?}");
         }
@@ -752,18 +862,28 @@ mod tests {
             batch: true,
             ..gcc_step()
         };
-        assert!(check_diagnostics(&step, &test, "a.c:2:4: error: bad\n").is_empty());
+        assert!(
+            check_diagnostics(&step, &test, "a.c:2:4: error: bad\n", Path::new(".")).is_empty()
+        );
         // An unbatched single-document step is parsed as a real check would.
         let step = Step {
             diagnostic_format: Some(crate::step::DiagnosticFormat::Sarif),
             ..gcc_step()
         };
-        assert!(check_diagnostics(&step, &test, sarif).is_empty());
+        assert!(check_diagnostics(&step, &test, sarif, Path::new(".")).is_empty());
     }
 
     #[test]
     fn no_expectations_skip_parsing() {
-        assert!(check_diagnostics(&Step::default(), &StepTest::default(), "anything").is_empty());
+        assert!(
+            check_diagnostics(
+                &Step::default(),
+                &StepTest::default(),
+                "anything",
+                Path::new(".")
+            )
+            .is_empty()
+        );
     }
 
     #[test]
