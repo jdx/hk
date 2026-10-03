@@ -10,8 +10,59 @@ on:
 permissions: {}
 
 jobs:
+  changes:
+    name: classify changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+    steps:
+      - name: Verify docs-only policy
+        shell: bash
+        run: |
+          jq -en '[
+            {filename: "README.md"},
+            {filename: "docs/getting-started.md"},
+            {filename: "docs/pirate/STYLE.md"}
+          ] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))' >/dev/null
+          if jq -en '[{filename: "docs/public/Config.pkl"}] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))'; then
+            echo "::error::generated docs inputs must select full CI"
+            exit 1
+          fi
+          if jq -en '[{filename: "src/main.rs"}] | all(.[]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))'; then
+            echo "::error::runtime inputs must select full CI"
+            exit 1
+          fi
+      - id: classify
+        name: Select CI scope
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            exit 0
+          fi
+
+          files="$RUNNER_TEMP/pr-files.json"
+          if ! gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" > "$files"; then
+            echo "::warning::could not list pull request files; running full CI"
+            exit 0
+          fi
+          if [ ! -s "$files" ]; then
+            echo "::warning::pull request file list was empty; running full CI"
+            exit 0
+          fi
+
+          if jq -es 'all(.[][]; .filename | test("^(README|CHANGELOG|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\\.md$|^docs/[A-Za-z0-9][A-Za-z0-9._/-]*\\.md$"))' "$files" >/dev/null; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
   trusted:
-    if: ${{ github.actor == 'jdx' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'jdx')) }}
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' && github.actor == 'jdx' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'jdx')) }}
     permissions:
       contents: read
     uses: $/.github/workflows/ci-impl.yml
@@ -19,7 +70,8 @@ jobs:
       trusted: true
 
   untrusted:
-    if: ${{ github.actor != 'jdx' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != 'jdx')) }}
+    needs: changes
+    if: ${{ needs.changes.outputs.docs_only != 'true' && (github.actor != 'jdx' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != 'jdx'))) }}
     permissions:
       contents: read
     uses: $/.github/workflows/ci-impl.yml
@@ -30,15 +82,25 @@ jobs:
     name: final
     if: ${{ always() && !cancelled() && needs.trusted.result != 'cancelled' && needs.untrusted.result != 'cancelled' }}
     permissions: {}
-    needs: [trusted, untrusted]
+    needs: [changes, trusted, untrusted]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
       - name: Check selected workflow result
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
           TRUSTED_RESULT: ${{ needs.trusted.result }}
           UNTRUSTED_RESULT: ${{ needs.untrusted.result }}
         run: |
+          if [[ "$CHANGES_RESULT" != success ]]; then
+            echo "changes=$CHANGES_RESULT"
+            exit 1
+          fi
+          if [[ "$DOCS_ONLY" == true ]]; then
+            echo "docs-only pull request; full CI intentionally skipped"
+            exit 0
+          fi
           if [[ "$TRUSTED_RESULT" == success && "$UNTRUSTED_RESULT" == skipped ]] ||
              [[ "$TRUSTED_RESULT" == skipped && "$UNTRUSTED_RESULT" == success ]]; then
             exit 0
