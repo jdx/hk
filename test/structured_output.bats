@@ -340,3 +340,28 @@ EOF
     [ "${output%%$'\t'*}" -lt 66000 ]
     [[ "$output" == *$'\ttrue\ttrue' ]]
 }
+
+@test "an invalid HK_STASH still emits a failed json run result" {
+    write_config
+
+    HK_STASH=bogus run bash -c "hk --format json check --all 2>machine-errors.log"
+    assert_failure
+    json="$output"
+    run jq -r '[.kind, .hook, .status, (.failure | contains("invalid HK_STASH value"))] | join(",")' <<<"$json"
+    assert_success
+    assert_output "run_result,check,failed,true"
+}
+
+@test "an invalid HK_STASH still emits a run_completed jsonl event" {
+    write_config
+
+    HK_STASH=bogus run bash -c "hk --format jsonl check --all 2>machine-errors.log"
+    assert_failure
+    jsonl="$output"
+    run jq -s -r 'map(.event) | [.[:1], .[-1:]] | flatten | join(",")' <<<"$jsonl"
+    assert_success
+    assert_output "run_started,run_completed"
+    run jq -s -r '.[-1].data.status' <<<"$jsonl"
+    assert_success
+    assert_output "failed"
+}
