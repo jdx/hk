@@ -1,0 +1,16 @@
+amends "../../pkl/Config.pkl"
+
+// A pre-commit hook that stashes unstaged changes, runs a fixer over the staged
+// files, and stages and restores the result: the everyday `git commit` path.
+hooks = new {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = new {
+      ["fix"] {
+        glob = "**/*.txt"
+        fix = "true"
+      }
+    }
+  }
+}
