@@ -1,7 +1,7 @@
 use crate::Result;
-use std::fs::{self, File};
-use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use tempfile::NamedTempFile;
 
@@ -64,34 +64,31 @@ impl FixSmartQuotes {
     }
 }
 
+/// Reads the file as UTF-8 text. Returns `None` for non-UTF-8 content, which is
+/// left untouched because it cannot contain the UTF-8 quote code points we replace.
+fn read_utf8(path: &Path) -> Result<Option<String>> {
+    Ok(String::from_utf8(fs::read(path)?).ok())
+}
+
+fn fix_quotes(s: &str) -> String {
+    s.replace(UTF8_DOUBLE_QUOTE_CODEPOINTS, "\"")
+        .replace(UTF8_SINGLE_QUOTE_CODEPOINTS, "'")
+}
+
 fn has_smart_quotes(path: &PathBuf) -> Result<bool> {
-    let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
-    let mut buf = String::new();
-
-    while let Ok(read) = reader.read_line(&mut buf) {
-        if read == 0 {
-            break;
-        }
-        if buf.contains(UTF8_DOUBLE_QUOTE_CODEPOINTS) || buf.contains(UTF8_SINGLE_QUOTE_CODEPOINTS)
-        {
-            return Ok(true);
-        }
-        buf.clear();
-    }
-
-    Ok(false)
+    Ok(read_utf8(path)?.is_some_and(|text| {
+        text.contains(UTF8_DOUBLE_QUOTE_CODEPOINTS) || text.contains(UTF8_SINGLE_QUOTE_CODEPOINTS)
+    }))
 }
 
 fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
-    if !has_smart_quotes(path)? {
+    let Some(original) = read_utf8(path)? else {
+        return Ok(None);
+    };
+    let fixed = fix_quotes(&original);
+    if fixed == original {
         return Ok(None);
     }
-
-    let original = fs::read_to_string(path)?;
-    let fixed = original
-        .replace(UTF8_DOUBLE_QUOTE_CODEPOINTS, "\"")
-        .replace(UTF8_SINGLE_QUOTE_CODEPOINTS, "'");
 
     let path_str = path.display().to_string();
     let diff = crate::diff::render_unified_diff(
@@ -105,26 +102,24 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
 }
 
 fn replace_smart_quotes(path: &PathBuf) -> Result<()> {
-    let file = File::open(path)?;
-    let perms = fs::metadata(path)?.permissions();
-    let mut tmpfile = NamedTempFile::new()?;
-    let mut reader = BufReader::new(file);
-    let mut buf = String::new();
-
-    while let Ok(read) = reader.read_line(&mut buf) {
-        if read == 0 {
-            break;
-        }
-        tmpfile.write_all(
-            buf.replace(UTF8_DOUBLE_QUOTE_CODEPOINTS, "\"")
-                .replace(UTF8_SINGLE_QUOTE_CODEPOINTS, "'")
-                .as_bytes(),
-        )?;
-        buf.clear();
+    // Non-UTF-8 files are left untouched rather than truncated or rewritten.
+    let Some(original) = read_utf8(path)? else {
+        return Ok(());
+    };
+    let fixed = fix_quotes(&original);
+    if fixed == original {
+        return Ok(());
     }
 
-    fs::rename(tmpfile.path(), path)?;
-    fs::set_permissions(path, perms)?;
+    // Write through symlinks: replace the target, not the link itself.
+    let target = fs::canonicalize(path)?;
+    let perms = fs::metadata(&target)?.permissions();
+    let dir = target.parent().unwrap_or_else(|| Path::new("."));
+    let mut tmpfile = NamedTempFile::new_in(dir)?;
+    tmpfile.write_all(fixed.as_bytes())?;
+    tmpfile.as_file().sync_all()?;
+    fs::set_permissions(tmpfile.path(), perms)?;
+    tmpfile.persist(&target).map_err(|e| e.error)?;
 
     Ok(())
 }
@@ -241,5 +236,60 @@ mod tests {
         fs::write(file.path(), "").unwrap();
 
         assert!(!has_smart_quotes(&file.path().to_path_buf()).unwrap());
+    }
+
+    #[test]
+    fn test_non_utf8_file_left_untouched() {
+        let file = NamedTempFile::new().unwrap();
+        let mut content = b"\xff\xfe line one\n".to_vec();
+        content.extend_from_slice("\u{201C}quoted\u{201D}\n".as_bytes());
+        content.extend_from_slice(b"line three \x80\n");
+        fs::write(file.path(), &content).unwrap();
+
+        let p = file.path().to_path_buf();
+        replace_smart_quotes(&p).unwrap();
+        assert_eq!(fs::read(file.path()).unwrap(), content);
+        assert!(!has_smart_quotes(&p).unwrap());
+        assert!(generate_diff(&p).unwrap().is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_symlink_preserved() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target.txt");
+        let link = dir.path().join("link.txt");
+        fs::write(&target, "\u{201C}hi\u{201D}").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        replace_smart_quotes(&link).unwrap();
+
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(fs::read_to_string(&target).unwrap(), "\"hi\"");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_preserve_executable_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), "\u{201C}x\u{201D}").unwrap();
+        fs::set_permissions(file.path(), fs::Permissions::from_mode(0o755)).unwrap();
+
+        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+
+        let mode = fs::metadata(file.path()).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o755);
+    }
+
+    #[test]
+    fn test_missing_file_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(replace_smart_quotes(&dir.path().join("nope")).is_err());
     }
 }
