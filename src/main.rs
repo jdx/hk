@@ -41,6 +41,7 @@ mod step_job;
 mod step_locks;
 mod step_test;
 mod structured_output;
+mod suggest;
 mod tera;
 mod test_runner;
 mod timings;
