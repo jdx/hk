@@ -81,14 +81,23 @@ PKL
 
     # Hold the lock the way another hk process would.
     lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
-    python3 - "$lock" <<'PY' &
+    python3 - "$lock" "$WT_DIR/lock-held" <<'PY' &
 import fcntl, sys, time
 f = open(sys.argv[1], "w")
 fcntl.flock(f, fcntl.LOCK_EX)
+open(sys.argv[2], "w").close()
 time.sleep(30)
 PY
     holder=$!
-    sleep 1
+    # Wait until the holder really owns the lock, not a fixed delay.
+    for _ in $(seq 100); do
+        [ -e "$WT_DIR/lock-held" ] && break
+        sleep 0.1
+    done
+    if [ ! -e "$WT_DIR/lock-held" ]; then
+        kill "$holder" 2>/dev/null || true
+        fail "lock holder never took the lock"
+    fi
 
     cd "$WT_DIR/wt-a"
     HK_STASH_LOCK_TIMEOUT=1 run hk run pre-commit

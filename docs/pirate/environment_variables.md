@@ -242,7 +242,7 @@ How many backup patches to keep for each ship (repository), under `$HK_STATE_DIR
 
 **Type:** nonnegative integer (seconds) · **Unless ye say otherwise:** 300
 
-How long to wait for another hk crew in the same repository to finish stowing, using the `hk-stash.lock` file in the common git directory that linked worktrees share. On timeout hk fails and names the lock file. Set to `0` to fail at once instead of waiting. Also settable with `git config hk.stashLockTimeout`.
+How long to wait for another hk process in the same repository to finish stowing, using the `hk-stash.lock` file in the common git directory that linked worktrees share. On timeout hk fails and names the lock file. Set to `0` to fail at once instead of waiting. Also settable with `git config hk.stashLockTimeout`.
 
 ## `HK_STASH_UNTRACKED` {#hk-stash-untracked}
 
