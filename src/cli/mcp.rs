@@ -382,8 +382,7 @@ impl HkMcpServer {
         };
         let mut command = Command::new(executable);
         command
-            .arg("--cd")
-            .arg(&root)
+            .current_dir(&root)
             .args(["--format", "jsonl"])
             .arg(kind.command())
             .arg("--all")
@@ -413,8 +412,7 @@ impl HkMcpServer {
         let (status, cancelled) = tokio::select! {
             status = child.wait() => (status, false),
             _ = cancel.cancelled() => {
-                let _ = child.kill().await;
-                (child.wait().await, true)
+                (stop_child(&mut child).await, true)
             }
         };
         let _ = stdout_task.await;
@@ -1083,11 +1081,30 @@ fn append_capped(target: &mut Vec<u8>, bytes: &[u8]) -> bool {
     bytes.len() > remaining
 }
 
+/// How long a cancelled hk run gets to stop its own steps before it is killed.
+const CANCEL_GRACE: Duration = Duration::from_secs(10);
+
+/// Stop a run the way Ctrl-C would: SIGINT lets hk stop its steps and clean up,
+/// and SIGKILL follows only if it has not exited after the grace period.
+async fn stop_child(
+    child: &mut tokio::process::Child,
+) -> std::io::Result<std::process::ExitStatus> {
+    #[cfg(unix)]
+    if let Some(pid) = child.id() {
+        // SAFETY: plain signal delivery to a child process we spawned and have not reaped.
+        unsafe { libc::kill(pid as libc::pid_t, libc::SIGINT) };
+        if let Ok(status) = tokio::time::timeout(CANCEL_GRACE, child.wait()).await {
+            return status;
+        }
+    }
+    let _ = child.kill().await;
+    child.wait().await
+}
+
 async fn run_hk_capture(root: &Path, args: &[&str]) -> Result<std::process::Output, String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let output = Command::new(executable)
-        .arg("--cd")
-        .arg(root)
+        .current_dir(root)
         .args(args)
         .stdin(std::process::Stdio::null())
         .output()
