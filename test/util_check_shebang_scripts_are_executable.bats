@@ -211,3 +211,18 @@ HK
     assert_success
     refute_output
 }
+
+@test "util check-shebang-scripts-are-executable - tracked file referenced as ../x.sh from a subdirectory uses the index mode" {
+    printf '#!/bin/bash\necho a\n' > x.sh
+    chmod +x x.sh
+    git add x.sh
+    git update-index --chmod=+x x.sh
+    mkdir sub
+    # worktree bit says non-executable, index says executable
+    chmod 644 x.sh
+    cd sub
+
+    run hk util check-shebang-scripts-are-executable ../x.sh
+    assert_success
+    refute_output
+}

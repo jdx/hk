@@ -8,7 +8,7 @@ use crate::Result;
 use std::collections::HashMap;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 
 /// Whether the worktree filesystem's executable bit is trusted (`core.fileMode`).
@@ -22,9 +22,31 @@ pub fn file_mode_enabled() -> bool {
     }
 }
 
-fn normalize(path: &Path) -> String {
-    let path = match std::env::current_dir() {
-        Ok(cwd) if path.is_absolute() => path.strip_prefix(&cwd).unwrap_or(path),
+/// Maps an argument path to the key used by the index map: the path relative
+/// to the repository top level (`top`), with `.`/`..` resolved lexically.
+/// Paths outside `top` keep their absolute spelling and so are never found.
+fn normalize(path: &Path, top: Option<&Path>) -> String {
+    let resolved: PathBuf;
+    let path = match (top, std::env::current_dir()) {
+        (Some(top), Ok(cwd)) => {
+            let abs = if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                cwd.join(path)
+            };
+            let mut out = PathBuf::new();
+            for c in abs.components() {
+                match c {
+                    Component::CurDir => {}
+                    Component::ParentDir => {
+                        out.pop();
+                    }
+                    other => out.push(other.as_os_str()),
+                }
+            }
+            resolved = out;
+            resolved.strip_prefix(top).unwrap_or(&resolved)
+        }
         _ => path,
     };
     let s = path.to_string_lossy();
@@ -52,18 +74,32 @@ fn parse_stage_output(out: &[u8]) -> HashMap<String, String> {
     modes
 }
 
-/// Index modes for every tracked file under the current directory, keyed by
-/// the path relative to it. Reading the whole index (rather than passing the
-/// files as pathspecs) means a path outside the repository can never make git
-/// fail the run; it is simply not found and treated as untracked.
+/// Index modes for every tracked file in the repository, keyed by the path
+/// relative to the top level, plus that top level. Reading the whole index
+/// (rather than passing the files as pathspecs) means a path outside the
+/// repository can never make git fail the run; it is simply not found and
+/// treated as untracked, and `../x` from a subdirectory resolves correctly.
 /// `None` means we are not in a git repository (worktree modes are used).
-fn index_modes() -> Result<Option<HashMap<String, String>>> {
-    let output = Command::new("git")
-        .args(["ls-files", "-z", "--stage"])
+fn index_modes() -> Result<Option<(PathBuf, HashMap<String, String>)>> {
+    let top = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
         .output()?;
-    if output.status.success() {
-        return Ok(Some(parse_stage_output(&output.stdout)));
+    if top.status.success() {
+        let top = PathBuf::from(String::from_utf8_lossy(&top.stdout).trim_end());
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(&top)
+            .args(["ls-files", "-z", "--stage"])
+            .output()?;
+        if output.status.success() {
+            return Ok(Some((top, parse_stage_output(&output.stdout))));
+        }
+        return Err(eyre::eyre!(
+            "failed to read git index modes: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
+    let output = top;
     let stderr = String::from_utf8_lossy(&output.stderr);
     if stderr.contains("not a git repository") {
         return Ok(None);
@@ -89,14 +125,17 @@ fn ignore_case() -> bool {
 /// when `core.fileMode` is trusted (unix only), otherwise "not executable"
 /// (git would add them as 100644).
 pub fn executable_flags(files: &[PathBuf]) -> Result<Vec<FileExec>> {
-    let modes = index_modes()?;
+    let (top, modes) = match index_modes()? {
+        Some((top, modes)) => (Some(top), Some(modes)),
+        None => (None, None),
+    };
     let trust_worktree = file_mode_enabled();
     // Built lazily: only on case-insensitive filesystems (core.ignorecase).
     let mut lower: Option<HashMap<String, String>> = None;
     files
         .iter()
         .map(|file| {
-            let key = normalize(file);
+            let key = normalize(file, top.as_deref());
             let mut mode = modes.as_ref().and_then(|m| m.get(&key)).cloned();
             if mode.is_none()
                 && let Some(m) = &modes
@@ -177,16 +216,16 @@ mod tests {
 
     #[test]
     fn normalize_strips_dot_slash_and_keeps_unix_backslashes() {
-        assert_eq!(normalize(Path::new("./a/b.sh")), "a/b.sh");
+        assert_eq!(normalize(Path::new("./a/b.sh"), None), "a/b.sh");
         #[cfg(unix)]
-        assert_eq!(normalize(Path::new("a\\b.sh")), "a\\b.sh");
+        assert_eq!(normalize(Path::new("a\\b.sh"), None), "a\\b.sh");
         #[cfg(windows)]
-        assert_eq!(normalize(Path::new("a\\b.sh")), "a/b.sh");
+        assert_eq!(normalize(Path::new("a\\b.sh"), None), "a/b.sh");
     }
 
     #[test]
     fn parses_stage_output() {
-        let out = b"100755 abc 0\ta b.sh\0100644 def 0\tc.txt\0120000 123 0\tl\0";
+        let out = b"100755 abc 0\ta b.sh\x00100644 def 0\tc.txt\x00120000 123 0\tl\x00";
         let m = parse_stage_output(out);
         assert_eq!(m["a b.sh"], "100755");
         assert_eq!(m["c.txt"], "100644");
