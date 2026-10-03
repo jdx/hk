@@ -1244,7 +1244,18 @@ fn amends_target(module: &Path) -> Option<PathBuf> {
         .trim_start()
         .strip_prefix('"')?;
     let target = &target[..target.find('"')?];
+    if let Some(path) = target.strip_prefix("file://") {
+        // `file:///C:/x` carries a leading slash before a Windows drive letter.
+        let bytes = path.as_bytes();
+        let path = if bytes.len() > 2 && bytes[0] == b'/' && bytes[2] == b':' {
+            &path[1..]
+        } else {
+            path
+        };
+        return Some(PathBuf::from(path));
+    }
     if target.contains("://") {
+        // Other schemes cannot be traced back to a local file.
         return None;
     }
     Some(module.parent()?.join(target))
@@ -2580,6 +2591,22 @@ mod tests {
             relative_module_path(root, Path::new("/repo/.config/hk.pkl")),
             "./.config/hk.pkl"
         );
+    }
+
+    #[test]
+    fn file_uri_amends_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let local = dir.path().join("hk.local.pkl");
+        std::fs::write(&local, format!("amends \"file://{}\"\n", shared.display())).unwrap();
+        let other = dir.path().join("other.pkl");
+        std::fs::write(&other, "amends \"https://example.com/hk.pkl\"\n").unwrap();
+        let shared = [shared];
+        if cfg!(unix) {
+            assert!(amends_chain_reaches(&local, &shared));
+        }
+        assert!(!amends_chain_reaches(&other, &shared));
     }
 
     #[test]

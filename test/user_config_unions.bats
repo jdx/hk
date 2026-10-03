@@ -175,3 +175,18 @@ EOF
     assert_success
     assert_output --partial "pkg/hk.local.pkl does not amend"
 }
+
+@test "hk.local.pkl that amends hk.pkl through a file URI does not warn" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["shared"] { check = "echo ran-shared" } } } }
+EOF2
+    cat <<EOF2 > hk.local.pkl
+amends "file://$(pwd)/hk.pkl"
+hooks { ["check"] { steps { ["local"] { check = "echo ran-local" } } } }
+EOF2
+    run hk check --all
+    assert_success
+    refute_output --partial "does not amend"
+    assert_output --partial "ran-shared"
+}
