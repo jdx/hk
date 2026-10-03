@@ -75,6 +75,14 @@ teardown() {
     assert_output --partial 'run pre-commit --from-hook "$@"'
 }
 
+@test "legacy install writes hooks world-readable and executable (0755)" {
+    [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]] && skip "no POSIX permissions"
+    hk install --legacy
+    run ls -l .git/hooks/pre-commit .git/hooks/pre-push
+    assert_output --regexp '^-rwxr-xr-x.*pre-commit'
+    assert_output --regexp '-rwxr-xr-x.*pre-push'
+}
+
 @test "legacy install --force replaces a foreign hook" {
     printf '#!/bin/sh\necho mine\n' > .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit

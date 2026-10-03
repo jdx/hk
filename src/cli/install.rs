@@ -466,6 +466,14 @@ fn install_local_shims(events: &[String], command: &OsStr, force: bool) -> Resul
             &mut temp,
             git_hook_content(&command.to_string_lossy(), event).as_bytes(),
         )?;
+        // The temp file starts private (0600); hooks are world-readable and
+        // executable, as when the shim was written directly.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o755))?;
+        }
+        #[cfg(not(unix))]
         xx::file::make_executable(temp.path())?;
         temp.persist(&hook_file).map_err(|err| err.error)?;
         info!("Installed hk hook: {}", hook_file.display());
