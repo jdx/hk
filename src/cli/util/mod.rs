@@ -63,8 +63,9 @@ enum UtilCommands {
     ///
     /// Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits
     /// created for `git rebase --autosquash`) skip validation, as do titles git
-    /// generates itself: `Merge branch `, `Merge remote-tracking branch `,
-    /// `Merge pull request `, and `Revert "`.
+    /// generates itself: `Merge branch `, `Merge branches `, `Merge tag `,
+    /// `Merge commit `, `Merge remote-tracking branch `, `Merge pull request `,
+    /// and `Revert "`.
     CheckConventionalCommit(CheckConventionalCommit),
     /// Check that executable files have shebangs
     CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),

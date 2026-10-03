@@ -50,7 +50,9 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
     //
     // - `git commit --fixup`/`--squash` and `rebase --autosquash` use `fixup! <msg>`,
     //   `squash! <msg>` and `amend! <msg>`; they are meant to be squashed away.
-    // - `git merge` uses `Merge branch '<name>'` and `Merge remote-tracking branch '<name>'`;
+    // - `git merge` uses `Merge branch '<name>'`, `Merge remote-tracking branch '<name>'`,
+    //   `Merge tag '<name>'`, `Merge commit '<sha>'` and, for octopus merges,
+    //   `Merge branches '<a>' and '<b>'`;
     //   GitHub merge commits use `Merge pull request #<n> from <ref>`.
     // - `git revert` uses `Revert "<original title>"`.
     //
@@ -61,6 +63,9 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
         "squash! ",
         "amend! ",
         "Merge branch ",
+        "Merge branches ",
+        "Merge tag ",
+        "Merge commit ",
         "Merge remote-tracking branch ",
         "Merge pull request ",
         "Revert \"",
@@ -291,6 +296,9 @@ mod tests {
             "Merge branch 'main' into feature",
             "Merge branch 'main' of github.com:jdx/hk",
             "Merge remote-tracking branch 'origin/main'",
+            "Merge tag 'v1.0.0'",
+            "Merge commit 'abc1234'",
+            "Merge branches 'a' and 'b'",
             "Merge pull request #123 from jdx/feature",
             "Revert \"feat: add thing\"",
             "Revert \"Revert \"feat: add thing\"\"",
@@ -307,7 +315,10 @@ mod tests {
         for title in [
             "Merged stuff",
             "Merge stuff",
-            "Merge branches together",
+            "Merge branchesx 'a'",
+            "Merge tags together",
+            "Merge commits together",
+            "Merge tag",
             "Merge: something",
             "Merge pull requests",
             "merge branch 'main'",
