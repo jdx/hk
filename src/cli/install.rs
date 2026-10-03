@@ -317,10 +317,34 @@ fn note_global_overlap(events: &[String]) {
     if overlapping.is_empty() {
         return;
     }
-    info!(
-        "global hooks (~/.gitconfig) also exist for: {}. In this repo the local hook replaces the global one, so hk runs once per event. Run `hk uninstall` here to go back to the global hooks.",
-        overlapping.join(", ")
-    );
+    // `enabled = false` in any scope switches the hook name off, and a local
+    // command does not override it.
+    let (disabled, active): (Vec<&str>, Vec<&str>) = overlapping.into_iter().partition(|event| {
+        let key = format!("hook.hk-{event}.enabled");
+        Command::new("git")
+            .args(["config", "--type=bool", "--get", key.as_str()])
+            .output()
+            .is_ok_and(|o| {
+                o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "false"
+            })
+    });
+    if !active.is_empty() {
+        info!(
+            "global hooks (~/.gitconfig) also exist for: {}. In this repo the local hook replaces the global one, so hk runs once per event. `hk uninstall` here would go back to the global hooks, but it removes every local hk hook in this repo, including events with no global hook; `hk install --force-local` adds them back.",
+            active.join(", ")
+        );
+    }
+    if !disabled.is_empty() {
+        warn!(
+            "git runs no hk hook for: {} because `hook.hk-<event>.enabled` is false in your git config. To enable: {}",
+            disabled.join(", "),
+            disabled
+                .iter()
+                .map(|e| format!("`git config --local hook.hk-{e}.enabled true`"))
+                .collect::<Vec<_>>()
+                .join(" ; ")
+        );
+    }
 }
 
 fn install_global(events: &[String], command: &OsStr) -> Result<()> {

@@ -114,6 +114,9 @@ EOF
     # silence the local hook too. The message must not recommend it.
     refute_output --partial "enabled false"
     assert_output --partial "local hook replaces the global one"
+    # The uninstall advice says what it removes and how to get it back.
+    assert_output --partial "removes every local hk hook"
+    assert_output --partial "hk install --force-local"
 
     echo x > file.txt
     git add file.txt
@@ -121,4 +124,19 @@ EOF
     # Local and global hooks share one name: hk runs once, not twice.
     run wc -l < runs.log
     assert_output --regexp '^ *1$'
+}
+
+@test "hk install --force-local says so when the hook is disabled in git config" {
+    if ! git version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=54))}'; then
+        skip "git 2.54+ required for config-based hooks"
+    fi
+    _write_hk_pkl
+    hk install --global
+    git config --global hook.hk-pre-commit.enabled false
+
+    run hk install --force-local
+    assert_success
+    assert_output --partial "git runs no hk hook for: pre-commit"
+    assert_output --partial "git config --local hook.hk-pre-commit.enabled true"
+    refute_output --partial "hk runs once per event"
 }
