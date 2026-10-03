@@ -91,6 +91,8 @@ hooks {
 }
 ```
 
+hk selects `hk.local.pkl` instead of `hk.pkl` rather than merging the two, so a local file without `amends "./hk.pkl"` drops the shared configuration entirely. hk warns when that happens; hide the warning with `HK_HIDE_WARNINGS=local-config-replaces-shared`.
+
 Add `hk.local.pkl` to `.git/info/exclude` or the project’s `.gitignore`. This example preserves inherited steps and adds one. Assign a new mapping when you want to replace the hook’s explicitly declared step list:
 
 ```pkl

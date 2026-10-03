@@ -1,7 +1,6 @@
+use super::git_exec_bit::executable_flags;
 use crate::Result;
 use std::fs;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 #[derive(Debug, usage_rs::Args)]
@@ -16,8 +15,9 @@ impl CheckExecutablesHaveShebangs {
     pub async fn run(&self) -> Result<()> {
         let mut found_issues = false;
 
-        for file_path in &self.files {
-            if is_executable(file_path)? && !has_shebang(file_path)? {
+        let flags = executable_flags(&self.files)?;
+        for (file_path, flag) in self.files.iter().zip(flags) {
+            if flag.executable == Some(true) && !has_shebang(file_path)? {
                 println!("{}", file_path.display());
                 found_issues = true;
             }
@@ -28,29 +28,6 @@ impl CheckExecutablesHaveShebangs {
         }
 
         Ok(())
-    }
-}
-
-fn is_executable(path: &PathBuf) -> Result<bool> {
-    let metadata = fs::metadata(path)?;
-
-    // Skip directories
-    if metadata.is_dir() {
-        return Ok(false);
-    }
-
-    #[cfg(unix)]
-    {
-        let permissions = metadata.permissions();
-        // Check if any execute bit is set
-        Ok(permissions.mode() & 0o111 != 0)
-    }
-
-    #[cfg(not(unix))]
-    {
-        // On Windows, we can't reliably check execute permissions via file attributes.
-        // Return false so we don't incorrectly flag files.
-        Ok(false)
     }
 }
 
@@ -70,8 +47,6 @@ fn has_shebang(path: &PathBuf) -> Result<bool> {
 mod tests {
     use super::*;
     use std::fs;
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -109,36 +84,6 @@ mod tests {
         // Binary files should return true (not flagged as missing shebang)
         let result = has_shebang(&file.path().to_path_buf()).unwrap();
         assert!(result);
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_is_executable() {
-        let file = NamedTempFile::new().unwrap();
-        fs::write(file.path(), b"#!/bin/bash\necho hello").unwrap();
-
-        // Make file executable
-        let mut perms = fs::metadata(file.path()).unwrap().permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(file.path(), perms).unwrap();
-
-        let result = is_executable(&file.path().to_path_buf()).unwrap();
-        assert!(result);
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_not_executable() {
-        let file = NamedTempFile::new().unwrap();
-        fs::write(file.path(), b"#!/bin/bash\necho hello").unwrap();
-
-        // Ensure file is not executable
-        let mut perms = fs::metadata(file.path()).unwrap().permissions();
-        perms.set_mode(0o644);
-        fs::set_permissions(file.path(), perms).unwrap();
-
-        let result = is_executable(&file.path().to_path_buf()).unwrap();
-        assert!(!result);
     }
 
     #[test]
