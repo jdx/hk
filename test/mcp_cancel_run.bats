@@ -11,6 +11,11 @@ teardown() {
     _common_teardown
 }
 
+# `timeout` is not on macOS; perl's alarm kills a hang with SIGALRM (status 142).
+_timeout() {
+    perl -e 'alarm shift; exec @ARGV' "$@"
+}
+
 write_slow_config() {
     TOKEN="hkcancel$$x$RANDOM"
     cat <<EOF > hk.pkl
@@ -32,7 +37,7 @@ EOF
 
 @test "mcp cancel_run stops the real hk and its steps" {
     write_slow_config
-    run timeout 60 python3 "$PROJECT_ROOT/test/test_helper/mcp_cancel.py" "$TOKEN"
+    run _timeout 60 python3 "$PROJECT_ROOT/test/test_helper/mcp_cancel.py" "$TOKEN"
     assert_success
     assert_output --partial "status=cancelled"
 }
