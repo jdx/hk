@@ -217,11 +217,26 @@ fn is_absolute_path(path: &str, windows: bool) -> bool {
         || (windows && bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && &path[1..3] == ":/")
 }
 
+/// Canonicalize the nearest existing ancestor of `path` and re-append the components that don't
+/// exist (a file the tool or the test later removed), so a symlinked directory resolves even when
+/// the file under it is gone.
+fn canonicalize_existing(path: &Path) -> Option<PathBuf> {
+    let mut rest = Vec::new();
+    let mut ancestor = path;
+    loop {
+        if let Ok(canonical) = ancestor.canonicalize() {
+            return Some(rest.iter().rev().fold(canonical, |p, c| p.join(c)));
+        }
+        rest.push(ancestor.file_name()?);
+        ancestor = ancestor.parent()?;
+    }
+}
+
 /// The spellings of the directory a test runs its command in: as given and canonicalized, so a
 /// symlinked sandbox (such as macOS's `/var` for `/private/var`) is the same directory either way.
 fn sandbox_roots(base: &Path, windows: bool) -> Vec<String> {
     let mut roots = vec![normalize_path(&base.display().to_string(), windows)];
-    if let Ok(canonical) = base.canonicalize() {
+    if let Some(canonical) = canonicalize_existing(base) {
         roots.push(normalize_path(&canonical.display().to_string(), windows));
     }
     roots.retain(|root| is_absolute_path(root, windows));
@@ -242,7 +257,7 @@ fn same_path(printed: &str, expected: &str, roots: &[String], windows: bool) -> 
     if !is_absolute_path(&forms[0], windows) || is_absolute_path(&expected, windows) {
         return false;
     }
-    if let Ok(canonical) = Path::new(printed).canonicalize() {
+    if let Some(canonical) = canonicalize_existing(Path::new(printed)) {
         forms.push(normalize_path(&canonical.display().to_string(), windows));
     }
     forms.iter().any(|printed| {
@@ -771,6 +786,31 @@ mod tests {
             &sandbox_roots(Path::new(r"c:\sandbox"), cfg!(windows)),
             cfg!(windows)
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn deleted_files_in_a_symlinked_sandbox_still_match() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().canonicalize().unwrap().join("real");
+        std::fs::create_dir_all(real.join("src")).unwrap();
+        let link = real.parent().unwrap().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let other = real.parent().unwrap().join("other");
+        std::fs::create_dir(&other).unwrap();
+
+        // neither printed file exists (the tool or an `after` command removed them)
+        let roots = sandbox_roots(&link, false);
+        let gone = real.join("src/gone.c").display().to_string();
+        assert!(same_path(&gone, "src/gone.c", &roots, false));
+        let roots = sandbox_roots(&real, false);
+        let gone = link.join("src/gone.c").display().to_string();
+        assert!(same_path(&gone, "src/gone.c", &roots, false));
+        // a deleted file in another directory is still different
+        let elsewhere = other.join("src/gone.c").display().to_string();
+        assert!(!same_path(&elsewhere, "src/gone.c", &roots, false));
+        // and a sandbox that no longer exists compares by its own spelling
+        assert!(canonicalize_existing(Path::new("/nonexistent-root-xyz/a/b")).is_some());
     }
 
     #[cfg(unix)]
