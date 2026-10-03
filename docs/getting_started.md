@@ -58,6 +58,8 @@ Builtins configure commands; they do not install the tools they invoke. Install 
 
 This complete example needs no extra tools. The `trailing_whitespace` and `newlines` builtins run hk's own `hk util` commands, so you can try hk before installing any linters. The two fixers run in parallel, and hk's file locks keep them from colliding on the same file.
 
+Replace the contents of the `hk.pkl` that `hk init` generated with this example. If `hk init` detected linters, its steps need those tools on `PATH`; the example below does not.
+
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
@@ -72,10 +74,12 @@ The `amends` line loads hk’s configuration schema. `Builtins` supplies reusabl
 
 In this configuration, `pre-commit` fixes staged files while unstaged work is stashed. `check` checks your working tree, and `fix` applies fixes to it. Steps whose file patterns do not match any selected files are skipped.
 
-When you are ready for language-specific linters, add them as more steps. These builtins invoke external tools, so install and configure Prettier, ESLint, and Ruff first, or choose [builtins](/builtins) that match your project:
+When you are ready for language-specific linters, add entries to the existing `steps` block; a second top-level `steps` block would stop the configuration from loading. These builtins invoke external tools, so install and configure Prettier, ESLint, and Ruff first, or choose [builtins](/builtins) that match your project:
 
 ```pkl
 steps {
+  ["trailing_whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
   ["prettier"] = Builtins.prettier
   ["eslint"] = Builtins.eslint
   ["ruff"] = Builtins.ruff

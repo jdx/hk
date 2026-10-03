@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: ff44c1edc8d5
+sourceHash: b4f4aee8cd69
 ---
 
 # Getting under way
@@ -55,6 +55,8 @@ Builtins, the standing crew, configure commands; they do not install the tools t
 
 This complete example needs no extra tools. The `trailing_whitespace` and `newlines` builtins, the standing crew, run hk's own `hk util` commands, so ye can try hk before bringing a single linter aboard. The two sailmakers haul at once, and a lashing on each file keeps them from colliding on the same cargo.
 
+Replace the whole of the `hk.pkl` that `hk init` drew up with this example. If `hk init` spotted linters, its steps need those tools aboard on `PATH`; the example below does not.
+
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
@@ -69,10 +71,12 @@ The `amends` line loads hk's configuration schema. `Builtins` supplies reusable 
 
 With these charts, `pre-commit` fixes the staged files while yer unstaged work is stowed in the hold. `check` inspects yer working tree, and `fix` applies fixes to it. A step whose file patterns match none of the selected files is skipped.
 
-When ye're ready for lookouts that know yer language, sign on more hands. These builtins call on outside tools, so bring Prettier, ESLint, and Ruff aboard and configure them first, or swap them for [builtins](/builtins) that suit yer project:
+When ye're ready for lookouts that know yer language, sign on more hands by adding entries to the existing `steps` block; a second top-level `steps` block would keep the charts from loading. These builtins call on outside tools, so bring Prettier, ESLint, and Ruff aboard and configure them first, or swap them for [builtins](/builtins) that suit yer project:
 
 ```pkl
 steps {
+  ["trailing_whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
   ["prettier"] = Builtins.prettier
   ["eslint"] = Builtins.eslint
   ["ruff"] = Builtins.ruff
