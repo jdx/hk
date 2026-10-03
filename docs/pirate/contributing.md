@@ -1,6 +1,6 @@
 ---
 description: Sign aboard hk. Fit out for development, run focused checks, edit the generated documentation, and ready yer contribution for review.
-sourceHash: 0a7b916523f8
+sourceHash: f3afc58cd3e8
 ---
 
 # Signing aboard to contribute
@@ -58,7 +58,7 @@ The build task generates the builtin registry, the crew roster, before compiling
 | Lint, Clippy included             | `hk check --all --slow`              |
 | Mend the formatting (apply fixes) | `hk fix --all`                       |
 
-Ye can hand `mise run test:bats` several files or directories (`mise run test:bats test/check.bats test/fix.bats`). It needs `bats`, ripgrep (`rg`) and GNU `parallel` on `PATH`, and it runs aground (fails) when a path does not exist, matches no `test/*.bats` file, or when no test runs.
+Ye can hand `mise run test:bats` several files or directories (`mise run test:bats test/check.bats test/depends.bats`). It needs `bats`, ripgrep (`rg`) and GNU `parallel` on `PATH`, and it runs aground (fails) when a path does not exist, matches no `test/*.bats` file, or when no test runs.
 
 Run the checks that suit yer change. Integration tests sail in isolated temporary repositories, little ships of their own, and put the Git backends through their paces. See the [test-suite guide](https://github.com/jdx/hk/blob/main/test/README.md) for fixtures and cache behavior.
 
