@@ -976,6 +976,113 @@ EOF
     assert_output --regexp '^line-(1-2|2-1)$'
 }
 
+# Check-only steps (no fix, no check_diff), like a type checker. Each marks
+# that it started and waits up to 5 seconds for the other's mark; a step that
+# ran after the other leaves "$STEP.alone".
+# $1: the effect both steps' check declares
+write_check_only_rendezvous() {
+    local check_effect=$1
+    cat <<'SCRIPT' > checker.sh
+#!/bin/bash
+touch "$STEP.started"
+for _ in $(seq 50); do
+    [ -e "$OTHER.started" ] && break
+    sleep 0.1
+done
+[ -e "$OTHER.started" ] || touch "$STEP.alone"
+exit 0
+SCRIPT
+    chmod +x checker.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["first"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "1"; ["OTHER"] = "2" }
+                check = new CommandSpec { command = "./checker.sh"; effect = "$check_effect" }
+            }
+            ["second"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "2"; ["OTHER"] = "1" }
+                check = new CommandSpec { command = "./checker.sh"; effect = "$check_effect" }
+            }
+        }
+    }
+}
+EOF
+}
+
+@test "read-only check-only steps run alongside each other in fix mode" {
+    write_check_only_rendezvous read
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # Both held read locks on test.txt at once, so each saw the other start.
+    [ -e 1.started ]
+    [ -e 2.started ]
+    [ ! -e 1.alone ]
+    [ ! -e 2.alone ]
+}
+
+@test "check-only steps that declare a write effect keep write locks in fix mode" {
+    write_check_only_rendezvous write
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # One ran after the other, so exactly one waited for the other in vain.
+    [ -e 1.alone ] || [ -e 2.alone ]
+}
+
+@test "a read-only check-only step does not run while a fixer writes the same file" {
+    cat <<'SCRIPT' > checker.sh
+#!/bin/bash
+sleep 0.5
+[ -e fixer.running ] && touch overlapped
+touch checker.ran
+exit 0
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+touch fixer.running
+sleep 1.5
+echo fixed > "$1"
+rm -f fixer.running
+SCRIPT
+    chmod +x checker.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["check-only"] {
+                glob = List("*.txt")
+                check = new CommandSpec { command = "./checker.sh"; effect = "read" }
+            }
+            ["fixer"] {
+                glob = List("*.txt")
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    [ -e checker.ran ]
+    # The checker never started inside the fixer's write lock.
+    [ ! -e overlapped ]
+    run cat test.txt
+    assert_output "fixed"
+}
+
 @test "a read-only check_diff patch that also names a file outside the job is applied" {
     # Like `go mod tidy -diff` rewriting go.sum from all of a job's .go files:
     # the patch is computed again under write locks, from every job file.
