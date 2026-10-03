@@ -1,6 +1,6 @@
 ---
 description: Race hk against lefthook, pre-commit, and prek at fixing files, checking a whole repository, and running pre-commit hooks on large and small commits, with the benchmark's method and the steps to sail the course again yerself.
-sourceHash: cc71bd2e679c
+sourceHash: a2d0329eba5b
 ---
 
 # Benchmarks: speed trials of four hook managers
@@ -38,7 +38,7 @@ After every timed sample, [tak](https://github.com/jdx/tak) inspects the cargo: 
 
 ## How each tool is rigged {#tool-configurations}
 
-Each configuration uses the tool's fastest setting that cannot cause overlapping writes. hk coordinates its fixers with file locks, a lock on each file taking the strain, and holds read locks for the type checkers. pre-commit and prek give each batch different files. lefthook and prek also run read-only work concurrently.
+Each configuration uses the tool's fastest setting that cannot cause overlapping writes. hk runs its steps in parallel, a lock on each file taking the strain so they do not collide. In fix runs the type checkers also take write locks, because mypy and tsc declare that their commands write caches. pre-commit and prek give each batch different files. lefthook and prek also run read-only work concurrently.
 
 | Tool | Mending (fixing) | Inspecting (checking) |
 | --- | --- | --- |

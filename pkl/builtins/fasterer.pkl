@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "Performance suggestions"
+  project_indicators {
+    new { file = ".fasterer.yml" }
+  }
 }
 fasterer = new Config.Step {
   types = List("ruby")

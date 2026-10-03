@@ -313,18 +313,22 @@ mod tests {
         let group_exclude = Pattern::Globs(vec!["**/*.snap".to_string()]);
         let child_exclude = Pattern::Globs(vec!["**/*.fixture.js".to_string()]);
 
-        let mut inherited_step = Step::default();
-        inherited_step.check = Some("echo inherited".parse().unwrap());
-        inherited_step.exclude = Some(Pattern::Globs(vec![]));
+        let inherited_step = Step {
+            check: Some("echo inherited".parse().unwrap()),
+            exclude: Some(Pattern::Globs(vec![])),
+            ..Default::default()
+        };
 
-        let mut override_step = Step::default();
-        override_step.check = Some("echo override".parse().unwrap());
-        override_step.dir = Some("different/path".to_string());
-        override_step.prefix = Some(CommandPrefix::Shell("npm exec --".to_string()));
-        override_step.workspace_indicator = Some("eslint.config.js".to_string());
-        override_step.shell = Some(child_shell.clone());
-        override_step.stage = Some(vec!["eslint-output/**".to_string()]);
-        override_step.exclude = Some(child_exclude.clone());
+        let override_step = Step {
+            check: Some("echo override".parse().unwrap()),
+            dir: Some("different/path".to_string()),
+            prefix: Some(CommandPrefix::Shell("npm exec --".to_string())),
+            workspace_indicator: Some("eslint.config.js".to_string()),
+            shell: Some(child_shell.clone()),
+            stage: Some(vec!["eslint-output/**".to_string()]),
+            exclude: Some(child_exclude.clone()),
+            ..Default::default()
+        };
 
         let mut group = StepGroup {
             dir: Some("packages/frontend".to_string()),
