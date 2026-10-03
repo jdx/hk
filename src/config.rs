@@ -593,6 +593,7 @@ impl Config {
         }
 
         // Scalar settings: project wins — fall back to hkrc when project has None
+        self.jobs = self.jobs.or(hkrc.jobs);
         self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
         self.stage = self.stage.or(hkrc.stage);
         self.display_skip_reasons = self
@@ -1214,6 +1215,8 @@ pub struct Config {
     pub path: PathBuf,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Parallel steps; `0` or unset means auto-detect.
+    pub jobs: Option<usize>,
     pub fail_fast: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
