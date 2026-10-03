@@ -4,6 +4,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "Dependency security audit"
+  project_indicators {
+    new { file = ".bundler-audit.yml" }
+    new { file = "Gemfile"; contains_regex = #"^\s*gem\s*\(?\s*["']bundler-audit["']"# }
+  }
 }
 bundle_audit = new Config.Step {
   glob = "**/Gemfile.lock"

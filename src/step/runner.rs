@@ -506,6 +506,25 @@ impl Step {
                     .render(&tctx.for_user(self.shell_type()), self.prefix.as_ref())
                     .map(|command| command.display_user(self.shell_type()))
                     .unwrap_or(run);
+                if let (ensembler::Error::Io(io), RenderedCommand::Argv(argv)) =
+                    (&err, &rendered_command)
+                    && io.kind() == std::io::ErrorKind::NotFound
+                {
+                    // ENOENT from spawning an argv command is either the
+                    // program or the working directory. The shell form prints
+                    // "<tool>: not found" itself; argv has no shell to say so.
+                    if !command_dir.exists() {
+                        eyre::bail!(
+                            "{self}: working directory does not exist: {}",
+                            command_dir.display()
+                        );
+                    }
+                    let program = &argv[0];
+                    return Err(eyre::eyre!(
+                        "{program}: command not found; is it installed and on PATH?"
+                    ))
+                    .wrap_err(shown);
+                }
                 return Err(err).wrap_err(shown);
             }
         }
