@@ -192,11 +192,18 @@ fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<Stri
     None
 }
 
-/// Forward slashes, no Windows verbatim prefix (`\\?\`), no leading `./`, no trailing `/`.
-fn normalize_path(path: &str) -> String {
-    let path = path.replace('\\', "/");
-    let path = path.strip_prefix("//?/").unwrap_or(&path);
-    let path = path.strip_prefix("./").unwrap_or(path);
+/// No leading `./` and no trailing `/`. On Windows, where `\` separates directories, also
+/// forward slashes and no verbatim prefix (`\\?\`) and lower case, because its paths are case
+/// insensitive. Elsewhere `\` is an ordinary filename character and case matters.
+fn normalize_path(path: &str, windows: bool) -> String {
+    let mut path = path.to_string();
+    if windows {
+        path = path.replace('\\', "/").to_lowercase();
+        if let Some(rest) = path.strip_prefix("//?/") {
+            path = rest.to_string();
+        }
+    }
+    let path = path.strip_prefix("./").unwrap_or(&path);
     if path.len() > 1 {
         path.trim_end_matches('/').to_string()
     } else {
@@ -204,48 +211,47 @@ fn normalize_path(path: &str) -> String {
     }
 }
 
-fn is_absolute_path(path: &str) -> bool {
+fn is_absolute_path(path: &str, windows: bool) -> bool {
     let bytes = path.as_bytes();
     path.starts_with('/')
-        || (bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && &path[1..3] == ":/")
+        || (windows && bytes.len() >= 3 && bytes[0].is_ascii_alphabetic() && &path[1..3] == ":/")
 }
 
-/// The spellings of the directory a test runs its command in: as given, canonicalized, and with
-/// the macOS `/private` alias added or removed, so a tool's absolute path can be made relative.
-fn sandbox_roots(base: &Path) -> Vec<String> {
-    let mut roots = vec![normalize_path(&base.display().to_string())];
+/// The spellings of the directory a test runs its command in: as given and canonicalized, so a
+/// symlinked sandbox (such as macOS's `/var` for `/private/var`) is the same directory either way.
+fn sandbox_roots(base: &Path, windows: bool) -> Vec<String> {
+    let mut roots = vec![normalize_path(&base.display().to_string(), windows)];
     if let Ok(canonical) = base.canonicalize() {
-        roots.push(normalize_path(&canonical.display().to_string()));
+        roots.push(normalize_path(&canonical.display().to_string(), windows));
     }
-    for root in roots.clone() {
-        match root.strip_prefix("/private/") {
-            Some(rest) => roots.push(format!("/{rest}")),
-            None => roots.push(format!("/private{root}")),
-        }
-    }
-    roots.retain(|root| is_absolute_path(root));
+    roots.retain(|root| is_absolute_path(root, windows));
     roots.dedup();
     roots
 }
 
 /// Whether the diagnostic path a tool printed names the file `expected`. A relative printed path
-/// must equal `expected` (a leading `./` and `\` separators are ignored). An absolute printed
-/// path matches only if it lies inside one of the sandbox `roots` and the rest equals
-/// `expected`; an absolute path elsewhere never matches a relative expectation.
-fn same_path(printed: &str, expected: &str, roots: &[String]) -> bool {
-    let printed = normalize_path(printed);
-    let expected = normalize_path(expected);
-    if printed == expected {
+/// must equal `expected`. An absolute printed path matches only if it, or its canonicalized form
+/// when the file exists, lies inside one of the sandbox `roots` and the rest equals `expected`;
+/// an absolute path elsewhere never matches a relative expectation.
+fn same_path(printed: &str, expected: &str, roots: &[String], windows: bool) -> bool {
+    let expected = normalize_path(expected, windows);
+    let mut forms = vec![normalize_path(printed, windows)];
+    if forms[0] == expected {
         return true;
     }
-    if !is_absolute_path(&printed) || is_absolute_path(&expected) {
+    if !is_absolute_path(&forms[0], windows) || is_absolute_path(&expected, windows) {
         return false;
     }
-    roots.iter().any(|root| {
-        printed
-            .strip_prefix(root.as_str())
-            .and_then(|rest| rest.strip_prefix('/'))
-            == Some(expected.as_str())
+    if let Ok(canonical) = Path::new(printed).canonicalize() {
+        forms.push(normalize_path(&canonical.display().to_string(), windows));
+    }
+    forms.iter().any(|printed| {
+        roots.iter().any(|root| {
+            printed
+                .strip_prefix(root.as_str())
+                .and_then(|rest| rest.strip_prefix('/'))
+                == Some(expected.as_str())
+        })
     })
 }
 
@@ -259,7 +265,7 @@ fn diagnostic_matches(
         diagnostic
             .path
             .as_deref()
-            .is_some_and(|actual| same_path(actual, path, roots))
+            .is_some_and(|actual| same_path(actual, path, roots, cfg!(windows)))
     }) && expected
         .line
         .is_none_or(|line| start.is_some_and(|start| start.line == line))
@@ -331,7 +337,7 @@ fn check_diagnostics(step: &Step, test: &StepTest, combined: &str, sandbox: &Pat
     }
     let tool = step.diagnostic_tool.as_deref().unwrap_or(&step.name);
     let parsed = diagnostics::parse(format, &step.name, tool, combined);
-    let roots = sandbox_roots(sandbox);
+    let roots = sandbox_roots(sandbox, cfg!(windows));
     expected
         .iter()
         .filter(|expected| {
@@ -724,60 +730,87 @@ mod tests {
     #[test]
     fn absolute_paths_match_only_inside_the_sandbox() {
         let roots = vec!["/tmp/sandbox".to_string()];
-        assert!(same_path(
-            "/tmp/sandbox/proto/a.proto",
-            "proto/a.proto",
-            &roots
-        ));
-        assert!(same_path("./a.c", "a.c", &roots));
+        let same = |printed, expected| same_path(printed, expected, &roots, false);
+        assert!(same("/tmp/sandbox/proto/a.proto", "proto/a.proto"));
+        assert!(same("./a.c", "a.c"));
         // a different directory with the same tail
-        assert!(!same_path(
-            "/other/project/proto/a.proto",
-            "proto/a.proto",
-            &roots
-        ));
-        assert!(!same_path(
-            "/tmp/sandbox2/proto/a.proto",
-            "proto/a.proto",
-            &roots
-        ));
-        assert!(!same_path(
-            "/tmp/sandbox/x/proto/a.proto",
-            "proto/a.proto",
-            &roots
-        ));
+        assert!(!same("/other/project/proto/a.proto", "proto/a.proto"));
+        assert!(!same("/tmp/sandbox2/proto/a.proto", "proto/a.proto"));
+        assert!(!same("/tmp/sandbox/x/proto/a.proto", "proto/a.proto"));
         // relative printed paths stay exact
-        assert!(!same_path("sub/a.c", "a.c", &roots));
+        assert!(!same("sub/a.c", "a.c"));
     }
 
     #[test]
-    fn backslash_and_verbatim_paths_are_normalized() {
-        let roots = sandbox_roots(Path::new(r"C:\tmp\sandbox"));
-        assert!(same_path(
-            r"C:\tmp\sandbox\src\main.c",
-            "src/main.c",
-            &roots
-        ));
-        assert!(same_path(
-            r"\\?\C:\tmp\sandbox\src\main.c",
-            "src/main.c",
-            &roots
-        ));
-        assert!(same_path(r"src\main.c", "src/main.c", &roots));
-        assert!(!same_path(r"C:\other\src\main.c", "src/main.c", &roots));
+    fn backslash_is_a_filename_character_off_windows() {
+        let roots = vec!["/tmp/sandbox".to_string()];
+        assert!(!same_path(r"a\b.c", "a/b.c", &roots, false));
+        assert!(same_path(r"a\b.c", r"a\b.c", &roots, false));
+        assert!(!same_path(r"/tmp/sandbox/a\b.c", "a/b.c", &roots, false));
+        // and case matters
+        assert!(!same_path("/tmp/sandbox/A.c", "a.c", &roots, false));
     }
 
     #[test]
-    fn macos_private_alias_is_the_same_sandbox() {
-        let roots = sandbox_roots(Path::new("/var/folders/x/T/.tmpabc"));
+    fn windows_paths_are_normalized_and_case_insensitive() {
+        let roots = sandbox_roots(Path::new(r"C:\Tmp\Sandbox"), true);
+        let same = |printed, expected| same_path(printed, expected, &roots, true);
+        assert!(same(r"C:\tmp\sandbox\src\main.c", "src/main.c"));
+        assert!(same(r"c:\TMP\Sandbox\Src\Main.c", "src/main.c"));
+        assert!(same(r"\\?\C:\Tmp\Sandbox\src\main.c", "src/main.c"));
+        assert!(same(r"src\main.c", "src/main.c"));
+        assert!(!same(r"C:\other\src\main.c", "src/main.c"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn this_platform_normalizes_windows_paths() {
         assert!(same_path(
-            "/private/var/folders/x/T/.tmpabc/a.c",
+            r"C:\Sandbox\a.c",
             "a.c",
-            &roots
+            &sandbox_roots(Path::new(r"c:\sandbox"), cfg!(windows)),
+            cfg!(windows)
         ));
-        let roots = sandbox_roots(Path::new("/private/var/folders/x/T/.tmpabc"));
-        assert!(same_path("/var/folders/x/T/.tmpabc/a.c", "a.c", &roots));
-        assert!(!same_path("/var/folders/x/T/.other/a.c", "a.c", &roots));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_sandbox_is_the_same_directory() {
+        // macOS reaches its temporary directory through the `/var` symlink to `/private/var`;
+        // canonicalizing both sides makes that, and any other symlink, compare equal.
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().canonicalize().unwrap().join("real");
+        std::fs::create_dir(&real).unwrap();
+        std::fs::write(real.join("a.c"), "").unwrap();
+        let link = real.parent().unwrap().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let other = real.parent().unwrap().join("other");
+        std::fs::create_dir(&other).unwrap();
+        std::fs::write(other.join("a.c"), "").unwrap();
+
+        // the sandbox was reached through the link; the tool printed the real path
+        let roots = sandbox_roots(&link, false);
+        assert!(same_path(
+            &real.join("a.c").display().to_string(),
+            "a.c",
+            &roots,
+            false
+        ));
+        // the sandbox is the real directory; the tool printed the link path
+        let roots = sandbox_roots(&real, false);
+        assert!(same_path(
+            &link.join("a.c").display().to_string(),
+            "a.c",
+            &roots,
+            false
+        ));
+        // a different directory is still different
+        assert!(!same_path(
+            &other.join("a.c").display().to_string(),
+            "a.c",
+            &roots,
+            false
+        ));
     }
 
     #[test]
