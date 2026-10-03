@@ -1,7 +1,8 @@
 amends "../../pkl/Config.pkl"
 
-// A pre-commit hook that stashes unstaged changes, runs a fixer over the staged
-// files, and stages and restores the result: the everyday `git commit` path.
+// A pre-commit hook that stashes unstaged changes, runs a fixer that rewrites
+// the staged files, and stages and restores the result: the everyday
+// `git commit` path. fixture.sh copies this file into the benchmark repository.
 hooks = new {
   ["pre-commit"] {
     fix = true
@@ -9,7 +10,7 @@ hooks = new {
     steps = new {
       ["fix"] {
         glob = "**/*.txt"
-        fix = "true"
+        fix = "for f in {{files}}; do echo fixed >> \"$f\"; done"
       }
     }
   }

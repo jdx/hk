@@ -84,15 +84,17 @@ HK_STATE_DIR     = "target/tak-state"
 # on the same files, so the run detects what to stash, stashes it, runs a fixer,
 # stages, and merges the unstaged edits back. `setup` builds a 400-file
 # repository under benchmark/stash/repo once; `prepare` replays the edits before
-# every sample (see benchmark/stash/fixture.sh). `check` confirms the edits
-# came back as they were, so a run that skipped the stash cannot pass as fast.
+# every sample (see benchmark/stash/fixture.sh). `check` confirms that all 60
+# staged files were fixed and staged and that the 50 unstaged edits came back.
+# Without the stash, the fixer's staging would also take the 10 overlapping
+# files' unstaged edits, leaving 40, so a run that skipped it cannot pass.
 #
 # The instruction count covers hk's own process only: tak does not follow child
 # processes, so the work done inside the `git` commands hk starts is not in it
 # (wall time shows it, ungated). A regression in how many git commands hk starts
 # moves the count only by what hk spends starting and parsing them.
 [bench.stash]
-check   = ["sh", "-c", "test \"$(git diff --name-only | wc -l)\" -eq 50 && test \"$(git diff --cached --name-only | wc -l)\" -eq 60"]
+check   = ["sh", "-c", "test \"$(git diff --cached --name-only | grep -c .)\" -eq 60 && test \"$(git diff --cached | grep -c '^+fixed$')\" -eq 60 && test \"$(git diff --name-only | grep -c .)\" -eq 50"]
 cmd     = ["./target/release/hk", "run", "pre-commit"]
 dir     = "benchmark/stash/repo"
 prepare = ["sh", "-c", "git reset -q --hard clean && git clean -qfd && git apply --index .git/staged.patch && git apply .git/unstaged.patch"]
@@ -105,5 +107,4 @@ GIT_CONFIG_GLOBAL   = "/dev/null"
 GIT_CONFIG_NOSYSTEM = "1"
 HK_CACHE_DIR        = ".git/hk-cache"
 HK_CONFIG_DIR       = ".git/hk-config"
-HK_FILE             = "../hk.pkl"
 HK_STATE_DIR        = ".git/hk-state"
