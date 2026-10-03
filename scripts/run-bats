@@ -48,28 +48,33 @@ done
 # (unreadable path, bad glob). Only 1 is acceptable as "nothing selected".
 # --sort path keeps the test order, and so the test numbers, the same between
 # runs and retry attempts.
+#
+# Sets rg_out; callers must not use $(rg_files ...), whose exit would only end
+# the subshell (and bash 3.2 does not trip set -e on a failed substitution).
+rg_out=
 rg_files() {
-  local status=0 out
-  out=$(rg "$@" --sort path --glob "test/*.bats" -- "${paths[@]}") || status=$?
+  local status=0
+  rg_out=$(rg "$@" --sort path --glob "test/*.bats" -- "${paths[@]}") || status=$?
   if [ "$status" -ge 2 ]; then
     echo "error: rg failed (exit $status) while selecting bats files" >&2
     exit "$status"
   fi
-  printf '%s' "$out"
 }
 
 # The requested paths have to contain at least one test/*.bats file, otherwise
 # a typo or a path outside test/ would select nothing and pass.
-if [ -z "$(rg_files --files)" ]; then
+rg_files --files
+if [ -z "$rg_out" ]; then
   echo "error: no test/*.bats files found under: ${paths[*]}" >&2
   exit 1
 fi
 
 if [ "$mode" = "with-git" ]; then
-  selected=$(rg_files --files-with-matches --word-regexp git)
+  rg_files --files-with-matches --word-regexp git
 else
-  selected=$(rg_files --files-without-match --word-regexp git)
+  rg_files --files-without-match --word-regexp git
 fi
+selected=$rg_out
 
 if [ -z "$selected" ]; then
   # Legitimate when only some tasks apply to the requested files, for example
