@@ -15,7 +15,10 @@ use shell_quote::{QuoteInto, QuoteRefExt};
 /// except before a double quote, where `2n` backslashes give `n` and the quote
 /// groups, and `2n+1` give `n` and a literal quote. That lets
 /// `sh -c "printf \"hello world\""` pass `printf "hello world"` as one argument.
-/// Single quotes also group, with no escapes inside.
+/// Single quotes also group, with no escapes inside. If that reading leaves a
+/// quote open, as in `pwsh.exe -WorkingDirectory "C:\My Projects\" -Command`,
+/// backslashes are read as fully literal instead, and only then does the value
+/// fall back to whitespace splitting.
 pub(crate) fn split_shell(shell: &str) -> Vec<String> {
     split_shell_for(shell, cfg!(windows))
 }
@@ -26,15 +29,16 @@ fn split_shell_for(shell: &str, windows: bool) -> Vec<String> {
         return whitespace();
     }
     let words = if windows {
-        split_windows(shell)
+        split_windows(shell, true).or_else(|| split_windows(shell, false))
     } else {
         shell_words::split(shell).ok()
     };
     words.unwrap_or_else(whitespace)
 }
 
-/// Split like `CommandLineToArgvW`. `None` when a quote is left open.
-fn split_windows(shell: &str) -> Option<Vec<String>> {
+/// Split like `CommandLineToArgvW`, or with backslashes fully literal when
+/// `backslash_escapes` is off. `None` when a quote is left open.
+fn split_windows(shell: &str, backslash_escapes: bool) -> Option<Vec<String>> {
     let chars: Vec<char> = shell.chars().collect();
     let mut words = Vec::new();
     let mut word = String::new();
@@ -50,7 +54,7 @@ fn split_windows(shell: &str) -> Option<Vec<String>> {
             } else {
                 word.push(c);
             }
-        } else if c == '\\' {
+        } else if c == '\\' && backslash_escapes {
             let start = i;
             while i < chars.len() && chars[i] == '\\' {
                 i += 1;
@@ -330,6 +334,49 @@ mod tests {
         );
         assert_eq!(windows(r#"sh -c "set -e""#), ["sh", "-c", "set -e"]);
         assert_eq!(windows(r#"sh "-c"#), ["sh", r#""-c"#]);
+    }
+
+    #[test]
+    fn windows_keeps_a_quoted_directory_with_a_trailing_backslash() {
+        assert_eq!(
+            windows(r#"pwsh.exe -WorkingDirectory "C:\My Projects\" -Command"#),
+            [
+                "pwsh.exe",
+                "-WorkingDirectory",
+                r"C:\My Projects\",
+                "-Command"
+            ]
+        );
+    }
+
+    #[test]
+    fn windows_prefers_the_strict_reading_when_it_terminates() {
+        // A doubled trailing backslash and an escaped-quote script: the strict
+        // reading terminates, so it is the one used.
+        assert_eq!(
+            windows(r#"pwsh.exe -WorkingDirectory "C:\My Projects\\" -Command "echo \"a b\"""#),
+            [
+                "pwsh.exe",
+                "-WorkingDirectory",
+                r"C:\My Projects\",
+                "-Command",
+                r#"echo "a b""#
+            ]
+        );
+    }
+
+    #[test]
+    fn windows_falls_back_to_whitespace_when_both_readings_leave_a_quote_open() {
+        assert_eq!(
+            windows(r#"pwsh.exe -WorkingDirectory "C:\My Projects\ -c"#),
+            [
+                "pwsh.exe",
+                "-WorkingDirectory",
+                r#""C:\My"#,
+                r"Projects\",
+                "-c"
+            ]
+        );
     }
 
     #[test]
