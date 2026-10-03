@@ -154,7 +154,7 @@ fn select_test_files(step: &Step, test: &StepTest, files: Vec<PathBuf>) -> Resul
 
 fn check_diff_not_applied_reason(code: i32) -> String {
     format!(
-        "check_diff exited {code} but its output did not apply with `git apply`; check_diff must print a unified diff naming each file"
+        "check_diff exited {code} but hk could not apply its output as a patch; check_diff must print a unified diff naming each file"
     )
 }
 
