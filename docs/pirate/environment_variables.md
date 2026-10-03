@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: 06983d47d89a
+sourceHash: a895c7ba2ea3
 ---
 
 # Standing orders (environment variables)
@@ -222,7 +222,7 @@ Overrides the automatic staging of fixes, loading the mended canvas aboard. Set 
 
 **Type:** `git`, `patch-file`, or `none` · **Unless ye say otherwise:** the hook's setting, otherwise `none`
 
-Overrides how unstaged work is stowed before a hook runs. `git` turns stashing on; `patch-file` currently uses the same Git implementation; `none` leaves unstaged work where it lies. Boolean `true`/`1` and `false`/`0` are accepted too. `hk init` explicitly configures Git stashing for pre-commit. See [stowing the hold](/hooks#stashing-and-partial-commits).
+Overrides how unstaged work is stowed before a hook runs. `git` turns stashing on; `patch-file` currently uses the same Git implementation; `none` leaves unstaged work where it lies. Boolean `true`/`1` and `false`/`0` are accepted too. A hook defaults to `none` unless it sets `stash`; the `pre-commit` hook hk builds from top-level `steps` (the setup `hk init` creates) uses `git`. See [stowing the hold](/hooks#stashing-and-partial-commits).
 
 ## `HK_STASH_BACKUP_COUNT` {#hk-stash-backup-count}
 

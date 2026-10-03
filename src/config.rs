@@ -2,12 +2,12 @@ use indexmap::IndexMap;
 use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
-use eyre::{WrapErr, bail};
+use eyre::{WrapErr, bail, eyre};
 
 pub const V2_MIGRATION_URL: &str = "https://hk.jdx.dev/migration-v2";
 
@@ -303,12 +303,15 @@ impl Config {
         if let Some(path) = Self::find_project_config(&paths) {
             let mut config = Self::load_config_cached(path)?;
             config.apply_implicit_root_dir()?;
+            config.project_config_loaded = true;
             return Ok(config);
         }
         if env::HK_FILE.is_none()
             && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
         {
-            return Ok(Self::read(&path, true)?.0);
+            let mut config = Self::read(&path, true)?.0;
+            config.project_config_loaded = true;
+            return Ok(config);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
@@ -426,25 +429,23 @@ impl Config {
     }
 
     /// `hk.local.pkl` is picked instead of the shared `hk.pkl`, not merged with
-    /// it, so a local file that does not `amends "./hk.pkl"` silently drops the
-    /// whole shared configuration. Say so, unless the warning is hidden.
-    fn warn_if_local_config_ignores_shared(path: &Path, imports: &IndexSet<PathBuf>) {
+    /// it, so a local file that does not `amends` the shared file silently drops
+    /// the whole shared configuration. Say so, unless the warning is hidden.
+    fn warn_if_local_config_ignores_shared(path: &Path) {
         if path.file_name().is_none_or(|n| n != "hk.local.pkl") {
             return;
         }
         let Some(dir) = path.parent() else {
             return;
         };
-        let mut shared = vec![dir.join("hk.pkl"), dir.join(".config").join("hk.pkl")];
+        let mut candidates = vec![dir.join("hk.pkl"), dir.join(".config").join("hk.pkl")];
         if dir.file_name().is_some_and(|n| n == ".config")
             && let Some(parent) = dir.parent()
         {
-            shared.push(parent.join("hk.pkl"));
+            candidates.push(parent.join("hk.pkl"));
         }
-        let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
-        let imported: IndexSet<PathBuf> = imports.iter().map(|p| canon(p)).collect();
-        let shared: Vec<&PathBuf> = shared.iter().filter(|p| p.is_file()).collect();
-        if shared.is_empty() || shared.iter().any(|p| imported.contains(&canon(p))) {
+        let shared: Vec<PathBuf> = candidates.into_iter().filter(|p| p.is_file()).collect();
+        if shared.is_empty() || amends_chain_reaches(path, &shared) {
             return;
         }
         let hidden = std::env::var("HK_HIDE_WARNINGS")
@@ -454,13 +455,10 @@ impl Config {
         }
         warn!(
             "{} does not amend {}, so it replaces the shared configuration instead of extending it. \
-            Add `amends \"./{}\"` to keep the shared steps, or hide this warning with HK_HIDE_WARNINGS={LOCAL_CONFIG_WARNING_TAG}.",
+            Add `amends \"{}\"` to keep the shared steps, or hide this warning with HK_HIDE_WARNINGS={LOCAL_CONFIG_WARNING_TAG}.",
             xx::file::display_path(path),
-            xx::file::display_path(shared[0]),
-            shared[0]
-                .strip_prefix(dir)
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|_| "hk.pkl".to_string())
+            xx::file::display_path(&shared[0]),
+            relative_module_path(dir, &shared[0])
         );
     }
 
@@ -505,9 +503,7 @@ impl Config {
                     warn!("failed to write imports cache file: {err:#}");
                 }
             }
-            if is_root {
-                Self::warn_if_local_config_ignores_shared(&path, &import_analysis.local_paths);
-            }
+            Self::warn_if_local_config_ignores_shared(&path);
             let has_untracked_imports = import_analysis.has_untracked_imports
                 || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
 
@@ -1236,6 +1232,57 @@ fn failed_pkl_config_error(path: &Path, stderr: &str) -> eyre::Report {
     )
 }
 
+/// The target of a module's `amends "..."` declaration, if it is a local path.
+fn amends_target(module: &Path) -> Option<PathBuf> {
+    let source = std::fs::read_to_string(module).ok()?;
+    let line = source
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with("amends "))?;
+    let target = line
+        .strip_prefix("amends ")?
+        .trim_start()
+        .strip_prefix('"')?;
+    let target = &target[..target.find('"')?];
+    if target.contains("://") {
+        return None;
+    }
+    Some(module.parent()?.join(target))
+}
+
+/// True when following `amends` declarations from `start` (a plain `import` does
+/// not count, since it inherits nothing) reaches one of `shared`.
+fn amends_chain_reaches(start: &Path, shared: &[PathBuf]) -> bool {
+    let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let shared: Vec<PathBuf> = shared.iter().map(|p| canon(p)).collect();
+    let mut current = start.to_path_buf();
+    for _ in 0..16 {
+        let Some(next) = amends_target(&current) else {
+            return false;
+        };
+        if shared.contains(&canon(&next)) {
+            return true;
+        }
+        current = next;
+    }
+    false
+}
+
+/// How a module in `dir` refers to `target`, which sits in `dir`, `dir/.config`
+/// or the parent of `dir`.
+fn relative_module_path(dir: &Path, target: &Path) -> String {
+    let name = target.file_name().map_or_else(
+        || "hk.pkl".to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
+    match target.parent() {
+        Some(p) if p == dir => format!("./{name}"),
+        Some(p) if Some(p) == dir.parent() => format!("../{name}"),
+        Some(p) if p.file_name().is_some_and(|n| n == ".config") => format!("./.config/{name}"),
+        _ => target.display().to_string(),
+    }
+}
+
 /// `HK_HIDE_WARNINGS` tag for the "local config ignores the shared config" warning.
 const LOCAL_CONFIG_WARNING_TAG: &str = "local-config-replaces-shared";
 
@@ -1259,6 +1306,10 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     pub path: PathBuf,
+    /// True when a project config file (not just the built-in default or the
+    /// user-level config) was found and loaded.
+    #[serde(skip)]
+    pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
     pub fail_fast: Option<bool>,
@@ -1340,12 +1391,92 @@ impl Config {
                     }
                 }
             }
+            validate_dependencies(hook_name, hook)?;
         }
         Ok(())
     }
 }
 
+/// Reject `depends` that can never be satisfied. `depends` only orders steps
+/// that run in the same execution group, so each group is checked on its own;
+/// a hook-wide graph would reject configs that run fine today.
+fn validate_dependencies(hook_name: &str, hook: &crate::hook::Hook) -> Result<()> {
+    let groups = crate::step_group::StepGroup::build_all(hook.steps.values().cloned().collect());
+    for group in groups {
+        for (name, step) in &group.steps {
+            if step.depends.iter().any(|dep| dep == name) {
+                bail!("Step '{name}' in hook '{hook_name}' depends on itself.");
+            }
+        }
+        // Depth-first search; `state` is 1 while a step is on the stack, 2 once done.
+        fn visit<'a>(
+            name: &'a str,
+            group: &'a crate::step_group::StepGroup,
+            state: &mut HashMap<&'a str, u8>,
+            stack: &mut Vec<&'a str>,
+        ) -> Option<Vec<&'a str>> {
+            match state.get(name) {
+                Some(2) => return None,
+                Some(_) => {
+                    let start = stack.iter().position(|n| *n == name).unwrap_or(0);
+                    let mut cycle = stack[start..].to_vec();
+                    cycle.push(name);
+                    return Some(cycle);
+                }
+                None => {}
+            }
+            state.insert(name, 1);
+            stack.push(name);
+            if let Some(step) = group.steps.get(name) {
+                for dep in &step.depends {
+                    if group.steps.contains_key(dep.as_str())
+                        && let Some(cycle) = visit(dep, group, state, stack)
+                    {
+                        return Some(cycle);
+                    }
+                }
+            }
+            stack.pop();
+            state.insert(name, 2);
+            None
+        }
+        let mut state = HashMap::new();
+        for name in group.steps.keys() {
+            if let Some(cycle) = visit(name, &group, &mut state, &mut vec![]) {
+                bail!(
+                    "Steps in hook '{hook_name}' have a circular dependency: {}. \
+                    These steps would wait on each other forever.",
+                    cycle.join(" -> ")
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_patterns(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    let selectors = step
+        .match_any
+        .iter()
+        .flatten()
+        .map(|s| ("match_any glob", s.glob.as_ref()));
+    let patterns = [
+        ("glob", step.glob.as_ref()),
+        ("exclude", step.exclude.as_ref()),
+    ]
+    .into_iter()
+    .chain(selectors);
+    for (field, pattern) in patterns {
+        if let Some(pattern) = pattern {
+            crate::glob::validate_pattern(pattern, step.dir_prefix())
+                .map_err(|e| eyre!("Step '{step_name}' {location} has an invalid {field}: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    validate_patterns(step, step_name, location)?;
     if step.stage.is_some() && step.fix.is_none() {
         bail!(
             "Step '{}' {} has 'stage' attribute but no 'fix' command. \
@@ -1665,6 +1796,89 @@ mod tests {
         assert!(format!("{err:#}").contains("invalid regex in top-level 'exclude'"));
     }
 
+    fn step_depending_on(name: &str, depends: &[&str]) -> Step {
+        Step {
+            name: name.to_string(),
+            depends: depends.iter().map(|d| d.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    fn config_with_steps(steps: Vec<Step>) -> Config {
+        let mut hook = hook("check");
+        for step in steps {
+            hook.steps.insert(
+                step.name.clone(),
+                crate::hook::StepOrGroup::Step(Box::new(step)),
+            );
+        }
+        let mut config = Config::default();
+        config.hooks.insert("check".to_string(), hook);
+        config
+    }
+
+    #[test]
+    fn validate_rejects_dependency_cycles_and_self_dependencies() {
+        let cycle = config_with_steps(vec![
+            step_depending_on("a", &["b"]),
+            step_depending_on("b", &["a"]),
+        ]);
+        let err = format!("{:#}", cycle.validate().unwrap_err());
+        assert!(err.contains("a -> b -> a"), "{err}");
+
+        let selfish = config_with_steps(vec![step_depending_on("a", &["a"])]);
+        let err = format!("{:#}", selfish.validate().unwrap_err());
+        assert!(err.contains("depends on itself"), "{err}");
+    }
+
+    #[test]
+    fn validate_scopes_dependency_cycles_to_execution_groups() {
+        let mut later = step_depending_on("b", &["a"]);
+        later.exclusive = true;
+        let config = config_with_steps(vec![step_depending_on("a", &["b"]), later]);
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_compiles_globs_with_the_steps_dir() {
+        let mut globby = step("lint");
+        globby.dir = Some("foo[".into());
+        globby.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![globby]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob '*'"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_step_patterns() {
+        let mut bad_glob = step("lint");
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob"),
+            "{err}"
+        );
+
+        let mut bad_regex = step("lint");
+        bad_regex.exclude = Some(crate::step::Pattern::Regex {
+            _type: "regex".into(),
+            pattern: "a(".into(),
+        });
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_regex]).validate().unwrap_err()
+        );
+        assert!(err.contains("invalid exclude"), "{err}");
+    }
+
     #[test]
     fn union_lists_combines_project_and_user_entries() {
         let list = |items: &[&str]| Some(items.iter().map(|s| s.to_string()).collect::<Vec<_>>());
@@ -1971,8 +2185,10 @@ mod tests {
             StepOrGroup::Step(Box::new(step("root"))),
         );
 
-        let mut sub = Config::default();
-        sub.path = PathBuf::from("packages/web/hk.pkl");
+        let mut sub = Config {
+            path: PathBuf::from("packages/web/hk.pkl"),
+            ..Default::default()
+        };
         let mut sub_check = hook("check");
         sub_check.fix = Some(true);
         sub_check.stage = Some(true);
@@ -2342,6 +2558,49 @@ mod tests {
                 ("PATH".to_string(), std::env::var("PATH").ok()),
             ])
         );
+    }
+
+    #[test]
+    fn relative_module_path_points_at_the_shared_file() {
+        let dir = Path::new("/repo/.config");
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/hk.pkl")),
+            "../hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/.config/hk.pkl")),
+            "./hk.pkl"
+        );
+        let root = Path::new("/repo");
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/hk.pkl")),
+            "./hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/.config/hk.pkl")),
+            "./.config/hk.pkl"
+        );
+    }
+
+    #[test]
+    fn only_amends_declarations_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let amending = dir.path().join("a.pkl");
+        std::fs::write(&amending, "amends \"./hk.pkl\"\n").unwrap();
+        let chained = dir.path().join("b.pkl");
+        std::fs::write(&chained, "amends \"./a.pkl\"\n").unwrap();
+        let importing = dir.path().join("c.pkl");
+        std::fs::write(
+            &importing,
+            "amends \"pkl/Config.pkl\"\nimport \"./hk.pkl\" as S\n",
+        )
+        .unwrap();
+        let shared = [shared];
+        assert!(amends_chain_reaches(&amending, &shared));
+        assert!(amends_chain_reaches(&chained, &shared));
+        assert!(!amends_chain_reaches(&importing, &shared));
     }
 
     #[test]

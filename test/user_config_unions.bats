@@ -126,3 +126,52 @@ EOF
     assert_success
     refute_output --partial "does not amend"
 }
+
+@test ".config/hk.local.pkl replacing a parent hk.pkl suggests the parent path" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["shared"] { check = "echo ran-shared" } } } }
+EOF
+    mkdir -p .config
+    cat <<EOF > .config/hk.local.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["local"] { check = "echo ran-local" } } } }
+EOF
+    run hk check --all
+    assert_success
+    assert_output --partial 'Add `amends "../hk.pkl"`'
+}
+
+@test "hk.local.pkl that only imports hk.pkl still warns" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["shared"] { check = "echo ran-shared" } } } }
+EOF
+    cat <<EOF > hk.local.pkl
+amends "$PKL_PATH/Config.pkl"
+import "./hk.pkl" as Shared
+hooks { ["check"] { steps { ["local"] { check = "echo ran-local" } } } }
+EOF
+    run hk check --all
+    assert_success
+    assert_output --partial "hk.local.pkl does not amend"
+}
+
+@test "a subproject hk.local.pkl that replaces its hk.pkl warns" {
+    mkdir -p pkg
+    cat <<EOF > pkg/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["shared"] { check = "echo ran-shared" } } } }
+EOF
+    cat <<EOF > pkg/hk.local.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["local"] { check = "echo ran-local" } } } }
+EOF
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+subprojects = List("pkg")
+EOF
+    run hk check --all
+    assert_success
+    assert_output --partial "pkg/hk.local.pkl does not amend"
+}

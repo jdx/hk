@@ -351,11 +351,13 @@ including per-directory mise environments and locally installed Node tools.
 
 ### Conditions and Git status
 
-`condition` is an expression evaluated per step job. `step_condition` is evaluated once per step. Shell commands need an explicit `exec(...)` call:
+`condition` is an expression evaluated per step job. `step_condition` is evaluated once per step. To run a step only when a shell command succeeds, wrap it in `exec_ok(...)`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
+
+`exec_ok(command)` is true when the command exits with status 0 and false otherwise. `exec(command)` returns the command’s standard output as a string, for comparisons such as `exec('git branch --show-current') == 'main\n'`. Use `exec` for its output, not to test success: a command that exits non-zero, or prints output that is not valid UTF-8, makes `exec` fail the hook, and a string result never skips a step.
 
 The `git` object makes common status checks available without invoking Git:
 
