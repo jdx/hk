@@ -1,5 +1,5 @@
 ---
-sourceHash: e464ba245dcf
+sourceHash: 86fa65dd441d
 ---
 
 # Clockwork hands: coding agents
@@ -23,7 +23,7 @@ Every generator writes only to stdout. Look the result over, then place or merge
 1. Look the ship over and ask for a passage plan.
 2. Keep the work to the cargo that changed. Use `--files0-from` when exact filenames matter, and `--cd` to choose the project root.
 3. Inspect each command's effects on the cargo, and prefer safe execution. `--safe` refuses a run before any step starts if a runnable command is unknown or destructive.
-4. Read the JSON or JSONL diagnostics, and keep the raw output when ye investigate parser warnings.
+4. Read the JSON or JSONL diagnostics, and keep the raw output when ye investigate parser warnings. A hand with no `diagnostic_format` has no diagnostics, so read its raw `output` instead (see [diagnostics](/configuration#diagnostics)).
 5. Review the resulting diff before ye accept a fix.
 
 Without MCP, here's a portable way to hail hk:

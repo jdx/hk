@@ -241,6 +241,29 @@ check_diff = "hk util format-diff {{files}} -- stylua --stdin-filepath {} -"
 
 If the formatter fails for any file, no patch is printed and hk runs `fix`, which reports the error. A formatter's stdin mode can ignore excludes in its configuration that it applies to files named on the command line, as yamlfmt's and taplo's do; their builtins ask the tool which files would change before formatting those.
 
+### Diagnostics {#diagnostics}
+
+`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a step's `check` command, and it can't guess a tool's output format. A step reports diagnostics only when it sets `diagnostic_format`. Without it the step still runs, fails, and keeps its raw `output` in the results, but its `diagnostics` list and its SARIF results are empty.
+
+This applies to builtins too. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Many builtins don't set it, so their steps contribute no diagnostics even when they fail. To report diagnostics for one of those, set `diagnostic_format` on your own step, and add the tool's flag for a supported format to its `check` command if you accept the output changing.
+
+| `diagnostic_format` | What hk reads                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gcc`               | Lines like `path:line:column: warning: message [rule]`. The severity and the trailing `[rule]` are optional, and lines that follow a diagnostic are added to its message. |
+| `sarif`             | A SARIF 2.1.0 log. Each result becomes a diagnostic, with its rule and help link.                                                                                         |
+| `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                        |
+| `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                 |
+
+hk parses the combined stdout and stderr of `check` runs, not of `fix` runs. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Output that doesn't parse becomes an entry in the step's `parse_warnings`, and the raw output is kept. This step reports each line of the compiler's `path:line:column: message` output as a diagnostic:
+
+```pkl
+["compiler"] {
+    check = "my-compiler {{files}}"
+    diagnostic_format = "gcc"
+    diagnostic_tool = "my-compiler"
+}
+```
+
 ### Customize a builtin
 
 ```pkl

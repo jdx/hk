@@ -19,7 +19,7 @@ Every generator writes only to stdout. Review the result and place or merge it i
 1. Inspect the project and request a plan.
 2. Scope execution to changed files. Use `--files0-from` when exact filenames matter and `--cd` to choose the project root.
 3. Inspect command effects and prefer safe execution. `--safe` rejects a run before any step starts if a runnable command is unknown or destructive.
-4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings.
+4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings. A step with no `diagnostic_format` has no diagnostics, so read its raw `output` instead (see [diagnostics](/configuration#diagnostics)).
 5. Review the resulting diff before accepting a fix.
 
 Without MCP, a portable invocation is:
