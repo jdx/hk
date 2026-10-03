@@ -55,6 +55,36 @@ PKL
     assert_output --partial "src/main.c:2:4"
 }
 
+@test "TestMaker.checkDiagnostics builds a diagnostics test" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/builtins/test/helpers.pkl"
+local const testMaker = new helpers.TestMaker { filename = "main.c" }
+hooks {
+  ["check"] {
+    steps {
+      ["compiler"] {
+        check = "printf 'main.c:2:4: error: bad\\\\n' >&2; exit 1"
+        diagnostic_format = "gcc"
+        tests {
+          ["bad file"] = testMaker.checkDiagnostics(
+            "int x;",
+            1,
+            List(new Config.StepTestDiagnostic { path = "main.c"; line = 2; severity = "error" }),
+          )
+        }
+      }
+    }
+  }
+}
+PKL
+
+    run hk test --step compiler
+    assert_success
+    assert_output --partial "ok - compiler :: bad file"
+}
+
 @test "hk test fails when the step sets no diagnostic_format" {
     write_config '' 'new { line = 2 }'
 

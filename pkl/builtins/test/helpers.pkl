@@ -58,7 +58,7 @@ class TestMaker {
     found: List<Config.StepTestDiagnostic>,
   ): Config.StepTest = (makeTest("check", contents, contents, code)) {
     expect {
-      diagnostics = found.toListing()
+      diagnostics { ...found }
     }
   }
 
