@@ -31,7 +31,9 @@ fn normalize(path: &Path) -> String {
     // Only Windows uses `\` as a separator; on unix it is a legal filename
     // character and must match git's path exactly.
     #[cfg(windows)]
-    let s = std::borrow::Cow::Owned(s.replace('\\', "/"));
+    let s: String = s.replace('\\', "/");
+    #[cfg(not(windows))]
+    let s: String = s.into_owned();
     s.strip_prefix("./").unwrap_or(&s).to_string()
 }
 
@@ -80,22 +82,36 @@ fn index_modes(files: &[PathBuf]) -> Result<Option<HashMap<String, String>>> {
 /// Tracked files use the index mode. Untracked files use the worktree mode
 /// when `core.fileMode` is trusted (unix only), otherwise "not executable"
 /// (git would add them as 100644).
-pub fn executable_flags(files: &[PathBuf]) -> Result<Vec<Option<bool>>> {
+pub fn executable_flags(files: &[PathBuf]) -> Result<Vec<FileExec>> {
     let modes = index_modes(files)?;
     let trust_worktree = file_mode_enabled();
     files
         .iter()
         .map(|file| {
             if let Some(mode) = modes.as_ref().and_then(|m| m.get(&normalize(file))) {
-                return Ok(match mode.as_str() {
+                let executable = match mode.as_str() {
                     "100755" => Some(true),
                     "100644" => Some(false),
                     _ => None,
+                };
+                return Ok(FileExec {
+                    executable,
+                    tracked: true,
                 });
             }
-            worktree_executable(file, trust_worktree)
+            Ok(FileExec {
+                executable: worktree_executable(file, trust_worktree)?,
+                tracked: false,
+            })
         })
         .collect()
+}
+
+/// Executability of one file, and whether git tracks it.
+pub struct FileExec {
+    /// `None` for paths that are not regular files (skip them).
+    pub executable: Option<bool>,
+    pub tracked: bool,
 }
 
 #[allow(unused_variables)]

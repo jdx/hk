@@ -166,3 +166,13 @@ HK
     run hk util check-shebang-scripts-are-executable scripts/other.sh
     assert_failure
 }
+
+@test "util check-shebang-scripts-are-executable - untracked files are told to chmod and add, not update-index alone" {
+    printf '#!/bin/bash\necho hello\n' > script.sh
+    chmod 644 script.sh
+
+    run hk util check-shebang-scripts-are-executable script.sh
+    assert_failure
+    assert_output --partial "untracked files: run \`chmod +x <file>\`"
+    refute_output --partial "  - tracked files"
+}

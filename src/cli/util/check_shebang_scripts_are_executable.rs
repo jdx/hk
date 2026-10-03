@@ -15,9 +15,16 @@ impl CheckShebangScriptsAreExecutable {
     pub async fn run(&self) -> Result<()> {
         let mut found_issues = false;
 
+        let mut any_tracked = false;
+        let mut any_untracked = false;
         let flags = executable_flags(&self.files)?;
-        for (file_path, executable) in self.files.iter().zip(flags) {
-            if executable == Some(false) && has_shebang(file_path)? {
+        for (file_path, flag) in self.files.iter().zip(flags) {
+            if flag.executable == Some(false) && has_shebang(file_path)? {
+                if flag.tracked {
+                    any_tracked = true;
+                } else {
+                    any_untracked = true;
+                }
                 println!(
                     "{}: has a shebang but is not marked executable",
                     file_path.display()
@@ -28,10 +35,17 @@ impl CheckShebangScriptsAreExecutable {
 
         if found_issues {
             println!();
-            println!("If it is supposed to be executable, run `chmod +x <file>`");
-            println!(
-                "and `git update-index --chmod=+x <file>` (git records the mode, not the filesystem)."
-            );
+            println!("If it is supposed to be executable:");
+            if any_tracked {
+                println!(
+                    "  - tracked files: run `git update-index --chmod=+x <file>` (git records the mode, not the filesystem)"
+                );
+            }
+            if any_untracked {
+                println!(
+                    "  - untracked files: run `chmod +x <file>`, then `git add <file>` (or `git add` first, then `git update-index --chmod=+x <file>`)"
+                );
+            }
             println!("If not, remove the shebang.");
             return Err(eyre::eyre!("Non-executable files with shebangs found"));
         }

@@ -16,8 +16,8 @@ impl CheckExecutablesHaveShebangs {
         let mut found_issues = false;
 
         let flags = executable_flags(&self.files)?;
-        for (file_path, executable) in self.files.iter().zip(flags) {
-            if executable == Some(true) && !has_shebang(file_path)? {
+        for (file_path, flag) in self.files.iter().zip(flags) {
+            if flag.executable == Some(true) && !has_shebang(file_path)? {
                 println!("{}", file_path.display());
                 found_issues = true;
             }
