@@ -426,3 +426,47 @@ EOF
         reset_repo
     done
 }
+
+# With nothing else unstaged, the stash is limited to the files a step runs on.
+# A file reverted to HEAD has no HEAD-to-worktree diff for that, so steps used
+# to run on the reverted contents and stage them over the staged edit.
+@test "a fix step keeps a staged edit when the worktree copy was reverted to HEAD" {
+    unset HK_STASH_UNTRACKED
+    for fixer in "true" "sed -i s/l1/L1/ f.txt"; do
+        cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps { ["fixer"] { glob = "f.txt"; fix = "$fixer" } }
+  }
+}
+EOF
+        git add hk.pkl
+        printf 'l1\nl2\nl3\n' > f.txt
+        git add f.txt
+        git commit -qm "base $fixer"
+        for libgit2 in 1 0; do
+            printf 'l1\nl2\nl3\nstaged\n' > f.txt
+            git add f.txt
+            printf 'l1\nl2\nl3\n' > f.txt
+
+            HK_LIBGIT2=$libgit2 run hk run pre-commit
+            assert_success
+            if [ "$fixer" = true ]; then
+                index=$'l1\nl2\nl3\nstaged'
+                worktree=$'l1\nl2\nl3'
+            else
+                # The fixer ran on the staged contents, and the reverted
+                # worktree keeps its own state plus the fixer's change
+                index=$'L1\nl2\nl3\nstaged'
+                worktree=$'L1\nl2\nl3'
+            fi
+            assert_equal "$(git show :f.txt)" "$index"
+            assert_equal "$(cat f.txt)" "$worktree"
+            assert_equal "$(git stash list)" ""
+            reset_repo
+        done
+    done
+}

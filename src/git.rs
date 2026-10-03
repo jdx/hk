@@ -620,6 +620,89 @@ impl StashedChanges {
     }
 }
 
+/// What to write to the worktree when the stash is restored over a step's
+/// result, and whether the stashed worktree differed from the index only in
+/// its final newline.
+///
+/// `base` is the file in HEAD (empty when it was not there), `index` the
+/// staged contents when the stash was made, `work` the stashed worktree
+/// contents and `fixer` what the steps left. Every input is text; a path
+/// without a text input has `None`.
+fn resolve_restore_text(
+    base: &str,
+    index: Option<&str>,
+    work: Option<&str>,
+    fixer: Option<&str>,
+) -> (String, bool) {
+    // Merge relative to the INDEX snapshot at stash time when available.
+    // This ensures that fixer changes applied to staged content are preserved,
+    // while unstaged changes (worktree-only diffs relative to index) are kept.
+    let base_for_merge = index.unwrap_or(base);
+    let mut merged = merge::three_way_merge_hunks(base_for_merge, fixer, work);
+
+    // Special-case: if the only worktree difference relative to the index snapshot
+    // is a pure tail insertion, prefer the fixer result and append the tail.
+    if let (Some(f), Some(w), Some(i)) = (fixer, work, index) {
+        // Try strict prefix first
+        let mut tail_opt = w.strip_prefix(i);
+        // If that fails, allow a single trailing newline discrepancy, but only
+        // when the worktree is exactly the index minus its trailing newline.
+        // A non-empty remainder here means the LAST LINE was edited (e.g.
+        // i="…l3\n", w="…l3 edited\n"), which is not a pure tail insertion;
+        // treating it as one would split the edit onto a new line. Leave those
+        // to the regular three-way merge instead.
+        if tail_opt.is_none() && i.ends_with('\n') {
+            tail_opt = w
+                .strip_prefix(&i[..i.len().saturating_sub(1)])
+                .filter(|tail| tail.is_empty());
+        }
+        if let Some(tail) = tail_opt {
+            // If w == i (no tail), tail is empty; otherwise append tail to fixer
+            let mut combined = f.to_string();
+            if !tail.is_empty() {
+                combined.push_str(tail);
+            }
+            merged = combined;
+        }
+    }
+
+    // Preserve newline-only difference between worktree and index from stash time
+    // Compare the worktree snapshot against the INDEX snapshot from stash time
+    let newline_only_change = match (work, index) {
+        (Some(w), Some(i)) => {
+            let case1 = w.len() + 1 == i.len() && i.ends_with('\n') && &i[..i.len() - 1] == w;
+            let case2 = i.len() + 1 == w.len() && w.ends_with('\n') && &w[..w.len() - 1] == i;
+            case1 || case2
+        }
+        _ => false,
+    };
+    // Preserve EOF newline-only differences without discarding fixer changes.
+    if newline_only_change && let (Some(w), Some(i)) = (work, index) {
+        let w_has_nl = w.ends_with('\n');
+        let i_has_nl = i.ends_with('\n');
+        if w_has_nl && !i_has_nl {
+            if !merged.ends_with('\n') {
+                merged.push('\n');
+            }
+        } else if !w_has_nl && i_has_nl {
+            while merged.ends_with('\n') {
+                merged.pop();
+            }
+        }
+    }
+
+    // If there were no unstaged changes at stash time for this path
+    // (worktree identical to index), prefer writing the fixer result to the worktree
+    // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
+    if !newline_only_change
+        && let (Some(wc), Some(ic), Some(fc)) = (work, index, fixer)
+        && wc == ic
+    {
+        merged = fc.to_string();
+    }
+    (merged, newline_only_change)
+}
+
 /// Reads a regular-file blob in checkout form, applying the path's attributes
 /// and Git filters (including line endings and working-tree encoding). Merge
 /// inputs must use the same representation as snapshots read from disk.
@@ -1585,7 +1668,9 @@ impl Git {
                 .status()
                 .wrap_err("failed to check whether stash pathspec has changes")?;
             match diff_status.code() {
-                Some(0) => return Ok(None),
+                // Nothing differs from HEAD, but a path may still hold a staged
+                // edit that the worktree reverted
+                Some(0) => return self.stash_reverted_paths(ts),
                 Some(1) => {}
                 code => {
                     return Err(eyre!(
@@ -1682,6 +1767,120 @@ impl Git {
     }
 
     // removed: push_stash_keep_index_no_untracked helper
+
+    /// Stashes the tracked `paths` that have a staged edit and whose worktree
+    /// copy was reverted to HEAD, so `git stash push -- <paths>` has no
+    /// HEAD-to-worktree diff to work from and would reset the index. Without
+    /// a stash, steps would see the reverted contents rather than the staged
+    /// ones, and staging their output would replace the staged edit.
+    ///
+    /// Builds the stash entry that `git stash push --keep-index` would have
+    /// made, then checks the staged contents out so the worktree equals the
+    /// index while steps run. Returns `None` when no staged contents differ
+    /// from HEAD, like a mode-only change.
+    fn stash_reverted_paths(&mut self, paths: &[PathBuf]) -> Result<Option<StashType>> {
+        let mut args: Vec<OsString> = [
+            "diff",
+            "--cached",
+            "--raw",
+            "-z",
+            "--no-abbrev",
+            "--no-renames",
+            "--no-ext-diff",
+            "--ignore-submodules",
+            "HEAD",
+            "--",
+        ]
+        .into_iter()
+        .map(OsString::from)
+        .collect();
+        args.extend(paths.iter().map(|p| {
+            let mut spec = OsString::from(":(literal)");
+            spec.push(p.as_os_str());
+            spec
+        }));
+        // `:<old mode> <new mode> <old oid> <new oid> <status> NUL <path> NUL`
+        let raw = git_read_bytes(args).wrap_err("failed to list staged edits")?;
+        let mut fields = raw.split(|&b| b == 0).filter(|f| !f.is_empty());
+        let mut reverted: Vec<PathBuf> = vec![];
+        while let (Some(meta), Some(name)) = (fields.next(), fields.next()) {
+            let meta = String::from_utf8_lossy(meta);
+            let meta: Vec<&str> = meta.split(' ').collect();
+            // A mode-only change has the same contents in the worktree
+            if let [_, new_mode, old_oid, new_oid, ..] = meta.as_slice()
+                && old_oid != new_oid
+                && *new_mode != "160000"
+            {
+                reverted.push(path_from_raw(name));
+            }
+        }
+        if reverted.is_empty() {
+            return Ok(None);
+        }
+
+        let tmp = tempfile::tempdir()?;
+        let tmp_index = tmp.path().join("index");
+        let index_tree = git_read(["write-tree"])?.trim().to_string();
+        git_cmd(["read-tree", &index_tree])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .run()
+            .wrap_err("failed to read the index")?;
+        let mut stdin = Vec::new();
+        for p in &reverted {
+            stdin.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            stdin.push(0);
+        }
+        // Record the worktree contents, which `git add` would clean
+        git_cmd(["update-index", "--add", "-z", "--stdin"])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .stdin_bytes(stdin)
+            .run()
+            .wrap_err("failed to read the reverted files")?;
+        let worktree_tree = git_cmd(["write-tree"])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .read()?
+            .trim()
+            .to_string();
+        let index_commit = git_read(["commit-tree", &index_tree, "-p", "HEAD", "-m", "index"])?
+            .trim()
+            .to_string();
+        let commit = git_read([
+            "commit-tree",
+            &worktree_tree,
+            "-p",
+            "HEAD",
+            "-p",
+            &index_commit,
+            "-m",
+            "hk",
+        ])?
+        .trim()
+        .to_string();
+        git_cmd(["stash", "store", "-m", "hk", &commit])
+            .run()
+            .wrap_err("failed to stash reverted files")?;
+        self.stash_commit = Some(commit.clone());
+        self.save_stash_patch(&commit);
+        // The worktree now equals the index, as `--keep-index` leaves it
+        if let Err(err) = git_cmd(["checkout-index", "--force", "-z", "--stdin"])
+            .stdin_bytes(
+                reverted
+                    .iter()
+                    .flat_map(|p| p.as_os_str().as_encoded_bytes().iter().copied().chain([0]))
+                    .collect::<Vec<u8>>(),
+            )
+            .run()
+        {
+            // The files are untouched, so the entry has nothing to restore
+            if let Some(stash_ref) = find_stash_ref(&commit) {
+                let _ = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run();
+            }
+            self.stash_commit = None;
+            return Err(err).wrap_err("failed to check out the staged contents");
+        }
+        debug!("stashed reverted files {reverted:?} in {commit}");
+        Ok(Some(StashType::Git))
+    }
 
     /// Sets aside the contents of the intent-to-add files `paths`: stores them
     /// in a stash entry of untracked files, removes their entries from the
@@ -2380,113 +2579,16 @@ impl Git {
                     let has_fixer = fixer.is_some();
                     let has_work = work_pre.is_some();
                     // Merge relative to the INDEX snapshot at stash time when available.
-                    // This ensures that fixer changes applied to staged content are preserved,
-                    // while unstaged changes (worktree-only diffs relative to index) are kept.
-                    let base_for_merge = index_pre.as_deref().unwrap_or(base);
-                    let mut merged = merge::three_way_merge_hunks(
-                        base_for_merge,
-                        fixer.as_deref(),
+                    let (merged, newline_only_change) = resolve_restore_text(
+                        base,
+                        index_pre.as_deref(),
                         work_pre.as_deref(),
+                        fixer.as_deref(),
                     );
-
-                    // Special-case: if the only worktree difference relative to the index snapshot
-                    // is a pure tail insertion, prefer the fixer result and append the tail.
-                    if let (Some(f), Some(w), Some(i)) =
-                        (fixer.as_deref(), work_pre.as_deref(), index_pre.as_deref())
-                    {
-                        // Try strict prefix first
-                        let mut tail_opt = w.strip_prefix(i);
-                        // If that fails, allow a single trailing newline discrepancy, but only
-                        // when the worktree is exactly the index minus its trailing newline.
-                        // A non-empty remainder here means the LAST LINE was edited (e.g.
-                        // i="…l3\n", w="…l3 edited\n"), which is not a pure tail insertion;
-                        // treating it as one would split the edit onto a new line. Leave those
-                        // to the regular three-way merge instead.
-                        if tail_opt.is_none() && i.ends_with('\n') {
-                            tail_opt = w
-                                .strip_prefix(&i[..i.len().saturating_sub(1)])
-                                .filter(|tail| tail.is_empty());
-                        }
-                        if let Some(tail) = tail_opt {
-                            // If w == i (no tail), tail is empty; otherwise append tail to fixer
-                            let mut combined = f.to_string();
-                            if !tail.is_empty() {
-                                combined.push_str(tail);
-                            }
-                            merged = combined;
-                        }
-                    }
-
-                    // Preserve newline-only difference between worktree and index from stash time
-                    // Compare the worktree snapshot against the INDEX snapshot from stash time
-                    let newline_only_change = match (work_pre.as_deref(), index_pre.as_deref()) {
-                        (Some(w), Some(i)) => {
-                            let case1 = w.len() + 1 == i.len()
-                                && i.ends_with('\n')
-                                && &i[..i.len() - 1] == w;
-                            let case2 = i.len() + 1 == w.len()
-                                && w.ends_with('\n')
-                                && &w[..w.len() - 1] == i;
-                            if case1 || case2 {
-                                debug!(
-                                    "manual-unstash: newline-only change detected path={} w_len={} i_len={} case1={} case2={}",
-                                    display_path(&path),
-                                    w.len(),
-                                    i.len(),
-                                    case1,
-                                    case2
-                                );
-                            } else {
-                                debug!(
-                                    "manual-unstash: newline-only change NOT detected path={} w_len={} i_len={} ends_w={} ends_i={} equal_trim_w={} equal_trim_i={}",
-                                    display_path(&path),
-                                    w.len(),
-                                    i.len(),
-                                    w.ends_with('\n'),
-                                    i.ends_with('\n'),
-                                    if w.ends_with('\n') {
-                                        &w[..w.len() - 1] == i
-                                    } else {
-                                        false
-                                    },
-                                    if i.ends_with('\n') {
-                                        &i[..i.len() - 1] == w
-                                    } else {
-                                        false
-                                    }
-                                );
-                            }
-                            case1 || case2
-                        }
-                        _ => false,
-                    };
-                    // Preserve EOF newline-only differences without discarding fixer changes.
-                    if newline_only_change
-                        && let (Some(w), Some(i)) = (work_pre.as_deref(), index_pre.as_deref())
-                    {
-                        let w_has_nl = w.ends_with('\n');
-                        let i_has_nl = i.ends_with('\n');
-                        if w_has_nl && !i_has_nl {
-                            if !merged.ends_with('\n') {
-                                merged.push('\n');
-                            }
-                        } else if !w_has_nl && i_has_nl {
-                            while merged.ends_with('\n') {
-                                merged.pop();
-                            }
-                        }
-                    }
-
-                    // If there were no unstaged changes at stash time for this path
-                    // (worktree identical to index), prefer writing the fixer result to the worktree
-                    // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
-                    if !newline_only_change
-                        && let (Some(wc), Some(ic), Some(fc)) =
-                            (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
-                        && wc == ic
-                    {
-                        merged = fc.clone();
-                    }
+                    debug!(
+                        "manual-unstash: path={} newline_only_change={newline_only_change}",
+                        display_path(&path)
+                    );
 
                     // Determine which side the merged result matches
                     let mut chosen = "mixed";
@@ -3699,5 +3801,118 @@ mod tests {
         assert!(!under("d.txt/inner"));
         assert!(!under("e/f/g"));
         assert!(!under("c"));
+    }
+
+    #[test]
+    fn resolve_restore_text_rules() {
+        // (name, base, index, work, fixer, merged, newline_only)
+        #[allow(clippy::type_complexity)]
+        let cases: &[(
+            &str,
+            &str,
+            Option<&str>,
+            Option<&str>,
+            Option<&str>,
+            &str,
+            bool,
+        )] = &[
+            (
+                "tail insertion keeps the fixer result and appends the tail",
+                "a\nb\n",
+                Some("a\nb\n"),
+                Some("a\nb\nc\n"),
+                Some("A\nb\n"),
+                "A\nb\nc\n",
+                false,
+            ),
+            (
+                "a last line edit is merged, not appended",
+                "l1\nl2\nl3\n",
+                Some("l1\nl2\nl3\n"),
+                Some("l1\nl2\nl3 edited\n"),
+                Some("L1\nl2\nl3\n"),
+                "L1\nl2\nl3 edited\n",
+                false,
+            ),
+            (
+                "a removed final newline is kept on the fixer result",
+                "a\nb\n",
+                Some("a\nb\n"),
+                Some("a\nb"),
+                Some("A\nb\n"),
+                "A\nb",
+                true,
+            ),
+            (
+                "an added final newline is kept on the fixer result",
+                "a\nb",
+                Some("a\nb"),
+                Some("a\nb\n"),
+                Some("A\nb"),
+                "A\nb\n",
+                true,
+            ),
+            (
+                "an unchanged worktree takes the fixer result",
+                "a\n",
+                Some("a\n"),
+                Some("a\n"),
+                Some("A\n"),
+                "A\n",
+                false,
+            ),
+            (
+                "without an index, a worktree equal to HEAD takes the fixer result",
+                "a\n",
+                None,
+                Some("a\n"),
+                Some("A\n"),
+                "A\n",
+                false,
+            ),
+            (
+                "the worktree wins when both change the same line",
+                "a\nb\n",
+                Some("a\nb\n"),
+                Some("a\nW\n"),
+                Some("a\nF\n"),
+                "a\nW\n",
+                false,
+            ),
+            (
+                "without an index, the worktree wins over the fixer",
+                "a\n",
+                None,
+                Some("x\n"),
+                Some("y\n"),
+                "x\n",
+                false,
+            ),
+            (
+                "without a fixer, the stashed worktree is restored",
+                "a\n",
+                Some("b\n"),
+                Some("b\nc\n"),
+                None,
+                "b\nc\n",
+                false,
+            ),
+            (
+                "without a fixer or a worktree, the base remains",
+                "a\n",
+                None,
+                None,
+                None,
+                "a\n",
+                false,
+            ),
+        ];
+        for (name, base, index, work, fixer, merged, newline_only) in cases {
+            assert_eq!(
+                resolve_restore_text(base, *index, *work, *fixer),
+                (merged.to_string(), *newline_only),
+                "{name}"
+            );
+        }
     }
 }
