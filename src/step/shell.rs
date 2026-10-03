@@ -8,18 +8,61 @@ use shell_quote::{QuoteInto, QuoteRefExt};
 
 /// Split a step's `shell` setting into the program and its arguments.
 ///
-/// Words are separated by whitespace. A value that contains a quote is split
-/// the way a POSIX shell would, so a program path with a space can be quoted:
-/// `"C:\Program Files\Git\usr\bin\sh.exe" -o errexit -c`. A value without
-/// quotes is split on whitespace alone, which keeps the backslashes of an
-/// unquoted Windows path.
+/// Words are separated by whitespace. A value that contains a quote groups
+/// words so a program path with a space can be quoted. On Windows backslashes
+/// are ordinary characters, so `C:\tools\bash.exe --rcfile "C:/My Scripts/rc" -c`
+/// keeps its path; elsewhere the value is split the way a POSIX shell would.
 pub(crate) fn split_shell(shell: &str) -> Vec<String> {
+    split_shell_for(shell, cfg!(windows))
+}
+
+fn split_shell_for(shell: &str, windows: bool) -> Vec<String> {
     let whitespace = || shell.split_whitespace().map(str::to_string).collect();
-    if shell.contains(['"', '\'']) {
-        shell_words::split(shell).unwrap_or_else(|_| whitespace())
-    } else {
-        whitespace()
+    if !shell.contains(['"', '\'']) {
+        return whitespace();
     }
+    let words = if windows {
+        split_quotes_only(shell)
+    } else {
+        shell_words::split(shell).ok()
+    };
+    words.unwrap_or_else(whitespace)
+}
+
+/// Split on whitespace outside quotes, dropping the quotes and keeping every
+/// other character, backslashes included. `None` when a quote is left open.
+fn split_quotes_only(shell: &str) -> Option<Vec<String>> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut in_word = false;
+    let mut quote: Option<char> = None;
+    for c in shell.chars() {
+        match quote {
+            Some(q) if c == q => quote = None,
+            Some(_) => word.push(c),
+            None if c == '"' || c == '\'' => {
+                quote = Some(c);
+                in_word = true;
+            }
+            None if c.is_whitespace() => {
+                if in_word {
+                    words.push(std::mem::take(&mut word));
+                    in_word = false;
+                }
+            }
+            None => {
+                word.push(c);
+                in_word = true;
+            }
+        }
+    }
+    if quote.is_some() {
+        return None;
+    }
+    if in_word {
+        words.push(word);
+    }
+    Some(words)
 }
 
 /// The type of shell used to execute step commands.
@@ -123,6 +166,14 @@ impl ShellType {
 mod tests {
     use super::*;
 
+    fn windows(shell: &str) -> Vec<String> {
+        split_shell_for(shell, true)
+    }
+
+    fn posix(shell: &str) -> Vec<String> {
+        split_shell_for(shell, false)
+    }
+
     #[test]
     fn cmd_quote_expands_percent_through_variable() {
         assert_eq!(
@@ -164,25 +215,19 @@ mod tests {
 
     #[test]
     fn splits_on_whitespace() {
-        assert_eq!(
-            split_shell("bash -o errexit -c"),
-            ["bash", "-o", "errexit", "-c"]
-        );
-        assert!(split_shell("   ").is_empty());
+        assert_eq!(posix("bash -o errexit -c"), ["bash", "-o", "errexit", "-c"]);
+        assert!(posix("   ").is_empty());
     }
 
     #[test]
     fn keeps_the_backslashes_of_an_unquoted_windows_path() {
-        assert_eq!(
-            split_shell(r"C:\tools\sh.exe -c"),
-            [r"C:\tools\sh.exe", "-c"]
-        );
+        assert_eq!(posix(r"C:\tools\sh.exe -c"), [r"C:\tools\sh.exe", "-c"]);
     }
 
     #[test]
     fn honors_quotes_around_a_path_with_spaces() {
         assert_eq!(
-            split_shell(r#""C:\Program Files\Git\usr\bin\sh.exe" -o errexit -c"#),
+            posix(r#""C:\Program Files\Git\usr\bin\sh.exe" -o errexit -c"#),
             [
                 r"C:\Program Files\Git\usr\bin\sh.exe",
                 "-o",
@@ -191,13 +236,63 @@ mod tests {
             ]
         );
         assert_eq!(
-            split_shell(r"'C:\Program Files\Git\bin\sh.exe' -c"),
+            posix(r"'C:\Program Files\Git\bin\sh.exe' -c"),
             [r"C:\Program Files\Git\bin\sh.exe", "-c"]
         );
     }
 
     #[test]
     fn falls_back_to_whitespace_when_a_quote_is_unbalanced() {
-        assert_eq!(split_shell(r#"sh "-c"#), ["sh", r#""-c"#]);
+        assert_eq!(posix(r#"sh "-c"#), ["sh", r#""-c"#]);
+    }
+
+    #[test]
+    fn windows_keeps_backslashes_when_an_argument_is_quoted() {
+        assert_eq!(
+            windows(r#"C:\tools\bash.exe --rcfile "C:/My Scripts/bashrc" -c"#),
+            [
+                r"C:\tools\bash.exe",
+                "--rcfile",
+                "C:/My Scripts/bashrc",
+                "-c"
+            ]
+        );
+    }
+
+    #[test]
+    fn windows_groups_a_quoted_path_with_spaces() {
+        assert_eq!(
+            windows(r#""C:\Program Files\Git\usr\bin\sh.exe" -o errexit -c"#),
+            [
+                r"C:\Program Files\Git\usr\bin\sh.exe",
+                "-o",
+                "errexit",
+                "-c"
+            ]
+        );
+        assert_eq!(
+            windows(r"'C:\Program Files\Git\bin\sh.exe' -c"),
+            [r"C:\Program Files\Git\bin\sh.exe", "-c"]
+        );
+    }
+
+    #[test]
+    fn windows_ends_a_quoted_path_at_a_trailing_backslash() {
+        assert_eq!(windows(r#""C:\dir\" -c"#), [r"C:\dir\", "-c"]);
+    }
+
+    #[test]
+    fn windows_keeps_a_posix_style_value() {
+        assert_eq!(
+            windows("bash -o errexit -c"),
+            ["bash", "-o", "errexit", "-c"]
+        );
+        assert_eq!(windows(r#"sh -c "set -e""#), ["sh", "-c", "set -e"]);
+        assert_eq!(windows(r#"sh "-c"#), ["sh", r#""-c"#]);
+    }
+
+    #[test]
+    fn posix_still_processes_escapes() {
+        assert_eq!(posix(r#"sh -c "a\"b""#), ["sh", "-c", "a\"b"]);
     }
 }

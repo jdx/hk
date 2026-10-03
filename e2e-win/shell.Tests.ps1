@@ -80,6 +80,17 @@ $script
         (Get-Content "ran.txt" -Raw).Trim() | Should -Be 'quoted shell ok'
     }
 
+    It 'keeps the backslashes of an unquoted shell path when an argument is quoted' {
+        # A quote must not make hk parse the whole value with POSIX rules, which
+        # would eat the backslashes of the program path.
+        $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        & $script:WriteShellConfig "$ps -NoProfile -ExecutionPolicy `"Bypass`" -Command" 'Set-Content -Path ran.txt -Value shellok'
+
+        $output = hk check --all 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
+        (Get-Content "ran.txt" -Raw).Trim() | Should -Be 'shellok'
+    }
+
     It 'runs a POSIX script with substitutions and loops' {
         if (-not $script:gitSh) { Set-ItResult -Skipped -Because 'Git for Windows sh not found'; return }
         $posix = @'

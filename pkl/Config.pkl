@@ -799,8 +799,8 @@ open class Step {
 
   /// If set, use this shell instead of the default `sh -o errexit -c`.
   ///
-  /// The value is split on whitespace. If it contains quotes, it is split the way a POSIX
-  /// shell would, so a program path with spaces can be quoted. On Windows the default is
+  /// The value is split on whitespace. If it contains quotes, the quoted words are grouped,
+  /// so a program path with spaces can be quoted (POSIX rules; on Windows backslashes stay literal). On Windows the default is
   /// `cmd.exe`, so a step written as a POSIX script, such as the `jq` builtin, needs
   /// `shell = "sh -o errexit -c"` or the full path to a POSIX `sh`.
   ///
