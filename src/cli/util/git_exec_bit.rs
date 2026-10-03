@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Whether the worktree filesystem's executable bit is trusted (`core.fileMode`).
-fn file_mode_enabled() -> bool {
+pub fn file_mode_enabled() -> bool {
     let out = Command::new("git")
         .args(["config", "--type=bool", "core.fileMode"])
         .output();

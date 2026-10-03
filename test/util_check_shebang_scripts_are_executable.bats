@@ -176,3 +176,13 @@ HK
     assert_output --partial "untracked files: run \`chmod +x <file>\`"
     refute_output --partial "  - tracked files"
 }
+
+@test "util check-shebang-scripts-are-executable - untracked hint leads with git add + update-index when core.fileMode=false" {
+    printf '#!/bin/bash\necho hello\n' > script.sh
+    git config core.fileMode false
+
+    run hk util check-shebang-scripts-are-executable script.sh
+    assert_failure
+    assert_output --partial "untracked files: run \`git add <file>\`, then \`git update-index --chmod=+x <file>\`"
+    refute_output --partial "run \`chmod +x"
+}

@@ -1,4 +1,4 @@
-use super::git_exec_bit::executable_flags;
+use super::git_exec_bit::{executable_flags, file_mode_enabled};
 use crate::Result;
 use std::fs;
 use std::path::PathBuf;
@@ -42,9 +42,16 @@ impl CheckShebangScriptsAreExecutable {
                 );
             }
             if any_untracked {
-                println!(
-                    "  - untracked files: run `chmod +x <file>`, then `git add <file>` (or `git add` first, then `git update-index --chmod=+x <file>`)"
-                );
+                if cfg!(unix) && file_mode_enabled() {
+                    println!(
+                        "  - untracked files: run `chmod +x <file>`, then `git add <file>` (or `git add` first, then `git update-index --chmod=+x <file>`)"
+                    );
+                } else {
+                    // The filesystem bit is not honored here, so git may still record 100644.
+                    println!(
+                        "  - untracked files: run `git add <file>`, then `git update-index --chmod=+x <file>`"
+                    );
+                }
             }
             println!("If not, remove the shebang.");
             return Err(eyre::eyre!("Non-executable files with shebangs found"));
