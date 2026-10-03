@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: 4b073aa60724
+sourceHash: db1c80d69213
 ---
 
 # Configuration, the ship's charts
@@ -246,7 +246,7 @@ If the formatter fails on any file, no patch is printed and hk runs `fix`, which
 
 ### What the lookouts sang out: diagnostics {#diagnostics}
 
-`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a hand's `check` command, and it can't guess a tool's output format. A hand reports diagnostics only when it sets `diagnostic_format`. Without it the hand still runs, fails, and keeps its raw `output` in the results (unless `output_summary = "hide"`), but its `diagnostics` list and its SARIF results are empty. In `--format jsonl` output, the findings are in the final `run_completed` result; each `step_completed` event carries an empty `diagnostics` array.
+`hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a hand's `check` command, and it can't guess a tool's output format. A hand reports diagnostics only when it sets `diagnostic_format`. Without it the hand still runs, fails, and can carry its raw text in the result's `output` field (separate from `diagnostics`; `output_summary` and other step settings decide when it is present), but its `diagnostics` list and its SARIF results are empty. In `--format jsonl` output, the findings are in the final `run_completed` result; each `step_completed` event carries an empty `diagnostics` array.
 
 The standing crew are no different. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Most builtins don't set it (check a builtin's definition in `pkl/builtins`), so an unchanged builtin hand sings out no diagnostics even when it fails. To get diagnostics from one of those, set `diagnostic_format` on yer own hand, and add the tool's flag for a supported format to its `check` command if ye accept the output changing.
 
@@ -257,7 +257,7 @@ The standing crew are no different. A builtin sets `diagnostic_format` only when
 | `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                        |
 | `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                 |
 
-hk parses the combined stdout and stderr of `check` runs. If a hand captured no `check` output, structured results fall back to the hand's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. The raw output stays in the hand's `output` as `output_summary` allows; with `output_summary = "hide"` and no `diagnostic_format`, none is kept. Output that can't be parsed usually becomes an entry in the hand's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, and the `cargo-json` parser skips valid JSON events that aren't `compiler-message`. This hand reports each line of the compiler's `path:line:column: message` output as a diagnostic:
+hk parses the combined stdout and stderr of `check` runs. If a hand captured no `check` output, structured results fall back to the hand's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Raw text is reported in the separate `output` field, and `output_summary` and other step settings decide when it is present. Output that can't be parsed usually becomes an entry in the hand's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, and the `cargo-json` parser skips valid JSON events that aren't `compiler-message`. This hand reports each line of the compiler's `path:line:column: message` output as a diagnostic:
 
 ```pkl
 ["compiler"] {
