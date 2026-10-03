@@ -85,8 +85,8 @@ impl Step {
         }
         let diff_content = normalize_diff_paths(stdout);
 
-        // Resolve against wherever `git apply` will run, so absolute paths
-        // reported by the check command become paths git will accept.
+        // Resolve against the directory the patch applies in, so absolute paths
+        // reported by the check command become paths relative to it.
         let base = PathBuf::from(dir.unwrap_or("."));
         let base = base.canonicalize().unwrap_or(base);
         let diff_content = relativize_diff_paths(&diff_content, &base);
