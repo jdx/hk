@@ -60,10 +60,13 @@ hooks {
 "@
             Set-Content -Path "hk.pkl" -Value $config -Encoding ascii
 
+            $env:HK_LOG = "debug"
             $output = hk check --all 2>&1 | Out-String
-            $LASTEXITCODE | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
+            $code = $LASTEXITCODE
+            Remove-Item Env:HK_LOG
+            $code | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
             $calls = @(Get-Content "calls.log" | ForEach-Object { [int]$_ })
-            $calls.Count | Should -BeGreaterThan 1
+            $calls.Count | Should -BeGreaterThan 1 -Because "the files should be split; calls: $($calls -join ','); output:`n$output"
             ($calls | Measure-Object -Sum).Sum | Should -Be 300
         } finally {
             $env:PATH = $originalPath
