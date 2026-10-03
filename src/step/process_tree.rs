@@ -9,12 +9,12 @@
 
 use tokio_util::sync::CancellationToken;
 
-/// Image names of hk's own helpers (`git`, and `mise env`) when they are direct children of hk. A
+/// Image names of hk's own helpers when they are direct children of hk. A
 /// step's `git` is a child of the step's shell, or of a tool, never of hk
 /// itself, so only these are spared: killing hk's own `git` halfway through an
 /// index update leaves a stale `index.lock` behind.
 #[cfg_attr(not(windows), allow(dead_code))]
-const HELPERS: &[&str] = &["git.exe", "mise.exe"];
+const HELPERS: &[&str] = &["git.exe"];
 
 /// How many times to look again for processes started while the first ones
 /// were being ended.
@@ -374,16 +374,17 @@ mod tests {
     }
 
     #[test]
-    fn rescans_spare_hks_own_mise_and_git_helpers() {
+    fn rescans_spare_hks_git_but_end_a_step_run_through_mise() {
         let known = [p(2, 1, 20, "cmd.exe")];
         let procs = [
             p(1, 0, 10, "hk.exe"),
             p(2, 1, 20, "cmd.exe"),
+            // `mise exec -- node ...` as a step's argv runs directly under hk.
             p(8, 1, 80, "mise.exe"),
             p(9, 1, 85, "git.exe"),
-            p(10, 1, 90, "cmd.exe"),
+            p(10, 8, 90, "node.exe"),
         ];
-        assert_eq!(pids(&newcomers(&procs, &known, 1)), vec![10]);
+        assert_eq!(pids(&newcomers(&procs, &known, 1)), vec![8, 10]);
     }
 
     #[test]
