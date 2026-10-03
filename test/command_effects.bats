@@ -281,3 +281,164 @@ EOF
     # the write-effect fixer even though this successful run did not.
     assert_output "write"
 }
+
+@test "safe mode rejects a hook report with no declared effect" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = "rm -f a.txt"
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+
+    run hk check --all --safe
+    assert_failure
+    assert_output --partial "report: effect is unknown"
+    assert_file_exists a.txt
+    assert_file_not_exists known-ran
+}
+
+@test "safe mode rejects a destructive hook report" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = "rm -f a.txt"; effect = "destructive" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+
+    run hk check --all --safe
+    assert_failure
+    assert_output --partial "report: effect is destructive"
+    assert_file_exists a.txt
+    assert_file_not_exists known-ran
+}
+
+@test "safe mode runs a hook report that declares a read effect" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = "echo \"\$HK_REPORT_JSON\" > report-ran"; effect = "read" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+
+    run hk check --all --safe
+    assert_success
+    assert_file_exists report-ran
+}
+
+@test "hook report accepts a structured argv command with an effect" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = new Command { argv = List("touch", "report-ran") }; effect = "write" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+
+    run hk check --all --safe
+    assert_success
+    assert_file_exists report-ran
+}
+
+@test "hook report rejects a structured argv command with no executable" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = new CommandSpec { command = new Command { argv = List() }; effect = "write" }
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+
+    run hk check --all --safe
+    assert_failure
+    assert_output --partial "report: structured argv command must contain an executable"
+    assert_file_not_exists known-ran
+}
+
+@test "plain string hook report still runs outside safe mode" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        report = "touch report-ran"
+        steps {
+            ["known"] {
+                check = new CommandSpec {
+                    command = "touch known-ran"
+                    effect = "read"
+                }
+            }
+        }
+    }
+}
+EOF2
+    touch input.txt a.txt
+    git add .
+    git commit -m init
+
+    run hk check --all
+    assert_success
+    assert_file_exists report-ran
+}

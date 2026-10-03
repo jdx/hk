@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: 0cce1d0c3acd
+sourceHash: 3858af749b42
 ---
 
 # Configuration, the ship's charts
@@ -92,6 +92,8 @@ hooks {
   }
 }
 ```
+
+hk picks `hk.local.pkl` instead of `hk.pkl` rather than merging the two, so a local file without `amends "./hk.pkl"` drops the shared charts entirely. hk hollers a warning when that happens; hush it with `HK_HIDE_WARNINGS=local-config-replaces-shared`.
 
 Add `hk.local.pkl` to `.git/info/exclude` or the project's `.gitignore`. This example keeps the inherited steps and signs on one more hand. Assign a new mapping when ye want to replace the hook's explicitly declared step list:
 

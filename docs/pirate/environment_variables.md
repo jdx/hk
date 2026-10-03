@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: 58ba1778db20
+sourceHash: a895c7ba2ea3
 ---
 
 # Standing orders (environment variables)
@@ -90,7 +90,7 @@ Lets the sailmakers mend the canvas when the hook calls for fix mode. Set it to 
 
 **Type:** comma-separated tags · **Unless ye say otherwise:** empty
 
-Hush named categories of warning, such as `missing-profiles`. The tags ye hush combine across configuration sources.
+Hush named categories of warning, such as `missing-profiles` or `local-config-replaces-shared`. The tags ye hush combine across configuration sources.
 
 ## `HK_HIDE_WHEN_DONE` {#hk-hide-when-done}
 
