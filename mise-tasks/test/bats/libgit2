@@ -5,11 +5,6 @@
 
 set -eu
 
-# --sort path keeps the test order, and so the test numbers, the same between
-# runs and retry attempts.
-tests=$(rg --files-with-matches --sort path --word-regexp git "${usage_test}" --glob "test/*.bats" || true | tr '\n' ' ')
-if [ "$tests" ]; then
-  # Cases tagged git-backend-independent do not touch hk's git backend, so
-  # test:bats:nolibgit2 already covers them (see test/builtins_tests.bats).
-  bats --jobs 16 --filter-tags '!git-backend-independent' $tests
-fi
+# Cases tagged git-backend-independent do not touch hk's git backend, so
+# test:bats:nolibgit2 already covers them (see test/builtins_tests.bats).
+exec "$(dirname "$0")/../../../scripts/run-bats" with-git --filter-tags '!git-backend-independent' "$@"

@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Shared implementation of the test:bats:{libgit2,nolibgit2,nogit} tasks.
+#
+#   scripts/run-bats <with-git|without-git> [--filter-tags TAGS] [PATH...]
+#
+# PATHs are .bats files or directories (default: test). The .bats files are
+# split between the tasks by whether they mention "git": with-git runs the files
+# that do, without-git the files that do not.
+#
+# Requirements: bats, ripgrep (rg) and GNU parallel (bats --jobs needs it).
+set -euo pipefail
+
+mode=${1:?usage: run-bats <with-git|without-git> [--filter-tags TAGS] [PATH...]}
+shift
+bats_args=()
+if [ "${1:-}" = "--filter-tags" ]; then
+  bats_args+=(--filter-tags "${2:?--filter-tags needs a value}")
+  shift 2
+fi
+paths=("$@")
+if [ ${#paths[@]} -eq 0 ]; then
+  paths=(test)
+fi
+
+for tool in bats rg parallel; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "error: $tool is required to run the bats tests but is not installed" >&2
+    echo "       (bats --jobs needs GNU parallel and silently runs 0 tests without it)" >&2
+    exit 1
+  fi
+done
+
+for path in "${paths[@]}"; do
+  if [ ! -e "$path" ]; then
+    echo "error: test path not found: $path" >&2
+    exit 1
+  fi
+done
+
+# rg exits 0 when it found files, 1 when it found none and 2 on an error
+# (unreadable path, bad glob). Only 1 is acceptable as "nothing selected".
+# --sort path keeps the test order, and so the test numbers, the same between
+# runs and retry attempts.
+rg_files() {
+  local status=0 out
+  out=$(rg "$@" --sort path --glob "test/*.bats" -- "${paths[@]}") || status=$?
+  if [ "$status" -ge 2 ]; then
+    echo "error: rg failed (exit $status) while selecting bats files" >&2
+    exit "$status"
+  fi
+  printf '%s' "$out"
+}
+
+# The requested paths have to contain at least one test/*.bats file, otherwise
+# a typo or a path outside test/ would select nothing and pass.
+if [ -z "$(rg_files --files)" ]; then
+  echo "error: no test/*.bats files found under: ${paths[*]}" >&2
+  exit 1
+fi
+
+if [ "$mode" = "with-git" ]; then
+  selected=$(rg_files --files-with-matches --word-regexp git)
+else
+  selected=$(rg_files --files-without-match --word-regexp git)
+fi
+
+if [ -z "$selected" ]; then
+  # Legitimate when only some tasks apply to the requested files, for example
+  # one file that mentions git is never run by the nogit task.
+  echo "note: no .bats files under ${paths[*]} belong to this task ($mode); nothing to run" >&2
+  exit 0
+fi
+
+files=()
+while IFS= read -r file; do
+  files+=("$file")
+done <<<"$selected"
+
+report=$(mktemp -d)
+trap 'rm -rf "$report"' EXIT
+
+# A TAP report on the side lets us check that tests really ran: bats exits
+# without error when --jobs executes none of its planned tests.
+bats --jobs 16 ${bats_args[@]+"${bats_args[@]}"} --report-formatter tap --output "$report" "${files[@]}"
+
+# Tests excluded by --filter-tags are not in the plan, so only count result lines.
+ran=$(grep -c -E '^(not )?ok ' "$report/report.tap" || true)
+if [ "$ran" -eq 0 ]; then
+  echo "error: bats ran 0 tests for: ${files[*]}" >&2
+  exit 1
+fi
+echo "bats: ran $ran tests ($mode)" >&2

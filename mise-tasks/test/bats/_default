@@ -3,6 +3,11 @@
 #MISE depends=["build", "test:bats:setup"]
 #USAGE arg "<test>..." default="test"
 
+# Runs the bats suite in the three git-backend modes. Needs bats, ripgrep (rg)
+# and GNU parallel on PATH; scripts/run-bats checks for them and fails when a
+# path matches no test or no test ran. Pass several files as separate arguments:
+#   mise run test:bats test/check.bats test/fix.bats
+
 set -eu
 
-mise run test:bats:libgit2 "${usage_test}" ::: test:bats:nolibgit2 "${usage_test}" ::: test:bats:nogit "${usage_test}"
+mise run test:bats:libgit2 "$@" ::: test:bats:nolibgit2 "$@" ::: test:bats:nogit "$@"
