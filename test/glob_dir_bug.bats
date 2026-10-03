@@ -120,3 +120,65 @@ EOF
     assert_output --partial "step1"
     assert_output --partial "step2"
 }
+
+@test "glob with a dir whose name contains brackets selects the dir's files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["test-step"] {
+                dir = "app[1]"
+                glob = List("*.txt")
+                check = "echo files {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p "app[1]" app1
+    echo a > "app[1]/a.txt"
+    echo b > "app[1]/b.md"
+    echo c > app1/c.txt
+    git add "app[1]/a.txt" "app[1]/b.md" app1/c.txt
+
+    run hk check
+    assert_success
+    # Only the txt file inside the bracketed directory: not b.md, not app1/c.txt
+    assert_output --partial "files a.txt"
+    refute_output --partial "b.md"
+    refute_output --partial "c.txt"
+}
+
+@test "exclude with a dir whose name contains braces excludes the matching files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["test-step"] {
+                dir = "{x,y}"
+                glob = List("*.txt")
+                exclude = List("skip.txt")
+                check = "echo files {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p "{x,y}"
+    echo a > "{x,y}/keep.txt"
+    echo b > "{x,y}/skip.txt"
+    git add "{x,y}/keep.txt" "{x,y}/skip.txt"
+
+    run hk check
+    assert_success
+    assert_output --partial "files keep.txt"
+    refute_output --partial "skip.txt"
+}

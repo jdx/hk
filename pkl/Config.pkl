@@ -306,7 +306,10 @@ class Hook {
   fail_on_fix: Boolean = false
 
   /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
-  report: (String | Script)?
+  ///
+  /// A plain string or `Script` has an unknown effect, so `--safe` refuses to run the hook.
+  /// Use a `CommandSpec` to declare the report's `effect` (`read`, `write`, or `destructive`).
+  report: (String | Script | Command | CommandSpec)?
 
   /// Steps are the individual linters that make up a hook.
   /// Steps can run concurrently, subject to dependencies, groups, and file locks, up to
@@ -1151,6 +1154,53 @@ class StepTestExpect {
 
   /// Expected files after run: path => full contents (exact match)
   files: Mapping<String, String> = new Mapping<String, String> {}
+
+  /// Normalized diagnostics that the output of a `check` test must contain.
+  ///
+  /// hk parses the test command's combined stdout and stderr with the step's `diagnostic_format`,
+  /// as a real check does for `--sarif` and `--format json`, and each entry here must match at
+  /// least one parsed diagnostic. The step must set `diagnostic_format`, and the test must use
+  /// `run = "check"`. Fields you leave out match anything.
+  ///
+  /// The test parses one invocation's output, so it fails with an explanation instead of passing
+  /// for two kinds of step it can't model: a check-first step (`check_failed_files` with
+  /// `check_diff` or `check_list_files`, whose real check also captures the file-reporting
+  /// command's output), and a `batch` or `workspace_indicator` step whose `diagnostic_format` is
+  /// `sarif` or `eslint-json` (a real check joins every job's output before parsing, so separate
+  /// documents would not parse).
+  ///
+  /// ```pkl
+  /// expect {
+  ///   code = 1
+  ///   diagnostics {
+  ///     new { path = "main.c"; line = 2; severity = "error" }
+  ///   }
+  /// }
+  /// ```
+  diagnostics: Listing<StepTestDiagnostic> = new Listing<StepTestDiagnostic> {}
+}
+
+class StepTestDiagnostic {
+  /// File path as the tool printed it; a leading `./` is ignored. If the tool printed an absolute
+  /// path, as tools do for the test's temporary sandbox, a relative path here matches when that
+  /// path lies inside the sandbox directory and the rest equals it. On Windows, backslash
+  /// separators and letter case are ignored; elsewhere neither is.
+  path: String?
+
+  /// Line where the diagnostic starts.
+  line: Int?
+
+  /// Column where the diagnostic starts.
+  column: Int?
+
+  /// "error", "warning", "note", or "help".
+  severity: ("error" | "warning" | "note" | "help")?
+
+  /// Rule or code the tool reported.
+  rule: String?
+
+  /// Substring that must appear in the diagnostic's message.
+  message: String?
 }
 
 class Group {
