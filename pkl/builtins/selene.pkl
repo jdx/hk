@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Lua"
   description = "Lua linter"
+  project_indicators {
+    new { file = "selene.toml" }
+  }
 }
 selene = new Config.Step {
   types = List("lua")

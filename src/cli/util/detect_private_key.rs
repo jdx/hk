@@ -30,10 +30,13 @@ impl DetectPrivateKey {
 }
 
 fn has_private_key(path: &PathBuf) -> Result<bool> {
-    let content = match fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return Ok(false), // File doesn't exist or can't be read as text
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(_) => return Ok(false), // File doesn't exist or can't be read
     };
+    // Decode lossily so a file with some non-UTF-8 bytes (a Latin-1 comment,
+    // binary data around a PEM block) is still scanned for key markers.
+    let content = String::from_utf8_lossy(&bytes);
 
     // Common private key patterns
     let key_patterns = [
@@ -199,6 +202,24 @@ def hello():
 
         let result = has_private_key(&file.path().to_path_buf()).unwrap();
         assert!(!result);
+    }
+
+    #[test]
+    fn test_key_in_file_with_non_utf8_bytes() {
+        let file = NamedTempFile::new().unwrap();
+        let mut bytes = b"# caf\xe9 \xff\xfe\n-----BEGIN RSA PRIVATE KEY-----\nMIIE\n".to_vec();
+        bytes.extend_from_slice(b"-----END RSA PRIVATE KEY-----\n");
+        fs::write(file.path(), bytes).unwrap();
+
+        assert!(has_private_key(&file.path().to_path_buf()).unwrap());
+    }
+
+    #[test]
+    fn test_non_utf8_file_without_key() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"\xff\xfe\x00binary").unwrap();
+
+        assert!(!has_private_key(&file.path().to_path_buf()).unwrap());
     }
 
     #[test]

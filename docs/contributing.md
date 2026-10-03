@@ -57,6 +57,8 @@ The build task generates the builtin registry before compiling hk. Development t
 | Lint including Clippy  | `hk check --all --slow`              |
 | Apply formatting fixes | `hk fix --all`                       |
 
+`mise run test:bats` accepts several files or directories (`mise run test:bats test/check.bats test/fix.bats`). It needs `bats`, ripgrep (`rg`) and GNU `parallel` on `PATH`, and it fails when a path does not exist, matches no `test/*.bats` file, or when no test runs.
+
 Run checks appropriate to the change. Integration tests use isolated temporary repositories and exercise Git backends. See the [test-suite guide](https://github.com/jdx/hk/blob/main/test/README.md) for fixtures and cache behavior.
 
 ## Add a builtin
@@ -67,7 +69,7 @@ Run checks appropriate to the change. Integration tests use isolated temporary r
 4. Regenerate and build with `mise run build`.
 5. Run `mise run test:bats test/builtins_tests.bats`, or use `hk test --step <name>` with a configuration that loads the builtin.
 
-Tests should verify meaningful behavior: a clean check, a failing check, and the expected result of a fix when supported. A builtin with `check_diff` also needs a diff test (`TestMaker.diffPass` or `diffFail`), which applies the patch `check_diff` prints and fails if `git apply` rejects it. Fix tests can't catch that, because they run `fix` directly, and `test/builtins_tests.bats` fails for a tested builtin without one. Avoid enabling batching or bypassing locks without confirming the tool’s behavior.
+Tests should verify meaningful behavior: a clean check, a failing check, and the expected result of a fix when supported. A builtin with `check_diff` also needs a diff test (`TestMaker.diffPass` or `diffFail`), which applies the patch `check_diff` prints the way `hk fix` does and fails if hk cannot apply it. Fix tests can't catch that, because they run `fix` directly, and `test/builtins_tests.bats` fails for a tested builtin without one. Avoid enabling batching or bypassing locks without confirming the tool’s behavior.
 
 ## Edit documentation
 

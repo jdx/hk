@@ -148,6 +148,10 @@ impl Step {
             // If there are zero jobs after expansion, decrement the placeholder 1 we pre-added
             // for the step so the total does not exceed the number of completions.
             ctx.hook_ctx.dec_total_jobs(1);
+            // Steps that `depends` on this one are waiting for it to finish; with
+            // no jobs, nothing else would ever mark it done.
+            self.mark_skipped(&ctx, &SkipReason::NoFilesToProcess)?;
+            return Ok(());
         }
         // Capture the full set of files this step will actually operate on across all jobs.
         // We'll use this to scope staging so that broad stage globs (e.g., prettier's *.yaml)
