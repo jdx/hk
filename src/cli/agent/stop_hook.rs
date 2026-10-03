@@ -7,6 +7,7 @@
 
 use std::io::{IsTerminal, Read};
 use std::process::Output;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tokio::io::AsyncReadExt;
@@ -28,32 +29,43 @@ const MAX_CAPTURED_BYTES: usize = 1024 * 1024;
 
 /// Reads a stream to the end but keeps at most `cap` bytes: the head for stdout (the start
 /// of the JSON document), the tail for stderr (where a failure is reported).
+///
+/// What was read so far lives in `sink`, so it survives the reader being aborted while a
+/// descendant of the check still holds the pipe open.
 async fn read_capped<R: AsyncReadExt + Unpin>(
     mut reader: R,
     cap: usize,
     keep_tail: bool,
-) -> Vec<u8> {
-    let mut kept = Vec::new();
+    sink: Arc<Mutex<Vec<u8>>>,
+) {
     let mut buffer = [0_u8; 8192];
     loop {
         let count = match reader.read(&mut buffer).await {
             Ok(0) | Err(_) => break,
             Ok(count) => count,
         };
+        let mut kept = sink.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         if keep_tail {
             kept.extend_from_slice(&buffer[..count]);
             if kept.len() > cap * 2 {
-                kept.drain(..kept.len() - cap);
+                let excess = kept.len() - cap;
+                kept.drain(..excess);
             }
         } else {
             let room = cap.saturating_sub(kept.len());
             kept.extend_from_slice(&buffer[..count.min(room)]);
         }
     }
-    if keep_tail && kept.len() > cap {
-        kept.drain(..kept.len() - cap);
+}
+
+/// The bytes a [`read_capped`] sink holds, trimmed to the tail `cap` when `keep_tail`.
+fn captured(sink: &Mutex<Vec<u8>>, cap: usize, keep_tail: bool) -> Vec<u8> {
+    let mut kept = sink.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut bytes = std::mem::take(&mut *kept);
+    if keep_tail && bytes.len() > cap {
+        bytes.drain(..bytes.len() - cap);
     }
-    kept
+    bytes
 }
 
 enum CheckOutcome {
@@ -77,12 +89,22 @@ async fn run_check(
     #[cfg(unix)]
     command.process_group(0);
     let mut child = command.spawn()?;
-    let mut stdout = child.stdout.take().expect("piped stdout");
-    let mut stderr = child.stderr.take().expect("piped stderr");
-    let stdout_task =
-        tokio::spawn(async move { read_capped(&mut stdout, MAX_CAPTURED_BYTES, false).await });
-    let stderr_task =
-        tokio::spawn(async move { read_capped(&mut stderr, MAX_CAPTURED_BYTES, true).await });
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let stdout_sink = Arc::new(Mutex::new(Vec::new()));
+    let stderr_sink = Arc::new(Mutex::new(Vec::new()));
+    let stdout_task = tokio::spawn(read_capped(
+        stdout,
+        MAX_CAPTURED_BYTES,
+        false,
+        stdout_sink.clone(),
+    ));
+    let stderr_task = tokio::spawn(read_capped(
+        stderr,
+        MAX_CAPTURED_BYTES,
+        true,
+        stderr_sink.clone(),
+    ));
     let status = tokio::select! {
         status = child.wait() => Some(status?),
         _ = tokio::time::sleep(timeout) => None,
@@ -96,18 +118,15 @@ async fn run_check(
         return Ok(CheckOutcome::TimedOut);
     };
     // A step that outlives the check can hold a pipe open; do not wait for it forever.
-    let collect = async |task: tokio::task::JoinHandle<Vec<u8>>| {
+    // Whatever was read before the wait gave up is still reported.
+    for task in [stdout_task, stderr_task] {
         let abort = task.abort_handle();
-        match tokio::time::timeout(PIPE_DRAIN_GRACE, task).await {
-            Ok(bytes) => bytes.unwrap_or_default(),
-            Err(_) => {
-                abort.abort();
-                Vec::new()
-            }
+        if tokio::time::timeout(PIPE_DRAIN_GRACE, task).await.is_err() {
+            abort.abort();
         }
-    };
-    let stdout = collect(stdout_task).await;
-    let stderr = collect(stderr_task).await;
+    }
+    let stdout = captured(&stdout_sink, MAX_CAPTURED_BYTES, false);
+    let stderr = captured(&stderr_sink, MAX_CAPTURED_BYTES, true);
     Ok(CheckOutcome::Finished(Output {
         status,
         stdout,
@@ -444,11 +463,33 @@ mod tests {
         let data = (0..100_000_u32)
             .flat_map(|n| n.to_le_bytes())
             .collect::<Vec<u8>>();
-        let head = read_capped(&data[..], 1000, false).await;
-        assert_eq!(head, data[..1000]);
-        let tail = read_capped(&data[..], 1000, true).await;
-        assert_eq!(tail, data[data.len() - 1000..]);
-        assert_eq!(read_capped(&data[..10], 1000, true).await, data[..10]);
+        let read = async |bytes: &[u8], keep_tail: bool| {
+            let sink = Arc::new(Mutex::new(Vec::new()));
+            read_capped(bytes, 1000, keep_tail, sink.clone()).await;
+            captured(&sink, 1000, keep_tail)
+        };
+        assert_eq!(read(&data, false).await, data[..1000]);
+        assert_eq!(read(&data, true).await, data[data.len() - 1000..]);
+        assert_eq!(read(&data[..10], true).await, data[..10]);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn output_read_before_a_lingering_pipe_holder_is_still_returned() {
+        // The check exits, but a background process keeps stdout open.
+        let mut command = tokio::process::Command::new("sh");
+        command.args(["-c", "echo partial; sleep 30 & exit 1"]);
+        let started = std::time::Instant::now();
+        let CheckOutcome::Finished(output) =
+            run_check(command, Duration::from_secs(60)).await.unwrap()
+        else {
+            panic!("expected the check to finish");
+        };
+        assert_eq!(output.status.code(), Some(1));
+        assert_eq!(output.stdout, b"partial\n");
+        assert!(started.elapsed() < Duration::from_secs(20));
+        let reason = diagnose(&String::from_utf8_lossy(&output.stdout), "boom", Some(1));
+        assert!(reason.contains("boom"));
     }
 
     #[cfg(unix)]
