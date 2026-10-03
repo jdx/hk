@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Python"
   description = "Python style guide enforcement"
+  project_indicators {
+    new { file = ".flake8" }
+  }
 }
 flake8 = new Config.Step {
   glob = "**/*.py"

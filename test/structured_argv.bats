@@ -160,3 +160,52 @@ EOF
     assert_failure
     assert_output --partial "+	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int,"
 }
+
+@test "a missing argv command says it was not found" {
+    touch a.txt
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["lint"] {
+                glob = "*.txt"
+                check = new Command {
+                    argv = List("hk-no-such-tool-xyz", "{{files}}")
+                }
+            }
+        }
+    }
+}
+EOF
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "hk-no-such-tool-xyz: command not found; is it installed and on PATH?"
+    refute_output --partial "No such file or directory"
+}
+
+@test "a missing argv command in an existing dir is still reported as a command" {
+    mkdir sub
+    touch sub/a.txt
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["lint"] {
+                glob = "*.txt"
+                dir = "sub"
+                check = new Command {
+                    argv = List("hk-no-such-tool-xyz")
+                }
+            }
+        }
+    }
+}
+EOF
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "hk-no-such-tool-xyz: command not found"
+}
