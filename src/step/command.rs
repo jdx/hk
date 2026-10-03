@@ -25,6 +25,18 @@ fn resolve_batch_file(
     path: Option<&str>,
     pathext: Option<&str>,
 ) -> Option<std::path::PathBuf> {
+    resolve_program(program, cwd, path, pathext).filter(|program| is_batch_file(program))
+}
+
+/// The file `program` resolves to the way `cmd.exe` would find it: the working
+/// directory, then `PATH`, trying each `PATHEXT` extension.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn resolve_program(
+    program: &str,
+    cwd: &Path,
+    path: Option<&str>,
+    pathext: Option<&str>,
+) -> Option<std::path::PathBuf> {
     use std::ffi::OsStr;
     use std::path::{MAIN_SEPARATOR, PathBuf};
 
@@ -62,7 +74,7 @@ fn resolve_batch_file(
                 .map(|dir| dir.join(program_path))
                 .find(|candidate| candidate.is_file())?
         };
-        return is_batch_file(&candidate).then_some(candidate);
+        return Some(candidate);
     }
 
     let extensions = pathext
@@ -81,7 +93,7 @@ fn resolve_batch_file(
         {
             let candidate = PathBuf::from(format!("{}{}", base.display(), extension));
             if candidate.is_file() {
-                return is_batch_file(&candidate).then_some(candidate);
+                return Some(candidate);
             }
         }
     }
@@ -118,14 +130,27 @@ fn batch_command_line(program: &Path, args: &[String]) -> String {
 /// command line hk hands to `cmd.exe` when `argv[0]` resolves to a `.cmd` or
 /// `.bat` file. `None` when it runs as a plain executable, whose argv goes to
 /// `CreateProcess` unchanged.
+///
+/// When `argv[0]` is not found at all and `assume_unresolved_shim` is set, it
+/// is sized as the worst case, an npm shim: the runner may find it on a `PATH`
+/// that is only known once the step runs.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn batch_command_line_len(
     argv: &[String],
     cwd: &Path,
     path: Option<&str>,
     pathext: Option<&str>,
+    assume_unresolved_shim: bool,
 ) -> Option<usize> {
-    let program = resolve_batch_file(argv.first()?, cwd, path, pathext)?;
+    let program = match resolve_program(argv.first()?, cwd, path, pathext) {
+        Some(program) if is_batch_file(&program) => program,
+        Some(_) => return None,
+        None if assume_unresolved_shim => std::path::PathBuf::from(format!(
+            "{}.cmd",
+            cwd.join("node_modules\\.bin").join(&argv[0]).display()
+        )),
+        None => return None,
+    };
     Some(
         batch_command_line(&program, &argv[1..])
             .encode_utf16()
@@ -228,7 +253,8 @@ mod tests {
         ];
         let path = bin.to_str().unwrap();
 
-        let len = batch_command_line_len(&argv, dir.path(), Some(path), Some(".cmd")).unwrap();
+        let len =
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".cmd"), false).unwrap();
 
         // npm shims get every metacharacter's caret doubled.
         let line = batch_command_line(&bin.join("tool.cmd"), &argv[1..]);
@@ -239,8 +265,19 @@ mod tests {
         std::fs::write(bin.join("plain.exe"), "").unwrap();
         let argv = vec!["plain".to_string(), "a.txt".to_string()];
         assert_eq!(
-            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd")),
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), true),
             None
+        );
+
+        // A program found nowhere may still be a shim on the runner's PATH.
+        let argv = vec!["missing".to_string(), "a.txt".to_string()];
+        assert_eq!(
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), false),
+            None
+        );
+        assert!(
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), true).unwrap()
+                > "a.txt".len()
         );
     }
 

@@ -77,6 +77,16 @@ impl RenderedCommandSize {
     }
 }
 
+/// What a rendered command's size is counted in: cmd.exe's limit for a batch
+/// file counts UTF-16 characters, every other limit counts bytes.
+fn size_unit(size: Option<RenderedCommandSize>) -> &'static str {
+    if size.is_some_and(|size| size.cmd_line.is_some()) {
+        "character"
+    } else {
+        "byte"
+    }
+}
+
 impl Step {
     fn auto_batch_safe_limit(&self, command: &Command) -> usize {
         if command.is_argv() {
@@ -146,7 +156,8 @@ impl Step {
     }
 
     /// On Windows, the length of the `cmd.exe` command line a rendered argv
-    /// becomes when it runs a `.cmd` or `.bat` file.
+    /// becomes when it runs a `.cmd` or `.bat` file. A program that is found nowhere
+    /// is sized as an npm shim when mise may supply it at run time.
     fn batch_command_line_len(
         &self,
         command: &RenderedCommand,
@@ -177,6 +188,9 @@ impl Step {
             &cwd,
             env("PATH").as_deref(),
             env("PATHEXT").as_deref(),
+            // With HK_MISE, a step's `dir` gets the PATH of its mise environment,
+            // which is only resolved when the step runs.
+            *env::HK_MISE && self.dir.is_some(),
         )
     }
 
@@ -266,11 +280,12 @@ impl Step {
             }
 
             debug!(
-                "{}: auto-batching {} files (rendered size: {} bytes, limit: {} bytes)",
+                "{}: auto-batching {} files (rendered size: {} {unit}s, limit: {} {unit}s)",
                 self.name,
                 job.files.len(),
                 full_size,
-                safe_limit
+                safe_limit,
+                unit = size_unit(rendered_size)
             );
 
             // Size every chunk independently: later paths may be much longer
@@ -278,15 +293,17 @@ impl Step {
             let mut offset = 0;
             while offset < job.files.len() {
                 let remaining = &job.files[offset..];
-                let (single_size, safe_limit) = self
-                    .render_run_command_size(&job, &remaining[..1], base_tctx)
+                let single = self.render_run_command_size(&job, &remaining[..1], base_tctx);
+                // cmd.exe counts characters, everything else bytes.
+                let unit = size_unit(single);
+                let (single_size, safe_limit) = single
                     .map(|size| size.against(safe_limit))
                     .unwrap_or_else(|| {
                         (self.estimate_files_string_size(&remaining[..1]), safe_limit)
                     });
                 if single_size > safe_limit {
                     bail!(
-                        "{}: rendered command for {} is {} bytes, exceeding the {}-byte command-line limit",
+                        "{}: rendered command for {} is {} {unit}s, exceeding the {}-{unit} command-line limit",
                         self.name,
                         remaining[0].display(),
                         single_size,
@@ -409,6 +426,17 @@ mod tests {
         assert!(size > limit);
         // An explicit smaller limit still wins.
         assert_eq!(shim.against(40), (8200, 40));
+    }
+
+    #[test]
+    fn sizes_a_batch_shim_in_characters() {
+        let shim = RenderedCommandSize {
+            aggregate: 10,
+            max_argument: None,
+            cmd_line: Some(20),
+        };
+        assert_eq!(size_unit(Some(shim)), "character");
+        assert_eq!(size_unit(None), "byte");
     }
 
     #[test]
