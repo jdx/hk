@@ -1,6 +1,6 @@
 use crate::Result;
 use std::fs;
-use std::io::Write;
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use tempfile::NamedTempFile;
@@ -64,10 +64,15 @@ impl FixSmartQuotes {
     }
 }
 
-/// Reads the file as UTF-8 text. Returns `None` for non-UTF-8 content, which is
-/// left untouched because it cannot contain the UTF-8 quote code points we replace.
-fn read_utf8(path: &Path) -> Result<Option<String>> {
-    Ok(String::from_utf8(fs::read(path)?).ok())
+enum Scan {
+    /// Not valid UTF-8, so it cannot contain the quote code points we replace.
+    NonUtf8,
+    Clean,
+    HasSmartQuotes,
+}
+
+fn is_smart_quote(c: char) -> bool {
+    UTF8_DOUBLE_QUOTE_CODEPOINTS.contains(&c) || UTF8_SINGLE_QUOTE_CODEPOINTS.contains(&c)
 }
 
 fn fix_quotes(s: &str) -> String {
@@ -75,14 +80,53 @@ fn fix_quotes(s: &str) -> String {
         .replace(UTF8_SINGLE_QUOTE_CODEPOINTS, "'")
 }
 
-fn has_smart_quotes(path: &PathBuf) -> Result<bool> {
-    Ok(read_utf8(path)?.is_some_and(|text| {
-        text.contains(UTF8_DOUBLE_QUOTE_CODEPOINTS) || text.contains(UTF8_SINGLE_QUOTE_CODEPOINTS)
-    }))
+/// Calls `f` with each line (including its newline) as validated UTF-8, holding
+/// one line in memory at a time. Splitting on `\n` never cuts a multi-byte
+/// character. Returns `false` if the file is not valid UTF-8, or `f` returns
+/// `false` to stop early.
+fn for_each_line(path: &Path, mut f: impl FnMut(&str) -> Result<bool>) -> Result<bool> {
+    let mut reader = BufReader::new(fs::File::open(path)?);
+    let mut buf = Vec::new();
+    loop {
+        buf.clear();
+        if reader.read_until(b'\n', &mut buf)? == 0 {
+            return Ok(true);
+        }
+        let Ok(line) = std::str::from_utf8(&buf) else {
+            return Ok(false);
+        };
+        if !f(line)? {
+            return Ok(false);
+        }
+    }
 }
 
-fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
-    let Some(original) = read_utf8(path)? else {
+/// Streams the whole file once. The scan must reach the end, even after finding a
+/// quote, so that check and fix agree: a file that is not entirely UTF-8 is never
+/// reported and never rewritten.
+fn scan(path: &Path) -> Result<Scan> {
+    let mut found = false;
+    let utf8 = for_each_line(path, |line| {
+        found = found || line.contains(is_smart_quote);
+        Ok(true)
+    })?;
+    Ok(match (utf8, found) {
+        (false, _) => Scan::NonUtf8,
+        (true, false) => Scan::Clean,
+        (true, true) => Scan::HasSmartQuotes,
+    })
+}
+
+fn has_smart_quotes(path: &Path) -> Result<bool> {
+    Ok(matches!(scan(path)?, Scan::HasSmartQuotes))
+}
+
+fn generate_diff(path: &Path) -> Result<Option<String>> {
+    // Scan first so clean and non-UTF-8 files never need to be held in memory.
+    if !has_smart_quotes(path)? {
+        return Ok(None);
+    }
+    let Ok(original) = String::from_utf8(fs::read(path)?) else {
         return Ok(None);
     };
     let fixed = fix_quotes(&original);
@@ -101,13 +145,9 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
     Ok(Some(diff))
 }
 
-fn replace_smart_quotes(path: &PathBuf) -> Result<()> {
-    // Non-UTF-8 files are left untouched rather than truncated or rewritten.
-    let Some(original) = read_utf8(path)? else {
-        return Ok(());
-    };
-    let fixed = fix_quotes(&original);
-    if fixed == original {
+fn replace_smart_quotes(path: &Path) -> Result<()> {
+    // Non-UTF-8 and clean files are left untouched rather than truncated or rewritten.
+    if !has_smart_quotes(path)? {
         return Ok(());
     }
 
@@ -116,7 +156,17 @@ fn replace_smart_quotes(path: &PathBuf) -> Result<()> {
     let perms = fs::metadata(&target)?.permissions();
     let dir = target.parent().unwrap_or_else(|| Path::new("."));
     let mut tmpfile = NamedTempFile::new_in(dir)?;
-    tmpfile.write_all(fixed.as_bytes())?;
+    let mut out = BufWriter::new(tmpfile.as_file_mut());
+    let utf8 = for_each_line(&target, |line| {
+        out.write_all(fix_quotes(line).as_bytes())?;
+        Ok(true)
+    })?;
+    out.flush()?;
+    drop(out);
+    if !utf8 {
+        // The file changed under us; the temp file is removed on drop.
+        return Ok(());
+    }
     tmpfile.as_file().sync_all()?;
     fs::set_permissions(tmpfile.path(), perms)?;
     tmpfile.persist(&target).map_err(|e| e.error)?;
@@ -146,7 +196,7 @@ mod tests {
 "#;
         fs::write(file.path(), content).unwrap();
 
-        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+        replace_smart_quotes(file.path()).unwrap();
 
         let result_bytes = fs::read(file.path()).unwrap();
         let result = str::from_utf8(&result_bytes).unwrap();
@@ -170,7 +220,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), b"\"Hello, world!\"").unwrap();
 
-        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+        replace_smart_quotes(file.path()).unwrap();
 
         let result = fs::read(file.path()).unwrap();
         assert_eq!(result, b"\"Hello, world!\"");
@@ -181,7 +231,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), b"").unwrap();
 
-        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+        replace_smart_quotes(file.path()).unwrap();
 
         let result = fs::read(file.path()).unwrap();
         assert_eq!(result, b"");
@@ -192,7 +242,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), "＂＂").unwrap();
 
-        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+        replace_smart_quotes(file.path()).unwrap();
 
         let result = fs::read(file.path()).unwrap();
         assert_eq!(result, b"\"\"");
@@ -208,7 +258,7 @@ mod tests {
         before.set_readonly(true);
         fs::set_permissions(file.path(), before).unwrap();
 
-        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+        replace_smart_quotes(file.path()).unwrap();
 
         let after = fs::metadata(file.path()).unwrap().permissions();
         assert!(after.readonly());
@@ -219,7 +269,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), "This has \u{201C}smart quotes\u{201D}").unwrap();
 
-        assert!(has_smart_quotes(&file.path().to_path_buf()).unwrap());
+        assert!(has_smart_quotes(file.path()).unwrap());
     }
 
     #[test]
@@ -227,7 +277,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), "This has \"normal quotes\"").unwrap();
 
-        assert!(!has_smart_quotes(&file.path().to_path_buf()).unwrap());
+        assert!(!has_smart_quotes(file.path()).unwrap());
     }
 
     #[test]
@@ -235,7 +285,7 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), "").unwrap();
 
-        assert!(!has_smart_quotes(&file.path().to_path_buf()).unwrap());
+        assert!(!has_smart_quotes(file.path()).unwrap());
     }
 
     #[test]
@@ -281,10 +331,30 @@ mod tests {
         fs::write(file.path(), "\u{201C}x\u{201D}").unwrap();
         fs::set_permissions(file.path(), fs::Permissions::from_mode(0o755)).unwrap();
 
-        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+        replace_smart_quotes(file.path()).unwrap();
 
         let mode = fs::metadata(file.path()).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o755);
+    }
+
+    #[test]
+    fn test_non_utf8_after_quotes_left_untouched_and_unreported() {
+        let file = NamedTempFile::new().unwrap();
+        let mut content = "\u{201C}ok\u{201D}\n".repeat(10_000).into_bytes();
+        content.extend_from_slice(b"bad \xff\n");
+        fs::write(file.path(), &content).unwrap();
+
+        replace_smart_quotes(file.path()).unwrap();
+        assert_eq!(fs::read(file.path()).unwrap(), content);
+        assert!(!has_smart_quotes(file.path()).unwrap());
+    }
+
+    #[test]
+    fn test_multiline_file_fixed() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), "a\n\u{2018}b\u{2019}\nc").unwrap();
+        replace_smart_quotes(file.path()).unwrap();
+        assert_eq!(fs::read(file.path()).unwrap(), b"a\n'b'\nc");
     }
 
     #[test]
