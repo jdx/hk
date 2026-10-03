@@ -1,7 +1,7 @@
 //! Applying unified diffs directly to files.
 //!
 //! When a step has `check_diff` configured, instead of running the fixer command,
-//! hk can apply the diff output directly using `git apply`. This is often faster
+//! hk can apply the diff output directly, in process (no `git apply` subprocess). This is often faster
 //! than running the fixer, especially for tools that are slow to start.
 
 use crate::Result;
@@ -55,14 +55,14 @@ pub(crate) fn relativize_diff_paths(diff: &str, base: &Path) -> String {
 }
 
 impl Step {
-    /// Apply a unified diff directly to files using `git apply`.
+    /// Apply a unified diff directly to files, in process.
     ///
     /// This provides a fast path for fixing files when `check_diff` is configured.
     /// Instead of running the potentially slow fixer command, the diff output
     /// can be applied directly.
     ///
     /// Automatically detects whether the diff uses `a/` and `b/` prefixes (git-style)
-    /// and sets the appropriate strip level (`-p1` or `-p0`).
+    /// and strips them accordingly (one path component, or none, as `git apply -p1` and `-p0` do).
     ///
     /// Also handles Go-style diffs where the `---` line has a `.orig` suffix
     /// (e.g., `--- file.go.orig` instead of `--- file.go`).
@@ -85,8 +85,8 @@ impl Step {
         }
         let diff_content = normalize_diff_paths(stdout);
 
-        // Resolve against wherever `git apply` will run, so absolute paths
-        // reported by the check command become paths git will accept.
+        // Resolve against the directory the patch applies in, so absolute paths
+        // reported by the check command become paths relative to it.
         let base = PathBuf::from(dir.unwrap_or("."));
         let base = base.canonicalize().unwrap_or(base);
         let diff_content = relativize_diff_paths(&diff_content, &base);

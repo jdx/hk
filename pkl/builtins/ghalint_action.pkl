@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "GitHub Actions action linter"
+  project_indicators {
+    new { file = ".ghalint.yaml" }
+    new { file = ".ghalint.yml" }
+  }
 }
 const ghalint_action = new Config.Step {
   glob = List("**/action.*")
