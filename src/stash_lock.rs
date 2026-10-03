@@ -18,11 +18,24 @@ use std::{
 };
 
 use eyre::{Result, WrapErr, eyre};
+use tokio_util::sync::CancellationToken;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 /// Name of the lock file inside the common git directory.
 pub const LOCK_FILE_NAME: &str = "hk-stash.lock";
+
+/// Returned (inside the `eyre::Report`) when `cancel` fired while waiting.
+#[derive(Debug)]
+pub struct Cancelled;
+
+impl std::fmt::Display for Cancelled {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "cancelled while waiting for the stash lock")
+    }
+}
+
+impl std::error::Error for Cancelled {}
 
 /// Holds the lock until dropped.
 #[derive(Debug)]
@@ -34,8 +47,14 @@ impl StashLock {
     /// Take the lock on `path`, creating the file if needed.
     ///
     /// If another process holds it, calls `on_wait` once and keeps trying
-    /// until `timeout` has passed. A zero timeout fails at once.
-    pub fn acquire(path: &Path, timeout: Duration, on_wait: impl FnOnce()) -> Result<Self> {
+    /// until `timeout` has passed. A zero timeout fails at once. If `cancel`
+    /// fires while waiting, fails with [`Cancelled`] within one poll interval.
+    pub fn acquire(
+        path: &Path,
+        timeout: Duration,
+        cancel: &CancellationToken,
+        on_wait: impl FnOnce(),
+    ) -> Result<Self> {
         let file = OpenOptions::new()
             .create(true)
             .truncate(false)
@@ -53,6 +72,9 @@ impl StashLock {
                 Err(TryLockError::Error(err)) => {
                     return Err(err).wrap_err_with(|| format!("failed to lock {}", path.display()));
                 }
+            }
+            if cancel.is_cancelled() {
+                return Err(Cancelled.into());
             }
             if start.elapsed() >= timeout {
                 return Err(eyre!(
@@ -97,12 +119,21 @@ mod tests {
     #[test]
     fn second_acquire_times_out_naming_the_path() {
         let (_dir, path) = lock_path();
-        let _held = StashLock::acquire(&path, Duration::from_secs(1), || {}).unwrap();
+        let _held = StashLock::acquire(
+            &path,
+            Duration::from_secs(1),
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
         let waited = Arc::new(AtomicBool::new(false));
         let flag = waited.clone();
-        let err = StashLock::acquire(&path, Duration::from_millis(150), move || {
-            flag.store(true, Ordering::SeqCst)
-        })
+        let err = StashLock::acquire(
+            &path,
+            Duration::from_millis(150),
+            &CancellationToken::new(),
+            move || flag.store(true, Ordering::SeqCst),
+        )
         .unwrap_err()
         .to_string();
         assert!(err.contains("timed out"), "{err}");
@@ -113,14 +144,23 @@ mod tests {
     #[test]
     fn zero_timeout_fails_without_waiting() {
         let (_dir, path) = lock_path();
-        let _held = StashLock::acquire(&path, Duration::from_secs(1), || {}).unwrap();
+        let _held = StashLock::acquire(
+            &path,
+            Duration::from_secs(1),
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
         let waited = Arc::new(AtomicBool::new(false));
         let flag = waited.clone();
         let start = Instant::now();
         assert!(
-            StashLock::acquire(&path, Duration::ZERO, move || {
-                flag.store(true, Ordering::SeqCst)
-            })
+            StashLock::acquire(
+                &path,
+                Duration::ZERO,
+                &CancellationToken::new(),
+                move || { flag.store(true, Ordering::SeqCst) }
+            )
             .is_err()
         );
         assert!(start.elapsed() < Duration::from_secs(1));
@@ -130,22 +170,62 @@ mod tests {
     #[test]
     fn drop_releases_the_lock() {
         let (_dir, path) = lock_path();
-        let held = StashLock::acquire(&path, Duration::from_secs(1), || {}).unwrap();
+        let held = StashLock::acquire(
+            &path,
+            Duration::from_secs(1),
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
         drop(held);
-        StashLock::acquire(&path, Duration::ZERO, || {}).unwrap();
+        StashLock::acquire(&path, Duration::ZERO, &CancellationToken::new(), || {}).unwrap();
     }
 
     #[test]
     fn waiter_gets_the_lock_once_the_holder_drops() {
         let (_dir, path) = lock_path();
-        let held = StashLock::acquire(&path, Duration::from_secs(1), || {}).unwrap();
+        let held = StashLock::acquire(
+            &path,
+            Duration::from_secs(1),
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
         let waiter_path = path.clone();
         let waiter = thread::spawn(move || {
-            StashLock::acquire(&waiter_path, Duration::from_secs(10), || {}).map(|_| ())
+            StashLock::acquire(
+                &waiter_path,
+                Duration::from_secs(10),
+                &CancellationToken::new(),
+                || {},
+            )
+            .map(|_| ())
         });
         thread::sleep(Duration::from_millis(150));
         assert!(!waiter.is_finished());
         drop(held);
         waiter.join().unwrap().unwrap();
+    }
+
+    #[test]
+    fn cancel_stops_the_wait_promptly() {
+        let (_dir, path) = lock_path();
+        let _held = StashLock::acquire(
+            &path,
+            Duration::from_secs(1),
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
+        let cancel = CancellationToken::new();
+        let trigger = cancel.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(100));
+            trigger.cancel();
+        });
+        let start = Instant::now();
+        let err = StashLock::acquire(&path, Duration::from_secs(30), &cancel, || {}).unwrap_err();
+        assert!(err.downcast_ref::<Cancelled>().is_some(), "{err:#}");
+        assert!(start.elapsed() < Duration::from_secs(2));
     }
 }

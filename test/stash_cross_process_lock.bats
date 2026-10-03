@@ -110,3 +110,56 @@ PY
     run cat file.txt
     assert_output "unstaged wt-a"
 }
+
+@test "ctrl-c while waiting for the stash lock exits promptly without stashing" {
+    _setup_two_worktrees
+
+    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    python3 - "$lock" "$WT_DIR/lock-held" <<'PY' &
+import fcntl, sys, time
+f = open(sys.argv[1], "w")
+fcntl.flock(f, fcntl.LOCK_EX)
+open(sys.argv[2], "w").close()
+time.sleep(30)
+PY
+    holder=$!
+    for _ in $(seq 100); do
+        [ -e "$WT_DIR/lock-held" ] && break
+        sleep 0.1
+    done
+    if [ ! -e "$WT_DIR/lock-held" ]; then
+        kill "$holder" 2>/dev/null || true
+        fail "lock holder never took the lock"
+    fi
+
+    cd "$WT_DIR/wt-a"
+    # Default 300s timeout: only the interrupt can end this quickly.
+    python3 - "$WT_DIR/out" <<'PY' || { kill "$holder" 2>/dev/null; fail "hook did not exit promptly on SIGINT"; }
+import os, signal, subprocess, sys, time
+out = open(sys.argv[1], "w")
+p = subprocess.Popen(["hk", "run", "pre-commit"], stdout=out, stderr=subprocess.STDOUT,
+                     preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+deadline = time.time() + 15
+while time.time() < deadline:
+    if "waiting for another hk process" in open(sys.argv[1]).read():
+        break
+    time.sleep(0.1)
+else:
+    p.kill(); sys.exit(1)
+p.send_signal(signal.SIGINT)
+try:
+    rc = p.wait(timeout=5)
+except subprocess.TimeoutExpired:
+    p.kill(); sys.exit(1)
+sys.exit(0 if rc != 0 else 1)
+PY
+    kill "$holder"
+    wait "$holder" 2>/dev/null || true
+    run cat "$WT_DIR/out"
+    assert_output --partial "cancelled while waiting for the stash lock"
+    refute_output --partial "timed out"
+    run cat file.txt
+    assert_output "unstaged wt-a"
+    run git stash list
+    assert_output ""
+}

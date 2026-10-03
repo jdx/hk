@@ -1411,14 +1411,30 @@ impl Hook {
                 let lock_path = repo.lock().await.stash_lock_path()?;
                 let timeout =
                     std::time::Duration::from_secs(Settings::get().stash_lock_timeout as u64);
-                stash_lock = Some(tokio::task::block_in_place(|| {
-                    crate::stash_lock::StashLock::acquire(&lock_path, timeout, || {
-                        warn!(
-                            "waiting for another hk process to finish stashing (lock: {})",
-                            lock_path.display()
-                        )
-                    })
-                })?);
+                let acquired = tokio::task::block_in_place(|| {
+                    crate::stash_lock::StashLock::acquire(
+                        &lock_path,
+                        timeout,
+                        &hook_ctx.failed,
+                        || {
+                            warn!(
+                                "waiting for another hk process to finish stashing (lock: {})",
+                                lock_path.display()
+                            )
+                        },
+                    )
+                });
+                stash_lock = Some(match acquired {
+                    Ok(lock) => lock,
+                    Err(err) if err.downcast_ref::<crate::stash_lock::Cancelled>().is_some() => {
+                        // Ctrl-C while waiting: nothing was stashed. Exit
+                        // non-zero (so a git hook aborts) without a trace.
+                        warn!("{self}: {err}");
+                        ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
+                        return Err(err);
+                    }
+                    Err(err) => return Err(err),
+                });
                 // Capture exact staged index entries for files under consideration so we can
                 // ensure index hunks survive formatting and stash apply.
                 let files_vec = hook_ctx.files();
