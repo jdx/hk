@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: facccdf26577
+sourceHash: 0d4697ce32a2
 ---
 
 # Configuration, the ship's charts
@@ -352,11 +352,13 @@ including per-directory mise environments and locally installed Node tools.
 
 ### Reading the weather: conditions and Git status {#conditions-and-git-status}
 
-A hand reads the weather before it hauls. `condition` is an expression evaluated for each job of a step. `step_condition` is evaluated once per step. Shell commands need an explicit `exec(...)` call:
+A hand reads the weather before it hauls. `condition` is an expression evaluated for each job of a step. `step_condition` is evaluated once per step. To haul a step only when a shell command succeeds, wrap it in `exec_ok(...)`:
 
 ```pkl
-condition = "exec('test -f .lint-enabled')"
+condition = "exec_ok('test -f .lint-enabled')"
 ```
+
+`exec_ok(command)` is true when the command exits with status 0 and false otherwise. `exec(command)` returns the command's standard output as a string, for comparisons such as `exec('git branch --show-current') == 'main\n'`. Use `exec` for its output, not to test success: a command that exits non-zero, or prints output that is not valid UTF-8, makes `exec` fail the hook, and a string result never skips a step.
 
 The `git` object gives ye common status checks without calling on Git itself:
 

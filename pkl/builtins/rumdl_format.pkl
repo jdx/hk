@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Markdown"
   description = "Markdown formatter"
+  project_indicators {
+    new { file = "rumdl.toml" }
+    new { file = ".rumdl.toml" }
+  }
 }
 rumdl_format = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")

@@ -230,7 +230,7 @@ Override automatic staging of fixes. Set `HK_STAGE=0` to leave fixes for review.
 
 **Type:** `git`, `patch-file`, or `none` · **Default:** the hook’s setting, otherwise `none`
 
-Override how unstaged work is saved before a hook. `git` enables stashing; `patch-file` currently uses the same Git implementation; `none` leaves unstaged work in place. Boolean `true`/`1` and `false`/`0` are also accepted. `hk init` explicitly configures Git stashing for pre-commit. See [stashing](/hooks#stashing-and-partial-commits).
+Override how unstaged work is saved before a hook. `git` enables stashing; `patch-file` currently uses the same Git implementation; `none` leaves unstaged work in place. Boolean `true`/`1` and `false`/`0` are also accepted. A hook defaults to `none` unless it sets `stash`; the `pre-commit` hook that hk builds from top-level `steps` (the setup `hk init` creates) uses `git`. See [stashing](/hooks#stashing-and-partial-commits).
 
 ## `HK_STASH_BACKUP_COUNT` {#hk-stash-backup-count}
 
