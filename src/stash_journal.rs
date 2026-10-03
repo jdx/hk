@@ -125,10 +125,33 @@ pub fn read(path: &Path) -> Result<Option<Journal>> {
 }
 
 fn write_temp(path: &Path, journal: &Journal) -> Result<PathBuf> {
+    use std::io::Write;
     let tmp = path.with_file_name(format!("{FILE_NAME}.{}.tmp", std::process::id()));
-    std::fs::write(&tmp, journal.to_json()?)
-        .wrap_err_with(|| format!("failed to write {}", tmp.display()))?;
+    let json = journal.to_json()?;
+    let write = || -> std::io::Result<()> {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(json.as_bytes())?;
+        // On disk before it is linked in, or power loss could leave a journal
+        // whose content never made it
+        file.sync_all()
+    };
+    write().wrap_err_with(|| format!("failed to write {}", tmp.display()))?;
     Ok(tmp)
+}
+
+/// Flushes the directory entry of a created, renamed or removed file. Windows
+/// offers no portable way to sync a directory, so it relies on NTFS metadata
+/// journaling there.
+fn sync_parent(path: &Path) {
+    #[cfg(unix)]
+    if let Some(dir) = path.parent()
+        && let Ok(dir) = std::fs::File::open(dir)
+        && let Err(err) = dir.sync_all()
+    {
+        log::debug!("failed to sync {}: {err}", path.display());
+    }
+    #[cfg(not(unix))]
+    let _ = path;
 }
 
 /// Writes `journal` at `path` atomically and only if nothing is there:
@@ -137,17 +160,43 @@ fn write_temp(path: &Path, journal: &Journal) -> Result<PathBuf> {
 fn create(path: &Path, journal: &Journal) -> Result<bool> {
     let tmp = write_temp(path, journal)?;
     let result = match std::fs::hard_link(&tmp, path) {
-        Ok(()) => Ok(true),
+        Ok(()) => {
+            sync_parent(path);
+            Ok(true)
+        }
         Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
-        // A filesystem without hard links: the check-then-rename below is
-        // atomic apart from a concurrent hk creating its own journal
-        Err(_) if !path.exists() => std::fs::rename(&tmp, path)
-            .map(|()| true)
-            .wrap_err_with(|| format!("failed to write {}", path.display())),
-        Err(_) => Ok(false),
+        // A filesystem without hard links: `create_new` is still an atomic
+        // no-clobber claim of the name. The content is written in place, so a
+        // reader that races the write sees an unreadable journal and leaves it
+        // alone.
+        Err(_) => create_in_place(path, journal),
     };
     let _ = std::fs::remove_file(&tmp);
     result
+}
+
+fn create_in_place(path: &Path, journal: &Journal) -> Result<bool> {
+    use std::io::Write;
+    let mut file = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
+        Err(err) => {
+            return Err(err).wrap_err_with(|| format!("failed to write {}", path.display()));
+        }
+    };
+    let written = file
+        .write_all(journal.to_json()?.as_bytes())
+        .and_then(|()| file.sync_all());
+    if let Err(err) = written {
+        let _ = std::fs::remove_file(path);
+        return Err(err).wrap_err_with(|| format!("failed to write {}", path.display()));
+    }
+    sync_parent(path);
+    Ok(true)
 }
 
 /// Replaces the journal at `path` atomically.
@@ -156,7 +205,71 @@ fn replace(path: &Path, journal: &Journal) -> Result<()> {
     std::fs::rename(&tmp, path).wrap_err_with(|| {
         let _ = std::fs::remove_file(&tmp);
         format!("failed to write {}", path.display())
-    })
+    })?;
+    sync_parent(path);
+    Ok(())
+}
+
+/// A dead process's journal that this process has taken exclusive hold of by
+/// renaming it to a path of its own, so no other recovering hk can act on it.
+#[derive(Debug)]
+pub struct Claim {
+    original: PathBuf,
+    claimed: PathBuf,
+}
+
+impl Claim {
+    /// Claims the journal at `path`, provided it still is `expected`. `None`
+    /// when another process claimed or replaced it first.
+    pub fn take(path: &Path, expected: &Journal) -> Result<Option<Self>> {
+        let claimed = path.with_file_name(format!("{FILE_NAME}.{}.claim", std::process::id()));
+        match std::fs::rename(path, &claimed) {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(err) => {
+                return Err(err).wrap_err_with(|| format!("failed to claim {}", path.display()));
+            }
+        }
+        let claim = Self {
+            original: path.to_path_buf(),
+            claimed,
+        };
+        // Between the read and the rename, the journal may have been recovered
+        // and a new one written: that one is not ours to act on
+        if read(&claim.claimed).ok().flatten().as_ref() != Some(expected) {
+            claim.release();
+            return Ok(None);
+        }
+        Ok(Some(claim))
+    }
+
+    /// Done with the journal: the changes are back or it said nothing.
+    pub fn finish(self) {
+        remove_file(&self.claimed);
+        sync_parent(&self.original);
+    }
+
+    /// Puts the journal back at its shared path, to keep reminding. Never
+    /// replaces a journal another run has written since.
+    pub fn release(self) {
+        match std::fs::hard_link(&self.claimed, &self.original) {
+            Ok(()) => remove_file(&self.claimed),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => log::warn!(
+                "another pending-stash journal was written meanwhile; the one that was being recovered is kept as {}",
+                self.claimed.display()
+            ),
+            // No hard links: this rename is the best left
+            Err(_) => {
+                if let Err(err) = std::fs::rename(&self.claimed, &self.original) {
+                    log::warn!(
+                        "failed to put the pending-stash journal back; it is kept as {}: {err}",
+                        self.claimed.display()
+                    );
+                }
+            }
+        }
+        sync_parent(&self.original);
+    }
 }
 
 /// The journal this process owns while it has changes stashed.
@@ -198,7 +311,20 @@ impl OwnedJournal {
 
     /// Deletes the journal: the changes are back in the worktree.
     pub fn remove(self) {
-        remove_file(&self.path);
+        // Only a journal that is still this process's: nobody else writes
+        // there while it lives, but a deletion must never take another's
+        match read(&self.path) {
+            Ok(Some(on_disk)) if on_disk.pid != self.journal.pid => {
+                log::warn!(
+                    "{} belongs to another hk now; leaving it",
+                    self.path.display()
+                );
+            }
+            _ => {
+                remove_file(&self.path);
+                sync_parent(&self.path);
+            }
+        }
     }
 }
 
@@ -704,6 +830,87 @@ mod tests {
         assert!(read(&path).unwrap().is_none());
         // No temporary files are left behind
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn only_one_claimant_takes_a_dead_journal() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let dead = journal();
+        assert!(create(&path, &dead).unwrap());
+        let first = Claim::take(&path, &dead).unwrap();
+        assert!(first.is_some());
+        // The journal is no longer at the shared path for anyone else
+        assert!(Claim::take(&path, &dead).unwrap().is_none());
+        assert!(read(&path).unwrap().is_none());
+        first.unwrap().finish();
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn claim_gives_back_a_journal_it_did_not_expect() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let dead = journal();
+        // Someone recovered `dead` and began a journal of their own
+        let mut newer = journal();
+        newer.pid = 99;
+        assert!(create(&path, &newer).unwrap());
+        assert!(Claim::take(&path, &dead).unwrap().is_none());
+        assert_eq!(read(&path).unwrap().unwrap(), newer);
+    }
+
+    #[test]
+    fn released_claim_never_replaces_a_newer_journal() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let dead = journal();
+        assert!(create(&path, &dead).unwrap());
+        let claim = Claim::take(&path, &dead).unwrap().unwrap();
+        let mut newer = journal();
+        newer.pid = 99;
+        assert!(create(&path, &newer).unwrap());
+        claim.release();
+        assert_eq!(read(&path).unwrap().unwrap(), newer);
+        // Released onto a free path, the journal is back
+        remove_file(&path);
+        let claim = {
+            assert!(create(&path, &dead).unwrap());
+            Claim::take(&path, &dead).unwrap().unwrap()
+        };
+        claim.release();
+        assert_eq!(read(&path).unwrap().unwrap(), dead);
+    }
+
+    #[test]
+    fn create_never_clobbers() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let first = journal();
+        assert!(create(&path, &first).unwrap());
+        let mut second = journal();
+        second.pid = 7;
+        assert!(!create(&path, &second).unwrap());
+        // The no-hard-link fallback is no-clobber too
+        assert!(!create_in_place(&path, &second).unwrap());
+        assert_eq!(read(&path).unwrap().unwrap(), first);
+        remove_file(&path);
+        assert!(create_in_place(&path, &second).unwrap());
+        assert_eq!(read(&path).unwrap().unwrap(), second);
+    }
+
+    #[test]
+    fn remove_leaves_a_journal_another_process_wrote() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let mine = OwnedJournal::begin(path.clone(), journal())
+            .unwrap()
+            .unwrap();
+        let mut other = journal();
+        other.pid = 99;
+        replace(&path, &other).unwrap();
+        mine.remove();
+        assert_eq!(read(&path).unwrap().unwrap(), other);
     }
 
     #[test]

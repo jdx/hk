@@ -154,6 +154,19 @@ kill9_then_recover() {
     [ ! -e "$JOURNAL" ]
 }
 
+@test "two runs recovering the same dead journal restore the stash once and leave no claim files" {
+    kill9_then_recover 1
+    env HK_LIBGIT2=1 hk check --all >/dev/null 2>&1 &
+    local a=$!
+    env HK_LIBGIT2=0 hk check --all >/dev/null 2>&1 &
+    local b=$!
+    wait "$a" || true
+    wait "$b" || true
+    assert_changes_restored
+    run bash -c 'ls "$(git rev-parse --absolute-git-dir)" | grep -c "hk-pending-stash"'
+    assert_output 0
+}
+
 @test "a journal whose process is alive is never touched" {
     write_config
     prepare_repo

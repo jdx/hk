@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: cf6875dff9a3
+sourceHash: dcae974770d2
 ---
 
 # Git hooks and stowing the hold
@@ -79,7 +79,7 @@ Read hk's error before ye change the working tree. Inspect `git status`, `git di
 
 hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls how many it keeps. Keep the stash and backup hk reports until ye have recovered and reviewed yer work. Don't blindly apply a stash again to files that already carry its changes.
 
-Intent-to-add files are kept in a separate stash entry named `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
+Intent-to-add files are kept in a separate stash entry whose message ends with `(intent-to-add files)`, such as `hk: 4242-1a2b-3 (intent-to-add files)`; hk versions before this one named it `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
 
 ### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
 

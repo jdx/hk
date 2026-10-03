@@ -1578,9 +1578,12 @@ impl Git {
         status: &GitStatus,
     ) -> Result<()> {
         let result = self.stash_unstaged_inner(job, method, status);
-        // A journal that names nothing has nothing to protect. One that names
-        // an entry stays, with the entry, until the changes are restored.
-        if self.journal.as_ref().is_some_and(|j| !j.has_entries()) {
+        // A journal that names nothing has nothing to protect once stashing
+        // finished cleanly. One that names an entry stays, with the entry,
+        // until the changes are restored. After an error, git may have made an
+        // entry that was never recorded, so the journal stays for the next run
+        // to find it.
+        if result.is_ok() && self.journal.as_ref().is_some_and(|j| !j.has_entries()) {
             self.journal_finish();
         }
         result
@@ -2338,6 +2341,35 @@ impl Git {
             );
             return Ok(());
         }
+        // Take the journal exclusively, so that no other recovering hk acts on
+        // the same entries or deletes what a later run writes at the path
+        let Some(claim) = stash_journal::Claim::take(&path, &journal)? else {
+            debug!("another hk took the pending-stash journal first");
+            return Ok(());
+        };
+        match self.recover_claimed(&journal, &path) {
+            Ok(true) => {
+                claim.finish();
+                Ok(())
+            }
+            Ok(false) => {
+                claim.release();
+                Ok(())
+            }
+            Err(err) => {
+                claim.release();
+                Err(err)
+            }
+        }
+    }
+
+    /// Acts on a claimed journal. `Ok(true)` when it has nothing left to say,
+    /// `Ok(false)` when it must stay to keep reminding.
+    fn recover_claimed(
+        &mut self,
+        journal: &stash_journal::Journal,
+        path: &std::path::Path,
+    ) -> Result<bool> {
         let stash: Vec<stash_journal::StashRow> = stash_entries()?
             .into_iter()
             .map(|e| stash_journal::StashRow {
@@ -2353,16 +2385,17 @@ impl Git {
             "--untracked-files=normal",
         ])?;
         let clean = !stash_journal::status_has_worktree_changes(&String::from_utf8_lossy(&status));
-        match stash_journal::decide(&journal, &stash, clean) {
+        match stash_journal::decide(journal, &stash, clean) {
             Action::Discard(why) => {
                 debug!("removing {}: {why}", path.display());
-                stash_journal::remove_file(&path);
+                Ok(true)
             }
             Action::Report { reason, commits } => {
                 error!(
                     "{}",
-                    stash_journal::report_message(&journal, &path, &reason, &commits)
+                    stash_journal::report_message(journal, path, &reason, &commits)
                 );
+                Ok(false)
             }
             Action::Restore(entries) => {
                 warn!(
@@ -2402,8 +2435,8 @@ impl Git {
                 }
                 match self.pop_stash(false) {
                     Ok(()) => {
-                        stash_journal::remove_file(&path);
                         info!("restored the stashed changes");
+                        Ok(true)
                     }
                     Err(err) => {
                         let commits: Vec<String> =
@@ -2411,17 +2444,17 @@ impl Git {
                         error!(
                             "failed to restore the stashed changes: {err:#}\n{}",
                             stash_journal::report_message(
-                                &journal,
-                                &path,
+                                journal,
+                                path,
                                 &stash_journal::ReportReason::DirtyWorktree,
                                 &commits
                             )
                         );
+                        Ok(false)
                     }
                 }
             }
         }
-        Ok(())
     }
 
     /// Path of the most recent stash patch backup, if one was written.

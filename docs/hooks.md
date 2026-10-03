@@ -78,7 +78,7 @@ Read hk’s error before changing the working tree. Inspect `git status`, `git d
 
 hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls retention. Preserve the reported stash and backup until you have recovered and reviewed your work. Avoid blindly applying a stash again to files that already contain its changes.
 
-Intent-to-add files are kept in a separate stash entry named `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
+Intent-to-add files are kept in a separate stash entry whose message ends with `(intent-to-add files)`, such as `hk: 4242-1a2b-3 (intent-to-add files)`; hk versions before this one named it `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
 
 ### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
 
