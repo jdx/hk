@@ -134,13 +134,22 @@ where
 }
 
 /// Read the bytes that decide whether a file of `len` bytes is text: the first
-/// 8 KiB, which must contain no NUL byte and be valid UTF-8 on their own.
+/// 8 KiB, which must contain no NUL byte and be valid UTF-8. A multibyte
+/// character cut off by the end of the probe doesn't count against the file.
 /// Returns `None` for a binary file.
 pub(super) fn read_text_probe(file: &mut File, len: u64) -> Result<Option<Vec<u8>>> {
     let mut head = vec![0; TEXT_PROBE_BYTES.min(len) as usize];
     file.read_exact(&mut head)?;
-    if head.contains(&0) || std::str::from_utf8(&head).is_err() {
+    if head.contains(&0) {
         return Ok(None);
+    }
+    if let Err(err) = std::str::from_utf8(&head) {
+        // An incomplete character at the very end of a truncated probe is
+        // completed by the rest of the file; anything else is not UTF-8.
+        let truncated = (head.len() as u64) < len;
+        if err.error_len().is_some() || !truncated {
+            return Ok(None);
+        }
     }
     Ok(Some(head))
 }
@@ -257,6 +266,35 @@ mod tests {
 
     fn index(path: &Path) -> usize {
         path.to_str().unwrap().parse().unwrap()
+    }
+
+    #[test]
+    fn probe_accepts_a_multibyte_char_split_at_the_probe_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("f.txt");
+        // 'é' is 2 bytes and straddles the 8192-byte boundary.
+        let mut content = "a".repeat(TEXT_PROBE_BYTES as usize - 1);
+        content.push('é');
+        content.push_str("\nmore\n");
+        fs::write(&path, &content).unwrap();
+        let len = content.len() as u64;
+        let probe = read_text_probe(&mut File::open(&path).unwrap(), len).unwrap();
+        assert_eq!(probe.unwrap().len(), TEXT_PROBE_BYTES as usize);
+    }
+
+    #[test]
+    fn probe_rejects_invalid_utf8_and_a_truncated_char_at_eof() {
+        let dir = tempfile::tempdir().unwrap();
+        for bytes in [&b"ab\xff\xfecd"[..], &b"ab\xc3"[..]] {
+            let path = dir.path().join("f.bin");
+            fs::write(&path, bytes).unwrap();
+            let len = bytes.len() as u64;
+            assert!(
+                read_text_probe(&mut File::open(&path).unwrap(), len)
+                    .unwrap()
+                    .is_none()
+            );
+        }
     }
 
     #[test]
