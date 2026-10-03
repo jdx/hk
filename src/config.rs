@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail};
@@ -1032,7 +1033,7 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
     let outcome = block_on_pklr(evaluator.eval(path))?
-        .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
+        .map_err(|e| handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path))?;
     let value = serde_json::from_value(outcome.json)
         .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))?;
     Ok((value, outcome.env_reads))
@@ -1096,6 +1097,17 @@ fn get_no_proxy() -> Option<String> {
         .or_else(|_| std::env::var("NO_PROXY"))
         .ok()
         .filter(|s| !s.is_empty())
+}
+
+/// Replaces the `user:password@` part of every URL in `text` with `***@`.
+///
+/// An `HK_PKL_HTTP_REWRITE` target may carry credentials
+/// (`https://user:token@mirror.example/`), and pklr echoes the rewritten URL
+/// in its download errors.
+fn redact_url_credentials(text: &str) -> String {
+    static USERINFO: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/?#\s@]+@").unwrap());
+    USERINFO.replace_all(text, "${1}***@").into_owned()
 }
 
 fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
@@ -1503,6 +1515,18 @@ mod tests {
     use crate::hook::{Hook, StepOrGroup};
     use crate::step::Step;
     use crate::step_group::StepGroup;
+
+    #[test]
+    fn redact_url_credentials_hides_userinfo_only() {
+        assert_eq!(
+            redact_url_credentials(
+                "HTTP fetch failed for http://alice:s3cret@127.0.0.1:1/a.zip: error (https://tok@host/x?y=a@b)"
+            ),
+            "HTTP fetch failed for http://***@127.0.0.1:1/a.zip: error (https://***@host/x?y=a@b)"
+        );
+        let plain = "failed for https://example.com/a@1.0.zip (user@example.com)";
+        assert_eq!(redact_url_credentials(plain), plain);
+    }
 
     fn exclude_from(value: serde_json::Value) -> Exclude {
         serde_json::from_value(value).unwrap()
