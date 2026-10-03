@@ -251,8 +251,8 @@ fn parse_eslint(step: &str, tool: &str, output: &str) -> ParseResult {
 /// Beyond the classic GCC shape, this is deliberately tolerant of the way other
 /// tools print the same thing, without reading anything ambiguous:
 ///
-/// - a line without a severity word gets `default_severity` (`error` unless the step sets
-///   `diagnostic_severity`);
+/// - a line without a severity word is an `error`, except that a `rule-name: message` finding
+///   gets `default_severity` when the step sets `diagnostic_severity`;
 /// - the column is optional (`path:line: message`, as mypy and buildifier print);
 /// - go vet's `vet: ` prefix is ignored, and `# package` header lines (also
 ///   `path:1: : # package`, as golangci-lint prints) are skipped, but not
@@ -273,6 +273,9 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
         r"^(\S+?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){RULE}"
     ))
     .expect("valid column-less diagnostic regex");
+    // `diagnostic_severity` applies only to findings shaped `rule-name: message`; any other
+    // line without a severity word (for example `syntax error`) stays an error.
+    let rule_prefixed = regex::Regex::new(r"^[A-Za-z_][\w.-]*:\s").expect("valid rule regex");
     // Only go vet's prefix is stripped: any other `word: ` may be the start of a path.
     let tool_prefix = regex::Regex::new(r"^vet: (\S)").expect("valid prefix regex");
     // `# example.com/m`, `# [example.com/m]`, `# example.com/m [example.com/m.test]`
@@ -354,7 +357,16 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
         Some(Diagnostic {
             step: step.to_string(),
             tool: tool.to_string(),
-            severity: level.map_or(default_severity.clone(), |value| severity(value.as_str())),
+            severity: level.map_or_else(
+                || {
+                    if rule_prefixed.is_match(&message) {
+                        default_severity.clone()
+                    } else {
+                        Severity::Error
+                    }
+                },
+                |value| severity(value.as_str()),
+            ),
             message,
             path: Some(path),
             range: Some(Range {
@@ -727,7 +739,7 @@ mod tests {
 
     #[test]
     fn gcc_default_severity_applies_only_to_findings_without_one() {
-        let output = "a.bzl:1: rule: no severity\nb.c:2:3: error: named\nc.c:4: note: also named\n";
+        let output = "a.bzl:1: rule: no severity\nb.c:2:3: error: named\nc.c:4: note: also named\nd.bzl:3:1: syntax error\ne.bzl:5: unexpected token\n";
         let parsed = parse_with_default(
             DiagnosticFormat::Gcc,
             "step",
@@ -742,7 +754,13 @@ mod tests {
             .collect();
         assert_eq!(
             severities,
-            vec![Severity::Warning, Severity::Error, Severity::Note]
+            vec![
+                Severity::Warning,
+                Severity::Error,
+                Severity::Note,
+                Severity::Error,
+                Severity::Error
+            ]
         );
         assert_eq!(gcc(output).diagnostics[0].severity, Severity::Error);
     }
