@@ -7,6 +7,10 @@ import "../Config.pkl"
 }
 check_added_large_files = new Config.Step {
   glob = "**/*"
+  // File size is what matters here, and large files are usually binary. hk's
+  // default filter drops files with a NUL byte in the first 8 KiB, which would
+  // let every binary over the limit through.
+  allow_binary = true
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("hk", "util", "check-added-large-files", "{{files}}")
