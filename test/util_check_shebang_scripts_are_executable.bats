@@ -186,3 +186,28 @@ HK
     assert_output --partial "untracked files: run \`git add <file>\`, then \`git update-index --chmod=+x <file>\`"
     refute_output --partial "run \`chmod +x"
 }
+
+@test "util check-shebang-scripts-are-executable - a file outside the repository does not fail the run" {
+    outside="$(mktemp -d)"
+    printf '#!/bin/bash\necho a\n' > "$outside/ext.sh"
+    chmod +x "$outside/ext.sh"
+    printf '#!/bin/bash\necho b\n' > inside.sh
+    chmod +x inside.sh
+    git add inside.sh
+    git update-index --chmod=+x inside.sh
+
+    run hk util check-shebang-scripts-are-executable "$outside/ext.sh" inside.sh
+    assert_success
+    refute_output
+}
+
+@test "util check-shebang-scripts-are-executable - tracked path replaced by a dangling symlink is skipped" {
+    printf '#!/bin/bash\necho a\n' > script.sh
+    git add script.sh
+    rm script.sh
+    ln -s missing-target script.sh
+
+    run hk util check-shebang-scripts-are-executable script.sh
+    assert_success
+    refute_output
+}

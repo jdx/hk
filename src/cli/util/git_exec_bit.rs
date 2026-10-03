@@ -52,15 +52,14 @@ fn parse_stage_output(out: &[u8]) -> HashMap<String, String> {
     modes
 }
 
-/// Index modes for the tracked files among `files`, keyed by normalized path.
+/// Index modes for every tracked file under the current directory, keyed by
+/// the path relative to it. Reading the whole index (rather than passing the
+/// files as pathspecs) means a path outside the repository can never make git
+/// fail the run; it is simply not found and treated as untracked.
 /// `None` means we are not in a git repository (worktree modes are used).
-fn index_modes(files: &[PathBuf]) -> Result<Option<HashMap<String, String>>> {
-    if files.is_empty() {
-        return Ok(Some(HashMap::new()));
-    }
+fn index_modes() -> Result<Option<HashMap<String, String>>> {
     let output = Command::new("git")
-        .args(["--literal-pathspecs", "ls-files", "-z", "--stage", "--"])
-        .args(files)
+        .args(["ls-files", "-z", "--stage"])
         .output()?;
     if output.status.success() {
         return Ok(Some(parse_stage_output(&output.stdout)));
@@ -75,6 +74,13 @@ fn index_modes(files: &[PathBuf]) -> Result<Option<HashMap<String, String>>> {
     ))
 }
 
+fn ignore_case() -> bool {
+    let out = Command::new("git")
+        .args(["config", "--type=bool", "core.ignorecase"])
+        .output();
+    matches!(out, Ok(o) if o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "true")
+}
+
 /// Resolves executability for each file: `Some(executable)` for regular
 /// files, `None` for paths that are not regular files (directories,
 /// symlinks, submodules) and so should be skipped.
@@ -83,28 +89,64 @@ fn index_modes(files: &[PathBuf]) -> Result<Option<HashMap<String, String>>> {
 /// when `core.fileMode` is trusted (unix only), otherwise "not executable"
 /// (git would add them as 100644).
 pub fn executable_flags(files: &[PathBuf]) -> Result<Vec<FileExec>> {
-    let modes = index_modes(files)?;
+    let modes = index_modes()?;
     let trust_worktree = file_mode_enabled();
+    // Built lazily: only on case-insensitive filesystems (core.ignorecase).
+    let mut lower: Option<HashMap<String, String>> = None;
     files
         .iter()
         .map(|file| {
-            if let Some(mode) = modes.as_ref().and_then(|m| m.get(&normalize(file))) {
-                let executable = match mode.as_str() {
-                    "100755" => Some(true),
-                    "100644" => Some(false),
-                    _ => None,
-                };
+            let key = normalize(file);
+            let mut mode = modes.as_ref().and_then(|m| m.get(&key)).cloned();
+            if mode.is_none()
+                && let Some(m) = &modes
+                && ignore_case_cached(&mut lower, m)
+            {
+                mode = lower
+                    .as_ref()
+                    .and_then(|l| l.get(&key.to_lowercase()))
+                    .cloned();
+            }
+            let tracked = mode.is_some();
+            // The worktree file type wins over the index: a tracked path
+            // replaced by a symlink or directory is not a regular script.
+            let metadata = std::fs::symlink_metadata(file)?;
+            if !metadata.is_file() {
                 return Ok(FileExec {
-                    executable,
-                    tracked: true,
+                    executable: None,
+                    tracked,
                 });
             }
+            let executable = match mode.as_deref() {
+                Some("100755") => Some(true),
+                Some("100644") => Some(false),
+                Some(_) => None,
+                None => worktree_executable(&metadata, trust_worktree),
+            };
             Ok(FileExec {
-                executable: worktree_executable(file, trust_worktree)?,
-                tracked: false,
+                executable,
+                tracked,
             })
         })
         .collect()
+}
+
+/// Builds the lowercase index map on first use; returns whether `core.ignorecase` is on.
+fn ignore_case_cached(
+    lower: &mut Option<HashMap<String, String>>,
+    modes: &HashMap<String, String>,
+) -> bool {
+    if lower.is_none() {
+        *lower = Some(if ignore_case() {
+            modes
+                .iter()
+                .map(|(k, v)| (k.to_lowercase(), v.clone()))
+                .collect()
+        } else {
+            HashMap::new()
+        });
+    }
+    lower.as_ref().is_some_and(|l| !l.is_empty())
 }
 
 /// Executability of one file, and whether git tracks it.
@@ -115,21 +157,17 @@ pub struct FileExec {
 }
 
 #[allow(unused_variables)]
-fn worktree_executable(path: &Path, trust: bool) -> Result<Option<bool>> {
-    let metadata = std::fs::symlink_metadata(path)?;
-    if !metadata.is_file() {
-        return Ok(None);
-    }
+fn worktree_executable(metadata: &std::fs::Metadata, trust: bool) -> Option<bool> {
     if !trust {
-        return Ok(Some(false));
+        return Some(false);
     }
     #[cfg(unix)]
     {
-        Ok(Some(metadata.permissions().mode() & 0o111 != 0))
+        Some(metadata.permissions().mode() & 0o111 != 0)
     }
     #[cfg(not(unix))]
     {
-        Ok(Some(false))
+        Some(false)
     }
 }
 
