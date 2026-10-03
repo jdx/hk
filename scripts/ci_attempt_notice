@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Run a command; when it fails, make the failed attempt visible in the CI UI.
+#
+# nick-fields/retry reruns a failing step silently: the job ends green and the
+# first attempt's failure is buried in the log. Wrapping the retried command
+# with this script annotates the run and adds a step-summary entry for each
+# failed attempt, listing the TAP "not ok" lines so the flaky test is named.
+#
+# Usage: scripts/ci_attempt_notice <label> <command> [args...]
+set -uo pipefail
+
+label=$1
+shift
+
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+
+"$@" 2>&1 | tee "$log"
+status=${PIPESTATUS[0]}
+
+if [ "$status" -ne 0 ]; then
+    failed=$(grep -E '^not ok ' "$log" | head -20 || true)
+    echo "::warning title=${label} attempt failed::${label} exited with status ${status}; a retry may follow. ${failed//$'\n'/ | }"
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+        {
+            echo "### :warning: ${label} attempt failed (exit ${status})"
+            echo
+            if [ -n "$failed" ]; then
+                echo '```'
+                echo "$failed"
+                echo '```'
+            else
+                echo "No \`not ok\` lines were found; see the step log."
+            fi
+        } >>"$GITHUB_STEP_SUMMARY"
+    fi
+fi
+exit "$status"

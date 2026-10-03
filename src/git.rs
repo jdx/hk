@@ -2383,9 +2383,32 @@ impl Git {
                                 Some(String::from_utf8(std::fs::read(&path)?)?)
                             } else {
                                 match fixer_map.get(&path) {
-                                    Some((_, object)) => Some(String::from_utf8(
-                                        read_worktree_blob(std::ffi::OsStr::new(object), &path)?,
-                                    )?),
+                                    Some((_, object)) => {
+                                        let bytes = read_worktree_blob(
+                                            std::ffi::OsStr::new(object),
+                                            &path,
+                                        )?;
+                                        match String::from_utf8(bytes) {
+                                            Ok(text) => Some(text),
+                                            Err(err) => {
+                                                // Staged contents that no step
+                                                // changed have nothing to
+                                                // merge, so the stashed
+                                                // worktree is restored as it
+                                                // is. A step's own non-text
+                                                // output is not dropped.
+                                                let mut staged =
+                                                    OsString::from(format!("{stash_ref}^2:"));
+                                                staged.push(path.as_os_str());
+                                                let unchanged = read_worktree_blob(&staged, &path)
+                                                    .is_ok_and(|staged| staged == err.as_bytes());
+                                                if !unchanged {
+                                                    return Err(err.into());
+                                                }
+                                                None
+                                            }
+                                        }
+                                    }
                                     None => None,
                                 }
                             }
