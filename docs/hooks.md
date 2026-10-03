@@ -66,7 +66,7 @@ Linters still operate on whole files. Staging one hunk does not restrict a forma
 | `"patch-file"`      | Currently an alias for the Git stash implementation |
 | `"none"` or `false` | Leave unstaged work in place                        |
 
-An unspecified hook stash setting defaults to `"none"`. `hk init` explicitly enables `"git"` for pre-commit. Override a run with `--stash` or [`HK_STASH`](/environment_variables#hk-stash).
+A hook you define explicitly without a `stash` setting defaults to `"none"`. The `pre-commit` hook that hk builds from top-level `steps`, which is the setup `hk init` creates, uses `"git"`. Override a run with `--stash` or [`HK_STASH`](/environment_variables#hk-stash).
 
 Untracked files are included in stashing by default. `HK_STASH_UNTRACKED=0` also disables their discovery, which can help very large worktrees but changes file selection.
 

@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: e0cde651d892
+sourceHash: 24128f66ba6a
 ---
 
 # Git hooks and stowing the hold
@@ -67,7 +67,7 @@ Linters still work on whole files. Loading one hunk aboard does not keep a forma
 | `"patch-file"`      | For now, another name for the Git stash implementation |
 | `"none"` or `false` | Leave unstaged work where it lies                      |
 
-A hook with no stash setting defaults to `"none"`. `hk init` sets `"git"` explicitly for pre-commit. To change course for a single run, use `--stash` or [`HK_STASH`](/environment_variables#hk-stash).
+A hook ye define explicitly with no stash setting defaults to `"none"`. The `pre-commit` hook hk builds from top-level `steps`, the setup `hk init` creates, uses `"git"`. To change course for a single run, use `--stash` or [`HK_STASH`](/environment_variables#hk-stash).
 
 Untracked files are stowed along with the rest by default. `HK_STASH_UNTRACKED=0` also stops hk discovering them, which can help on very large worktrees but changes which files get picked.
 

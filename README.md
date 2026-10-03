@@ -2,7 +2,7 @@
 
 **Git hooks and project checks, in parallel.**
 
-hk runs linters and formatters with read/write file locks, so independent work runs concurrently and tools that modify the same files take turns. Use the same steps in Git hooks, from your terminal, and in CI.
+hk runs linters and fixers in parallel. Read/write file locks keep them from colliding when steps touch the same files, so concurrency doesn't cost you correctness. Use the same steps in Git hooks, from your terminal, and in CI.
 
 [Get started](https://hk.jdx.dev/getting_started) · [Documentation](https://hk.jdx.dev/) · [Built-in linters](https://hk.jdx.dev/builtins) · [CLI reference](https://hk.jdx.dev/cli/)
 
