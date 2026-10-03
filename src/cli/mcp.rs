@@ -1161,6 +1161,7 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
     } else {
         run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
     }
+    drop_unmerged_entries(root, &temp_index).await?;
     // Store the worktree bytes as they are: no CRLF conversion, and no clean filters
     // (those come from attributes, which are read from the empty tree instead). Only
     // paths under `root` are re-read, so changes elsewhere in the repository cannot
@@ -1180,6 +1181,31 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
     }
     let tree = run_git(root, &["write-tree"], Some(&temp_index)).await?;
     Ok(String::from_utf8_lossy(&tree).trim().to_string())
+}
+
+/// `write-tree` refuses an index with unmerged entries, such as a merge conflict in a
+/// file outside `root` (which the pathspec-limited `add` never refreshes). Both snapshots
+/// of a run drop the same paths, so they cannot show up in the diff.
+async fn drop_unmerged_entries(root: &Path, index: &Path) -> Result<(), String> {
+    let top = run_git(root, &["rev-parse", "--show-toplevel"], None).await?;
+    let top = PathBuf::from(String::from_utf8_lossy(&top).trim());
+    let unmerged = run_git(&top, &["ls-files", "-u", "-z"], Some(index)).await?;
+    let mut paths = Vec::new();
+    for entry in unmerged.split(|byte| *byte == 0) {
+        // `<mode> <object> <stage>\t<path>`
+        if let Some(tab) = entry.iter().position(|byte| *byte == b'\t') {
+            let path = String::from_utf8_lossy(&entry[tab + 1..]).into_owned();
+            if paths.last() != Some(&path) {
+                paths.push(path);
+            }
+        }
+    }
+    for chunk in paths.chunks(256) {
+        let mut args = vec!["update-index", "--force-remove", "--"];
+        args.extend(chunk.iter().map(String::as_str));
+        run_git(&top, &args, Some(index)).await?;
+    }
+    Ok(())
 }
 
 /// Git's well-known empty tree, which always exists.
@@ -1546,6 +1572,39 @@ mod tests {
 
         assert!(diff.text.contains("+++ b/inside.txt"), "{}", diff.text);
         assert!(!diff.text.contains("outside.txt"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn snapshots_survive_a_merge_conflict_outside_the_root() {
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        git_in(repo, &["config", "user.email", "t@t"]);
+        git_in(repo, &["config", "user.name", "t"]);
+        std::fs::write(repo.join("conflict.txt"), "base\n").unwrap();
+        git_in(repo, &["add", "."]);
+        git_in(repo, &["commit", "-qm", "base"]);
+        git_in(repo, &["checkout", "-qb", "other"]);
+        std::fs::write(repo.join("conflict.txt"), "other\n").unwrap();
+        git_in(repo, &["commit", "-qam", "other"]);
+        git_in(repo, &["checkout", "-q", "-"]);
+        std::fs::write(repo.join("conflict.txt"), "mine\n").unwrap();
+        git_in(repo, &["commit", "-qam", "mine"]);
+        // Leaves unmerged stages in the real index; the merge itself fails.
+        let _ = std::process::Command::new("git")
+            .args(["merge", "other"])
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        let root = repo.join("app");
+        std::fs::create_dir(&root).unwrap();
+
+        let baseline = snapshot_tree(&root).await.unwrap();
+        std::fs::write(root.join("new.txt"), "x\n").unwrap();
+        let after = snapshot_tree(&root).await.unwrap();
+        let diff = git_diff(&root, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+++ b/new.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("conflict.txt"), "{}", diff.text);
     }
 
     #[tokio::test]
