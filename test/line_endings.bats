@@ -44,6 +44,31 @@ bytes() {
     done
 }
 
+@test "line endings - the fixers give the same result in any order" {
+    local orders=(
+        "trailing-whitespace end-of-file-fixer mixed-line-ending"
+        "trailing-whitespace mixed-line-ending end-of-file-fixer"
+        "end-of-file-fixer trailing-whitespace mixed-line-ending"
+        "end-of-file-fixer mixed-line-ending trailing-whitespace"
+        "mixed-line-ending trailing-whitespace end-of-file-fixer"
+        "mixed-line-ending end-of-file-fixer trailing-whitespace"
+    )
+    # One LF and one CRLF line with no final newline: a tie, which gives LF.
+    # A CRLF file with LF-only blank lines at the end: LF is the majority.
+    local inputs=('a\nb\r\nc' 'a\r\nb\r\n\n\n\n\n')
+    local expected=('a\nb\nc\n' 'a\nb\n')
+    local i order cmd
+    for i in 0 1; do
+        for order in "${orders[@]}"; do
+            printf "${inputs[$i]}" > file.txt
+            for cmd in $order; do
+                hk util "$cmd" --fix file.txt
+            done
+            assert_equal "$(bytes file.txt)" "$(printf "${expected[$i]}" | od -An -c | tr -s ' ')"
+        done
+    done
+}
+
 @test "line endings - CRLF file without a final newline stays all CRLF" {
     # newlines used to append a bare LF here, which mixed_line_ending then
     # flattened into LF for the whole file.

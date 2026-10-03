@@ -12,7 +12,7 @@ description: "Check first, or request an in-place fix explicitly."
 
 Check for and optionally fix missing final newlines
 
-A missing final newline is added as the file's most frequent line ending, so a CRLF file gets CRLF. Trailing blank lines, LF or CRLF, are removed. A file that already ends with exactly one newline is left as it is.
+A missing final newline is added as the file's most frequent line ending, so a CRLF file gets CRLF. Every line ending in the file counts, as in `mixed-line-ending`, and a tie gives LF. Trailing blank lines, LF or CRLF, are removed. A file that already ends with exactly one newline is left as it is.
 
 ## Arguments
 

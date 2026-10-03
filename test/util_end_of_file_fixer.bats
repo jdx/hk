@@ -136,15 +136,16 @@ teardown() {
     refute_output
 }
 
-@test "util end-of-file-fixer - blank lines of the other ending don't change the file's ending" {
+@test "util end-of-file-fixer - blank lines of the other ending count toward the file's ending" {
     printf "one\r\ntwo\r\n\n\n\n\n" > crlf.txt
     printf "one\ntwo\n\r\n\r\n\r\n\r\n" > lf.txt
 
     run hk util end-of-file-fixer --fix crlf.txt lf.txt
     assert_success
 
-    assert_equal "$(od -An -c crlf.txt | tr -s ' ')" "$(printf 'one\r\ntwo\r\n' | od -An -c | tr -s ' ')"
-    assert_equal "$(od -An -c lf.txt | tr -s ' ')" "$(printf 'one\ntwo\n' | od -An -c | tr -s ' ')"
+    # The ending is the most frequent in the whole file, as mixed-line-ending counts it
+    assert_equal "$(od -An -c crlf.txt | tr -s ' ')" "$(printf 'one\r\ntwo\n' | od -An -c | tr -s ' ')"
+    assert_equal "$(od -An -c lf.txt | tr -s ' ')" "$(printf 'one\ntwo\r\n' | od -An -c | tr -s ' ')"
 
     run hk util end-of-file-fixer crlf.txt lf.txt
     assert_success

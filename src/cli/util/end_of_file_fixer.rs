@@ -9,8 +9,10 @@ use std::path::{Path, PathBuf};
 /// Check for and optionally fix missing final newlines
 ///
 /// A missing final newline is added as the file's most frequent line ending,
-/// so a CRLF file gets CRLF. Trailing blank lines, LF or CRLF, are removed. A
-/// file that already ends with exactly one newline is left as it is.
+/// so a CRLF file gets CRLF. Every line ending in the file counts, as in
+/// `mixed-line-ending`, and a tie gives LF. Trailing blank lines, LF or CRLF,
+/// are removed. A file that already ends with exactly one newline is left as
+/// it is.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct EndOfFileFixer {
@@ -106,42 +108,21 @@ fn ends_properly(tail: &[u8]) -> bool {
     !matches!(before.last(), Some(b'\n' | b'\r'))
 }
 
-/// The line ending most of `content`'s lines use, `"\r\n"` or `"\n"`. A tie
-/// goes to the last line's ending, and a file with no line ending gets `"\n"`.
+/// The line ending most of the file's lines use, `"\r\n"` or `"\n"`, counting
+/// every line ending in the file, as `mixed-line-ending` does. A tie, or a file
+/// with no line ending, gives `"\n"`, so the two agree on which ending a mixed
+/// file is normalized to.
 fn dominant_terminator(content: &str) -> &'static str {
     let lf = content.matches('\n').count();
     let crlf = content.matches("\r\n").count();
-    let bare = lf - crlf;
-    if crlf > bare {
-        "\r\n"
-    } else if bare > crlf || crlf == 0 {
-        "\n"
-    } else {
-        // A tie: use the last line ending in the content.
-        match content.rfind('\n') {
-            Some(i) if content[..i].ends_with('\r') => "\r\n",
-            _ => "\n",
-        }
-    }
+    if crlf > lf - crlf { "\r\n" } else { "\n" }
 }
 
 /// Normalize content to end with exactly one terminator, the file's dominant
 /// one. Trailing blank lines, whether LF or CRLF, and a stray `\r` are removed.
-/// The dominant ending is chosen from the lines that remain, so the blank lines
-/// being removed can't outvote them.
 fn normalize_ending(content: &str) -> String {
     let body = content.trim_end_matches(['\r', '\n']);
-    let tail = &content[body.len()..];
-    // The last remaining line's own terminator is the first of the trailing run.
-    let last_terminator = if tail.starts_with("\r\n") {
-        2
-    } else if tail.starts_with('\n') {
-        1
-    } else {
-        0
-    };
-    let remaining = &content[..body.len() + last_terminator];
-    format!("{body}{}", dominant_terminator(remaining))
+    format!("{body}{}", dominant_terminator(content))
 }
 
 /// The file's content, if it is a text file that doesn't end properly.
@@ -364,19 +345,18 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_ending_ignores_the_blank_lines_it_removes() {
-        // Extra LF-only blanks can't outvote the CRLF lines that remain.
-        assert_eq!(normalize_ending("a\r\nb\r\n\n\n\n\n"), "a\r\nb\r\n");
-        // Nor can extra CRLF blanks outvote LF lines.
-        assert_eq!(normalize_ending("a\nb\n\r\n\r\n\r\n\r\n"), "a\nb\n");
-        // A tie goes to the last remaining line's ending.
-        assert_eq!(normalize_ending("a\nb\r\n\n\n\n"), "a\nb\r\n");
-        assert_eq!(normalize_ending("a\r\nb\n\r\n\r\n"), "a\r\nb\n");
+    fn test_normalize_ending_counts_every_line_ending_like_mixed_line_ending() {
+        // A tie goes to LF, even when the last line is CRLF.
+        assert_eq!(normalize_ending("a\nb\r\nc"), "a\nb\r\nc\n");
+        assert_eq!(normalize_ending("a\r\nb\nc"), "a\r\nb\nc\n");
+        // The blank lines being removed still count toward the majority.
+        assert_eq!(normalize_ending("a\r\nb\r\n\n\n\n\n"), "a\r\nb\n");
+        assert_eq!(normalize_ending("a\nb\n\r\n\r\n\r\n\r\n"), "a\nb\r\n");
     }
 
     #[test]
-    fn test_normalize_ending_is_proper_and_uniform() {
-        for content in ["a\r\nb\r\n\n\n\n\n", "a\nb\n\r\n\r\n\r\n"] {
+    fn test_normalize_ending_is_proper_and_stable() {
+        for content in ["a\r\nb\r\n\n\n\n\n", "a\nb\r\nc"] {
             let fixed = normalize_ending(content);
             assert_eq!(normalize_ending(&fixed), fixed);
             assert!(ends_properly(
