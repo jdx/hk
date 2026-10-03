@@ -11,6 +11,7 @@ use std::{
 use crate::Result;
 use crate::merge;
 use crate::settings::Settings;
+use crate::stash_journal::{self, Action, StashKind};
 use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
@@ -974,6 +975,12 @@ pub struct Git {
     last_patch_path: Option<PathBuf>,
     // Path of the index file git writes, resolved on first use
     index_path: OnceLock<PathBuf>,
+    // The journal that says changes are stashed, while they are
+    journal: Option<crate::stash_journal::OwnedJournal>,
+    // Another hk's journal is in the way, so this run keeps none
+    journal_declined: bool,
+    // The hook being run, for the journal
+    hook_name: String,
 }
 
 enum StashType {
@@ -1087,6 +1094,9 @@ impl Git {
             saved_worktree: None,
             last_patch_path: None,
             index_path: OnceLock::new(),
+            journal: None,
+            journal_declined: false,
+            hook_name: String::new(),
         })
     }
 
@@ -1568,6 +1578,21 @@ impl Git {
         method: StashMethod,
         status: &GitStatus,
     ) -> Result<()> {
+        let result = self.stash_unstaged_inner(job, method, status);
+        // A journal that names nothing has nothing to protect. One that names
+        // an entry stays, with the entry, until the changes are restored.
+        if self.journal.as_ref().is_some_and(|j| !j.has_entries()) {
+            self.journal_finish();
+        }
+        result
+    }
+
+    fn stash_unstaged_inner(
+        &mut self,
+        job: &ProgressJob,
+        method: StashMethod,
+        status: &GitStatus,
+    ) -> Result<()> {
         // Skip stashing if auto-stash is disabled or there's no initial commit yet
         if method == StashMethod::None {
             return Ok(());
@@ -1732,6 +1757,7 @@ impl Git {
             return None;
         };
         self.stash_commit = Some(commit.clone());
+        self.journal_record(&commit, StashKind::Unstaged);
         self.save_stash_patch(&commit);
         Some(kind)
     }
@@ -1745,6 +1771,7 @@ impl Git {
         paths: Option<&[PathBuf]>,
         status: &GitStatus,
     ) -> Result<Option<StashType>> {
+        self.ensure_journal();
         // Refuse to stash when the state cannot be saved, since the stash
         // would delete it
         let state = snapshot_operation_state()?;
@@ -1993,6 +2020,7 @@ impl Git {
             .run()
             .wrap_err("failed to stash reverted files")?;
         self.stash_commit = Some(commit.clone());
+        self.journal_record(&commit, StashKind::Unstaged);
         // `git stash show` compares with HEAD, which these files match, so
         // back up how the worktree differs from the staged contents
         self.save_patch_backup(&commit, Some((&index_tree, &worktree_tree)));
@@ -2044,8 +2072,9 @@ impl Git {
                     "failed to check out the staged contents, and restoring the reverted files failed ({restore_err}); their contents are kept in {stash_ref}"
                 ));
             }
-            if let Err(err) = drop_stash_commit(&commit) {
-                warn!("failed to drop stash {stash_ref} of reverted files: {err:?}");
+            match drop_stash_commit(&commit) {
+                Ok(()) => self.journal_forget(&commit),
+                Err(err) => warn!("failed to drop stash {stash_ref} of reverted files: {err:?}"),
             }
             return Err(err).wrap_err("failed to check out the staged contents");
         }
@@ -2057,6 +2086,7 @@ impl Git {
     /// in a stash entry of untracked files, removes their entries from the
     /// index and deletes the files.
     fn stash_intent_to_add(&mut self, paths: Vec<PathBuf>) -> Result<()> {
+        self.ensure_journal();
         // Stage the files in an index of their own, as `git stash -u` stages
         // untracked files, which leaves the real index untouched
         let tmp = tempfile::tempdir()?;
@@ -2101,6 +2131,7 @@ impl Git {
             .run()
             .wrap_err("failed to stash intent-to-add files")?;
         debug!("stashed intent-to-add files {paths:?} in {commit}");
+        self.journal_record(&commit, StashKind::IntentToAdd);
         self.intent_to_add = Some(IntentToAddStash {
             commit,
             paths: paths.clone(),
@@ -2175,8 +2206,9 @@ impl Git {
                 occupied.iter().map(display_path).join(", ")
             ));
         }
-        if let Err(err) = drop_stash_commit(&ita.commit) {
-            warn!("failed to drop stash of intent-to-add files: {err:?}");
+        match drop_stash_commit(&ita.commit) {
+            Ok(()) => self.journal_forget(&ita.commit),
+            Err(err) => warn!("failed to drop stash of intent-to-add files: {err:?}"),
         }
         Ok(())
     }
@@ -2219,6 +2251,184 @@ impl Git {
         Ok(())
     }
 
+    /// Names the hook that is running, for the pending-stash journal.
+    pub fn set_stash_hook_name(&mut self, name: &str) {
+        self.hook_name = name.to_string();
+    }
+
+    /// The pending-stash journal of this worktree.
+    fn journal_file() -> Result<PathBuf> {
+        let dir = git_read(["rev-parse", "--absolute-git-dir"])?;
+        Ok(PathBuf::from(dir.trim()).join(stash_journal::FILE_NAME))
+    }
+
+    /// Writes the pending-stash journal, before anything is stashed or the
+    /// worktree changes. Not having one only loses the recovery after a
+    /// crash, so a failure is a warning.
+    fn ensure_journal(&mut self) {
+        if self.journal.is_some() || self.journal_declined {
+            return;
+        }
+        let begun = (|| {
+            let path = Self::journal_file()?;
+            let journal = stash_journal::Journal::new(
+                &self.hook_name,
+                &std::env::current_dir()?,
+                stash_commit_ids(),
+            );
+            stash_journal::OwnedJournal::begin(path, journal)
+        })();
+        match begun {
+            Ok(Some(journal)) => self.journal = Some(journal),
+            Ok(None) => {
+                debug!("another pending-stash journal exists; this run keeps none");
+                self.journal_declined = true;
+            }
+            Err(err) => warn!("failed to write the pending-stash journal: {err:?}"),
+        }
+    }
+
+    fn journal_record(&mut self, commit: &str, kind: StashKind) {
+        if let Some(journal) = &mut self.journal
+            && let Err(err) = journal.record(commit, kind)
+        {
+            warn!("failed to record stash {commit} in the pending-stash journal: {err:?}");
+        }
+    }
+
+    fn journal_forget(&mut self, commit: &str) {
+        if let Some(journal) = &mut self.journal
+            && let Err(err) = journal.forget(commit)
+        {
+            warn!("failed to update the pending-stash journal: {err:?}");
+        }
+    }
+
+    fn journal_finish(&mut self) {
+        if let Some(journal) = self.journal.take() {
+            journal.remove();
+        }
+    }
+
+    /// Looks for a pending-stash journal that a hk which was killed left
+    /// behind, and puts its stashed changes back or says how to. Never fails
+    /// the run, and never touches the journal of a hk that is still running.
+    pub fn recover_pending_stash(&mut self) {
+        if let Err(err) = self.try_recover_pending_stash() {
+            warn!("failed to check for stashed changes left by an interrupted hk: {err:?}");
+        }
+    }
+
+    fn try_recover_pending_stash(&mut self) -> Result<()> {
+        let path = Self::journal_file()?;
+        let journal = match stash_journal::read(&path) {
+            Ok(Some(journal)) => journal,
+            Ok(None) => return Ok(()),
+            Err(err) => {
+                warn!(
+                    "{} is not readable, so hk left it alone: {err:#}. If hk was stopped while it had changes stashed, they are in `git stash list`.",
+                    path.display()
+                );
+                return Ok(());
+            }
+        };
+        let pid = journal.pid;
+        if !journal.owner_is_gone(
+            stash_journal::process_is_alive(pid),
+            stash_journal::process_start_token(pid).as_deref(),
+        ) {
+            debug!(
+                "{} is still running; leaving its journal",
+                journal.describe()
+            );
+            return Ok(());
+        }
+        let stash: Vec<stash_journal::StashRow> = stash_entries()
+            .into_iter()
+            .map(|e| stash_journal::StashRow {
+                commit: e.commit,
+                subject: e.subject,
+            })
+            .collect();
+        let status = git_read_bytes([
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--no-renames",
+            "--untracked-files=normal",
+        ])?;
+        let clean = !stash_journal::status_has_worktree_changes(&String::from_utf8_lossy(&status));
+        match stash_journal::decide(&journal, &stash, clean) {
+            Action::Discard(why) => {
+                debug!("removing {}: {why}", path.display());
+                stash_journal::remove_file(&path);
+            }
+            Action::Report { reason, commits } => {
+                error!(
+                    "{}",
+                    stash_journal::report_message(&journal, &path, &reason, &commits)
+                );
+            }
+            Action::Restore(entries) => {
+                warn!(
+                    "{} was stopped while it had your unstaged changes stashed; putting them back",
+                    journal.describe()
+                );
+                for entry in &entries {
+                    match entry.kind {
+                        StashKind::Unstaged => {
+                            self.stash = Some(StashType::Git);
+                            self.stash_commit = Some(entry.commit.clone());
+                        }
+                        StashKind::IntentToAdd => {
+                            let (paths, unnamed) = git_read_paths([
+                                "ls-tree",
+                                "-r",
+                                "--name-only",
+                                "-z",
+                                &format!("{}^3", entry.commit),
+                            ])?;
+                            if !unnamed.is_empty() {
+                                self.stash = None;
+                                self.stash_commit = None;
+                                self.intent_to_add = None;
+                                return Err(eyre!(
+                                    "intent-to-add stash {} holds paths that are not valid UTF-8; restore it with `git stash apply {}`",
+                                    entry.commit,
+                                    entry.commit
+                                ));
+                            }
+                            self.intent_to_add = Some(IntentToAddStash {
+                                commit: entry.commit.clone(),
+                                paths,
+                            });
+                        }
+                    }
+                }
+                match self.pop_stash(false) {
+                    Ok(()) => {
+                        stash_journal::remove_file(&path);
+                        info!("restored the stashed changes");
+                    }
+                    Err(err) => {
+                        let commits: Vec<String> =
+                            entries.iter().map(|e| e.commit.clone()).collect();
+                        error!(
+                            "failed to restore the stashed changes: {err:#}\n{}",
+                            stash_journal::report_message(
+                                &journal,
+                                &path,
+                                &stash_journal::ReportReason::DirtyWorktree,
+                                &commits
+                            )
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Path of the most recent stash patch backup, if one was written.
     pub fn last_patch_path(&self) -> Option<&PathBuf> {
         self.last_patch_path.as_ref()
@@ -2228,10 +2438,17 @@ impl Git {
         let result = self.pop_unstaged_stash(should_stage);
         let intent_to_add_result = self.restore_intent_to_add(true);
         self.stashed_paths = None;
-        match (result, intent_to_add_result) {
+        let result = match (result, intent_to_add_result) {
             (Err(err), intent_to_add_result) => Err(with_restore_error(err, intent_to_add_result)),
             (Ok(()), intent_to_add_result) => intent_to_add_result,
+        };
+        // Once the changes are back, the journal has nothing left to say. When
+        // restoring failed, the entry is still in the stash and the journal
+        // keeps pointing at it.
+        if result.is_ok() {
+            self.journal_finish();
         }
+        result
     }
 
     fn pop_unstaged_stash(&mut self, should_stage: bool) -> Result<()> {
