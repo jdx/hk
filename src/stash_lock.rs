@@ -129,21 +129,38 @@ pub fn open_lock_file(path: &Path, shared_mode: Option<u32>) -> std::io::Result<
     }
     let mut opts = OpenOptions::new();
     opts.create(true).truncate(false).read(true).write(true);
+    shared_create_mode(&mut opts, shared_mode);
+    let file = opts.open(path)?;
+    apply_shared_mode(&file, shared_mode);
+    Ok(file)
+}
+
+/// Asks `opts` to create a file with `shared_mode` (see
+/// [`shared_repository_mode`]) when set; the umask still applies to it, so
+/// follow with [`apply_shared_mode`] on the opened file. Every file hk creates
+/// in the shared git directory goes through both, so `core.sharedRepository`
+/// holds for all of them alike.
+pub fn shared_create_mode(opts: &mut OpenOptions, shared_mode: Option<u32>) {
     #[cfg(unix)]
     if let Some(mode) = shared_mode {
         use std::os::unix::fs::OpenOptionsExt;
         opts.mode(mode);
     }
-    let file = opts.open(path)?;
+    #[cfg(not(unix))]
+    let _ = (opts, shared_mode);
+}
+
+/// Gives a file hk just created `shared_mode` when set, undoing what the
+/// umask stripped from the create mode. Best effort: a failure leaves the
+/// umask's result.
+pub fn apply_shared_mode(file: &File, shared_mode: Option<u32>) {
     #[cfg(unix)]
     if let Some(mode) = shared_mode {
         use std::os::unix::fs::PermissionsExt;
-        // The umask may have stripped group bits from the create mode.
         let _ = file.set_permissions(std::fs::Permissions::from_mode(mode));
     }
     #[cfg(not(unix))]
-    let _ = shared_mode;
-    Ok(file)
+    let _ = (file, shared_mode);
 }
 
 impl Drop for StashLock {

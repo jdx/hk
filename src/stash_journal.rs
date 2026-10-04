@@ -108,10 +108,17 @@ impl Journal {
     pub fn owner(&self, here: Option<&str>, alive: bool, current_start: Option<&str>) -> Owner {
         let start_differs =
             matches!((self.pid_start.as_deref(), current_start), (Some(a), Some(b)) if a != b);
+        // A live pid whose start token cannot be read now (a process hk may
+        // not inspect) cannot be told from a later process that reuses the
+        // pid, so it is not taken for the owner
+        let start_unreadable = self.pid_start.is_some() && current_start.is_none();
+        const UNREADABLE: &str = "its pid is in use, but hk cannot read when that process started, so it cannot tell the owner from a later process that reused the pid";
         match (self.owner_host.as_deref(), here) {
             (Some(recorded), Some(here)) if recorded == here => {
                 if !alive || start_differs {
                     Owner::Gone
+                } else if start_unreadable {
+                    Owner::Unknown(UNREADABLE)
                 } else {
                     Owner::Running
                 }
@@ -127,6 +134,8 @@ impl Journal {
             (None, _) if alive => {
                 if start_differs {
                     Owner::Gone
+                } else if start_unreadable {
+                    Owner::Unknown(UNREADABLE)
                 } else {
                     Owner::Running
                 }
@@ -303,7 +312,16 @@ pub fn sweep_temp_files(path: &Path, _lock: &JournalLock) {
 /// created with `create_new`, so an existing file under that name (one a
 /// crashed process left, even one that shares an inode with the journal) is
 /// never opened, let alone truncated: a taken name is skipped.
-fn write_temp(path: &Path, journal: &Journal, _lock: &JournalLock) -> Result<PathBuf> {
+///
+/// A new file gets `shared_mode` (`core.sharedRepository`) before it is
+/// renamed in, so every journal, first or rewritten, can be read by the group
+/// that shares the repository whatever the creator's umask.
+fn write_temp(
+    path: &Path,
+    journal: &Journal,
+    shared_mode: Option<u32>,
+    _lock: &JournalLock,
+) -> Result<PathBuf> {
     use std::io::Write;
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -318,17 +336,17 @@ fn write_temp(path: &Path, journal: &Journal, _lock: &JournalLock) -> Result<Pat
             std::process::id(),
             COUNTER.fetch_add(1, Ordering::Relaxed)
         ));
-        let mut file = match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&tmp)
-        {
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        crate::stash_lock::shared_create_mode(&mut opts, shared_mode);
+        let mut file = match opts.open(&tmp) {
             Ok(file) => file,
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(err) => {
                 return Err(err).wrap_err_with(|| format!("failed to write {}", tmp.display()));
             }
         };
+        crate::stash_lock::apply_shared_mode(&file, shared_mode);
         let written = file
             .write_all(json.as_bytes())
             // On disk before it is renamed in, or power loss could leave a
@@ -366,7 +384,12 @@ fn sync_parent(path: &Path) {
 /// Writes `journal` at `path` only if nothing is there: `Ok(false)` leaves the
 /// file that is, whatever it holds. Under the lock no one else can create it
 /// between the check and the rename.
-fn create(path: &Path, journal: &Journal, lock: &JournalLock) -> Result<bool> {
+fn create(
+    path: &Path,
+    journal: &Journal,
+    shared_mode: Option<u32>,
+    lock: &JournalLock,
+) -> Result<bool> {
     sweep_temp_files(path, lock);
     if path
         .try_exists()
@@ -374,14 +397,19 @@ fn create(path: &Path, journal: &Journal, lock: &JournalLock) -> Result<bool> {
     {
         return Ok(false);
     }
-    replace(path, journal, lock)?;
+    replace(path, journal, shared_mode, lock)?;
     Ok(true)
 }
 
 /// Replaces the journal at `path` atomically: readers see the old or the new
 /// content, never a partial one.
-fn replace(path: &Path, journal: &Journal, lock: &JournalLock) -> Result<()> {
-    let tmp = write_temp(path, journal, lock)?;
+fn replace(
+    path: &Path,
+    journal: &Journal,
+    shared_mode: Option<u32>,
+    lock: &JournalLock,
+) -> Result<()> {
+    let tmp = write_temp(path, journal, shared_mode, lock)?;
     // Windows refuses to replace a file that a scanner or indexer has open for
     // a moment, so a denied rename is tried again
     let mut attempt = 0;
@@ -432,11 +460,13 @@ impl OwnedJournal {
         shared_mode: Option<u32>,
     ) -> Result<Option<Self>> {
         let lock = Self::lock(&path, shared_mode)?;
-        Ok(create(&path, &journal, &lock)?.then_some(Self {
-            path,
-            journal,
-            shared_mode,
-        }))
+        Ok(
+            create(&path, &journal, shared_mode, &lock)?.then_some(Self {
+                path,
+                journal,
+                shared_mode,
+            }),
+        )
     }
 
     fn lock(path: &Path, shared_mode: Option<u32>) -> Result<JournalLock> {
@@ -462,14 +492,14 @@ impl OwnedJournal {
             commit: commit.to_string(),
             kind,
         });
-        replace(&self.path, &self.journal, &lock)
+        replace(&self.path, &self.journal, self.shared_mode, &lock)
     }
 
     /// Forgets an entry hk dropped itself.
     pub fn forget(&mut self, commit: &str) -> Result<()> {
         let lock = Self::lock(&self.path, self.shared_mode)?;
         self.journal.entries.retain(|e| e.commit != commit);
-        replace(&self.path, &self.journal, &lock)
+        replace(&self.path, &self.journal, self.shared_mode, &lock)
     }
 
     /// Deletes the journal: the changes are back in the worktree. When the
@@ -894,11 +924,16 @@ mod tests {
         assert_eq!(j.owner(HERE, false, None), Owner::Gone);
         assert_eq!(j.owner(HERE, true, Some("boot:100")), Owner::Running);
         assert_eq!(j.owner(HERE, true, Some("boot:999")), Owner::Gone);
-        // Without start information a live pid is trusted
-        assert_eq!(j.owner(HERE, true, None), Owner::Running);
+        // A live pid whose start cannot be read now is not trusted as the owner
+        assert!(matches!(j.owner(HERE, true, None), Owner::Unknown(_)));
         let mut no_start = journal();
         no_start.pid_start = None;
         assert_eq!(no_start.owner(HERE, true, Some("boot:999")), Owner::Running);
+        // Journals without a recorded start: as before
+        assert_eq!(no_start.owner(HERE, true, None), Owner::Running);
+        assert_eq!(no_start.owner(HERE, false, None), Owner::Gone);
+        // Dead is gone whatever the tokens say
+        assert_eq!(j.owner(HERE, false, Some("boot:100")), Owner::Gone);
     }
 
     #[test]
@@ -923,6 +958,7 @@ mod tests {
         // As before for a pid that is alive
         assert_eq!(old.owner(HERE, true, Some("boot:100")), Owner::Running);
         assert_eq!(old.owner(HERE, true, Some("boot:999")), Owner::Gone);
+        assert!(matches!(old.owner(HERE, true, None), Owner::Unknown(_)));
     }
 
     #[test]
@@ -972,6 +1008,75 @@ mod tests {
             .mode()
             & 0o777;
         assert_eq!(mode, 0o660);
+    }
+
+    #[cfg(unix)]
+    fn mode_of(path: &Path) -> u32 {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    /// The mode a plain file gets here, i.e. what the process umask leaves.
+    #[cfg(unix)]
+    fn umask_mode(dir: &Path) -> u32 {
+        let probe = dir.join("probe");
+        std::fs::File::create(&probe).unwrap();
+        mode_of(&probe)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn journal_takes_the_shared_mode_over_the_umask_and_keeps_it_when_rewritten() {
+        // 0660 is not what a umask of 022 or 077 leaves, so getting it proves
+        // the explicit permission change, whatever umask the tests run under
+        for mode in [0o660, 0o664] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join(FILE_NAME);
+            let mut mine = OwnedJournal::begin(path.clone(), journal(), Some(mode))
+                .unwrap()
+                .unwrap();
+            assert_eq!(mode_of(&path), mode);
+            mine.record("abc", StashKind::Unstaged).unwrap();
+            assert_eq!(mode_of(&path), mode);
+            mine.forget("abc").unwrap();
+            assert_eq!(mode_of(&path), mode);
+            // Temp files are swept and no other file appears
+            assert_eq!(
+                names(dir.path()),
+                vec![FILE_NAME.to_string(), LOCK_NAME.to_string()]
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn journal_without_shared_mode_keeps_the_umask_result() {
+        let dir = tempfile::tempdir().unwrap();
+        let expected = umask_mode(dir.path());
+        let path = dir.path().join(FILE_NAME);
+        let mut mine = OwnedJournal::begin(path.clone(), journal(), None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(mode_of(&path), expected);
+        mine.record("abc", StashKind::Unstaged).unwrap();
+        assert_eq!(mode_of(&path), expected);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_journal_is_an_error_naming_the_file_not_an_absent_one() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        std::fs::write(&path, "{}").unwrap();
+        for mode in [0o000, 0o200] {
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+            if std::fs::File::open(&path).is_ok() {
+                return; // running as root: permissions do not apply
+            }
+            let err = read(&path).expect_err("must not read as absent");
+            assert!(format!("{err:#}").contains(FILE_NAME), "{err:#}");
+        }
     }
 
     #[test]
@@ -1219,13 +1324,13 @@ mod tests {
         let path = dir.path().join(FILE_NAME);
         let l = lock(&path);
         let first = journal();
-        assert!(create(&path, &first, &l).unwrap());
+        assert!(create(&path, &first, None, &l).unwrap());
         let mut second = journal();
         second.pid = 7;
-        assert!(!create(&path, &second, &l).unwrap());
+        assert!(!create(&path, &second, None, &l).unwrap());
         assert_eq!(read(&path).unwrap().unwrap(), first);
         std::fs::write(&path, "garbage").unwrap();
-        assert!(!create(&path, &second, &l).unwrap());
+        assert!(!create(&path, &second, None, &l).unwrap());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "garbage");
     }
 
@@ -1258,7 +1363,7 @@ mod tests {
         let path = dir.path().join(FILE_NAME);
         let live = journal();
         let l = lock(&path);
-        assert!(create(&path, &live, &l).unwrap());
+        assert!(create(&path, &live, None, &l).unwrap());
         let pid = std::process::id();
         let stale = dir.path().join(format!("{FILE_NAME}.{pid}.tmp"));
         std::fs::hard_link(&path, &stale).unwrap();
@@ -1266,14 +1371,14 @@ mod tests {
         let mut next = journal();
         next.pid = 5;
         for _ in 0..3 {
-            let tmp = write_temp(&path, &next, &l).unwrap();
+            let tmp = write_temp(&path, &next, None, &l).unwrap();
             assert_ne!(tmp, stale);
             std::fs::remove_file(tmp).unwrap();
         }
         assert_eq!(read(&path).unwrap().unwrap(), live);
         assert_eq!(read(&stale).unwrap().unwrap(), live);
         // Replacing goes through a fresh inode, so the stale name keeps its content
-        replace(&path, &next, &l).unwrap();
+        replace(&path, &next, None, &l).unwrap();
         assert_eq!(read(&path).unwrap().unwrap(), next);
         assert_eq!(read(&stale).unwrap().unwrap(), live);
         // Under the lock, leftovers are swept and the journal is untouched
@@ -1293,8 +1398,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE_NAME);
         let l = lock(&path);
-        let a = write_temp(&path, &journal(), &l).unwrap();
-        let b = write_temp(&path, &journal(), &l).unwrap();
+        let a = write_temp(&path, &journal(), None, &l).unwrap();
+        let b = write_temp(&path, &journal(), None, &l).unwrap();
         assert_ne!(a, b);
     }
 
@@ -1306,10 +1411,10 @@ mod tests {
         let path = dir.path().join(FILE_NAME);
         let l = lock(&path);
         let old = journal();
-        assert!(create(&path, &old, &l).unwrap());
+        assert!(create(&path, &old, None, &l).unwrap());
         let mut newer = journal();
         newer.pid = 11;
-        let leftover = write_temp(&path, &newer, &l).unwrap();
+        let leftover = write_temp(&path, &newer, None, &l).unwrap();
         assert!(leftover.exists());
         assert_eq!(read(&path).unwrap().unwrap(), old);
         sweep_temp_files(&path, &l);
@@ -1326,7 +1431,7 @@ mod tests {
             .unwrap();
         let mut other = journal();
         other.pid = 99;
-        replace(&path, &other, &lock(&path)).unwrap();
+        replace(&path, &other, None, &lock(&path)).unwrap();
         mine.remove();
         assert_eq!(read(&path).unwrap().unwrap(), other);
     }

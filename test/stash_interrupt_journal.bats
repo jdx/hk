@@ -428,3 +428,66 @@ reported_journal_is_not_restored_over_a_running_fixer() {
 @test "a reported journal is not restored over a running fixer (shell git)" {
     reported_journal_is_not_restored_over_a_running_fixer 0
 }
+
+# A foreign journal that names no stash entry still in the stash protects
+# nothing, and left in place it would keep every later run from writing a
+# journal of its own: it is removed, and the next hook run journals again.
+stale_foreign_journal_is_removed() {
+    local use_libgit2="$1"
+    kill9_then_recover "$use_libgit2"
+    set_owner_host "elsewhere.example|pid:[4026539999]"
+    # The entry was applied and dropped by hand
+    git stash drop
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_output --partial "removed the stale pending-stash journal"
+    [ ! -e "$JOURNAL" ]
+    rm -f started
+    git checkout -- file.txt 2>/dev/null || true
+    printf 'staged\nunstaged\n' > file.txt
+    HK_LIBGIT2="$use_libgit2" hk run pre-commit >/dev/null 2>&1 &
+    local pid=$!
+    wait_for_step
+    assert_file_exists "$JOURNAL"
+    kill -TERM "$pid"
+    wait "$pid" || true
+}
+
+@test "a stale journal from another host is removed and the next run journals again (libgit2)" {
+    stale_foreign_journal_is_removed 1
+}
+
+@test "a stale journal from another host is removed and the next run journals again (shell git)" {
+    stale_foreign_journal_is_removed 0
+}
+
+# Octal permission bits of a file, portably: GNU stat takes -c, BSD stat -f.
+file_mode() {
+    stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"
+}
+
+# core.sharedRepository=group asks for files other accounts of the group can
+# use, whatever the creator's umask, so a journal a killed hk left can be read
+# and recovered by another member.
+shared_repository_journal_is_group_readable() {
+    local use_libgit2="$1"
+    write_config
+    prepare_repo
+    git config core.sharedRepository group
+    umask 077
+    HK_LIBGIT2="$use_libgit2" hk run pre-commit >/dev/null 2>&1 &
+    local pid=$!
+    wait_for_step
+    assert_file_exists "$JOURNAL"
+    kill -9 "$pid"
+    wait "$pid" || true
+    pkill -f "sleep $SLEEP_MARK\$" || true
+    assert_equal "$(file_mode "$JOURNAL")" "660"
+}
+
+@test "a journal in a group-shared repository is group-readable under umask 077 (libgit2)" {
+    shared_repository_journal_is_group_readable 1
+}
+
+@test "a journal in a group-shared repository is group-readable under umask 077 (shell git)" {
+    shared_repository_journal_is_group_readable 0
+}

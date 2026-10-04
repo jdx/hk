@@ -2356,10 +2356,7 @@ impl Git {
         if let Ok(Some(journal)) = stash_journal::read(&path)
             && journal.owner_now() == stash_journal::Owner::Running
         {
-            debug!(
-                "{} is still running; leaving its journal",
-                journal.describe()
-            );
+            note_running_owner(&journal);
             return Ok(());
         }
         // Lock order is the one stashing uses: the stash lock, then the
@@ -2416,10 +2413,7 @@ impl Git {
         match journal.owner_now() {
             stash_journal::Owner::Gone => {}
             stash_journal::Owner::Running => {
-                debug!(
-                    "{} is still running; leaving its journal",
-                    journal.describe()
-                );
+                note_running_owner(&journal);
                 return Ok(());
             }
             stash_journal::Owner::Unknown(why) => {
@@ -2442,7 +2436,17 @@ impl Git {
                     rows.as_deref().map_err(|e| e.clone()),
                 ) {
                     Some(message) => warn!("{message}"),
-                    None => debug!("{}: {why}; it holds no stash entry", path.display()),
+                    None if rows.is_ok() => {
+                        // It names nothing left in the stash, so it protects
+                        // nothing, and a leftover would keep every later run
+                        // from writing a journal of its own
+                        warn!(
+                            "removed the stale pending-stash journal {}: it names no stash entry that is still in `git stash list` and hk could not tell whether its owner is running ({why})",
+                            path.display()
+                        );
+                        stash_journal::discard(&path, &lock);
+                    }
+                    None => {}
                 }
                 return Ok(());
             }
@@ -4230,6 +4234,24 @@ fn untracked_files_arg(include_untracked: bool) -> &'static str {
         "--untracked-files=all"
     } else {
         "--untracked-files=no"
+    }
+}
+
+/// Says that a journal was left alone because its owner is running. Quiet when
+/// the journal names no stash entry; otherwise a notice, so a live-looking
+/// owner never hides stashed changes.
+fn note_running_owner(journal: &stash_journal::Journal) {
+    if journal.entries.is_empty() {
+        debug!(
+            "{} is still running; leaving its journal",
+            journal.describe()
+        );
+    } else {
+        warn!(
+            "{} is still running with changes stashed, so hk left its pending-stash journal alone. If it is not running, they are in `git stash list` as `hk: {}-...` entries",
+            journal.describe(),
+            journal.pid
+        );
     }
 }
 
