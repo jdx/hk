@@ -163,3 +163,52 @@ PY
     run git stash list
     assert_output ""
 }
+
+@test "git config hk.stashLockTimeout 0 fails immediately when the lock is held" {
+    _setup_two_worktrees
+    git config hk.stashLockTimeout 0
+
+    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    python3 - "$lock" "$WT_DIR/lock-held" <<'PY' &
+import fcntl, sys, time
+f = open(sys.argv[1], "w")
+fcntl.flock(f, fcntl.LOCK_EX)
+open(sys.argv[2], "w").close()
+time.sleep(30)
+PY
+    holder=$!
+    for _ in $(seq 100); do
+        [ -e "$WT_DIR/lock-held" ] && break
+        sleep 0.1
+    done
+    if [ ! -e "$WT_DIR/lock-held" ]; then
+        kill "$holder" 2>/dev/null || true
+        fail "lock holder never took the lock"
+    fi
+
+    cd "$WT_DIR/wt-a"
+    start=$SECONDS
+    run hk run pre-commit
+    elapsed=$((SECONDS - start))
+    kill "$holder"
+    wait "$holder" 2>/dev/null || true
+    assert_failure
+    assert_output --partial "timed out after 0s"
+    # Far below the 300s default, so the zero was honored.
+    [ "$elapsed" -lt 20 ]
+    run cat file.txt
+    assert_output "unstaged wt-a"
+}
+
+@test "a read-only lock file left by another account does not block stashing" {
+    _setup_two_worktrees
+    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    : > "$lock"
+    chmod 0444 "$lock"
+
+    cd "$WT_DIR/wt-a"
+    run hk run pre-commit
+    assert_success
+    run cat file.txt
+    assert_output "unstaged wt-a"
+}

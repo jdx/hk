@@ -410,7 +410,7 @@ impl Settings {
                     }
                     "usize" => {
                         if let Ok(v) = cfg.get_i32(key)
-                            && v > 0
+                            && git_usize_in_range(setting_name, v)
                         {
                             map.insert(setting_name, SettingValue::Usize(v as usize));
                             break;
@@ -926,5 +926,26 @@ mod tests {
             "unexpected libgit2 error message: {:?}",
             str_err.message()
         );
+    }
+}
+
+/// Settings for which `0` is a real value rather than "unset" when read from
+/// Git config; every other `usize` setting ignores a non-positive Git value.
+const GIT_ZERO_ALLOWED: &[&str] = &["stash_lock_timeout"];
+
+fn git_usize_in_range(setting_name: &str, v: i32) -> bool {
+    v > 0 || (v == 0 && GIT_ZERO_ALLOWED.contains(&setting_name))
+}
+
+#[cfg(test)]
+mod git_zero_tests {
+    use super::git_usize_in_range;
+
+    #[test]
+    fn zero_is_honored_only_for_opted_in_settings() {
+        assert!(git_usize_in_range("stash_lock_timeout", 0));
+        assert!(!git_usize_in_range("stash_backup_count", 0));
+        assert!(git_usize_in_range("stash_backup_count", 3));
+        assert!(!git_usize_in_range("stash_lock_timeout", -1));
     }
 }

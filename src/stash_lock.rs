@@ -46,20 +46,22 @@ pub struct StashLock {
 impl StashLock {
     /// Take the lock on `path`, creating the file if needed.
     ///
+    /// `shared_mode` is the permission mode to give a newly created file in a
+    /// shared repository (see [`shared_repository_mode`]); `None` keeps the
+    /// process umask. An existing file is opened read-only, which is enough to
+    /// lock it, so accounts that cannot write to it can still stash.
+    ///
     /// If another process holds it, calls `on_wait` once and keeps trying
     /// until `timeout` has passed. A zero timeout fails at once. If `cancel`
     /// fires while waiting, fails with [`Cancelled`] within one poll interval.
     pub fn acquire(
         path: &Path,
+        shared_mode: Option<u32>,
         timeout: Duration,
         cancel: &CancellationToken,
         on_wait: impl FnOnce(),
     ) -> Result<Self> {
-        let file = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(path)
+        let file = open_lock_file(path, shared_mode)
             .wrap_err_with(|| format!("failed to open stash lock {}", path.display()))?;
         let start = Instant::now();
         let mut on_wait = Some(on_wait);
@@ -93,6 +95,53 @@ impl StashLock {
     }
 }
 
+/// Map the value of `core.sharedRepository` to the mode a file hk creates in
+/// the repository should get, or `None` when the umask should apply.
+///
+/// Mirrors git: `group`/`true`/`1` is group-writable, `all`/`world`/
+/// `everybody`/`2` is writable by everyone, `umask`/`false`/`0`/unset is
+/// the umask, and an octal value is used as given with owner read/write added.
+pub fn shared_repository_mode(value: Option<&str>) -> Option<u32> {
+    let value = value?.trim().to_ascii_lowercase();
+    match value.as_str() {
+        "" | "umask" | "false" | "no" | "off" | "0" => None,
+        "group" | "true" | "yes" | "on" | "1" => Some(0o660),
+        "all" | "world" | "everybody" | "2" => Some(0o666),
+        v if v.starts_with('0') => u32::from_str_radix(v, 8)
+            .ok()
+            .filter(|m| *m <= 0o777)
+            .map(|m| m | 0o600),
+        _ => None,
+    }
+}
+
+fn open_lock_file(path: &Path, shared_mode: Option<u32>) -> std::io::Result<File> {
+    // An existing file only needs to be readable to be locked, so a lock file
+    // another account created without group write still works for us.
+    match OpenOptions::new().read(true).open(path) {
+        Ok(file) => return Ok(file),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err),
+    }
+    let mut opts = OpenOptions::new();
+    opts.create(true).truncate(false).read(true).write(true);
+    #[cfg(unix)]
+    if let Some(mode) = shared_mode {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(mode);
+    }
+    let file = opts.open(path)?;
+    #[cfg(unix)]
+    if let Some(mode) = shared_mode {
+        use std::os::unix::fs::PermissionsExt;
+        // The umask may have stripped group bits from the create mode.
+        let _ = file.set_permissions(std::fs::Permissions::from_mode(mode));
+    }
+    #[cfg(not(unix))]
+    let _ = shared_mode;
+    Ok(file)
+}
+
 impl Drop for StashLock {
     fn drop(&mut self) {
         let _ = self.file.unlock();
@@ -121,6 +170,7 @@ mod tests {
         let (_dir, path) = lock_path();
         let _held = StashLock::acquire(
             &path,
+            None,
             Duration::from_secs(1),
             &CancellationToken::new(),
             || {},
@@ -130,6 +180,7 @@ mod tests {
         let flag = waited.clone();
         let err = StashLock::acquire(
             &path,
+            None,
             Duration::from_millis(150),
             &CancellationToken::new(),
             move || flag.store(true, Ordering::SeqCst),
@@ -146,6 +197,7 @@ mod tests {
         let (_dir, path) = lock_path();
         let _held = StashLock::acquire(
             &path,
+            None,
             Duration::from_secs(1),
             &CancellationToken::new(),
             || {},
@@ -157,6 +209,7 @@ mod tests {
         assert!(
             StashLock::acquire(
                 &path,
+                None,
                 Duration::ZERO,
                 &CancellationToken::new(),
                 move || { flag.store(true, Ordering::SeqCst) }
@@ -172,13 +225,21 @@ mod tests {
         let (_dir, path) = lock_path();
         let held = StashLock::acquire(
             &path,
+            None,
             Duration::from_secs(1),
             &CancellationToken::new(),
             || {},
         )
         .unwrap();
         drop(held);
-        StashLock::acquire(&path, Duration::ZERO, &CancellationToken::new(), || {}).unwrap();
+        StashLock::acquire(
+            &path,
+            None,
+            Duration::ZERO,
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
     }
 
     #[test]
@@ -186,6 +247,7 @@ mod tests {
         let (_dir, path) = lock_path();
         let held = StashLock::acquire(
             &path,
+            None,
             Duration::from_secs(1),
             &CancellationToken::new(),
             || {},
@@ -195,6 +257,7 @@ mod tests {
         let waiter = thread::spawn(move || {
             StashLock::acquire(
                 &waiter_path,
+                None,
                 Duration::from_secs(10),
                 &CancellationToken::new(),
                 || {},
@@ -212,6 +275,7 @@ mod tests {
         let (_dir, path) = lock_path();
         let _held = StashLock::acquire(
             &path,
+            None,
             Duration::from_secs(1),
             &CancellationToken::new(),
             || {},
@@ -224,8 +288,71 @@ mod tests {
             trigger.cancel();
         });
         let start = Instant::now();
-        let err = StashLock::acquire(&path, Duration::from_secs(30), &cancel, || {}).unwrap_err();
+        let err =
+            StashLock::acquire(&path, None, Duration::from_secs(30), &cancel, || {}).unwrap_err();
         assert!(err.downcast_ref::<Cancelled>().is_some(), "{err:#}");
         assert!(start.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn shared_repository_values_map_to_modes() {
+        assert_eq!(shared_repository_mode(None), None);
+        assert_eq!(shared_repository_mode(Some("umask")), None);
+        assert_eq!(shared_repository_mode(Some("false")), None);
+        assert_eq!(shared_repository_mode(Some("0")), None);
+        assert_eq!(shared_repository_mode(Some("group")), Some(0o660));
+        assert_eq!(shared_repository_mode(Some("true")), Some(0o660));
+        assert_eq!(shared_repository_mode(Some("1")), Some(0o660));
+        assert_eq!(shared_repository_mode(Some("all")), Some(0o666));
+        assert_eq!(shared_repository_mode(Some("World")), Some(0o666));
+        assert_eq!(shared_repository_mode(Some("2")), Some(0o666));
+        assert_eq!(shared_repository_mode(Some("0640")), Some(0o640 | 0o600));
+        assert_eq!(shared_repository_mode(Some("0440")), Some(0o640));
+        assert_eq!(shared_repository_mode(Some("nonsense")), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_only_lock_file_can_still_be_locked() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_dir, path) = lock_path();
+        std::fs::write(&path, "").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+        let held = StashLock::acquire(
+            &path,
+            None,
+            Duration::ZERO,
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
+        assert!(
+            StashLock::acquire(
+                &path,
+                None,
+                Duration::ZERO,
+                &CancellationToken::new(),
+                || {}
+            )
+            .is_err()
+        );
+        drop(held);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shared_mode_beats_the_umask_on_creation() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_dir, path) = lock_path();
+        let _held = StashLock::acquire(
+            &path,
+            Some(0o660),
+            Duration::ZERO,
+            &CancellationToken::new(),
+            || {},
+        )
+        .unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o660);
     }
 }

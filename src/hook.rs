@@ -1434,12 +1434,16 @@ impl Hook {
             let has_unstaged_changes = git_status.has_unstaged_changes(*env::HK_STASH_UNTRACKED);
 
             if has_unstaged_changes {
-                let lock_path = repo.lock().await.stash_lock_path()?;
+                let (lock_path, shared_mode) = {
+                    let repo = repo.lock().await;
+                    (repo.stash_lock_path()?, repo.stash_lock_shared_mode())
+                };
                 let timeout =
                     std::time::Duration::from_secs(Settings::get().stash_lock_timeout as u64);
                 let acquired = tokio::task::block_in_place(|| {
                     crate::stash_lock::StashLock::acquire(
                         &lock_path,
+                        shared_mode,
                         timeout,
                         &hook_ctx.failed,
                         || {
