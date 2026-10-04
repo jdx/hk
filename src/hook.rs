@@ -1789,7 +1789,17 @@ impl Hook {
         } else {
             debug!("{self}: hook finished successfully");
         }
-        let failure = result.as_ref().err().map(ToString::to_string);
+        // A run stopped by a user's Ctrl-C is cancelled, not failed: it reports
+        // no failure text, only the cancelled status.
+        let run_cancelled = result
+            .as_ref()
+            .err()
+            .is_some_and(|err| crate::step_group::is_cancelled_run_error(&hook_ctx, err));
+        let failure = result
+            .as_ref()
+            .err()
+            .filter(|_| !run_cancelled)
+            .map(ToString::to_string);
         if let Err(emit_err) = crate::structured_output::emit_run(
             output_format,
             &self.name,
@@ -1797,6 +1807,7 @@ impl Hook {
             run_started.elapsed().as_millis(),
             &hook_ctx,
             failure,
+            run_cancelled,
             reports,
         ) {
             if let Err(run_err) = &result {

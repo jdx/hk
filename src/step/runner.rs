@@ -521,6 +521,8 @@ impl Step {
                 }
                 if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
+                } else if matches!(err, ensembler::Error::Cancelled) {
+                    // Not a failure: the step reports itself cancelled.
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
                 }

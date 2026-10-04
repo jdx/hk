@@ -528,15 +528,12 @@ impl HkMcpServer {
             Ok(status) => {
                 run.exit_code = status.code();
                 let invalid_result = parse_run_result(run, cancelled);
-                run.status = if cancelled {
-                    "cancelled"
-                } else if invalid_result {
-                    "failed"
-                } else if status.success() {
-                    "succeeded"
-                } else {
-                    "failed"
-                }
+                run.status = final_run_status(
+                    cancelled,
+                    invalid_result,
+                    run.result.as_ref(),
+                    status.success(),
+                )
                 .into();
             }
             Err(error) => {
@@ -1217,6 +1214,25 @@ fn append_capped(target: &mut Vec<u8>, bytes: &[u8]) -> bool {
     bytes.len() > remaining
 }
 
+/// The MCP status of a finished run. A run its user interrupted (Ctrl-C) has
+/// a `cancelled` result, which is reported as cancelled, not failed.
+fn final_run_status(
+    cancelled: bool,
+    invalid_result: bool,
+    result: Option<&serde_json::Value>,
+    exit_success: bool,
+) -> &'static str {
+    let reported_cancelled =
+        !invalid_result && result.and_then(|r| r["status"].as_str()) == Some("cancelled");
+    if cancelled || reported_cancelled {
+        "cancelled"
+    } else if invalid_result || !exit_success {
+        "failed"
+    } else {
+        "succeeded"
+    }
+}
+
 /// How long a cancelled hk run gets to stop its own steps before it is killed.
 const CANCEL_GRACE: Duration = Duration::from_secs(10);
 
@@ -1626,6 +1642,35 @@ fn record_diff_error(run: &mut RunRecord, error: Option<String>) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_cancelled_run_result_is_a_cancelled_run() {
+        let cancelled = serde_json::json!({"status": "cancelled"});
+        let failed = serde_json::json!({"status": "failed"});
+        // hk exits non-zero on Ctrl-C; the result still says cancelled.
+        assert_eq!(
+            final_run_status(false, false, Some(&cancelled), false),
+            "cancelled"
+        );
+        assert_eq!(final_run_status(true, false, None, false), "cancelled");
+        assert_eq!(
+            final_run_status(false, false, Some(&failed), false),
+            "failed"
+        );
+        assert_eq!(
+            final_run_status(false, true, Some(&cancelled), false),
+            "failed"
+        );
+        assert_eq!(
+            final_run_status(
+                false,
+                false,
+                Some(&serde_json::json!({"status": "passed"})),
+                true
+            ),
+            "succeeded"
+        );
+    }
+
     use super::*;
     use std::collections::BTreeMap;
     use tokio::io::{AsyncBufReadExt, BufReader};

@@ -53,7 +53,8 @@ const CANCELLED_JOBS_GRACE: Duration = Duration::from_secs(10);
 ///
 /// The error returned is the first one, except that an error `is_allowed`
 /// rejects replaces an allowed one, so a job that could not run is never
-/// hidden behind another job's allowed command failure. Other later errors,
+/// hidden behind another job's allowed command failure. Likewise a real
+/// failure replaces a first error that is only a cancellation. Other later errors,
 /// such as a sibling reporting its command was cancelled, are only logged.
 async fn join_jobs<T, Fut>(
     mut set: tokio::task::JoinSet<Result<T>>,
@@ -111,9 +112,20 @@ where
             deadline.get_or_insert(tokio::time::Instant::now() + grace);
         }
         let allowed = is_allowed(&err);
+        let is_cancelled = cancel.is_cancelled() && crate::error::is_cancellation(&err);
         match &first_error {
             None => first_error = Some((err, allowed)),
             Some((_, true)) if !allowed => first_error = Some((err, allowed)),
+            // A real failure always wins over a job that was only cancelled,
+            // whichever reports first.
+            Some((first, false))
+                if !allowed
+                    && !is_cancelled
+                    && cancel.is_cancelled()
+                    && crate::error::is_cancellation(first) =>
+            {
+                first_error = Some((err, allowed))
+            }
             Some(_) => debug!("another job failed after the first: {err:#}"),
         }
     }
@@ -612,7 +624,7 @@ impl Step {
                                 &ctx, &job, stdout, stderr, combined, true,
                             );
                         }
-                        job.status_errored(&ctx, format!("{err}")).await?;
+                        job.status_error(&ctx, err).await?;
                     }
                     ctx.hook_ctx.inc_completed_jobs(1);
                     if !matches!(job.status, StepJobStatus::Pending) {
@@ -658,7 +670,12 @@ impl Step {
             CANCELLED_JOBS_GRACE,
             failure_allowed,
             |err| {
-                ctx.status_errored(&format!("{err}"));
+                // A cancelled job does not decide the step's outcome: a
+                // sibling's real failure may still arrive and must win. The
+                // step is settled below once every job has finished.
+                if !crate::step_group::is_cancelled_run_error(&ctx.hook_ctx, err) {
+                    ctx.status_error(err);
+                }
                 // A user's Ctrl-C already cancelled everything; it is not a step
                 // failure to abort the siblings for.
                 (fail_fast
@@ -1018,6 +1035,34 @@ mod tests {
             recorded.lock().unwrap().push(name);
             Ok(())
         });
+    }
+
+    #[tokio::test]
+    async fn join_jobs_prefers_a_real_failure_over_a_cancelled_job_in_both_orders() {
+        for cancelled_first in [true, false] {
+            let cancel = CancellationToken::new();
+            cancel.cancel();
+            let cancelled = || eyre::Report::new(ensembler::Error::Cancelled).wrap_err("sleep 60");
+            let mut set = tokio::task::JoinSet::<Result<()>>::new();
+            let delay = |first: bool| Duration::from_millis(if first { 0 } else { 100 });
+            set.spawn(async move {
+                tokio::time::sleep(delay(cancelled_first)).await;
+                Err(cancelled())
+            });
+            set.spawn(async move {
+                tokio::time::sleep(delay(!cancelled_first)).await;
+                Err(eyre::eyre!("tool exited 1"))
+            });
+            let result = join_jobs(
+                set,
+                &cancel,
+                GRACE,
+                |_| false,
+                |_| None::<std::future::Ready<()>>,
+            )
+            .await;
+            assert_eq!(result.unwrap_err().to_string(), "tool exited 1");
+        }
     }
 
     #[tokio::test]
