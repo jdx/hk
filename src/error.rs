@@ -26,3 +26,13 @@ pub fn is_command_failure(error: &eyre::Report) -> bool {
         )
     })
 }
+
+/// Whether the error is a command being cancelled, as opposed to failing.
+pub fn is_cancellation(error: &eyre::Report) -> bool {
+    error.chain().any(|error| {
+        matches!(
+            error.downcast_ref::<ensembler::Error>(),
+            Some(ensembler::Error::Cancelled)
+        )
+    })
+}

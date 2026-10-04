@@ -242,6 +242,8 @@ pub struct HookContext {
     pub run_type: RunType,
     semaphore: Arc<Semaphore>,
     pub failed: CancellationToken,
+    /// Set when a step failure, not Ctrl-C, cancelled the other steps.
+    pub fail_fast_aborted: std::sync::atomic::AtomicBool,
     pub hk_progress: Option<Arc<ProgressJob>>,
     pub step_contexts: std::sync::Mutex<IndexMap<String, Arc<StepContext>>>,
     pub files_in_contention: std::sync::Mutex<HashSet<PathBuf>>,
@@ -326,6 +328,7 @@ impl HookContext {
             files_in_contention: StdMutex::new(Default::default()),
             semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
             failed: CancellationToken::new(),
+            fail_fast_aborted: Default::default(),
             expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
             skip_steps,

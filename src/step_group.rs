@@ -60,6 +60,9 @@ impl StepGroupContext {
 /// Remaining steps are marked before their commands are cancelled so a woken
 /// runner cannot record cancellation as a command failure.
 pub(crate) async fn abort_running_steps(hook_ctx: &HookContext) {
+    hook_ctx
+        .fail_fast_aborted
+        .store(true, std::sync::atomic::Ordering::SeqCst);
     for step_ctx in hook_ctx.step_contexts.lock().unwrap().values() {
         step_ctx.status_aborted();
     }
@@ -245,6 +248,18 @@ impl StepGroup {
             match res {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
+                    // Once a failure has cancelled the other steps, their
+                    // cancellation errors can reach us before the failure
+                    // that caused them. Skip them: the real failure follows.
+                    if ctx
+                        .hook_ctx
+                        .fail_fast_aborted
+                        .load(std::sync::atomic::Ordering::SeqCst)
+                        && crate::error::is_cancellation(&err)
+                    {
+                        debug!("ignoring cancellation after fail-fast abort: {err:#}");
+                        continue;
+                    }
                     if ctx.fail_fast {
                         abort_running_steps(&ctx.hook_ctx).await;
                         return Err(err);

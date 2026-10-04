@@ -32,31 +32,35 @@ use super::types::{AllowFailure, CheckFirstCmd, RunType, Step};
 /// job stuck somewhere unexpected.
 const CANCELLED_JOBS_GRACE: Duration = Duration::from_secs(10);
 
-/// Wait for every job task and return their results, or the first error.
+/// Wait for every job task and return their results, or the most severe error.
 ///
 /// A failed job does not end the wait. Dropping the set instead would abort
 /// sibling jobs wherever they happen to be, including after their command
 /// finished but before they recorded its diagnostics, so which diagnostics a
 /// failed run reported depended on timing.
 ///
-/// `on_first_failure` runs once, with the first error. It may return a future
-/// that cancels the siblings' commands (fail-fast); the siblings then get
-/// `CANCELLED_JOBS_GRACE` to return before they are aborted. Without one
-/// (`--no-fail-fast`, an allowed failure) siblings run to completion. Later
-/// errors, such as a sibling reporting its command was cancelled, are only
-/// logged: the first error is the one returned.
+/// `on_failure` runs for each error until it returns a future. That future
+/// cancels the siblings' commands (fail-fast); the siblings then get `grace`
+/// to return before they are aborted. Without one (`--no-fail-fast`, an
+/// allowed failure) siblings run to completion.
+///
+/// The error returned is the first one, except that an error `is_allowed`
+/// rejects replaces an allowed one, so a job that could not run is never
+/// hidden behind another job's allowed command failure. Other later errors,
+/// such as a sibling reporting its command was cancelled, are only logged.
 async fn join_jobs<T, Fut>(
     mut set: tokio::task::JoinSet<Result<T>>,
     grace: Duration,
-    on_first_failure: impl FnOnce(&eyre::Report) -> Option<Fut>,
+    is_allowed: impl Fn(&eyre::Report) -> bool,
+    mut on_failure: impl FnMut(&eyre::Report) -> Option<Fut>,
 ) -> Result<Vec<T>>
 where
     T: 'static,
     Fut: Future<Output = ()>,
 {
     let mut done = Vec::new();
-    let mut first_error: Option<eyre::Report> = None;
-    let mut on_first_failure = Some(on_first_failure);
+    let mut first_error: Option<(eyre::Report, bool)> = None;
+    let mut cancelled = false;
     let mut deadline = None;
     loop {
         let next = match deadline {
@@ -85,18 +89,20 @@ where
                 Err(e) => e.into(),
             },
         };
-        if first_error.is_some() {
-            debug!("another job failed after the first: {err:#}");
-            continue;
-        }
-        if let Some(cancel) = on_first_failure.take().and_then(|f| f(&err)) {
+        if !cancelled && let Some(cancel) = on_failure(&err) {
             cancel.await;
+            cancelled = true;
             deadline = Some(tokio::time::Instant::now() + grace);
         }
-        first_error = Some(err);
+        let allowed = is_allowed(&err);
+        match &first_error {
+            None => first_error = Some((err, allowed)),
+            Some((_, true)) if !allowed => first_error = Some((err, allowed)),
+            Some(_) => debug!("another job failed after the first: {err:#}"),
+        }
     }
     match first_error {
-        Some(err) => Err(err),
+        Some((err, _)) => Err(err),
         None => Ok(done),
     }
 }
@@ -576,13 +582,16 @@ impl Step {
         }
         // Every job is awaited, even after one fails, so a job that already
         // ran its check still records its diagnostics. See `join_jobs`.
-        let job_files = join_jobs(set, CANCELLED_JOBS_GRACE, |err| {
-            ctx.status_errored(&format!("{err}"));
-            let allowed = crate::error::is_command_failure(err)
+        let failure_allowed = |err: &eyre::Report| {
+            crate::error::is_command_failure(err)
                 && self
                     .failure_is_allowed(&ctx.hook_ctx.expr_ctx())
-                    .unwrap_or(false);
-            (fail_fast && !allowed).then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
+                    .unwrap_or(false)
+        };
+        let job_files = join_jobs(set, CANCELLED_JOBS_GRACE, failure_allowed, |err| {
+            ctx.status_errored(&format!("{err}"));
+            (fail_fast && !failure_allowed(err))
+                .then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
         })
         .await?;
         let actual_job_files: IndexSet<PathBuf> = job_files.into_iter().flatten().collect();
@@ -926,7 +935,7 @@ mod tests {
         let mut set = tokio::task::JoinSet::<Result<()>>::new();
         set.spawn(async { Err(eyre::eyre!("first failure")) });
         recorder(&mut set, &recorded, "slow", Duration::from_millis(200));
-        let result = join_jobs(set, GRACE, |_| None::<std::future::Ready<()>>).await;
+        let result = join_jobs(set, GRACE, |_| false, |_| None::<std::future::Ready<()>>).await;
         assert_eq!(result.unwrap_err().to_string(), "first failure");
         assert_eq!(*recorded.lock().unwrap(), ["slow"]);
     }
@@ -951,7 +960,16 @@ mod tests {
             });
         }
         let started = tokio::time::Instant::now();
-        let result = join_jobs(set, GRACE, |_| Some(async move { cancel.cancel() })).await;
+        let result = join_jobs(
+            set,
+            GRACE,
+            |_| false,
+            |_| {
+                let cancel = cancel.clone();
+                Some(async move { cancel.cancel() })
+            },
+        )
+        .await;
         // The first error wins, the cancelled sibling's own error is dropped,
         // and the sibling was not waited for beyond its cancellation.
         assert_eq!(result.unwrap_err().to_string(), "first failure");
@@ -967,8 +985,86 @@ mod tests {
             std::future::pending::<()>().await;
             Ok(())
         });
-        let result = join_jobs(set, Duration::from_millis(50), |_| Some(async {})).await;
+        let result = join_jobs(
+            set,
+            Duration::from_millis(50),
+            |_| false,
+            |_| Some(async {}),
+        )
+        .await;
         assert_eq!(result.unwrap_err().to_string(), "first failure");
+    }
+
+    /// Errors named "allowed*" count as allowed command failures.
+    async fn first_error(errors: &[&'static str]) -> String {
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        for (i, name) in errors.iter().enumerate() {
+            let name = *name;
+            set.spawn(async move {
+                tokio::time::sleep(Duration::from_millis(50 * i as u64)).await;
+                Err(eyre::eyre!(name))
+            });
+        }
+        join_jobs(
+            set,
+            GRACE,
+            |e| e.to_string().starts_with("allowed"),
+            |_| None::<std::future::Ready<()>>,
+        )
+        .await
+        .unwrap_err()
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn join_jobs_hard_error_beats_earlier_allowed_failure() {
+        assert_eq!(
+            first_error(&["allowed one", "hard spawn error"]).await,
+            "hard spawn error"
+        );
+    }
+
+    #[tokio::test]
+    async fn join_jobs_allowed_failure_does_not_replace_hard_error() {
+        assert_eq!(
+            first_error(&["hard spawn error", "allowed one"]).await,
+            "hard spawn error"
+        );
+    }
+
+    #[tokio::test]
+    async fn join_jobs_first_of_equal_severity_wins() {
+        assert_eq!(first_error(&["hard a", "hard b"]).await, "hard a");
+        assert_eq!(first_error(&["allowed a", "allowed b"]).await, "allowed a");
+    }
+
+    #[tokio::test]
+    async fn join_jobs_cancels_when_hard_error_follows_allowed_failure() {
+        let cancel = CancellationToken::new();
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        set.spawn(async { Err(eyre::eyre!("allowed one")) });
+        {
+            let cancel = cancel.clone();
+            set.spawn(async move {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                Err(eyre::eyre!("hard spawn error"))
+            });
+            set.spawn(async move {
+                cancel.cancelled().await;
+                Ok(())
+            });
+        }
+        let result = join_jobs(
+            set,
+            GRACE,
+            |e| e.to_string().starts_with("allowed"),
+            |e| {
+                let cancel = cancel.clone();
+                (!e.to_string().starts_with("allowed")).then_some(async move { cancel.cancel() })
+            },
+        )
+        .await;
+        assert_eq!(result.unwrap_err().to_string(), "hard spawn error");
     }
 
     #[tokio::test]
@@ -977,7 +1073,7 @@ mod tests {
         for n in 0..3 {
             set.spawn(async move { Ok(n) });
         }
-        let mut done = join_jobs(set, GRACE, |_| None::<std::future::Ready<()>>)
+        let mut done = join_jobs(set, GRACE, |_| false, |_| None::<std::future::Ready<()>>)
             .await
             .unwrap();
         done.sort();
