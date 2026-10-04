@@ -105,7 +105,7 @@ hooks {
 EOF
     echo "*.bin filter=lfs diff=lfs merge=lfs -text" > .gitattributes
     git lfs install --local
-    hk install
+    hk install --force
     dd if=/dev/urandom bs=1024 count=1 of=test.bin 2>/dev/null
     git add .gitattributes test.bin && git commit -m "init with lfs"
     run git checkout -b feature
@@ -148,7 +148,7 @@ hooks {
 EOF
     echo "*.bin filter=lfs diff=lfs merge=lfs -text" > .gitattributes
     git lfs install --local
-    hk install
+    hk install --force
     dd if=/dev/urandom bs=1024 count=1 of=test.bin 2>/dev/null
     git add .gitattributes test.bin && git commit -m "init with lfs"
     git checkout -b feature
