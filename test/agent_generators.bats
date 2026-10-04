@@ -134,9 +134,16 @@ EOF
 }
 
 @test "agent stop-hook --timeout also stops a step's grandchild in its own session" {
-    command -v setsid >/dev/null || skip "setsid not available"
-    local marker="$((7100000 + RANDOM))"
-    write_stop_hook_config "setsid sleep $marker & wait"
+    local marker="$((7100000 + RANDOM))" new_session
+    if command -v setsid >/dev/null; then
+        new_session="setsid sleep $marker"
+    elif command -v perl >/dev/null; then
+        # macOS has no setsid binary, but its system perl has POSIX::setsid
+        new_session="perl -MPOSIX -e 'POSIX::setsid() or die; exec q(sleep), q($marker)'"
+    else
+        skip "neither setsid nor perl available"
+    fi
+    write_stop_hook_config "$new_session & wait"
     run bash -c "echo '{}' | hk agent stop-hook --timeout 3 2>/dev/null"
     assert_success
     assert_output --partial "did not finish within 3 seconds"

@@ -727,13 +727,23 @@ mod tests {
                 .map(|o| o.status.success())
                 .unwrap_or(false)
         };
-        if !have("setsid") || !have("pgrep") {
-            eprintln!("skipping: needs the setsid and pgrep tools (not on macOS by default)");
+        // Start the sleeper in a new session. `setsid` is missing on macOS, but its system
+        // perl has POSIX::setsid; the `&` child is not a group leader, so setsid succeeds.
+        let marker = format!("{}", 7_000_000 + std::process::id());
+        let in_new_session = if have("setsid") {
+            format!("setsid sleep {marker}")
+        } else if have("perl") {
+            format!("perl -MPOSIX -e 'POSIX::setsid() or die; exec q(sleep), q({marker})'")
+        } else {
+            eprintln!("skipping: needs setsid or perl to start a new session");
+            return;
+        };
+        if !have("pgrep") {
+            eprintln!("skipping: needs pgrep");
             return;
         }
-        let marker = format!("{}", 7_000_000 + std::process::id());
         let mut command = tokio::process::Command::new("sh");
-        command.args(["-c", &format!("setsid sleep {marker} & wait")]);
+        command.args(["-c", &format!("{in_new_session} & wait")]);
         let outcome = run_check(command, Duration::from_millis(1500))
             .await
             .unwrap();
