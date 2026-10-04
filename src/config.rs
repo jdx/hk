@@ -3,7 +3,6 @@ use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -66,7 +65,7 @@ impl Config {
     /// Returns local file paths that the config depends on and whether the
     /// module graph contains imports whose bytes hk cannot hash.
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
-        let mut local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
+        let mut local_paths: IndexSet<PathBuf> = pklr::analyze_imports(path)
             .map(|v| v.into_iter().collect())
             .map_err(|e| pklr_error_report(&e))?;
         // Glob imports expand to whatever matched at analysis time, so the
@@ -1147,7 +1146,7 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         .as_deref()
         .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
         .unwrap_or_default();
-    let mut evaluator = pklr::AsyncEvaluatorBuilder::new()
+    let mut evaluator = pklr::EvaluatorBuilder::new()
         .http_client(client)
         .http_rewrites(http_rewrites)
         .package_cache_dir(env::HK_PKL_CACHE_DIR.clone())
@@ -1158,8 +1157,9 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let outcome =
-        block_on_pklr(evaluator.eval(path))?.map_err(|e| match pklr_syntax_error(&e) {
+    let outcome = evaluator
+        .eval(path)
+        .map_err(|e| match pklr_syntax_error(&e) {
             Some(err) => eyre::Report::new(err),
             None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
         })?;
@@ -1181,15 +1181,6 @@ fn pkl_http_rewrite_cache_key() -> String {
     match env::HK_PKL_HTTP_REWRITE.as_deref() {
         Some(rewrite) => format!("HK_PKL_HTTP_REWRITE={rewrite}"),
         None => "HK_PKL_HTTP_REWRITE=<unset>".to_string(),
-    }
-}
-
-fn block_on_pklr<T>(future: impl Future<Output = pklr::Result<T>>) -> Result<pklr::Result<T>> {
-    match tokio::runtime::Handle::try_current() {
-        Ok(handle) => Ok(tokio::task::block_in_place(|| handle.block_on(future))),
-        Err(_) => tokio::runtime::Runtime::new()
-            .map(|runtime| runtime.block_on(future))
-            .map_err(Into::into),
     }
 }
 
