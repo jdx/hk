@@ -235,6 +235,8 @@ enum RunScope {
     Changed,
     /// Unstaged files, plus untracked files unless `HK_STASH_UNTRACKED=0`, excluding staged files (`hk --unstaged`).
     Unstaged,
+    /// Only files staged in the index, which is what a pre-commit hook checks (`hk --staged`). Untracked files are never staged, so `HK_STASH_UNTRACKED` does not affect this scope.
+    Staged,
 }
 
 impl RunScope {
@@ -244,6 +246,7 @@ impl RunScope {
             // With stashing off, hk's default selection is staged + unstaged + untracked.
             Self::Changed => &["--stash", "none"],
             Self::Unstaged => &["--unstaged"],
+            Self::Staged => &["--staged"],
         }
     }
 }
@@ -252,7 +255,7 @@ impl RunScope {
 struct StartRequest {
     /// An allowed root returned by inspect_project; omit when only one root is available.
     root: Option<String>,
-    /// Files to run on: "all" (default), "changed" (staged and unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0), or "unstaged" (unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0).
+    /// Files to run on: "all" (default), "changed" (staged and unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0), "unstaged" (unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0), or "staged" (only files staged in the index, as a pre-commit hook would check).
     #[serde(default)]
     scope: RunScope,
 }
@@ -2590,6 +2593,7 @@ mod tests {
             ("all", &["--all"][..]),
             ("changed", &["--stash", "none"][..]),
             ("unstaged", &["--unstaged"][..]),
+            ("staged", &["--staged"][..]),
         ] {
             let request: StartRequest =
                 serde_json::from_value(serde_json::json!({ "scope": value })).unwrap();
@@ -2600,11 +2604,14 @@ mod tests {
     #[test]
     fn unknown_scope_is_rejected_with_the_valid_values() {
         let error =
-            serde_json::from_value::<StartRequest>(serde_json::json!({ "scope": "staged" }))
+            serde_json::from_value::<StartRequest>(serde_json::json!({ "scope": "tracked" }))
                 .unwrap_err()
                 .to_string();
-        assert!(error.contains("unknown variant `staged`"), "{error}");
-        assert!(error.contains("`all`, `changed`, `unstaged`"), "{error}");
+        assert!(error.contains("unknown variant `tracked`"), "{error}");
+        assert!(
+            error.contains("`all`, `changed`, `unstaged`, `staged`"),
+            "{error}"
+        );
     }
 
     #[tokio::test]
