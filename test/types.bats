@@ -68,6 +68,42 @@ SCRIPT
     assert_output --partial "script"
 }
 
+@test "types: matches env shebangs that carry env options or assignments" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["python"] {
+        types = List("python")
+        check = "echo PYTHON {{ files }}"
+      }
+    }
+  }
+}
+EOF
+    git init
+    git add -A
+    git commit -m "init"
+
+    printf '#!/usr/bin/env -S python3 -u\nprint(1)\n' > split-string
+    printf '#!/usr/bin/env FOO=1 python3\nprint(1)\n' > assignment
+    printf '#! /usr/bin/env python3\nprint(1)\n' > spaced
+    printf '#!/usr/bin/env\tpython3\nprint(1)\n' > tabbed
+    printf '#!/usr/bin/env -S ruby\nputs 1\n' > ruby-script
+    chmod +x split-string assignment spaced tabbed ruby-script
+    git add split-string assignment spaced tabbed ruby-script
+
+    run hk check
+    assert_success
+    assert_output --partial "split-string"
+    assert_output --partial "assignment"
+    assert_output --partial "spaced"
+    assert_output --partial "tabbed"
+    refute_output --partial "ruby-script"
+}
+
 @test "types: matches shell scripts by shebang" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
