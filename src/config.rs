@@ -1187,8 +1187,12 @@ fn pkl_http_rewrite_cache_key() -> String {
 /// evaluation is reached from an async command handler.
 fn run_pklr_blocking<T>(operation: impl FnOnce() -> pklr::Result<T>) -> Result<T> {
     match tokio::runtime::Handle::try_current() {
-        Ok(_) => Ok(tokio::task::block_in_place(operation)?),
-        Err(_) => operation().map_err(Into::into),
+        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+            Ok(tokio::task::block_in_place(operation)?)
+        }
+        // `block_in_place` panics on Tokio's current-thread runtime. There is
+        // no worker to yield there, so run directly rather than panicking.
+        Ok(_) | Err(_) => operation().map_err(Into::into),
     }
 }
 
@@ -2974,8 +2978,13 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn synchronous_pklr_work_yields_the_tokio_worker() {
+        assert_eq!(run_pklr_blocking(|| Ok::<_, pklr::Error>(42)).unwrap(), 42);
+    }
+
+    #[tokio::test]
+    async fn synchronous_pklr_work_supports_current_thread_runtime() {
         assert_eq!(run_pklr_blocking(|| Ok::<_, pklr::Error>(42)).unwrap(), 42);
     }
 
