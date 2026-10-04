@@ -133,6 +133,24 @@ EOF
     [ $(($(date +%s) - start)) -lt 30 ]
 }
 
+@test "agent stop-hook --timeout also stops a step's grandchild in its own session" {
+    command -v setsid >/dev/null || skip "setsid not available"
+    local marker="$((7100000 + RANDOM))"
+    write_stop_hook_config "setsid sleep $marker & wait"
+    run bash -c "echo '{}' | hk agent stop-hook --timeout 3 2>/dev/null"
+    assert_success
+    assert_output --partial "did not finish within 3 seconds"
+    local i
+    for i in $(seq 1 50); do
+        pgrep -f "sleep $marker" >/dev/null || break
+        sleep 0.1
+    done
+    if pgrep -f "sleep $marker" >/dev/null; then
+        pkill -f "sleep $marker"
+        fail "the step's grandchild outlived the stop hook"
+    fi
+}
+
 @test "agent stop-hook output stays a single decision when HK_TRACE=json is inherited" {
     write_stop_hook_config "echo probe-failed; exit 1"
     run bash -c "echo '{}' | HK_TRACE=json hk agent stop-hook 2>/dev/null"

@@ -136,12 +136,103 @@ async fn run_check(
     }))
 }
 
+/// A process listed by `ps`.
+#[cfg(unix)]
+struct Proc {
+    pid: libc::pid_t,
+    ppid: libc::pid_t,
+    pgid: libc::pid_t,
+}
+
+/// Every process on the machine, from `ps -A -o pid=,ppid=,pgid=` (valid on BSD and procps).
+#[cfg(unix)]
+async fn list_processes() -> Vec<Proc> {
+    let Ok(output) = tokio::process::Command::new("ps")
+        .args(["-A", "-o", "pid=,ppid=,pgid="])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .await
+    else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace().map(|f| f.parse::<libc::pid_t>());
+            Some(Proc {
+                pid: fields.next()?.ok()?,
+                ppid: fields.next()?.ok()?,
+                pgid: fields.next()?.ok()?,
+            })
+        })
+        .collect()
+}
+
+/// Adds to `pids` and `pgids` every process that descends from, or shares a group with, what
+/// they already hold. Returns whether anything was added.
+#[cfg(unix)]
+fn grow_tree(
+    procs: &[Proc],
+    pids: &mut std::collections::HashSet<libc::pid_t>,
+    pgids: &mut std::collections::HashSet<libc::pid_t>,
+) -> bool {
+    let mut grew = false;
+    loop {
+        let mut changed = false;
+        for p in procs {
+            if p.pid > 1
+                && (pids.contains(&p.ppid) || pgids.contains(&p.pgid))
+                && pids.insert(p.pid)
+            {
+                pgids.insert(p.pgid);
+                changed = true;
+            }
+        }
+        if !changed {
+            return grew;
+        }
+        grew = true;
+    }
+}
+
+/// SIGKILLs the check, everything it started, and the process groups they lead. hk runs each
+/// step in a group of its own, so signalling the check's group alone would leave the linters
+/// running. The tree is snapshotted before anything dies (afterwards the orphans can no longer
+/// be traced to the check) and re-scanned once to catch processes spawned during the kill.
+#[cfg(unix)]
+async fn kill_tree(root: libc::pid_t) {
+    use std::collections::HashSet;
+    // SAFETY: getpgrp has no preconditions.
+    let own_group = unsafe { libc::getpgrp() };
+    let mut pids = HashSet::from([root]);
+    let mut pgids = HashSet::from([root]);
+    grow_tree(&list_processes().await, &mut pids, &mut pgids);
+    for pass in 0..2 {
+        for &pgid in pgids.iter().filter(|g| **g > 1 && **g != own_group) {
+            // SAFETY: a group of the check's own tree; ESRCH (already gone) is ignored.
+            unsafe { libc::kill(-pgid, libc::SIGKILL) };
+        }
+        for &pid in pids
+            .iter()
+            .filter(|p| **p > 1 && **p != std::process::id() as libc::pid_t)
+        {
+            // SAFETY: a process of the check's own tree; ESRCH is ignored.
+            unsafe { libc::kill(pid, libc::SIGKILL) };
+        }
+        if pass == 0 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            if !grow_tree(&list_processes().await, &mut pids, &mut pgids) {
+                break;
+            }
+        }
+    }
+}
+
 async fn kill_group(child: &mut tokio::process::Child) {
     #[cfg(unix)]
     if let Some(pid) = child.id() {
-        // SAFETY: the child leads its own process group (`process_group(0)`), so this
-        // signals only the check and the processes it started.
-        unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+        kill_tree(pid as libc::pid_t).await;
     }
     #[cfg(windows)]
     if let Some(pid) = child.id() {
@@ -482,6 +573,41 @@ mod tests {
         assert!(matches!(outcome, CheckOutcome::TimedOut));
         // The step's `sleep` is gone too, so nothing holds the pipes or keeps working.
         assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_timed_out_check_also_kills_steps_in_their_own_process_groups() {
+        // A step that, like hk's, runs in a group of its own: killing the check's group
+        // alone would miss it.
+        let marker = format!("{}", 7_000_000 + std::process::id());
+        let mut command = tokio::process::Command::new("sh");
+        command.args([
+            "-c",
+            &format!("python3 -c 'import os;os.setsid();os.execvp(\"sleep\",[\"sleep\",\"{marker}\"])' & wait"),
+        ]);
+        let outcome = run_check(command, Duration::from_millis(1500))
+            .await
+            .unwrap();
+        assert!(matches!(outcome, CheckOutcome::TimedOut));
+        let alive = || {
+            std::process::Command::new("pgrep")
+                .args(["-f", &format!("sleep {marker}")])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        };
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while alive() && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let survived = alive();
+        if survived {
+            let _ = std::process::Command::new("pkill")
+                .args(["-f", &format!("sleep {marker}")])
+                .status();
+        }
+        assert!(!survived, "the step's grandchild outlived the stop hook");
     }
 
     #[cfg(windows)]
