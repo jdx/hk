@@ -329,4 +329,20 @@ mod tests {
         ctx.status_error(&cancelled_error());
         assert!(ctx.status.lock().unwrap().is_errored());
     }
+
+    #[test]
+    fn a_real_failure_wins_over_a_cancelled_job_in_either_order() {
+        // Job-level cancellations no longer finalize the step, so a sibling's
+        // real failure decides it whichever arrives first.
+        let ctx = step_context("lint");
+        ctx.status_started();
+        ctx.hook_ctx.failed.cancel();
+        ctx.status_error(&eyre::eyre!("tool exited 1"));
+        assert!(ctx.status.lock().unwrap().is_errored());
+        assert!(ctx.hook_ctx.failed_steps.lock().unwrap().contains("lint"));
+        // The final settle of the cancellation does not undo the failure.
+        ctx.status_error(&cancelled_error());
+        assert!(ctx.status.lock().unwrap().is_errored());
+        assert!(ctx.hook_ctx.cancelled_steps.lock().unwrap().is_empty());
+    }
 }

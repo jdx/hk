@@ -259,8 +259,11 @@ impl StepJob {
         Ok(())
     }
 
-    /// Record that the job ended with `err`: the step ends cancelled for a
-    /// cancellation of the run, errored otherwise.
+    /// Record that the job ended with `err`. A real error ends the step
+    /// errored right away. A cancellation of the run only ends the job: the
+    /// step's outcome is settled once every job has finished, because a
+    /// sibling job's real failure must win over the cancellation however the
+    /// two are ordered.
     pub async fn status_error(&mut self, ctx: &StepContext, err: &eyre::Report) -> Result<()> {
         if crate::step_group::is_cancelled_run_error(&ctx.hook_ctx, err) {
             self.status = StepJobStatus::Errored(err.to_string());
@@ -268,7 +271,6 @@ impl StepJob {
                 progress.prop("message", &err.to_string());
                 progress.set_status(ProgressStatus::Failed);
             }
-            ctx.status_aborted();
             Ok(())
         } else {
             self.status_errored(ctx, err.to_string()).await
