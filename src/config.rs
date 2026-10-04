@@ -65,7 +65,7 @@ impl Config {
     /// Returns local file paths that the config depends on and whether the
     /// module graph contains imports whose bytes hk cannot hash.
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
-        let mut local_paths: IndexSet<PathBuf> = run_pklr_blocking(|| pklr::analyze_imports(path))?
+        let mut local_paths: IndexSet<PathBuf> = run_pklr_blocking(|| pklr::analyze_imports(path))
             .map(|v| v.into_iter().collect())
             .map_err(|e| pklr_error_report(&e))?;
         // Glob imports expand to whatever matched at analysis time, so the
@@ -1185,14 +1185,14 @@ fn pkl_http_rewrite_cache_key() -> String {
 
 /// Runs synchronous pklr work without pinning a Tokio worker when configuration
 /// evaluation is reached from an async command handler.
-fn run_pklr_blocking<T>(operation: impl FnOnce() -> pklr::Result<T>) -> Result<T> {
+fn run_pklr_blocking<T>(operation: impl FnOnce() -> pklr::Result<T>) -> pklr::Result<T> {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
-            Ok(tokio::task::block_in_place(operation)?)
+            tokio::task::block_in_place(operation)
         }
         // `block_in_place` panics on Tokio's current-thread runtime. There is
         // no worker to yield there, so run directly rather than panicking.
-        Ok(_) | Err(_) => operation().map_err(Into::into),
+        Ok(_) | Err(_) => operation(),
     }
 }
 
