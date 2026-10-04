@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: d83e9d18b1fd
+sourceHash: 42db66eea18c
 ---
 
 # Git hooks and stowing the hold
@@ -83,7 +83,7 @@ Intent-to-add files are kept in a separate stash entry whose message ends with `
 
 ### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
 
-While hk has yer unstaged changes stowed in the hold, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and strikes it once yer changes are back up. It records the stash commit ids, the process id, the hook and the time. Every change to it, and every recovery, happens while hk holds a lock on a second file beside it, `hk-pending-stash.lock`, so two hk runs never lay hands on it at once; the operating system lets go of that lock if hk dies, and the file itself is harmless to leave or delete.
+While hk has yer unstaged changes stowed in the hold, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and strikes it once yer changes are back up. It records the stash commit ids, the process id, the hook and the time. Every change to it, and every recovery, happens while hk holds a lock on a second file beside it, `hk-pending-stash.lock`, so two hk runs never lay hands on it at once; the operating system lets go of that lock if hk dies, and hk never strikes the file, which holds no data, so leave it where it lies (removing it while a run is recovering would let a second run lock a fresh copy and recover the same journal at the same time).
 
 - **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C or Ctrl+Break on Windows): hk stops the running hands, brings yer changes back up, removes the journal and exits with `128` plus the signal number (for example `143` for SIGTERM, `130` for Ctrl+C). It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never depends on the terminal: when the terminal is lost overboard (SIGHUP), hk sends its output to the null device, so the restoring carries on.
 - **Closing the console, logging off or shutting down Windows**: hk handles these like SIGHUP (exit status `129`, output sent to `NUL`) and starts restoring at once. Windows ends the process a few seconds after these events, which can be before the restore finishes. When it is, the journal stays and the next hk run recovers it, as after a crash.
