@@ -127,6 +127,38 @@ EOF
     assert_output "{}"
 }
 
+@test "agent stop-hook runs the check when stdin stays open after the Stop JSON" {
+    write_stop_hook_config "echo probe-failed; exit 1"
+    start=$(date +%s)
+    mkfifo open-stdin
+    # fd 3 is read-write, so the pipe never reaches EOF.
+    run bash -c "exec 3<>open-stdin; echo '{\"stop_hook_active\":false}' >&3; hk agent stop-hook 2>/dev/null <&3"
+    assert_success
+    assert_output --partial '"decision":"block"'
+    assert_output --partial "probe-failed"
+    [ $(($(date +%s) - start)) -lt 30 ]
+}
+
+@test "agent stop-hook does nothing when stdin stays open after stop_hook_active" {
+    write_stop_hook_config "exit 1"
+    start=$(date +%s)
+    mkfifo open-stdin
+    run bash -c "exec 3<>open-stdin; echo '{\"stop_hook_active\":true}' >&3; hk agent stop-hook --target codex <&3"
+    assert_success
+    assert_output "{}"
+    [ $(($(date +%s) - start)) -lt 30 ]
+}
+
+@test "agent stop-hook runs the check when stdin is empty or closed" {
+    write_stop_hook_config "echo probe-failed; exit 1"
+    run bash -c "hk agent stop-hook 2>/dev/null < /dev/null"
+    assert_success
+    assert_output --partial '"decision":"block"'
+    run bash -c "echo 'not json' | hk agent stop-hook 2>/dev/null"
+    assert_success
+    assert_output --partial '"decision":"block"'
+}
+
 @test "agent stop-hook --timeout stops a long check and blocks once" {
     write_stop_hook_config "sleep 60"
     start=$(date +%s)

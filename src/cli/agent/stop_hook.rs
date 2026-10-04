@@ -7,7 +7,7 @@
 //! (Claude Code's documented pass) or `{}` for Codex, whose docs contradict themselves about
 //! empty stdout; `{}` is valid under either reading.
 
-use std::io::{IsTerminal, Read};
+use std::io::IsTerminal;
 use std::process::Output;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -531,12 +531,39 @@ fn block(reason: &str) -> String {
     json!({"decision": "block", "reason": reason}).to_string()
 }
 
+/// How long to wait for the agent's Stop JSON before running the check anyway.
+const STDIN_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Reads the Stop hook input: the first JSON value on stdin, so an agent that
+/// writes it and keeps the pipe open cannot stall the hook. Terminal, closed,
+/// empty, malformed, or silent stdin yields an empty string, which means no
+/// `stop_hook_active`. The reader is a plain thread, so one still blocked on a
+/// silent pipe cannot delay the process exiting.
+async fn read_input() -> String {
+    if std::io::stdin().is_terminal() {
+        return String::new();
+    }
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let spawned = std::thread::Builder::new()
+        .name("stop-hook-stdin".into())
+        .spawn(move || {
+            let first = serde_json::Deserializer::from_reader(std::io::stdin().lock())
+                .into_iter::<Value>()
+                .next();
+            let _ = tx.send(first.and_then(Result::ok).map(|v| v.to_string()));
+        });
+    if spawned.is_err() {
+        return String::new();
+    }
+    match tokio::time::timeout(STDIN_TIMEOUT, rx).await {
+        Ok(Ok(Some(input))) => input,
+        _ => String::new(),
+    }
+}
+
 pub async fn run(timeout: Option<Duration>, codex: bool) -> crate::Result<()> {
     let timeout = timeout.unwrap_or(DEFAULT_CHECK_TIMEOUT);
-    let mut input = String::new();
-    if !std::io::stdin().is_terminal() {
-        let _ = std::io::stdin().read_to_string(&mut input);
-    }
+    let input = read_input().await;
     if stop_hook_active(&input) {
         if let Some(pass) = pass_output(codex) {
             println!("{pass}");
