@@ -128,6 +128,8 @@ struct RunRecord {
     stdout_event_buffer: Vec<u8>,
     output_truncated: bool,
     stdout_truncated: bool,
+    /// A step kept the structured-output pipe open after hk exited, so later output was lost.
+    stdout_drain_timed_out: bool,
     saw_run_completed: bool,
     result: Option<Value>,
     diff: String,
@@ -392,6 +394,7 @@ impl HkMcpServer {
                 stdout_event_buffer: Vec::new(),
                 output_truncated: false,
                 stdout_truncated: false,
+                stdout_drain_timed_out: false,
                 saw_run_completed: false,
                 result: None,
                 diff: String::new(),
@@ -500,8 +503,8 @@ impl HkMcpServer {
             let _ = child_pid;
             let mut state = self.state.lock().await;
             if let Some(run) = state.runs.iter_mut().find(|run| run.id == id) {
-                run.stdout_truncated |= lost_stdout;
-                run.output_truncated |= lost_stderr;
+                run.stdout_drain_timed_out |= lost_stdout;
+                run.output_truncated |= lost_stdout || lost_stderr;
             }
         }
         let (diff, diff_error) = match diff_baseline {
@@ -1034,6 +1037,12 @@ fn parse_run_result(run: &mut RunRecord) -> bool {
         ));
         return true;
     }
+    if run.stdout_drain_timed_out {
+        run.error = Some(
+            "hk exited but a step kept the output pipe open; later output was not captured".into(),
+        );
+        return true;
+    }
     if run.error.is_none() {
         run.error =
             Some("failed to parse hk structured result: missing run_completed event".into());
@@ -1319,11 +1328,19 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
     // Tracked files first, so tracked files that .gitignore also matches are included.
     let tracked = tracked_files_without_gitlinks(root).await?;
     let raw = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"];
-    let attr_source = format!("--attr-source={EMPTY_TREE}");
+    // None (git failed to produce the repository's empty tree) means repository attributes
+    // are used, as with git older than 2.40.
+    let attr_source = empty_tree(root)
+        .await
+        .ok()
+        .map(|tree| format!("--attr-source={tree}"));
     for use_attr_source in [true, false] {
+        if use_attr_source && attr_source.is_none() {
+            continue;
+        }
         let mut prefix = raw.to_vec();
-        if use_attr_source {
-            prefix.push(&attr_source);
+        if let (true, Some(attr_source)) = (use_attr_source, &attr_source) {
+            prefix.push(attr_source);
         }
         let mut update = prefix.clone();
         update.extend(["update-index", "--add", "--remove", "-z", "--stdin"]);
@@ -1378,8 +1395,12 @@ async fn tracked_files_without_gitlinks(root: &Path) -> Result<Vec<u8>, String> 
     Ok(out)
 }
 
-/// Git's well-known empty tree, which always exists.
-const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+/// The empty tree's id in the repository's own object format (SHA-1 or SHA-256), written
+/// to the object database so `--attr-source` can read it. Writing it is harmless.
+async fn empty_tree(root: &Path) -> Result<String, String> {
+    let out = run_git(root, &["hash-object", "-t", "tree", "-w", "--stdin"], None).await?;
+    Ok(String::from_utf8_lossy(&out).trim().to_string())
+}
 
 async fn diff_tree_bytes(
     root: &Path,
@@ -1396,7 +1417,7 @@ async fn diff_tree_bytes(
         command.arg("-c").arg(setting);
     }
     if ignore_repo_attributes {
-        command.arg(format!("--attr-source={EMPTY_TREE}"));
+        command.arg(format!("--attr-source={}", empty_tree(root).await?));
     }
     let mut child = command
         .args([
@@ -1540,6 +1561,7 @@ mod tests {
             stdout_event_buffer: Vec::new(),
             output_truncated: false,
             stdout_truncated: false,
+            stdout_drain_timed_out: false,
             saw_run_completed: false,
             result: None,
             diff: String::new(),
@@ -1895,6 +1917,47 @@ mod tests {
         let diff = git_diff(root, &baseline, &after).await.unwrap();
 
         assert!(diff.text.contains("+a\r\n"), "{:?}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn sha256_repositories_ignore_repository_attributes_in_snapshots() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let init = std::process::Command::new("git")
+            .args(["init", "-q", "--object-format=sha256"])
+            .current_dir(root)
+            .status();
+        if !init.map(|status| status.success()).unwrap_or(false) {
+            eprintln!("skipping: installed git does not support --object-format=sha256");
+            return;
+        }
+        git_in(root, &["config", "core.autocrlf", "true"]);
+        std::fs::write(root.join(".gitattributes"), "*.txt text eol=lf\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("crlf.txt"), b"a\r\nb\r\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert_eq!(baseline.len(), 64);
+        assert!(diff.text.contains("+a\r\n"), "{:?}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn drain_timeout_is_reported_separately_from_the_capture_limit() {
+        let mut run = test_run("drain", "running", Vec::new());
+        run.stdout_drain_timed_out = true;
+        assert!(parse_run_result(&mut run));
+        let error = run.error.as_deref().unwrap();
+        assert!(error.contains("kept the output pipe open"), "{error}");
+        assert!(!error.contains("capture limit"), "{error}");
+
+        let mut run = test_run("cap", "running", Vec::new());
+        run.stdout_truncated = true;
+        assert!(parse_run_result(&mut run));
+        let error = run.error.as_deref().unwrap();
+        assert!(error.contains("byte capture limit"), "{error}");
+        assert!(!error.contains("pipe"), "{error}");
     }
 
     #[tokio::test]
