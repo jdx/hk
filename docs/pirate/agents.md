@@ -1,5 +1,5 @@
 ---
-sourceHash: 18746cf6ff14
+sourceHash: b90968faa020
 ---
 
 # Clockwork hands: coding agents
@@ -48,6 +48,16 @@ hk agent mcp --target claude-desktop
 hk agent mcp --target claude-code
 hk agent mcp --target vscode
 ```
+
+`start_check`, `start_safe_check`, and `start_safe_fix` take an optional `scope` argument that picks the cargo a run covers. It defaults to `all`, and any other value is turned away at the gangway.
+
+| `scope`    | The cargo                                                                                                      | hk flag        |
+| ---------- | -------------------------------------------------------------------------------------------------------------- | -------------- |
+| `all`      | The whole of the cargo: every tracked file, plus untracked files unless stowing is enabled (see below)         | `--all`        |
+| `changed`  | Cargo loaded aboard and cargo left on the dock, plus untracked files (see below): all that differs from `HEAD` | `--stash none` |
+| `unstaged` | Cargo left on the dock, plus untracked files (see below), without the cargo loaded aboard                      | `--unstaged`   |
+
+`changed` stands the stowing down for the run, so it always covers cargo loaded aboard and cargo left on the dock even when the project or `HK_STASH` enables stashing. `--stash none` does not overrule `HK_STASH_UNTRACKED=0`: with that set, hk never goes looking for untracked cargo, so `changed` and `unstaged` leave it out. `all` keeps the project's stash setting, and hk leaves untracked files out of `--all` while stashing is enabled. Use `changed` or `unstaged` to inspect only what a clockwork hand just touched, instead of the whole ship.
 
 Codex, Claude Code, Claude Desktop, and VS Code can all work the structured MCP tools. Hosts that implement MCP Apps also get the hk dashboard; other hosts get the same structured content and a useful text fallback.
 

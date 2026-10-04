@@ -48,6 +48,7 @@ itertools          = "0.15"
 libc               = "0.2"
 log                = "0.4"
 memchr             = "2"
+mimalloc           = "0.1"
 once_cell          = "1"
 pklr               = { version = "3", default-features = false, features = ["async", "package-zip", "miette-diagnostics"] }
 regex              = "1"
@@ -80,6 +81,11 @@ xx                 = { version = "2", features = ["hash"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi-util = "0.1"
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Threading",
+] }
 
 [build-dependencies]
 codegen    = "0.3"

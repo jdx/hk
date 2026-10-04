@@ -45,6 +45,16 @@ hk agent mcp --target claude-code
 hk agent mcp --target vscode
 ```
 
+`start_check`, `start_safe_check`, and `start_safe_fix` take an optional `scope` argument that selects the files a run covers. It defaults to `all`, and any other value is rejected.
+
+| `scope`    | Files                                                                                     | hk flag        |
+| ---------- | ----------------------------------------------------------------------------------------- | -------------- |
+| `all`      | Every tracked file, plus untracked files unless stashing is enabled (see below)           | `--all`        |
+| `changed`  | Staged and unstaged files, plus untracked files (see below): all that differs from `HEAD` | `--stash none` |
+| `unstaged` | Unstaged files, plus untracked files (see below), without staged files                    | `--unstaged`   |
+
+`changed` turns stashing off for the run, so it always covers staged and unstaged edits even when the project or `HK_STASH` enables stashing. `--stash none` does not override `HK_STASH_UNTRACKED=0`: with that setting hk skips untracked-file discovery, so `changed` and `unstaged` leave untracked files out. `all` keeps the project's stash setting, and hk leaves untracked files out of `--all` while stashing is enabled. Use `changed` or `unstaged` to lint only what an agent just edited instead of the whole project.
+
 Codex, Claude Code, Claude Desktop, and VS Code can use the structured MCP tools. Hosts that implement MCP Apps also receive the hk dashboard; other hosts receive the same structured content and a useful text fallback.
 
 ## Rich dashboard

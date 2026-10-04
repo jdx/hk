@@ -90,7 +90,7 @@ EXAMPLES = {
                              "hk util fix-smart-quotes --check README.md\nhk util fix-smart-quotes README.md"),
     "util/forbid-submodules": ("Check the whole repository, or narrow the check to specific paths.",
                               "hk util forbid-submodules\nhk util forbid-submodules vendor"),
-    "util/mixed-line-ending": ("Check for mixed line endings, or normalize them to LF.",
+    "util/mixed-line-ending": ("Check for mixed line endings, or normalize them to the most frequent one.",
                               "hk util mixed-line-ending README.md\nhk util mixed-line-ending --fix README.md"),
     "util/no-commit-to-branch": ("Protect a named branch instead of the default main/master list.",
                                "hk util no-commit-to-branch --branch production"),

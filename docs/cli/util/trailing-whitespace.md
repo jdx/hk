@@ -12,6 +12,8 @@ description: "Check first, or remove trailing whitespace in place."
 
 Check for and optionally fix trailing whitespace
 
+Only spaces and tabs before a line's terminator count as trailing whitespace. Each line keeps its own terminator, so a CRLF file stays CRLF.
+
 ## Arguments
 
 - **`<FILES>…`** — Files to check/fix
@@ -19,7 +21,7 @@ Check for and optionally fix trailing whitespace
 ## Flags
 
 - **`-d --diff`** — Output a diff of the change. Cannot use with `fix`.
-- **`-f --fix`** — Fix trailing whitespace by removing it
+- **`-f --fix`** — Fix trailing whitespace by removing the spaces and tabs
 - **`-h --help`** — Print help
 
 <!-- hk documentation examples -->
