@@ -176,3 +176,98 @@ EOF
     assert_success
     assert_output --partial "workspace=. indicator=tsconfig.json"
 }
+
+@test "subproject skip_steps skips only that subproject's step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+subprojects = List("a", "b")
+hooks {
+    ["check"] {}
+}
+EOF
+    mkdir -p a b
+    cat <<EOF > a/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+skip_steps = List("lint", "no-such-step")
+steps {
+    ["lint"] { glob = "*.txt"; check = "echo LINT-A" }
+    ["fmt"] { glob = "*.txt"; check = "echo FMT-A" }
+}
+EOF
+    cat <<EOF > b/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+steps {
+    ["lint"] { glob = "*.txt"; check = "echo LINT-B" }
+}
+EOF
+    echo a > a/a.txt
+    echo b > b/b.txt
+    git add .
+    git commit -m "initial commit"
+
+    run hk check --all
+    assert_success
+    # `lint` is skipped in `a` only, and `fmt` in `a` still runs
+    refute_output --partial "LINT-A"
+    assert_output --partial "LINT-B"
+    assert_output --partial "FMT-A"
+    # A name that matches no step is reported rather than silently dropped
+    assert_output --partial "skip_steps entry 'no-such-step'"
+}
+
+@test "subproject top-level settings that have no effect produce a warning" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+subprojects = List("sub")
+hooks {
+    ["check"] {}
+}
+EOF
+    mkdir -p sub
+    cat <<EOF > sub/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = List("*.txt")
+fail_fast = false
+jobs = 2
+steps {
+    ["lint"] { glob = "*.txt"; check = "echo LINT-SUB {{files}}" }
+}
+EOF
+    echo a > sub/a.txt
+    git add .
+    git commit -m "initial commit"
+
+    run hk check --all
+    assert_success
+    assert_output --partial "ignoring top-level exclude, fail_fast, jobs"
+    assert_output --partial "sub/hk.pkl"
+    # The subproject's exclude is not applied; only the root config's is
+    assert_output --partial "LINT-SUB a.txt"
+}
+
+@test "a subproject config that sets only steps, hooks and env warns about nothing" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+subprojects = List("sub")
+hooks {
+    ["check"] {}
+}
+EOF
+    mkdir -p sub
+    cat <<EOF > sub/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+env {
+    ["GREETING"] = "hello"
+}
+steps {
+    ["lint"] { glob = "*.txt"; check = "echo LINT-SUB" }
+}
+EOF
+    echo a > sub/a.txt
+    git add .
+    git commit -m "initial commit"
+
+    run hk check --all
+    assert_success
+    refute_output --partial "ignoring top-level"
+}
