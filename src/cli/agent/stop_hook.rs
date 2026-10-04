@@ -14,6 +14,7 @@ use std::time::Duration;
 
 use tokio::io::AsyncReadExt;
 
+use log::debug;
 use serde_json::{Value, json};
 
 const MAX_REASON_CHARS: usize = 2000;
@@ -329,25 +330,32 @@ async fn kill_group(child: &mut tokio::process::Child) {
     let _ = child.wait().await;
 }
 
-/// Resolves when the agent terminates or interrupts the hook.
+/// Resolves when the agent terminates or interrupts the hook. Never resolves when signal
+/// handling is unavailable, so the check still runs and the timeout still applies.
 async fn terminated() {
     #[cfg(unix)]
-    {
+    let wait = async {
         use tokio::signal::unix::{SignalKind, signal};
-        let (Ok(mut term), Ok(mut int)) = (
-            signal(SignalKind::terminate()),
-            signal(SignalKind::interrupt()),
-        ) else {
-            return std::future::pending().await;
-        };
+        let mut term = signal(SignalKind::terminate())?;
+        let mut int = signal(SignalKind::interrupt())?;
         tokio::select! {
             _ = term.recv() => {}
             _ = int.recv() => {}
         }
-    }
+        Ok(())
+    };
     #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
+    let wait = tokio::signal::ctrl_c();
+    terminated_from(wait).await
+}
+
+/// Waits for `wait`, which resolves `Ok` when a signal arrives and `Err` when the handler
+/// could not be registered. A failed registration is not an interrupt: skipping the check
+/// would print nothing and exit 0, which the agent reads as a pass.
+async fn terminated_from(wait: impl std::future::Future<Output = std::io::Result<()>>) {
+    if let Err(err) = wait.await {
+        debug!("signal handling unavailable, the hook cannot be interrupted: {err}");
+        std::future::pending::<()>().await;
     }
 }
 
@@ -614,6 +622,24 @@ pub async fn run(timeout: Option<Duration>, codex: bool) -> crate::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn a_failed_signal_registration_never_counts_as_an_interrupt() {
+        let failed = terminated_from(async { Err(std::io::Error::other("no handler")) });
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), failed)
+                .await
+                .is_err(),
+            "a registration failure must leave the future pending"
+        );
+        let signalled = terminated_from(async { Ok(()) });
+        assert!(
+            tokio::time::timeout(Duration::from_secs(5), signalled)
+                .await
+                .is_ok(),
+            "a received signal must complete the future"
+        );
+    }
 
     #[test]
     fn detects_active_flag() {
