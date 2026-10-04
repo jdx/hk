@@ -219,6 +219,7 @@ pub fn emit_run(
     let skipped = ctx.get_skipped_steps();
     let outputs = ctx.output_by_step.lock().unwrap();
     let diagnostic_outputs = ctx.diagnostic_output_by_step.lock().unwrap();
+    let diagnostic_segments = ctx.diagnostic_segments_by_step.lock().unwrap();
     let executed_effects = ctx.command_effects_by_step.lock().unwrap();
     let timings = ctx.timing.step_wall_times();
     let mut steps = Vec::new();
@@ -255,23 +256,27 @@ pub fn emit_run(
                     None => output = Some(diagnostic_output.clone()),
                 }
             }
-            let parsed = step
-                .diagnostic_format
-                .zip(
-                    diagnostic_output
-                        .map(String::as_str)
-                        .or(output.as_deref())
-                        .filter(|output| !output.is_empty()),
-                )
-                .map(|(diagnostic_format, output)| {
-                    diagnostics::parse(
-                        diagnostic_format,
+            let tool = step.diagnostic_tool.as_deref().unwrap_or(name);
+            let parsed = match (step.diagnostic_format, diagnostic_segments.get(name)) {
+                // Each command's output is parsed on its own so its paths can be
+                // rebased from the directory it ran in to the repository root.
+                (Some(format), Some(segments)) if !segments.is_empty() => {
+                    diagnostics::parse_segments(
+                        format,
                         name,
-                        step.diagnostic_tool.as_deref().unwrap_or(name),
-                        output,
+                        tool,
+                        segments
+                            .iter()
+                            .map(|segment| (segment.dir.as_deref(), segment.output.as_str())),
                     )
-                })
-                .unwrap_or_default();
+                }
+                (Some(format), _) => output
+                    .as_deref()
+                    .filter(|output| !output.is_empty())
+                    .map(|output| diagnostics::parse(format, name, tool, output))
+                    .unwrap_or_default(),
+                _ => Default::default(),
+            };
             steps.push(StepResult {
                 name: name.clone(),
                 status,
@@ -296,6 +301,7 @@ pub fn emit_run(
     }
     drop(outputs);
     drop(diagnostic_outputs);
+    drop(diagnostic_segments);
     drop(cancelled);
     drop(finished);
     drop(failed);
