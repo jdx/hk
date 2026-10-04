@@ -102,6 +102,7 @@ const STEP_KEYS: &[&str] = &[
     "tests",
     "output_summary",
     "diagnostic_format",
+    "diagnostic_severity",
     "diagnostic_tool",
 ];
 
