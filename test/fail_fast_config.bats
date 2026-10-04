@@ -276,6 +276,15 @@ _interrupt_and_expect_cancelled() {
         sleep 0.1
     done
     assert_file_exists "$marker"
+    # Optionally also wait for a second marker (WAIT_ALSO) so the interrupt
+    # arrives after a known event, not at a guessed time.
+    if [ -n "${WAIT_ALSO:-}" ]; then
+        for _ in $(seq 100); do
+            [ -e "$WAIT_ALSO" ] && break
+            sleep 0.1
+        done
+        assert_file_exists "$WAIT_ALSO"
+    fi
     sleep 0.3
     kill -INT "$pid"
     local start=$SECONDS
@@ -382,9 +391,34 @@ EOF2
     done
 }
 
-# Ctrl-C while one job's failure is allowed and a sibling is still running.
-@test "Ctrl-C with an allowed failure in the step is a cancelled run" {
-    SLEEPER="30.$$$RANDOM"
+# Ctrl-C after one job's failure is allowed and while a sibling is still
+# running. The allowed job writes `allowed_done` right before its failing exit,
+# and Ctrl-C is only sent once that marker exists, so the allowed failure has
+# already been recorded when the interrupt arrives. The step is still a
+# cancelled run, as on main, not an allowed failure turned into success.
+@test "Ctrl-C after an allowed failure with a stuck sibling is a cancelled run" {
+    if ! command -v mise >/dev/null 2>&1; then
+        skip "mise is not installed"
+    fi
+    # The sibling is stuck resolving its mise environment, where cancellation
+    # is not observed, so it never reports a cancelled command: it is aborted
+    # after the grace period and only the allowed failure is left.
+    STUB_SLEEPER="60.$$$RANDOM"
+    real_mise=$(command -v mise)
+    mkdir -p stubbin
+    cat <<EOF > stubbin/mise
+#!/bin/sh
+if [ "\$1" = env ]; then
+    case "\$PWD" in
+        */b) touch "$PWD/started"; exec sleep $STUB_SLEEPER ;;
+    esac
+fi
+exec "$real_mise" "\$@"
+EOF
+    chmod +x stubbin/mise
+    export PATH="$PWD/stubbin:$PATH"
+    export HK_MISE=1
+    export MISE_TRUSTED_CONFIG_PATHS="$TEST_TEMP_DIR"
     mkdir -p a b
     touch a/module.toml b/module.toml
     echo a > a/f.mod
@@ -399,7 +433,40 @@ hooks {
         glob = "**/*.mod"
         workspace_indicator = "module.toml"
         dir = "{{workspace}}"
-        check = "touch \$PWD/../started; case \$PWD in */a) sleep 1; exit 3;; *) sleep $SLEEPER;; esac"
+        check = "touch \$PWD/../allowed_done; exit 3"
+      }
+    }
+  }
+}
+EOF2
+    git add hk.pkl a b
+    git commit -m "init"
+
+    for libgit2 in 1 0; do
+        export HK_LIBGIT2=$libgit2
+        rm -f allowed_done
+        WAIT_ALSO=allowed_done _interrupt_and_expect_cancelled started
+        assert_file_exists allowed_done
+    done
+}
+
+# Without Ctrl-C an allowed failure is still success, and its dependents run.
+@test "an allowed failure with a slow sibling and no Ctrl-C still succeeds" {
+    mkdir -p a b
+    touch a/module.toml b/module.toml
+    echo a > a/f.mod
+    echo b > b/f.mod
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["ws"] {
+        allow_failure = true
+        glob = "**/*.mod"
+        workspace_indicator = "module.toml"
+        dir = "{{workspace}}"
+        check = "case \$PWD in */a) exit 3;; *) sleep 1;; esac"
       }
       ["dependent"] { depends = "ws"; check = "echo DEPENDENT-RAN" }
     }
@@ -411,6 +478,70 @@ EOF2
 
     for libgit2 in 1 0; do
         export HK_LIBGIT2=$libgit2
-        _interrupt_and_expect_cancelled started
+        run hk check --all
+        assert_success
+        assert_output --partial "DEPENDENT-RAN"
+        refute_output --partial "command was cancelled"
     done
+}
+
+# A real (not allowed) failure comes first, then Ctrl-C while a sibling is
+# still running under --no-fail-fast: the original failure is what is reported.
+@test "Ctrl-C after a real failure surfaces the original failure" {
+    SLEEPER="30.$$$RANDOM"
+    mkdir -p a b
+    touch a/module.toml b/module.toml
+    echo a > a/f.mod
+    echo b > b/f.mod
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["ws"] {
+        glob = "**/*.mod"
+        workspace_indicator = "module.toml"
+        dir = "{{workspace}}"
+        check = "case \$PWD in */a) echo REAL-FAILURE-OUTPUT >&2; touch \$PWD/../real_done; exit 3;; *) touch \$PWD/../started; sleep $SLEEPER;; esac"
+      }
+    }
+  }
+}
+EOF2
+    git add hk.pkl a b
+    git commit -m "init"
+
+    for libgit2 in 1 0; do
+        export HK_LIBGIT2=$libgit2
+        rm -f started real_done
+        hk check --all --no-fail-fast >out.txt 2>&1 &
+        local pid=$!
+        for _ in $(seq 100); do
+            [ -e started ] && [ -e real_done ] && break
+            sleep 0.1
+        done
+        assert_file_exists started
+        assert_file_exists real_done
+        sleep 0.3
+        kill -INT "$pid"
+        local start=$SECONDS
+        for _ in $(seq 200); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid"
+            pkill -f "sleep $SLEEPER" || true
+            fail "hk hung after Ctrl-C"
+        fi
+        local status=0
+        wait "$pid" || status=$?
+        assert [ $((SECONDS - start)) -lt 15 ]
+        # The failing command's own exit status, as on main.
+        assert_equal "$status" 3
+        run cat out.txt
+        assert_output --partial "REAL-FAILURE-OUTPUT"
+        refute_output --partial "command was cancelled"
+    done
+    pkill -f "sleep $SLEEPER" || true
 }

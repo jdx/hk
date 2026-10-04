@@ -65,21 +65,43 @@ pub(crate) fn cancelled_by_user(hook_ctx: &HookContext) -> bool {
     user_cancelled(&hook_ctx.failed, &hook_ctx.fail_fast_aborted)
 }
 
-/// How a step ends once the run's token is cancelled and its jobs are done.
+/// The single place that decides how a step ends once its jobs are joined.
 ///
-/// The token is authoritative, not the jobs' results: a user's Ctrl-C is a
-/// cancelled step even when every job returned Ok (none had started a
-/// command yet, or they were aborted after the grace period). A fail-fast
-/// abort ends quietly because the step that failed reports the error.
-pub(crate) fn cancelled_run_outcome(hook_ctx: &HookContext) -> Result<()> {
-    cancelled_outcome(&hook_ctx.failed, &hook_ctx.fail_fast_aborted)
+/// The cancellation token is authoritative for a user's Ctrl-C, whatever the
+/// jobs reported:
+/// - jobs all Ok, or an error that is only an allowed failure (which the step
+///   group would otherwise turn into success): the step is cancelled, as on
+///   a run that was interrupted. `Ok(None)` is returned for a fail-fast abort,
+///   which ends quietly because the step that failed reports the error.
+/// - any other error, such as a real failure that happened before the
+///   Ctrl-C: that failure is surfaced unchanged.
+/// - not cancelled: the jobs' result as is, wrapped in `Some`.
+pub(crate) fn settle_joined_jobs<T>(
+    hook_ctx: &HookContext,
+    joined: Result<T>,
+    is_allowed: impl Fn(&eyre::Report) -> bool,
+) -> Result<Option<T>> {
+    settle(
+        &hook_ctx.failed,
+        &hook_ctx.fail_fast_aborted,
+        joined,
+        is_allowed,
+    )
 }
 
-pub(crate) fn cancelled_outcome(failed: &CancellationToken, aborted: &AtomicBool) -> Result<()> {
-    if user_cancelled(failed, aborted) {
-        Err(ensembler::Error::Cancelled.into())
-    } else {
-        Ok(())
+fn settle<T>(
+    failed: &CancellationToken,
+    aborted: &AtomicBool,
+    joined: Result<T>,
+    is_allowed: impl Fn(&eyre::Report) -> bool,
+) -> Result<Option<T>> {
+    let user = user_cancelled(failed, aborted);
+    match joined {
+        Err(err) if !(user && is_allowed(&err)) => Err(err),
+        _ if user => Err(ensembler::Error::Cancelled.into()),
+        Ok(value) if !failed.is_cancelled() => Ok(Some(value)),
+        Ok(_) => Ok(None),
+        Err(err) => Err(err),
     }
 }
 
@@ -404,6 +426,66 @@ mod tests {
         mark_failure_abort(&failed, &aborted);
         assert!(!aborted.load(Ordering::SeqCst));
         assert!(user_cancelled(&failed, &aborted));
+    }
+
+    #[test]
+    fn user_cancel_decides_the_outcome_whatever_the_jobs_reported() {
+        let allowed = |e: &eyre::Report| e.to_string() == "allowed";
+        let token = |cancelled| {
+            let t = CancellationToken::new();
+            if cancelled {
+                t.cancel();
+            }
+            t
+        };
+        let none = AtomicBool::new(false);
+        // Not cancelled: allowed failures and real ones pass through.
+        assert_eq!(
+            settle(&token(false), &none, Ok(1), allowed).unwrap(),
+            Some(1)
+        );
+        let err = settle(
+            &token(false),
+            &none,
+            Err::<i32, _>(eyre::eyre!("allowed")),
+            allowed,
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), "allowed");
+        // Ctrl-C: Ok and an allowed failure are both a cancelled step.
+        let err = settle(&token(true), &none, Ok(1), allowed).unwrap_err();
+        assert!(crate::error::is_cancellation(&err));
+        let err = settle(
+            &token(true),
+            &none,
+            Err::<i32, _>(eyre::eyre!("allowed")),
+            allowed,
+        )
+        .unwrap_err();
+        assert!(crate::error::is_cancellation(&err));
+        // Ctrl-C after a real failure: the failure is surfaced.
+        let err = settle(
+            &token(true),
+            &none,
+            Err::<i32, _>(eyre::eyre!("real")),
+            allowed,
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), "real");
+        // Fail-fast abort: Ok ends quietly, errors are unchanged.
+        let aborted = AtomicBool::new(true);
+        assert_eq!(
+            settle(&token(true), &aborted, Ok(1), allowed).unwrap(),
+            None
+        );
+        let err = settle(
+            &token(true),
+            &aborted,
+            Err::<i32, _>(eyre::eyre!("allowed")),
+            allowed,
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), "allowed");
     }
 
     #[test]

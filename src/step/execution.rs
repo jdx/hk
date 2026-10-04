@@ -652,7 +652,7 @@ impl Step {
                     .failure_is_allowed(&ctx.hook_ctx.expr_ctx())
                     .unwrap_or(false)
         };
-        let job_files = join_jobs(
+        let joined = join_jobs(
             set,
             &ctx.hook_ctx.failed,
             CANCELLED_JOBS_GRACE,
@@ -667,17 +667,25 @@ impl Step {
                 .then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
             },
         )
-        .await?;
+        .await;
+        // The token, not the jobs' results, decides a user's Ctrl-C: see
+        // `settle_joined_jobs`.
+        let job_files =
+            match crate::step_group::settle_joined_jobs(&ctx.hook_ctx, joined, failure_allowed) {
+                Ok(Some(files)) => files,
+                Ok(None) => {
+                    // A fail-fast abort: the failing step reports the error.
+                    ctx.status_aborted();
+                    return Ok(());
+                }
+                Err(err) => {
+                    if crate::error::is_cancellation(&err) {
+                        ctx.status_aborted();
+                    }
+                    return Err(err);
+                }
+            };
         let actual_job_files: IndexSet<PathBuf> = job_files.into_iter().flatten().collect();
-        if ctx.hook_ctx.failed.is_cancelled() {
-            ctx.status_aborted();
-            // The token is authoritative. A user's Ctrl-C is a cancelled run
-            // even if every job returned Ok (none had started a command, or
-            // they were aborted after the grace period); only a fail-fast
-            // abort, whose failure is reported by the step that caused it, ends
-            // quietly.
-            return crate::step_group::cancelled_run_outcome(&ctx.hook_ctx);
-        }
         // Skip staging if no jobs actually processed any files (e.g., all jobs skipped by condition)
         if non_skip_jobs > 0
             && !actual_job_files.is_empty()
@@ -1253,9 +1261,8 @@ mod tests {
     #[tokio::test]
     async fn user_cancel_with_every_job_ok_is_still_a_cancelled_step() {
         // Row 1: no job started a command (all returned Ok, one was aborted by
-        // the grace period). join_jobs reports no error; the token decides.
+        // the grace period). join_jobs reports no error; the token decides (see `step_group::settle_joined_jobs`).
         let cancel = CancellationToken::new();
-        let aborted = std::sync::atomic::AtomicBool::new(false);
         let mut set = tokio::task::JoinSet::<Result<()>>::new();
         set.spawn(async { Ok(()) });
         set.spawn(async {
@@ -1273,11 +1280,6 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(done.len(), 1);
-        let outcome = crate::step_group::cancelled_outcome(&cancel, &aborted);
-        assert!(crate::error::is_cancellation(&outcome.unwrap_err()));
-        // A fail-fast abort ends quietly: the failing step reports the error.
-        aborted.store(true, std::sync::atomic::Ordering::SeqCst);
-        assert!(crate::step_group::cancelled_outcome(&cancel, &aborted).is_ok());
     }
 
     #[tokio::test]
