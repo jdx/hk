@@ -7,9 +7,14 @@
 setup() {
     load 'test_helper/common_setup'
     _common_setup
+    # A sleep duration no other test (or file) uses, so a process check matches
+    # only this test's step. A bare "sleep 30" also matches the sleepers of
+    # tests running concurrently under bats --jobs.
+    SLEEP_MARK="30.$$$RANDOM$RANDOM"
 }
 
 teardown() {
+    [ -z "${SLEEP_MARK:-}" ] || pkill -f "sleep $SLEEP_MARK\$" 2>/dev/null || true
     _common_teardown
 }
 
@@ -24,7 +29,7 @@ hooks {
     steps {
       ["slow"] {
         glob = "**/*.txt"
-        fix = "touch started; sleep 30"
+        fix = "touch started; sleep $SLEEP_MARK"
       }
     }
   }
@@ -86,10 +91,10 @@ term_mid_step() {
     # exits, but the kernel reaps the dead processes asynchronously, so a
     # zombie can still show up for a moment (seen on macOS).
     for _ in $(seq 50); do
-        pgrep -f "sleep 30" >/dev/null || return 0
+        pgrep -f "sleep $SLEEP_MARK\$" >/dev/null || return 0
         sleep 0.1
     done
-    run pgrep -f "sleep 30"
+    run pgrep -f "sleep $SLEEP_MARK\$"
     assert_failure
 }
 
@@ -118,7 +123,7 @@ kill9_then_recover() {
     wait_for_step
     kill -9 "$pid"
     wait "$pid" || true
-    pkill -f "sleep 30" || true
+    pkill -f "sleep $SLEEP_MARK\$" || true
     rm -f started
     # Killed: the changes are stranded in the stash, and the journal names them
     assert_equal "$(cat file.txt)" "staged"
