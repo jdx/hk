@@ -49,6 +49,14 @@ pub struct Install {
     #[usage(long, verbatim_doc_comment, conflicts = "--global")]
     legacy: bool,
 
+    /// With the legacy `.git/hooks/` script shims, replace an existing hook
+    /// that hk did not write, and replace a symlinked hook with a regular
+    /// file (the symlink's target is left alone). By default hk refuses to
+    /// install if any target is a hook it did not write or a symlink, and
+    /// installs nothing.
+    #[usage(long, verbatim_doc_comment, conflicts = "--global")]
+    force: bool,
+
     /// Run hooks through `mise x` so mise-managed tools are available
     /// without activating mise in the shell.
     ///
@@ -98,6 +106,13 @@ impl Install {
         let config = Config::get()?;
         let events = hook_events(&config);
 
+        // Legacy shims live in files other tools and people also own. Check
+        // every target before removing or writing anything, so a refusal
+        // leaves the repository exactly as it was.
+        if !use_config_hooks {
+            check_legacy_targets(&events, self.force)?;
+        }
+
         // Git locks each config write separately. Hold a separate lock across
         // the entire removal and installation so concurrent hk processes
         // cannot observe or overwrite each other's partial installs.
@@ -133,9 +148,85 @@ impl Install {
             let shim_fallback = path_fallback
                 .as_deref()
                 .filter(|dir| dir.to_str().is_some());
-            install_local_shims(&events, &command, shim_fallback)
+            install_local_shims(&events, &command, shim_fallback, self.force)
         }
     }
+}
+
+/// The directory legacy hook shims are written to.
+fn legacy_hooks_dir(create: bool) -> Result<PathBuf> {
+    let git_path = git_util::find_git_path()?;
+    let hooks = match git_util::worktree_hooks_path() {
+        Some(path) => path,
+        None => {
+            check_hooks_path_config()?;
+            git_util::resolve_git_hooks_dir(&git_path)?
+        }
+    };
+    // A missing or deleted hooks directory is recreated, as writing the
+    // shim directly used to do.
+    if create {
+        xx::file::mkdirp(&hooks)?;
+    }
+    Ok(hooks)
+}
+
+/// Whether `content` is a hook script written by hk.
+///
+/// Matches the `HK=0` guard that every hk-written shim has. This is more
+/// specific than `hk run` alone, which could appear in an unrelated
+/// user-written hook.
+fn is_hk_shim(content: &str) -> bool {
+    content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run")
+}
+
+/// Why `path` must not be written as a legacy hook shim, if it must not.
+/// Fails if an existing hook cannot be read, rather than guessing who wrote it.
+fn legacy_target_problem(path: &Path) -> Result<Option<String>> {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return Ok(None);
+    };
+    if meta.file_type().is_symlink() {
+        return Ok(Some(format!(
+            "{} is a symlink (writing it would modify the file it points to)",
+            path.display()
+        )));
+    }
+    if !meta.is_file() {
+        return Ok(Some(format!("{} is not a regular file", path.display())));
+    }
+    let bytes = std::fs::read(path)
+        .map_err(|err| eyre::eyre!("could not read existing hook {}: {err}", path.display()))?;
+    if !is_hk_shim(&String::from_utf8_lossy(&bytes)) {
+        return Ok(Some(format!(
+            "{} is a hook that hk did not write",
+            path.display()
+        )));
+    }
+    Ok(None)
+}
+
+/// Refuse a legacy install that would overwrite a hook hk did not write, or
+/// write through a symlink, unless `force` is set. Looks at every target
+/// first and reports all problems at once.
+fn check_legacy_targets(events: &[String], force: bool) -> Result<()> {
+    if force || events.is_empty() {
+        return Ok(());
+    }
+    let hooks = legacy_hooks_dir(false)?;
+    let mut problems = Vec::new();
+    for event in events {
+        if let Some(problem) = legacy_target_problem(&hooks.join(event))? {
+            problems.push(problem);
+        }
+    }
+    if problems.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "refusing to install hooks, nothing was changed:\n  {}\nMove these hooks out of the way, or pass `--force` to replace them.",
+        problems.join("\n  ")
+    );
 }
 
 /// Returns true if any `hook.hk-*.command` entry is set in `~/.gitconfig`.
@@ -451,25 +542,38 @@ fn install_local_shims(
     events: &[String],
     command: &OsStr,
     path_fallback: Option<&Path>,
+    force: bool,
 ) -> Result<()> {
-    let git_path = git_util::find_git_path()?;
-    let hooks = match git_util::worktree_hooks_path() {
-        Some(path) => {
-            xx::file::mkdirp(&path)?;
-            path
-        }
-        None => {
-            check_hooks_path_config()?;
-            git_util::resolve_git_hooks_dir(&git_path)?
-        }
-    };
+    let hooks = legacy_hooks_dir(true)?;
     for event in events {
         let hook_file = hooks.join(event);
-        xx::file::write(
-            &hook_file,
-            git_hook_content(&command.to_string_lossy(), event, path_fallback),
+        // Another process can change the hook after the up-front check, so
+        // look again right before writing.
+        if !force && let Some(problem) = legacy_target_problem(&hook_file)? {
+            bail!("{problem}; pass `--force` to replace it");
+        }
+        // Write a new file and rename it over the hook. A rename replaces a
+        // symlink (even a dangling one) instead of following it, so the
+        // link's target is never written.
+        // The temp file has a random name and is created exclusively, so a
+        // symlink planted at a guessed name can't redirect the write.
+        let mut temp = tempfile::Builder::new()
+            .prefix(&format!(".{event}.hk-install-"))
+            .tempfile_in(&hooks)?;
+        std::io::Write::write_all(
+            &mut temp,
+            git_hook_content(&command.to_string_lossy(), event, path_fallback).as_bytes(),
         )?;
-        xx::file::make_executable(&hook_file)?;
+        // The temp file starts private (0600); hooks are world-readable and
+        // executable, as when the shim was written directly.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o755))?;
+        }
+        #[cfg(not(unix))]
+        xx::file::make_executable(temp.path())?;
+        temp.persist(&hook_file).map_err(|err| err.error)?;
         info!("Installed hk hook: {}", hook_file.display());
     }
     Ok(())
@@ -650,7 +754,7 @@ pub(crate) fn remove_local_shims() -> Result<usize> {
         // Match the HK=0 guard that every hk-written shim has. This is more
         // specific than `hk run` alone, which could appear in an unrelated
         // user-written hook.
-        if content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run") {
+        if is_hk_shim(&content) {
             xx::file::remove_file(&p)?;
             info!("removed hook: {}", xx::file::display_path(&p));
             removed += 1;
