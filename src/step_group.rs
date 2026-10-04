@@ -3,6 +3,7 @@ use eyre::Context;
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     Result,
@@ -15,7 +16,10 @@ use crate::{
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 #[serde_as]
@@ -53,6 +57,81 @@ impl StepGroupContext {
         self.progress = Some(progress);
         self
     }
+}
+
+/// Whether the run was cancelled from outside (Ctrl-C) rather than by a
+/// step failure aborting its siblings.
+pub(crate) fn cancelled_by_user(hook_ctx: &HookContext) -> bool {
+    user_cancelled(&hook_ctx.failed, &hook_ctx.fail_fast_aborted)
+}
+
+/// The single place that decides how a step ends once its jobs are joined.
+///
+/// The cancellation token is authoritative for a user's Ctrl-C, whatever the
+/// jobs reported:
+/// - jobs all Ok, or an error that is only an allowed failure (which the step
+///   group would otherwise turn into success): the step is cancelled, as on
+///   a run that was interrupted. `Ok(None)` is returned for a fail-fast abort,
+///   which ends quietly because the step that failed reports the error.
+/// - any other error, such as a real failure that happened before the
+///   Ctrl-C: that failure is surfaced unchanged.
+/// - not cancelled: the jobs' result as is, wrapped in `Some`.
+pub(crate) fn settle_joined_jobs<T>(
+    hook_ctx: &HookContext,
+    joined: Result<T>,
+    is_allowed: impl Fn(&eyre::Report) -> bool,
+) -> Result<Option<T>> {
+    settle(
+        &hook_ctx.failed,
+        &hook_ctx.fail_fast_aborted,
+        joined,
+        is_allowed,
+    )
+}
+
+fn settle<T>(
+    failed: &CancellationToken,
+    aborted: &AtomicBool,
+    joined: Result<T>,
+    is_allowed: impl Fn(&eyre::Report) -> bool,
+) -> Result<Option<T>> {
+    let user = user_cancelled(failed, aborted);
+    match joined {
+        Err(err) if !(user && is_allowed(&err)) => Err(err),
+        _ if user => Err(ensembler::Error::Cancelled.into()),
+        Ok(value) if !failed.is_cancelled() => Ok(Some(value)),
+        Ok(_) => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+fn user_cancelled(failed: &CancellationToken, aborted: &AtomicBool) -> bool {
+    failed.is_cancelled() && !aborted.load(Ordering::SeqCst)
+}
+
+/// Record that a step failure is about to cancel the run, unless something
+/// else (Ctrl-C) already did.
+fn mark_failure_abort(failed: &CancellationToken, aborted: &AtomicBool) {
+    if !failed.is_cancelled() {
+        aborted.store(true, Ordering::SeqCst);
+    }
+}
+
+/// Stop everything that is running after a fail-fast failure.
+///
+/// Remaining steps are marked before their commands are cancelled so a woken
+/// runner cannot record cancellation as a command failure.
+///
+/// `fail_fast_aborted` is only set when this is the first thing to cancel the
+/// run. After a user's Ctrl-C the token is already cancelled, and the
+/// cancellation errors that follow must reach the caller exactly as they did
+/// before fail-fast aborts existed.
+pub(crate) async fn abort_running_steps(hook_ctx: &HookContext) {
+    mark_failure_abort(&hook_ctx.failed, &hook_ctx.fail_fast_aborted);
+    for step_ctx in hook_ctx.step_contexts.lock().unwrap().values() {
+        step_ctx.status_aborted();
+    }
+    crate::step::cancel_running_steps(&hook_ctx.failed).await;
 }
 
 impl StepGroup {
@@ -187,7 +266,10 @@ impl StepGroup {
                 let step_ctx = step_ctx.clone();
                 let hook_ctx = ctx.hook_ctx.clone();
                 async move {
-                    let result = step.clone().run_all_jobs(step_ctx.clone(), semaphore).await;
+                    let result = step
+                        .clone()
+                        .run_all_jobs(step_ctx.clone(), semaphore, fail_fast)
+                        .await;
                     let failure_allowed = match match &result {
                         Err(err) if crate::error::is_command_failure(err) => {
                             step.failure_is_allowed(&hook_ctx.expr_ctx())
@@ -227,17 +309,40 @@ impl StepGroup {
             });
         }
         let mut result = Ok(());
+        // The first cancellation error after a user's Ctrl-C. Steps that were
+        // only cancelled (a dependent that never started) can report before the
+        // step whose command was killed, so wait for the rest and let a more
+        // specific error, or the cancelled command's own, come first.
+        let mut cancelled: Option<eyre::Report> = None;
         while let Some(res) = set.join_next().await {
             match res {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
-                    if ctx.fail_fast {
-                        // Mark remaining steps before cancelling their commands so a
-                        // woken runner cannot record cancellation as a command failure.
-                        for step_ctx in ctx.hook_ctx.step_contexts.lock().unwrap().values() {
-                            step_ctx.status_aborted();
+                    // Once a failure has cancelled the other steps, their
+                    // cancellation errors can reach us before the failure
+                    // that caused them. Skip them: the real failure follows.
+                    if ctx
+                        .hook_ctx
+                        .fail_fast_aborted
+                        .load(std::sync::atomic::Ordering::SeqCst)
+                        && crate::error::is_cancellation(&err)
+                    {
+                        debug!("ignoring cancellation after fail-fast abort: {err:#}");
+                        continue;
+                    }
+                    if crate::error::is_cancellation(&err) && cancelled_by_user(&ctx.hook_ctx) {
+                        // Prefer the error that says which command was cancelled
+                        // over a bare one from a step that never started.
+                        if cancelled
+                            .as_ref()
+                            .is_none_or(|c| c.chain().count() < err.chain().count())
+                        {
+                            cancelled = Some(err);
                         }
-                        crate::step::cancel_running_steps(&ctx.hook_ctx.failed).await;
+                        continue;
+                    }
+                    if ctx.fail_fast {
+                        abort_running_steps(&ctx.hook_ctx).await;
                         return Err(err);
                     } else if result.is_ok() {
                         result = Err(err);
@@ -249,6 +354,11 @@ impl StepGroup {
                     std::panic::resume_unwind(e.into_panic());
                 }
             }
+        }
+        if result.is_ok()
+            && let Some(err) = cancelled
+        {
+            result = Err(err);
         }
         if let Some(progress) = ctx.progress {
             if result.is_ok() {
@@ -305,6 +415,90 @@ impl StepGroup {
 mod tests {
     use super::*;
     use crate::step::{ArgvCommand, Command};
+
+    #[test]
+    fn user_cancellation_does_not_count_as_a_fail_fast_abort() {
+        let (failed, aborted) = (CancellationToken::new(), AtomicBool::new(false));
+        assert!(!user_cancelled(&failed, &aborted));
+        failed.cancel(); // Ctrl-C
+        assert!(user_cancelled(&failed, &aborted));
+        // A failure reported after Ctrl-C does not claim the abort.
+        mark_failure_abort(&failed, &aborted);
+        assert!(!aborted.load(Ordering::SeqCst));
+        assert!(user_cancelled(&failed, &aborted));
+    }
+
+    #[test]
+    fn user_cancel_decides_the_outcome_whatever_the_jobs_reported() {
+        let allowed = |e: &eyre::Report| e.to_string() == "allowed";
+        let token = |cancelled| {
+            let t = CancellationToken::new();
+            if cancelled {
+                t.cancel();
+            }
+            t
+        };
+        let none = AtomicBool::new(false);
+        // Not cancelled: allowed failures and real ones pass through.
+        assert_eq!(
+            settle(&token(false), &none, Ok(1), allowed).unwrap(),
+            Some(1)
+        );
+        let err = settle(
+            &token(false),
+            &none,
+            Err::<i32, _>(eyre::eyre!("allowed")),
+            allowed,
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), "allowed");
+        // Ctrl-C: Ok and an allowed failure are both a cancelled step.
+        let err = settle(&token(true), &none, Ok(1), allowed).unwrap_err();
+        assert!(crate::error::is_cancellation(&err));
+        let err = settle(
+            &token(true),
+            &none,
+            Err::<i32, _>(eyre::eyre!("allowed")),
+            allowed,
+        )
+        .unwrap_err();
+        assert!(crate::error::is_cancellation(&err));
+        // Ctrl-C after a real failure: the failure is surfaced.
+        let err = settle(
+            &token(true),
+            &none,
+            Err::<i32, _>(eyre::eyre!("real")),
+            allowed,
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), "real");
+        // Fail-fast abort: Ok ends quietly, errors are unchanged.
+        let aborted = AtomicBool::new(true);
+        assert_eq!(
+            settle(&token(true), &aborted, Ok(1), allowed).unwrap(),
+            None
+        );
+        let err = settle(
+            &token(true),
+            &aborted,
+            Err::<i32, _>(eyre::eyre!("allowed")),
+            allowed,
+        )
+        .unwrap_err();
+        assert_eq!(err.to_string(), "allowed");
+    }
+
+    #[test]
+    fn step_failure_abort_is_recorded_before_cancelling() {
+        let (failed, aborted) = (CancellationToken::new(), AtomicBool::new(false));
+        mark_failure_abort(&failed, &aborted);
+        failed.cancel();
+        assert!(aborted.load(Ordering::SeqCst));
+        assert!(!user_cancelled(&failed, &aborted));
+        // A second failure racing in keeps the flag.
+        mark_failure_abort(&failed, &aborted);
+        assert!(aborted.load(Ordering::SeqCst));
+    }
 
     #[test]
     fn init_inherits_group_fields_without_merging_child_overrides() {

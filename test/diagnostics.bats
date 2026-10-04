@@ -355,7 +355,29 @@ EOF
     assert_output $'cancelled\ttrue'
 }
 
+# Two workspaces become two jobs of one step, run in parallel. The `api` job
+# fails at once; the `web` job takes `$WEB_DELAY` seconds to report its finding.
+write_failing_sibling_config() {
+    cat <<'EOF_SCRIPT' > check.sh
+case "$(basename "$PWD")" in
+    api)
+        echo 'api.c:1:1: error: api finding [A1]' >&2
+        exit 1
+        ;;
+    web)
+        sleep "$WEB_DELAY"
+        echo 'web.c:2:1: error: web finding [W1]' >&2
+        exit 1
+        ;;
+esac
+EOF_SCRIPT
+    write_workspace_config "sh $(pwd)/check.sh"
+}
+
+# Writes a two-module workspace config. The optional argument is the step's check
+# command; the default reports diagnostics with paths relative to each module.
 write_workspace_config() {
+    local check_cmd=${1:-"printf 'src/main.c:2:4: warning: first line [W1]\\\\n../shared/util.c:7:1: error: second [W2]\\\\n' >&2"}
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -365,7 +387,7 @@ hooks {
                 glob = "**/*.mod"
                 workspace_indicator = "module.toml"
                 dir = "{{workspace}}"
-                check = "printf 'src/main.c:2:4: warning: first line [W1]\\\\n../shared/util.c:7:1: error: second [W2]\\\\n' >&2"
+                check = "$check_cmd"
                 diagnostic_format = "gcc"
                 diagnostic_tool = "cc"
             }
@@ -379,6 +401,47 @@ EOF
     echo b > services/web/b.mod
     git add .
     git commit -m init
+}
+
+@test "--no-fail-fast keeps diagnostics from a job that is still running when another fails" {
+    write_failing_sibling_config
+    export WEB_DELAY=0.3
+    for libgit2 in 1 0; do
+        rm -f diagnostics.sarif
+        HK_LIBGIT2=$libgit2 run hk check --all --no-fail-fast --sarif diagnostics.sarif
+        assert_failure
+        run jq -r '[.runs[0].results[].ruleId] | sort | join(",")' diagnostics.sarif
+        assert_success
+        assert_output 'A1,W1'
+    done
+}
+
+@test "--no-fail-fast keeps diagnostics from every job in JSON output" {
+    write_failing_sibling_config
+    export WEB_DELAY=0.3
+    for libgit2 in 1 0; do
+        HK_LIBGIT2=$libgit2 run bash -c "hk --format json check --all --no-fail-fast 2>/dev/null"
+        assert_failure
+        run jq -r '[.steps[] | select(.name == "vet") | .diagnostics[].rule] | sort | join(",")' <<<"$output"
+        assert_success
+        assert_output 'A1,W1'
+    done
+}
+
+@test "fail-fast keeps the failing job's diagnostics and stops running siblings promptly" {
+    write_failing_sibling_config
+    export WEB_DELAY=30
+    for libgit2 in 1 0; do
+        rm -f diagnostics.sarif
+        start=$SECONDS
+        HK_LIBGIT2=$libgit2 run hk check --all --fail-fast --sarif diagnostics.sarif
+        assert_failure
+        # The sibling sleeps for 30s; it must be killed, not waited for.
+        assert [ $((SECONDS - start)) -lt 15 ]
+        run jq -r '[.runs[0].results[].ruleId] | sort | join(",")' diagnostics.sarif
+        assert_success
+        assert_output 'A1'
+    done
 }
 
 @test "diagnostics from a step run in a workspace are relative to the repository root" {
