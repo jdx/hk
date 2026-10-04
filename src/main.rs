@@ -57,6 +57,11 @@ use tokio::signal;
 #[cfg(unix)]
 use tokio::signal::unix::SignalKind;
 
+// pklr's config evaluation is allocation-heavy; mimalloc evaluates hk's own
+// config about a third faster than the system allocator.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() -> Result<()> {
     error_report::install();
     if is_bare_builtins_invocation(std::env::args_os().skip(1)) {

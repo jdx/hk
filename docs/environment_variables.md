@@ -167,7 +167,7 @@ This variable is read directly from the environment before `hk.pkl` is evaluated
 
 **Type:** path · **Default:** unset
 
-A path to a PEM bundle containing CA certificates trusted by the built-in pklr evaluator. This must be set before configuration is evaluated.
+A path to a PEM bundle containing CA certificates trusted by the built-in pklr evaluator, in addition to the system roots, when it downloads Pkl packages. This is useful behind an SSL-intercepting proxy. This must be set before configuration is evaluated.
 
 ## `HK_PKL_EMBEDDED` {#hk-pkl-embedded}
 

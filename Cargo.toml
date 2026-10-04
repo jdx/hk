@@ -3,7 +3,6 @@ build = "build/mod.rs"
 description = "A tool for managing git hooks"
 documentation = "https://hk.jdx.dev"
 edition = "2024"
-homepage = "https://hk.jdx.dev"
 include = [
   "/src/**/*",
   "/Cargo.toml",
@@ -48,6 +47,7 @@ itertools          = "0.15"
 libc               = "0.2"
 log                = "0.4"
 memchr             = "2"
+mimalloc           = "0.1"
 once_cell          = "1"
 pklr               = { version = "3", default-features = false, features = ["async", "package-zip", "miette-diagnostics"] }
 regex              = "1"

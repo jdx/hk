@@ -188,7 +188,7 @@ type = "path"
 env_only = true
 sources.env = ["HK_PKL_CA_CERTIFICATES"]
 docs = """
-A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts
+A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots,
 when it downloads packages and modules.
 
 This setting is read directly from the environment variable before the configuration \

@@ -124,7 +124,9 @@ struct RunRecord {
     completed_at: Option<Instant>,
     exit_code: Option<i32>,
     output: Vec<u8>,
-    stdout: Vec<u8>,
+    /// Bytes of hk's structured stdout consumed so far, capped at
+    /// `MAX_RUN_OUTPUT_BYTES`. The events are parsed as they arrive and are not retained.
+    stdout_bytes: usize,
     stdout_event_buffer: Vec<u8>,
     output_truncated: bool,
     stdout_truncated: bool,
@@ -218,6 +220,39 @@ impl McpState {
 struct RootRequest {
     /// An allowed root returned by inspect_project; omit when only one root is available.
     root: Option<String>,
+}
+
+/// Which files a run covers.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum RunScope {
+    /// Every tracked file plus untracked files that are not ignored (`hk --all`).
+    #[default]
+    All,
+    /// Staged and unstaged files, plus untracked files unless `HK_STASH_UNTRACKED=0` skips untracked discovery (`hk --stash none` only stops a configured stash method from narrowing it to staged files; it does not override that setting).
+    Changed,
+    /// Unstaged files, plus untracked files unless `HK_STASH_UNTRACKED=0`, excluding staged files (`hk --unstaged`).
+    Unstaged,
+}
+
+impl RunScope {
+    fn args(self) -> &'static [&'static str] {
+        match self {
+            Self::All => &["--all"],
+            // With stashing off, hk's default selection is staged + unstaged + untracked.
+            Self::Changed => &["--stash", "none"],
+            Self::Unstaged => &["--unstaged"],
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct StartRequest {
+    /// An allowed root returned by inspect_project; omit when only one root is available.
+    root: Option<String>,
+    /// Files to run on: "all" (default), "changed" (staged and unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0), or "unstaged" (unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0).
+    #[serde(default)]
+    scope: RunScope,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -327,7 +362,12 @@ impl HkMcpServer {
         }
     }
 
-    async fn start(&self, root: PathBuf, kind: RunKind) -> Result<RunSnapshot, String> {
+    async fn start(
+        &self,
+        root: PathBuf,
+        kind: RunKind,
+        scope: RunScope,
+    ) -> Result<RunSnapshot, String> {
         let id = format!("hk-{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let cancel = CancellationToken::new();
         let snapshot = {
@@ -350,7 +390,7 @@ impl HkMcpServer {
                 completed_at: None,
                 exit_code: None,
                 output: Vec::new(),
-                stdout: Vec::new(),
+                stdout_bytes: 0,
                 stdout_event_buffer: Vec::new(),
                 output_truncated: false,
                 stdout_truncated: false,
@@ -366,11 +406,18 @@ impl HkMcpServer {
             snapshot
         };
         let server = self.clone();
-        tokio::spawn(async move { server.execute(id, root, kind, cancel).await });
+        tokio::spawn(async move { server.execute(id, root, kind, scope, cancel).await });
         Ok(snapshot)
     }
 
-    async fn execute(&self, id: String, root: PathBuf, kind: RunKind, cancel: CancellationToken) {
+    async fn execute(
+        &self,
+        id: String,
+        root: PathBuf,
+        kind: RunKind,
+        scope: RunScope,
+        cancel: CancellationToken,
+    ) {
         let diff_baseline = prepare_diff_baseline(&root).await;
         let executable = match std::env::current_exe() {
             Ok(path) => path,
@@ -385,11 +432,11 @@ impl HkMcpServer {
             .current_dir(&root)
             .args(["--format", "jsonl"])
             .arg(kind.command())
-            .arg("--all")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
+        command.args(scope.args());
         // Own process group, so a stuck run can be killed together with its steps.
         #[cfg(unix)]
         command.process_group(0);
@@ -440,7 +487,7 @@ impl HkMcpServer {
         match status {
             Ok(status) => {
                 run.exit_code = status.code();
-                let invalid_result = parse_run_result(run);
+                let invalid_result = parse_run_result(run, cancelled);
                 run.status = if cancelled {
                     "cancelled"
                 } else if invalid_result {
@@ -582,7 +629,7 @@ impl HkMcpServer {
     )]
     async fn start_check(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::Check).await
@@ -599,7 +646,7 @@ impl HkMcpServer {
     )]
     async fn start_safe_check(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::SafeCheck).await
@@ -616,7 +663,7 @@ impl HkMcpServer {
     )]
     async fn start_safe_fix(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::SafeFix).await
@@ -829,13 +876,13 @@ impl HkMcpServer {
 
     async fn start_tool(
         &self,
-        request: RootRequest,
+        request: StartRequest,
         peer: Peer<RoleServer>,
         kind: RunKind,
     ) -> Result<CallToolResult, String> {
         self.refresh_client_roots(&peer).await;
         let root = self.select_root(request.root.as_deref()).await?;
-        let snapshot = self.start(root, kind).await?;
+        let snapshot = self.start(root, kind, request.scope).await?;
         let value = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
         Ok(tool_success(format!("Started run {}", snapshot.id), value))
     }
@@ -943,7 +990,9 @@ fn tool_success(summary: String, value: Value) -> CallToolResult {
     result
 }
 
-fn parse_run_result(run: &mut RunRecord) -> bool {
+/// `killed` is true only when hk was actually killed by a cancellation; a
+/// cancel that arrives after hk exited does not change the outcome.
+fn parse_run_result(run: &mut RunRecord, killed: bool) -> bool {
     if run.saw_run_completed && run.result.is_some() {
         return false;
     }
@@ -952,13 +1001,43 @@ fn parse_run_result(run: &mut RunRecord) -> bool {
             "structured result exceeded the {} byte capture limit",
             MAX_RUN_OUTPUT_BYTES
         ));
-        return true;
+    } else if run.error.is_none() {
+        // hk exited without a final result, usually because it failed before
+        // running any step. Its first stderr paragraph says why.
+        run.error = Some(
+            first_paragraph(&run.output)
+                .unwrap_or_else(|| "hk exited without a structured result".into()),
+        );
     }
-    if run.error.is_none() {
-        run.error =
-            Some("failed to parse hk structured result: missing run_completed event".into());
+    // A partial result still says "running"; the run is over, so it failed.
+    // A killed run keeps the state it had when it was stopped.
+    if !killed && let Some(result) = run.result.as_mut() {
+        result["status"] = json!("failed");
+        if result.get("failure").is_none() {
+            result["failure"] = json!(run.error);
+        }
     }
     true
+}
+
+/// First blank-line-separated paragraph of hk's stderr, bounded in size.
+fn first_paragraph(output: &[u8]) -> Option<String> {
+    const MAX_BYTES: usize = 1024;
+    let text = String::from_utf8_lossy(&output[..output.len().min(MAX_BYTES * 4)]);
+    let paragraph = text
+        .trim_start()
+        .split("\n\n")
+        .next()
+        .unwrap_or_default()
+        .trim_end();
+    if paragraph.is_empty() {
+        return None;
+    }
+    let mut end = paragraph.len().min(MAX_BYTES);
+    while !paragraph.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(paragraph[..end].to_string())
 }
 
 fn apply_jsonl_event(run: &mut RunRecord, line: &[u8]) {
@@ -1039,21 +1118,25 @@ fn apply_jsonl_event(run: &mut RunRecord, line: &[u8]) {
 }
 
 fn consume_jsonl_events(run: &mut RunRecord, bytes: &[u8]) {
+    // Only the new bytes can contain a newline that is not yet consumed, so a
+    // huge single-line event is neither rescanned nor copied on every read.
+    let mut search = run.stdout_event_buffer.len();
     run.stdout_event_buffer.extend_from_slice(bytes);
-    while let Some(newline) = run
-        .stdout_event_buffer
-        .iter()
-        .position(|byte| *byte == b'\n')
-    {
-        let mut line = run
-            .stdout_event_buffer
-            .drain(..=newline)
-            .collect::<Vec<_>>();
-        line.pop();
+    let mut buffer = std::mem::take(&mut run.stdout_event_buffer);
+    let mut start = 0;
+    while let Some(newline) = buffer[search..].iter().position(|byte| *byte == b'\n') {
+        let end = search + newline;
+        let line = &buffer[start..end];
         if !line.iter().all(u8::is_ascii_whitespace) {
-            apply_jsonl_event(run, &line);
+            apply_jsonl_event(run, line);
         }
+        start = end + 1;
+        search = start;
     }
+    if start > 0 {
+        buffer.drain(..start);
+    }
+    run.stdout_event_buffer = buffer;
 }
 
 async fn read_output<R>(state: Arc<Mutex<McpState>>, id: String, mut reader: R, stdout: bool)
@@ -1071,12 +1154,12 @@ where
             break;
         };
         if stdout {
-            let previous_len = run.stdout.len();
-            if append_capped(&mut run.stdout, &buffer[..count]) {
+            let take = count.min(MAX_RUN_OUTPUT_BYTES.saturating_sub(run.stdout_bytes));
+            if take < count {
                 run.stdout_truncated = true;
             }
-            let appended = run.stdout[previous_len..].to_vec();
-            consume_jsonl_events(run, &appended);
+            run.stdout_bytes += take;
+            consume_jsonl_events(run, &buffer[..take]);
         } else if append_capped(&mut run.output, &buffer[..count]) {
             run.output_truncated = true;
         }
@@ -1269,7 +1352,7 @@ mod tests {
                 .then(Instant::now),
             exit_code: None,
             output,
-            stdout: Vec::new(),
+            stdout_bytes: 0,
             stdout_event_buffer: Vec::new(),
             output_truncated: false,
             stdout_truncated: false,
@@ -1436,7 +1519,7 @@ mod tests {
         let state = state.lock().await;
         let run = &state.runs[0];
         assert!(run.output.is_empty());
-        assert_eq!(run.stdout.len(), MAX_RUN_OUTPUT_BYTES);
+        assert_eq!(run.stdout_bytes, MAX_RUN_OUTPUT_BYTES);
         assert!(!run.output_truncated);
         assert!(run.stdout_truncated);
     }
@@ -1446,7 +1529,7 @@ mod tests {
         let mut run = test_run("malformed", "running", Vec::new());
         consume_jsonl_events(&mut run, b"not json\n");
 
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         assert!(run.result.is_none());
         assert!(
             run.error
@@ -1454,6 +1537,101 @@ mod tests {
                 .unwrap()
                 .starts_with("failed to parse hk structured result:")
         );
+    }
+
+    #[test]
+    fn truncated_partial_result_is_marked_failed_not_running() {
+        let mut run = test_run("partial", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        run.stdout_truncated = true;
+
+        assert!(parse_run_result(&mut run, false));
+        let result = run.result.as_ref().unwrap();
+        assert_eq!(result["status"], "failed");
+        assert!(
+            result["failure"]
+                .as_str()
+                .unwrap()
+                .contains("capture limit")
+        );
+    }
+
+    #[test]
+    fn late_cancel_after_exit_still_marks_partial_result_failed() {
+        let mut run = test_run("late-cancel", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        // Cancel arrives after hk exited on its own (child was not killed).
+        run.cancel.cancel();
+
+        assert!(parse_run_result(&mut run, false));
+        assert_eq!(run.result.as_ref().unwrap()["status"], "failed");
+    }
+
+    #[test]
+    fn killed_run_keeps_partial_result_state() {
+        let mut run = test_run("killed", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        run.cancel.cancel();
+
+        assert!(parse_run_result(&mut run, true));
+        assert_ne!(run.result.as_ref().unwrap()["status"], "failed");
+    }
+
+    #[test]
+    fn missing_completion_reports_the_first_stderr_paragraph() {
+        let stderr =
+            b"Error: Failed to load configuration\n\nCaused by:\n    unterminated string\n";
+        let mut run = test_run("no-result", "running", stderr.to_vec());
+
+        assert!(parse_run_result(&mut run, false));
+        assert_eq!(
+            run.error.as_deref(),
+            Some("Error: Failed to load configuration")
+        );
+    }
+
+    #[test]
+    fn missing_completion_without_stderr_still_has_an_error() {
+        let mut run = test_run("silent", "running", Vec::new());
+
+        assert!(parse_run_result(&mut run, false));
+        assert_eq!(
+            run.error.as_deref(),
+            Some("hk exited without a structured result")
+        );
+    }
+
+    #[test]
+    fn first_paragraph_is_bounded_on_a_char_boundary() {
+        let long = "é".repeat(4096);
+        let paragraph = first_paragraph(long.as_bytes()).unwrap();
+        assert!(paragraph.len() <= 1024);
+        assert!(paragraph.chars().all(|c| c == 'é'));
+    }
+
+    #[test]
+    fn events_split_across_reads_are_reassembled() {
+        let mut run = test_run("split", "running", Vec::new());
+        let event = br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}"#;
+        consume_jsonl_events(&mut run, &event[..20]);
+        assert!(run.result.is_none());
+        let mut rest = event[20..].to_vec();
+        rest.extend_from_slice(b"\n");
+        consume_jsonl_events(&mut run, &rest);
+        assert_eq!(run.result.as_ref().unwrap()["hook"], "check");
+        assert!(run.stdout_event_buffer.is_empty());
     }
 
     #[test]
@@ -1465,7 +1643,7 @@ mod tests {
 "#,
         );
 
-        assert!(!parse_run_result(&mut run));
+        assert!(!parse_run_result(&mut run, false));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
         assert!(run.error.is_none());
     }
@@ -1480,7 +1658,7 @@ mod tests {
         );
         run.stdout_truncated = true;
 
-        assert!(!parse_run_result(&mut run));
+        assert!(!parse_run_result(&mut run, false));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
         assert!(run.error.is_none());
     }
@@ -1524,6 +1702,19 @@ mod tests {
             .await
             .expect("output pipe was still held by a surviving step")
             .unwrap();
+    }
+
+    #[test]
+    fn events_split_across_many_reads_are_applied_once_complete() {
+        let mut run = test_run("split", "running", Vec::new());
+        let event = br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}"#;
+        for chunk in event.chunks(7) {
+            consume_jsonl_events(&mut run, chunk);
+            assert!(run.result.is_none());
+        }
+        consume_jsonl_events(&mut run, b"\n{\"partial\":");
+        assert_eq!(run.result.as_ref().unwrap()["status"], "running");
+        assert_eq!(run.stdout_event_buffer, b"{\"partial\":");
     }
 
     #[test]
@@ -1681,10 +1872,15 @@ mod tests {
         let root = root.path().canonicalize().unwrap();
         let server = HkMcpServer::new(root.clone());
         let first = server
-            .start(root.clone(), RunKind::SafeCheck)
+            .start(root.clone(), RunKind::SafeCheck, RunScope::All)
             .await
             .unwrap();
-        assert!(server.start(root, RunKind::SafeCheck).await.is_err());
+        assert!(
+            server
+                .start(root, RunKind::SafeCheck, RunScope::All)
+                .await
+                .is_err()
+        );
         {
             let mut state = server.state.lock().await;
             let run = state
@@ -1724,6 +1920,32 @@ mod tests {
             server.snapshot("active").await.unwrap().status,
             "cancelling"
         );
+    }
+
+    #[test]
+    fn scope_defaults_to_all_and_maps_to_cli_flags() {
+        let request: StartRequest = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(request.scope, RunScope::All);
+        assert_eq!(request.scope.args(), ["--all"]);
+        for (value, args) in [
+            ("all", &["--all"][..]),
+            ("changed", &["--stash", "none"][..]),
+            ("unstaged", &["--unstaged"][..]),
+        ] {
+            let request: StartRequest =
+                serde_json::from_value(serde_json::json!({ "scope": value })).unwrap();
+            assert_eq!(request.scope.args(), args, "{value}");
+        }
+    }
+
+    #[test]
+    fn unknown_scope_is_rejected_with_the_valid_values() {
+        let error =
+            serde_json::from_value::<StartRequest>(serde_json::json!({ "scope": "staged" }))
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("unknown variant `staged`"), "{error}");
+        assert!(error.contains("`all`, `changed`, `unstaged`"), "{error}");
     }
 
     #[tokio::test]
@@ -1795,6 +2017,16 @@ mod tests {
             tools["start_safe_fix"]["annotations"]["destructiveHint"],
             false
         );
+        for name in ["start_check", "start_safe_check", "start_safe_fix"] {
+            let schema = &tools[name]["inputSchema"];
+            assert!(schema["properties"]["scope"].is_object(), "{name}");
+            assert!(
+                schema["required"]
+                    .as_array()
+                    .is_none_or(|required| !required.iter().any(|field| field == "scope")),
+                "{name}"
+            );
+        }
         assert_eq!(
             tools["inspect_project"]["annotations"]["readOnlyHint"],
             true

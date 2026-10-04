@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -13,5 +14,24 @@ flake8 = new Config.Step {
   check = new Config.CommandSpec {
     command = new Config.Command { argv = List("flake8", "{{files}}") }
     effect = "read"
+  }
+  // flake8 prints `path:line:column: CODE message` by default
+  diagnostic_format = "gcc"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.py" }
+    ["check bad file"] = testMaker.checkFail("import os\n", 1)
+    ["check good file"] = testMaker.checkPass("x = 1\n")
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "import os\n",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.py"
+          line = 1
+          column = 1
+          severity = "error"
+          message = "F401 'os' imported but unused"
+        }),
+      )
   }
 }
