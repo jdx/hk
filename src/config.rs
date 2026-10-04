@@ -65,7 +65,7 @@ impl Config {
     /// Returns local file paths that the config depends on and whether the
     /// module graph contains imports whose bytes hk cannot hash.
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
-        let mut local_paths: IndexSet<PathBuf> = pklr::analyze_imports(path)
+        let mut local_paths: IndexSet<PathBuf> = run_pklr_blocking(|| pklr::analyze_imports(path))?
             .map(|v| v.into_iter().collect())
             .map_err(|e| pklr_error_report(&e))?;
         // Glob imports expand to whatever matched at analysis time, so the
@@ -1157,8 +1157,7 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let outcome = evaluator
-        .eval(path)
+    let outcome = run_pklr_blocking(|| evaluator.eval(path))
         .map_err(|e| match pklr_syntax_error(&e) {
             Some(err) => eyre::Report::new(err),
             None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
@@ -1181,6 +1180,15 @@ fn pkl_http_rewrite_cache_key() -> String {
     match env::HK_PKL_HTTP_REWRITE.as_deref() {
         Some(rewrite) => format!("HK_PKL_HTTP_REWRITE={rewrite}"),
         None => "HK_PKL_HTTP_REWRITE=<unset>".to_string(),
+    }
+}
+
+/// Runs synchronous pklr work without pinning a Tokio worker when configuration
+/// evaluation is reached from an async command handler.
+fn run_pklr_blocking<T>(operation: impl FnOnce() -> pklr::Result<T>) -> Result<T> {
+    match tokio::runtime::Handle::try_current() {
+        Ok(_) => Ok(tokio::task::block_in_place(operation)?),
+        Err(_) => operation().map_err(Into::into),
     }
 }
 
