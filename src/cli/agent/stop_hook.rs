@@ -580,12 +580,20 @@ mod tests {
     async fn a_timed_out_check_also_kills_steps_in_their_own_process_groups() {
         // A step that, like hk's, runs in a group of its own: killing the check's group
         // alone would miss it.
+        let have = |tool: &str| {
+            std::process::Command::new("sh")
+                .args(["-c", &format!("command -v {tool}")])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        };
+        if !have("setsid") || !have("pgrep") {
+            eprintln!("skipping: needs the setsid and pgrep tools (not on macOS by default)");
+            return;
+        }
         let marker = format!("{}", 7_000_000 + std::process::id());
         let mut command = tokio::process::Command::new("sh");
-        command.args([
-            "-c",
-            &format!("python3 -c 'import os;os.setsid();os.execvp(\"sleep\",[\"sleep\",\"{marker}\"])' & wait"),
-        ]);
+        command.args(["-c", &format!("setsid sleep {marker} & wait")]);
         let outcome = run_check(command, Duration::from_millis(1500))
             .await
             .unwrap();
