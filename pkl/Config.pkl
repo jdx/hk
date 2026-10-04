@@ -1025,6 +1025,17 @@ open class Step {
   /// Tool name recorded on normalized diagnostics. Defaults to the step name.
   diagnostic_tool: String?
 
+  /// Severity for `gcc` findings the tool prints without a severity word, when they are shaped
+  /// `path:line: rule-name: message` (for example Buildifier's lint findings). Defaults to `error`.
+  /// Findings that name a severity keep it, and other lines without one (for example
+  /// `path:3:1: syntax error`) stay `error`.
+  ///
+  /// ```pkl
+  /// diagnostic_format = "gcc"
+  /// diagnostic_severity = "warning"
+  /// ```
+  diagnostic_severity: ("error" | "warning" | "note" | "help")?
+
   /// Environment variables specific to this step.
   /// These are merged with the global environment variables.
   ///

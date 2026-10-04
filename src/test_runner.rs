@@ -353,7 +353,13 @@ fn check_diagnostics(step: &Step, test: &StepTest, combined: &str, sandbox: &Pat
         ];
     }
     let tool = step.diagnostic_tool.as_deref().unwrap_or(&step.name);
-    let parsed = diagnostics::parse(format, &step.name, tool, combined);
+    let parsed = diagnostics::parse_with_default(
+        format,
+        &step.name,
+        tool,
+        combined,
+        step.diagnostic_severity.clone(),
+    );
     let roots = sandbox_roots(sandbox, cfg!(windows));
     expected
         .iter()
