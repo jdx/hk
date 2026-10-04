@@ -188,7 +188,7 @@ type = "path"
 env_only = true
 sources.env = ["HK_PKL_CA_CERTIFICATES"]
 docs = """
-A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts
+A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots,
 when it downloads packages and modules.
 
 This setting is read directly from the environment variable before the configuration \
@@ -454,6 +454,24 @@ backups are retained per repository (oldest are automatically deleted).
 Set to 0 to disable patch backup creation entirely.
 
 Default: 20
+"""
+
+[stash_lock_timeout]
+type = "usize"
+default = 300
+sources.env = ["HK_STASH_LOCK_TIMEOUT"]
+sources.git = ["hk.stashLockTimeout"]
+docs = """
+Seconds to wait for another hk process to finish stashing in the same repository.
+
+While hk holds unstaged changes aside, it keeps a lock in the repository's common
+git directory (`hk-stash.lock`), which linked worktrees share. A second hk process
+that needs to stash waits for the first to restore its changes, printing a message
+while it waits, and fails naming the lock file if the wait passes this limit.
+
+Set to 0 to fail at once instead of waiting.
+
+Default: 300
 """
 
 [state_dir]

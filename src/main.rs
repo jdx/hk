@@ -37,6 +37,7 @@ mod settings;
 mod shutdown;
 mod stage_queue;
 mod stash_journal;
+mod stash_lock;
 mod step;
 mod step_context;
 mod step_depends;

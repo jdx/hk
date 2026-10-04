@@ -140,7 +140,9 @@ Choose the scope that fits your setup:
 | All repositories, Git 2.54+ | `hk install --global` | Install once in your user Git config; projects without an hk configuration are skipped |
 | Current repository          | `hk install`          | Install the hooks defined in this project; supports older Git versions                 |
 
-On Git 2.54+, hk uses Git’s configuration-based hooks. On older Git, a per-repository install writes script shims. Use `hk install --legacy` to request shims explicitly.
+On Git 2.54+, hk uses Git’s configuration-based hooks. On older Git, a per-repository install writes script shims. Use `hk install --legacy` to request shims explicitly. A shim install refuses, and changes nothing, if a target in `.git/hooks/` is a hook hk did not write or a symlink; move it aside or pass `--force` to replace it.
+
+Global hooks record a path that survives upgrades: the mise shim for a mise-installed hk, or the `hk` on `PATH` that links to the running binary (for example Homebrew's), rather than a versioned install directory. Per-repository hooks call `hk` from `PATH` and append hk's own directory to the end of `PATH`, so they still work when a Git client is started without your shell's `PATH`. If hk cannot be found at all, the hook fails with exit status 127 and the commit is blocked.
 
 If hk is already installed globally, `hk install` skips the local installation and cleans up stale local hk hooks. `--force-local` overrides that behavior, but combining local and global hooks can cause duplicate runs.
 

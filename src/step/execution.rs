@@ -213,8 +213,13 @@ impl Step {
                                     // The command runner records ordinary diagnostic output, but
                                     // check-first errors return through a dedicated error type.
                                     // Preserve that listing/diff output for structured reporting.
-                                    ctx.hook_ctx
-                                        .append_diagnostic_output(&step.name, combined);
+                                    let diagnostic_dir =
+                                        step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
+                                    ctx.hook_ctx.append_diagnostic_output(
+                                        &step.name,
+                                        diagnostic_dir.as_deref(),
+                                        combined,
+                                    );
                                     if step.check_failed_files
                                         && matches!(prev_run_type, RunType::Check)
                                     {

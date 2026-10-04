@@ -799,6 +799,11 @@ open class Step {
 
   /// If set, use this shell instead of the default `sh -o errexit -c`.
   ///
+  /// The value is split on whitespace. If it contains quotes, the quoted words are grouped,
+  /// so a program path with spaces can be quoted (POSIX rules; on Windows backslashes stay literal, except before a double quote, as in `CommandLineToArgvW`). On Windows the default is
+  /// `cmd.exe`, so a step written as a POSIX script, such as the `jq` builtin, needs
+  /// `shell = "sh -o errexit -c"` or the full path to a POSIX `sh`.
+  ///
   /// ```pkl
   /// hooks {
   ///     ["pre-commit"] {
@@ -1006,6 +1011,10 @@ open class Step {
   /// - `sarif`: a SARIF 2.1.0 log
   /// - `eslint-json`: the output of `eslint --format json`
   /// - `cargo-json`: the output of `cargo check --message-format=json`
+  ///
+  /// When the step sets `dir` (including `dir = "{{workspace}}"`), the tool prints paths relative
+  /// to that directory. hk rebases them onto the repository root, so SARIF, JSON and MCP
+  /// diagnostics name the file as the repository sees it. Absolute paths are left as printed.
   ///
   /// ```pkl
   /// check = "my-compiler {{files}}"

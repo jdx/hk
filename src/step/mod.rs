@@ -54,6 +54,7 @@ pub use expr_env::{EXPR_CTX, eval_condition};
 pub(crate) use job_builder::SharedBatchJobs;
 pub(crate) use process_tree::cancel_running_steps;
 pub use shell::ShellType;
+pub(crate) use shell::split_shell;
 #[cfg(test)]
 pub(crate) use types::ArgvCommand;
 pub(crate) use types::Command;

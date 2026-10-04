@@ -6,7 +6,7 @@ use crate::{
     Result,
     diagnostics::{self, Diagnostic},
     git_util,
-    step::{RenderedCommand, RunType, Step, argv_runner},
+    step::{RenderedCommand, RunType, Step, argv_runner, split_shell},
     step_test::{RunKind, StepTest, StepTestDiagnostic},
     tera,
 };
@@ -72,12 +72,14 @@ async fn execute_cmd_combined(
         }
         RenderedCommand::Shell(cmd_str) => {
             let runner = if let Some(shell) = &step.shell {
-                let shell = shell.to_string();
-                let mut parts = shell.split_whitespace();
-                let bin = parts.next().unwrap_or("sh");
-                CmdLineRunner::new(bin).args(parts)
+                let parts = split_shell(&shell.to_string());
+                let bin = parts.first().map_or("sh", String::as_str);
+                CmdLineRunner::new_direct(bin).args(parts.iter().skip(1))
             } else {
-                CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+                CmdLineRunner::new_direct("sh")
+                    .arg("-o")
+                    .arg("errexit")
+                    .arg("-c")
             };
             runner.arg(cmd_str)
         }

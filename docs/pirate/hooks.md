@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: 42db66eea18c
+sourceHash: c1b94c21a565
 ---
 
 # Git hooks and stowing the hold
@@ -79,11 +79,15 @@ Read hk's error before ye change the working tree. Inspect `git status`, `git di
 
 hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls how many it keeps. Keep the stash and backup hk reports until ye have recovered and reviewed yer work. Don't blindly apply a stash again to files that already carry its changes.
 
+While hk has yer unstaged changes stowed, it holds a lock file, `hk-stash.lock`, in the repository's common git directory, which linked worktrees share. Two hk processes in one repository, such as hooks in two worktrees, therefore take turns stowing and restoring instead of hauling up each other's cargo. The one that waits prints a message and gives up after [`HK_STASH_LOCK_TIMEOUT`](/environment_variables#hk-stash-lock-timeout) seconds, naming the lock file. The operating system drops the lock if hk is sunk.
+
 Intent-to-add files are kept in a separate stash entry whose message ends with `(intent-to-add files)`, such as `hk: 4242-1a2b-3 (intent-to-add files)`; hk versions before this one named it `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
 
 ### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
 
 While hk has yer unstaged changes stowed in the hold, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and strikes it once yer changes are back up. It records the stash commit ids, the process id, the hook and the time. Every change to it, and every recovery, happens while hk holds a lock on a second file beside it, `hk-pending-stash.lock`, so two hk runs never lay hands on it at once; the operating system lets go of that lock if hk dies, and hk never strikes the file, which holds no data, so leave it where it lies (removing it while a run is recovering would let a second run lock a fresh copy and recover the same journal at the same time).
+
+These be two different locks: `hk-stash.lock` (above, in the common git directory) keeps hk processes from stowing at the same time and is held from before the hold is filled until it is emptied again, while `hk-pending-stash.lock` only guards the journal file. hk takes the stash lock first, then writes the journal, brings yer changes back up, strikes the journal and lets go of the stash lock. A signal while hk is still waiting for the stash lock ends the wait; nothing was stowed, so no journal is written and nothing is brought back up.
 
 - **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C or Ctrl+Break on Windows): hk stops the running hands, brings yer changes back up, removes the journal and exits with `128` plus the signal number (for example `143` for SIGTERM, `130` for Ctrl+C). It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never depends on the terminal: when the terminal is lost overboard (SIGHUP), hk sends its output to the null device, so the restoring carries on.
 - **Closing the console, logging off or shutting down Windows**: hk handles these like SIGHUP (exit status `129`, output sent to `NUL`) and starts restoring at once. Windows ends the process a few seconds after these events, which can be before the restore finishes. When it is, the journal stays and the next hk run recovers it, as after a crash.
