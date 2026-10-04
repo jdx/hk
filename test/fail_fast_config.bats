@@ -6,6 +6,8 @@ setup() {
 }
 
 teardown() {
+    # Only this test's own sleeper (unique duration), never other tests' sleeps.
+    [ -z "${SLEEPER:-}" ] || pkill -f "sleep $SLEEPER" 2>/dev/null || true
     _common_teardown
 }
 
@@ -128,12 +130,15 @@ EOF
 # Ctrl-C is a cancellation, not a step failure: fail-fast must not treat it as
 # one, or the hook could report success (or hang on a dependent step).
 @test "Ctrl-C under fail-fast exits as a cancelled hook, never as success" {
+    # A duration unique to this test run, so cleanup can never match another
+    # test's `sleep` (bats runs files in parallel).
+    SLEEPER="30.$$$RANDOM"
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
   ["check"] {
     steps {
-      ["slow"] { check = "touch started && sleep 30" }
+      ["slow"] { check = "touch started && sleep $SLEEPER" }
       ["dependent"] { depends = "slow"; check = "echo DEPENDENT-RAN" }
     }
   }
@@ -160,7 +165,7 @@ EOF
         done
         if kill -0 "$pid" 2>/dev/null; then
             kill -9 "$pid"
-            pkill -f "sleep 30" || true
+            pkill -f "sleep $SLEEPER" || true
             fail "hk hung after Ctrl-C (HK_LIBGIT2=$libgit2)"
         fi
         status=0
