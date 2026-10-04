@@ -8,8 +8,42 @@ use serde::Serialize;
 use std::path::Path;
 use std::{
     io::Write,
-    sync::{Mutex, OnceLock},
+    sync::{
+        Mutex, OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
+
+/// Most bytes of a step's captured output embedded in a structured result.
+/// Longer output is cut and ends with a marker stating the cap; diagnostics are
+/// parsed from the full output first, so they are not affected.
+pub const MAX_STEP_OUTPUT_BYTES: usize = 64 * 1024;
+
+/// Whether a `run_result` (or `run_completed` event) was written by this process.
+static RESULT_EMITTED: AtomicBool = AtomicBool::new(false);
+
+/// True once this process has written a final structured result.
+pub fn result_emitted() -> bool {
+    RESULT_EMITTED.load(Ordering::SeqCst)
+}
+
+/// Cut `output` to at most [`MAX_STEP_OUTPUT_BYTES`] on a UTF-8 character
+/// boundary and append a marker saying how much was dropped.
+fn cap_output(mut output: String) -> String {
+    let total = output.len();
+    if total <= MAX_STEP_OUTPUT_BYTES {
+        return output;
+    }
+    let mut end = MAX_STEP_OUTPUT_BYTES;
+    while !output.is_char_boundary(end) {
+        end -= 1;
+    }
+    output.truncate(end);
+    output.push_str(&format!(
+        "\n[hk: output truncated to the first {end} of {total} bytes (cap {MAX_STEP_OUTPUT_BYTES} bytes)]\n"
+    ));
+    output
+}
 
 #[derive(
     Debug,
@@ -255,7 +289,7 @@ pub fn emit_run(
                 diagnostics: parsed.diagnostics,
                 parse_warnings: parsed.warnings,
                 output_kind,
-                output,
+                output: output.map(cap_output),
                 skip_reason,
             });
         }
@@ -375,6 +409,7 @@ pub fn emit_error_run(
 }
 
 fn emit_result(format: OutputFormat, result: &RunResult) -> Result<()> {
+    RESULT_EMITTED.store(true, Ordering::SeqCst);
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
     match format {
@@ -698,5 +733,31 @@ mod tests {
         assert!(xml.contains("tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\""));
         assert!(xml.contains("<system-out>transient error</system-out>"));
         assert!(!xml.contains("<failure"));
+    }
+
+    #[test]
+    fn short_output_is_not_capped() {
+        let output = "x".repeat(MAX_STEP_OUTPUT_BYTES);
+        assert_eq!(cap_output(output.clone()), output);
+    }
+
+    #[test]
+    fn long_output_is_cut_with_a_marker_stating_the_cap() {
+        let capped = cap_output("x".repeat(MAX_STEP_OUTPUT_BYTES * 3));
+        assert!(capped.starts_with(&"x".repeat(MAX_STEP_OUTPUT_BYTES)));
+        assert!(capped.contains("output truncated"));
+        assert!(capped.contains(&format!("cap {MAX_STEP_OUTPUT_BYTES} bytes")));
+        assert!(capped.len() < MAX_STEP_OUTPUT_BYTES + 200);
+    }
+
+    #[test]
+    fn output_is_cut_on_a_utf8_character_boundary() {
+        // 3-byte characters, with the cap landing in the middle of one.
+        let input = "€".repeat(MAX_STEP_OUTPUT_BYTES);
+        let capped = cap_output(input);
+        let (kept, marker) = capped.split_once("\n[hk:").unwrap();
+        assert!(kept.len() <= MAX_STEP_OUTPUT_BYTES);
+        assert!(kept.chars().all(|c| c == '€'));
+        assert!(marker.contains("output truncated"));
     }
 }

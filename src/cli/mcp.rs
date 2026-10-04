@@ -124,7 +124,9 @@ struct RunRecord {
     completed_at: Option<Instant>,
     exit_code: Option<i32>,
     output: Vec<u8>,
-    stdout: Vec<u8>,
+    /// Bytes of hk's structured stdout consumed so far, capped at
+    /// `MAX_RUN_OUTPUT_BYTES`. The events are parsed as they arrive and are not retained.
+    stdout_bytes: usize,
     stdout_event_buffer: Vec<u8>,
     output_truncated: bool,
     stdout_truncated: bool,
@@ -390,7 +392,7 @@ impl HkMcpServer {
                 completed_at: None,
                 exit_code: None,
                 output: Vec::new(),
-                stdout: Vec::new(),
+                stdout_bytes: 0,
                 stdout_event_buffer: Vec::new(),
                 output_truncated: false,
                 stdout_truncated: false,
@@ -522,7 +524,7 @@ impl HkMcpServer {
         match status {
             Ok(status) => {
                 run.exit_code = status.code();
-                let invalid_result = parse_run_result(run);
+                let invalid_result = parse_run_result(run, cancelled);
                 run.status = if cancelled {
                     "cancelled"
                 } else if invalid_result {
@@ -1026,7 +1028,9 @@ fn tool_success(summary: String, value: Value) -> CallToolResult {
     result
 }
 
-fn parse_run_result(run: &mut RunRecord) -> bool {
+/// `killed` is true only when hk was actually killed by a cancellation; a
+/// cancel that arrives after hk exited does not change the outcome.
+fn parse_run_result(run: &mut RunRecord, killed: bool) -> bool {
     if run.saw_run_completed && run.result.is_some() {
         return false;
     }
@@ -1035,19 +1039,47 @@ fn parse_run_result(run: &mut RunRecord) -> bool {
             "structured result exceeded the {} byte capture limit",
             MAX_RUN_OUTPUT_BYTES
         ));
-        return true;
-    }
-    if run.stdout_drain_timed_out {
+    } else if run.stdout_drain_timed_out {
         run.error = Some(
             "hk exited but a step kept the output pipe open; later output was not captured".into(),
         );
-        return true;
+    } else if run.error.is_none() {
+        // hk exited without a final result, usually because it failed before
+        // running any step. Its first stderr paragraph says why.
+        run.error = Some(
+            first_paragraph(&run.output)
+                .unwrap_or_else(|| "hk exited without a structured result".into()),
+        );
     }
-    if run.error.is_none() {
-        run.error =
-            Some("failed to parse hk structured result: missing run_completed event".into());
+    // A partial result still says "running"; the run is over, so it failed.
+    // A killed run keeps the state it had when it was stopped.
+    if !killed && let Some(result) = run.result.as_mut() {
+        result["status"] = json!("failed");
+        if result.get("failure").is_none() {
+            result["failure"] = json!(run.error);
+        }
     }
     true
+}
+
+/// First blank-line-separated paragraph of hk's stderr, bounded in size.
+fn first_paragraph(output: &[u8]) -> Option<String> {
+    const MAX_BYTES: usize = 1024;
+    let text = String::from_utf8_lossy(&output[..output.len().min(MAX_BYTES * 4)]);
+    let paragraph = text
+        .trim_start()
+        .split("\n\n")
+        .next()
+        .unwrap_or_default()
+        .trim_end();
+    if paragraph.is_empty() {
+        return None;
+    }
+    let mut end = paragraph.len().min(MAX_BYTES);
+    while !paragraph.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(paragraph[..end].to_string())
 }
 
 fn apply_jsonl_event(run: &mut RunRecord, line: &[u8]) {
@@ -1128,21 +1160,25 @@ fn apply_jsonl_event(run: &mut RunRecord, line: &[u8]) {
 }
 
 fn consume_jsonl_events(run: &mut RunRecord, bytes: &[u8]) {
+    // Only the new bytes can contain a newline that is not yet consumed, so a
+    // huge single-line event is neither rescanned nor copied on every read.
+    let mut search = run.stdout_event_buffer.len();
     run.stdout_event_buffer.extend_from_slice(bytes);
-    while let Some(newline) = run
-        .stdout_event_buffer
-        .iter()
-        .position(|byte| *byte == b'\n')
-    {
-        let mut line = run
-            .stdout_event_buffer
-            .drain(..=newline)
-            .collect::<Vec<_>>();
-        line.pop();
+    let mut buffer = std::mem::take(&mut run.stdout_event_buffer);
+    let mut start = 0;
+    while let Some(newline) = buffer[search..].iter().position(|byte| *byte == b'\n') {
+        let end = search + newline;
+        let line = &buffer[start..end];
         if !line.iter().all(u8::is_ascii_whitespace) {
-            apply_jsonl_event(run, &line);
+            apply_jsonl_event(run, line);
         }
+        start = end + 1;
+        search = start;
     }
+    if start > 0 {
+        buffer.drain(..start);
+    }
+    run.stdout_event_buffer = buffer;
 }
 
 async fn read_output<R>(state: Arc<Mutex<McpState>>, id: String, mut reader: R, stdout: bool)
@@ -1160,12 +1196,12 @@ where
             break;
         };
         if stdout {
-            let previous_len = run.stdout.len();
-            if append_capped(&mut run.stdout, &buffer[..count]) {
+            let take = count.min(MAX_RUN_OUTPUT_BYTES.saturating_sub(run.stdout_bytes));
+            if take < count {
                 run.stdout_truncated = true;
             }
-            let appended = run.stdout[previous_len..].to_vec();
-            consume_jsonl_events(run, &appended);
+            run.stdout_bytes += take;
+            consume_jsonl_events(run, &buffer[..take]);
         } else if append_capped(&mut run.output, &buffer[..count]) {
             run.output_truncated = true;
         }
@@ -1557,7 +1593,7 @@ mod tests {
                 .then(Instant::now),
             exit_code: None,
             output,
-            stdout: Vec::new(),
+            stdout_bytes: 0,
             stdout_event_buffer: Vec::new(),
             output_truncated: false,
             stdout_truncated: false,
@@ -1947,14 +1983,14 @@ mod tests {
     async fn drain_timeout_is_reported_separately_from_the_capture_limit() {
         let mut run = test_run("drain", "running", Vec::new());
         run.stdout_drain_timed_out = true;
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         let error = run.error.as_deref().unwrap();
         assert!(error.contains("kept the output pipe open"), "{error}");
         assert!(!error.contains("capture limit"), "{error}");
 
         let mut run = test_run("cap", "running", Vec::new());
         run.stdout_truncated = true;
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         let error = run.error.as_deref().unwrap();
         assert!(error.contains("byte capture limit"), "{error}");
         assert!(!error.contains("pipe"), "{error}");
@@ -2054,7 +2090,7 @@ mod tests {
         let state = state.lock().await;
         let run = &state.runs[0];
         assert!(run.output.is_empty());
-        assert_eq!(run.stdout.len(), MAX_RUN_OUTPUT_BYTES);
+        assert_eq!(run.stdout_bytes, MAX_RUN_OUTPUT_BYTES);
         assert!(!run.output_truncated);
         assert!(run.stdout_truncated);
     }
@@ -2064,7 +2100,7 @@ mod tests {
         let mut run = test_run("malformed", "running", Vec::new());
         consume_jsonl_events(&mut run, b"not json\n");
 
-        assert!(parse_run_result(&mut run));
+        assert!(parse_run_result(&mut run, false));
         assert!(run.result.is_none());
         assert!(
             run.error
@@ -2072,6 +2108,101 @@ mod tests {
                 .unwrap()
                 .starts_with("failed to parse hk structured result:")
         );
+    }
+
+    #[test]
+    fn truncated_partial_result_is_marked_failed_not_running() {
+        let mut run = test_run("partial", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        run.stdout_truncated = true;
+
+        assert!(parse_run_result(&mut run, false));
+        let result = run.result.as_ref().unwrap();
+        assert_eq!(result["status"], "failed");
+        assert!(
+            result["failure"]
+                .as_str()
+                .unwrap()
+                .contains("capture limit")
+        );
+    }
+
+    #[test]
+    fn late_cancel_after_exit_still_marks_partial_result_failed() {
+        let mut run = test_run("late-cancel", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        // Cancel arrives after hk exited on its own (child was not killed).
+        run.cancel.cancel();
+
+        assert!(parse_run_result(&mut run, false));
+        assert_eq!(run.result.as_ref().unwrap()["status"], "failed");
+    }
+
+    #[test]
+    fn killed_run_keeps_partial_result_state() {
+        let mut run = test_run("killed", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+"#,
+        );
+        run.cancel.cancel();
+
+        assert!(parse_run_result(&mut run, true));
+        assert_ne!(run.result.as_ref().unwrap()["status"], "failed");
+    }
+
+    #[test]
+    fn missing_completion_reports_the_first_stderr_paragraph() {
+        let stderr =
+            b"Error: Failed to load configuration\n\nCaused by:\n    unterminated string\n";
+        let mut run = test_run("no-result", "running", stderr.to_vec());
+
+        assert!(parse_run_result(&mut run, false));
+        assert_eq!(
+            run.error.as_deref(),
+            Some("Error: Failed to load configuration")
+        );
+    }
+
+    #[test]
+    fn missing_completion_without_stderr_still_has_an_error() {
+        let mut run = test_run("silent", "running", Vec::new());
+
+        assert!(parse_run_result(&mut run, false));
+        assert_eq!(
+            run.error.as_deref(),
+            Some("hk exited without a structured result")
+        );
+    }
+
+    #[test]
+    fn first_paragraph_is_bounded_on_a_char_boundary() {
+        let long = "é".repeat(4096);
+        let paragraph = first_paragraph(long.as_bytes()).unwrap();
+        assert!(paragraph.len() <= 1024);
+        assert!(paragraph.chars().all(|c| c == 'é'));
+    }
+
+    #[test]
+    fn events_split_across_reads_are_reassembled() {
+        let mut run = test_run("split", "running", Vec::new());
+        let event = br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}"#;
+        consume_jsonl_events(&mut run, &event[..20]);
+        assert!(run.result.is_none());
+        let mut rest = event[20..].to_vec();
+        rest.extend_from_slice(b"\n");
+        consume_jsonl_events(&mut run, &rest);
+        assert_eq!(run.result.as_ref().unwrap()["hook"], "check");
+        assert!(run.stdout_event_buffer.is_empty());
     }
 
     #[test]
@@ -2083,7 +2214,7 @@ mod tests {
 "#,
         );
 
-        assert!(!parse_run_result(&mut run));
+        assert!(!parse_run_result(&mut run, false));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
         assert!(run.error.is_none());
     }
@@ -2098,7 +2229,7 @@ mod tests {
         );
         run.stdout_truncated = true;
 
-        assert!(!parse_run_result(&mut run));
+        assert!(!parse_run_result(&mut run, false));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
         assert!(run.error.is_none());
     }
@@ -2142,6 +2273,19 @@ mod tests {
             .await
             .expect("output pipe was still held by a surviving step")
             .unwrap();
+    }
+
+    #[test]
+    fn events_split_across_many_reads_are_applied_once_complete() {
+        let mut run = test_run("split", "running", Vec::new());
+        let event = br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}"#;
+        for chunk in event.chunks(7) {
+            consume_jsonl_events(&mut run, chunk);
+            assert!(run.result.is_none());
+        }
+        consume_jsonl_events(&mut run, b"\n{\"partial\":");
+        assert_eq!(run.result.as_ref().unwrap()["status"], "running");
+        assert_eq!(run.stdout_event_buffer, b"{\"partial\":");
     }
 
     #[test]
