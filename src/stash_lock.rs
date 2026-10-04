@@ -98,19 +98,20 @@ impl StashLock {
 /// Map the value of `core.sharedRepository` to the mode a file hk creates in
 /// the repository should get, or `None` when the umask should apply.
 ///
-/// Mirrors git: `group`/`true`/`1` is group-writable, `all`/`world`/
-/// `everybody`/`2` is writable by everyone, `umask`/`false`/`0`/unset is
-/// the umask, and an octal value is used as given with owner read/write added.
+/// Mirrors git's file modes: `group`/`true`/`1` is group-writable (0660),
+/// `all`/`world`/`everybody`/`2` is group-writable and readable by everyone
+/// (0664, not world-writable), `umask`/`false`/`0`/unset is the umask, and an
+/// octal value gets owner read/write added and the execute bits cleared.
 pub fn shared_repository_mode(value: Option<&str>) -> Option<u32> {
     let value = value?.trim().to_ascii_lowercase();
     match value.as_str() {
         "" | "umask" | "false" | "no" | "off" | "0" => None,
         "group" | "true" | "yes" | "on" | "1" => Some(0o660),
-        "all" | "world" | "everybody" | "2" => Some(0o666),
+        "all" | "world" | "everybody" | "2" => Some(0o664),
         v if v.starts_with('0') => u32::from_str_radix(v, 8)
             .ok()
             .filter(|m| *m <= 0o777)
-            .map(|m| m | 0o600),
+            .map(|m| (m | 0o600) & !0o111),
         _ => None,
     }
 }
@@ -303,11 +304,13 @@ mod tests {
         assert_eq!(shared_repository_mode(Some("group")), Some(0o660));
         assert_eq!(shared_repository_mode(Some("true")), Some(0o660));
         assert_eq!(shared_repository_mode(Some("1")), Some(0o660));
-        assert_eq!(shared_repository_mode(Some("all")), Some(0o666));
-        assert_eq!(shared_repository_mode(Some("World")), Some(0o666));
-        assert_eq!(shared_repository_mode(Some("2")), Some(0o666));
+        assert_eq!(shared_repository_mode(Some("all")), Some(0o664));
+        assert_eq!(shared_repository_mode(Some("World")), Some(0o664));
+        assert_eq!(shared_repository_mode(Some("2")), Some(0o664));
         assert_eq!(shared_repository_mode(Some("0640")), Some(0o640 | 0o600));
         assert_eq!(shared_repository_mode(Some("0440")), Some(0o640));
+        assert_eq!(shared_repository_mode(Some("0777")), Some(0o666));
+        assert_eq!(shared_repository_mode(Some("0750")), Some(0o640));
         assert_eq!(shared_repository_mode(Some("nonsense")), None);
     }
 
