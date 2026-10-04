@@ -8,6 +8,7 @@ setup() {
 teardown() {
     # Only this test's own sleeper (unique duration), never other tests' sleeps.
     [ -z "${SLEEPER:-}" ] || pkill -f "sleep $SLEEPER" 2>/dev/null || true
+    [ -z "${STUB_SLEEPER:-}" ] || pkill -f "sleep $STUB_SLEEPER" 2>/dev/null || true
     _common_teardown
 }
 
@@ -176,5 +177,87 @@ EOF
         run cat out.txt
         assert_output --partial "command was cancelled"
         refute_output --partial "DEPENDENT-RAN"
+    done
+}
+
+# One workspace job is running its check while another waits on a `mise env`
+# call that never returns. Ctrl-C must still end the run promptly instead of
+# waiting for the stuck setup.
+@test "Ctrl-C does not wait for a job stuck resolving the mise environment" {
+    if ! command -v mise >/dev/null 2>&1; then
+        skip "mise is not installed"
+    fi
+    # Durations unique to this test run, so cleanup never matches another
+    # test's `sleep` (bats runs files in parallel).
+    SLEEPER="30.$$$RANDOM"
+    STUB_SLEEPER="60.$$$RANDOM"
+    real_mise=$(command -v mise)
+    mkdir -p stubbin
+    cat <<EOF > stubbin/mise
+#!/bin/sh
+if [ "\$1" = env ]; then
+    case "\$PWD" in
+        */b) touch "$PWD/mise-stuck"; exec sleep $STUB_SLEEPER ;;
+    esac
+fi
+exec "$real_mise" "\$@"
+EOF
+    chmod +x stubbin/mise
+    export PATH="$PWD/stubbin:$PATH"
+    export HK_MISE=1
+    export MISE_TRUSTED_CONFIG_PATHS="$TEST_TEMP_DIR"
+    mkdir -p a b
+    touch a/module.toml b/module.toml
+    echo a > a/f.mod
+    echo b > b/f.mod
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["ws"] {
+        glob = "**/*.mod"
+        workspace_indicator = "module.toml"
+        dir = "{{workspace}}"
+        check = "touch \$PWD/../started && sleep $SLEEPER"
+      }
+    }
+  }
+}
+EOF
+    git add hk.pkl a b
+    git commit -m "init"
+
+    for libgit2 in 1 0; do
+        rm -f started mise-stuck
+        HK_LIBGIT2=$libgit2 hk check --all >out.txt 2>&1 &
+        pid=$!
+        for _ in $(seq 100); do
+            [ -e started ] && [ -e mise-stuck ] && break
+            sleep 0.1
+        done
+        assert_file_exists started
+        assert_file_exists mise-stuck
+        kill -INT "$pid"
+        start=$SECONDS
+        # Poll instead of `wait` so a hang fails the test rather than the suite.
+        for _ in $(seq 200); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid"
+            pkill -f "sleep $SLEEPER" || true
+            pkill -f "sleep $STUB_SLEEPER" || true
+            fail "hk kept waiting after Ctrl-C (HK_LIBGIT2=$libgit2)"
+        fi
+        status=0
+        wait "$pid" || status=$?
+        # Within the 10s grace, and the same cancelled-hook outcome as a
+        # Ctrl-C with no stuck job.
+        assert [ $((SECONDS - start)) -lt 15 ]
+        assert_equal "$status" 1
+        run cat out.txt
+        assert_output --partial "command was cancelled"
     done
 }

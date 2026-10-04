@@ -258,7 +258,15 @@ impl Step {
             }
         }
         let mise_env = if rendered_dir.is_some() && *env::HK_MISE {
-            Some(crate::mise_env::mise_env_for_dir(&command_dir).await)
+            // Stop waiting if the run is cancelled (Ctrl-C, fail-fast) so a
+            // stalled `mise env` cannot keep this job, and the run, alive.
+            tokio::select! {
+                env = crate::mise_env::mise_env_for_dir(&command_dir) => Some(env),
+                _ = ctx.hook_ctx.failed.cancelled() => {
+                    trace!("{self}: skipping step due to cancellation");
+                    return Ok(());
+                }
+            }
         } else {
             None
         };

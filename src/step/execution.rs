@@ -23,12 +23,13 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 use tokio::sync::OwnedSemaphorePermit;
+use tokio_util::sync::CancellationToken;
 
 use super::expr_env::eval_condition;
 use super::types::{AllowFailure, CheckFirstCmd, RunType, Step};
 
-/// How long jobs get to wind down after a fail-fast cancellation before they
-/// are aborted. Cancelled commands are killed at once, so this only bounds a
+/// How long jobs get to wind down after a cancellation (a fail-fast abort or a
+/// user's Ctrl-C) before they are aborted. Cancelled commands are killed at once, so this only bounds a
 /// job stuck somewhere unexpected.
 const CANCELLED_JOBS_GRACE: Duration = Duration::from_secs(10);
 
@@ -44,12 +45,18 @@ const CANCELLED_JOBS_GRACE: Duration = Duration::from_secs(10);
 /// to return before they are aborted. Without one (`--no-fail-fast`, an
 /// allowed failure) siblings run to completion.
 ///
+/// Whenever `cancel` is cancelled, including by a user's Ctrl-C while no job
+/// has failed, the jobs get the same `grace` before they are aborted, so a
+/// job stuck where the token is not observed cannot keep the run waiting.
+/// Jobs aborted this way are not errors.
+///
 /// The error returned is the first one, except that an error `is_allowed`
 /// rejects replaces an allowed one, so a job that could not run is never
 /// hidden behind another job's allowed command failure. Other later errors,
 /// such as a sibling reporting its command was cancelled, are only logged.
 async fn join_jobs<T, Fut>(
     mut set: tokio::task::JoinSet<Result<T>>,
+    cancel: &CancellationToken,
     grace: Duration,
     is_allowed: impl Fn(&eyre::Report) -> bool,
     mut on_failure: impl FnMut(&eyre::Report) -> Option<Fut>,
@@ -62,20 +69,24 @@ where
     let mut first_error: Option<(eyre::Report, bool)> = None;
     let mut cancelled = false;
     let mut deadline = None;
+    let mut cancel_seen = false;
     loop {
-        let next = match deadline {
-            Some(at) => match tokio::time::timeout_at(at, set.join_next()).await {
-                Ok(next) => next,
-                Err(_) => {
-                    debug!(
-                        "jobs did not stop within the grace period after cancellation, aborting them"
-                    );
-                    set.abort_all();
-                    deadline = None;
-                    continue;
-                }
-            },
-            None => set.join_next().await,
+        let next = tokio::select! {
+            biased;
+            _ = async { tokio::time::sleep_until(deadline.unwrap()).await }, if deadline.is_some() => {
+                debug!(
+                    "jobs did not stop within the grace period after cancellation, aborting them"
+                );
+                set.abort_all();
+                deadline = None;
+                continue;
+            }
+            _ = cancel.cancelled(), if !cancel_seen => {
+                cancel_seen = true;
+                deadline.get_or_insert(tokio::time::Instant::now() + grace);
+                continue;
+            }
+            next = set.join_next() => next,
         };
         let Some(res) = next else { break };
         let err = match res {
@@ -86,13 +97,17 @@ where
             Ok(Err(err)) => err,
             Err(e) => match e.try_into_panic() {
                 Ok(panic) => std::panic::resume_unwind(panic),
+                Err(e) if e.is_cancelled() => {
+                    debug!("job aborted after cancellation");
+                    continue;
+                }
                 Err(e) => e.into(),
             },
         };
         if !cancelled && let Some(cancel) = on_failure(&err) {
             cancel.await;
             cancelled = true;
-            deadline = Some(tokio::time::Instant::now() + grace);
+            deadline.get_or_insert(tokio::time::Instant::now() + grace);
         }
         let allowed = is_allowed(&err);
         match &first_error {
@@ -593,15 +608,21 @@ impl Step {
                     .failure_is_allowed(&ctx.hook_ctx.expr_ctx())
                     .unwrap_or(false)
         };
-        let job_files = join_jobs(set, CANCELLED_JOBS_GRACE, failure_allowed, |err| {
-            ctx.status_errored(&format!("{err}"));
-            // A user's Ctrl-C already cancelled everything; it is not a step
-            // failure to abort the siblings for.
-            (fail_fast
-                && !failure_allowed(err)
-                && !crate::step_group::cancelled_by_user(&ctx.hook_ctx))
-            .then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
-        })
+        let job_files = join_jobs(
+            set,
+            &ctx.hook_ctx.failed,
+            CANCELLED_JOBS_GRACE,
+            failure_allowed,
+            |err| {
+                ctx.status_errored(&format!("{err}"));
+                // A user's Ctrl-C already cancelled everything; it is not a step
+                // failure to abort the siblings for.
+                (fail_fast
+                    && !failure_allowed(err)
+                    && !crate::step_group::cancelled_by_user(&ctx.hook_ctx))
+                .then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
+            },
+        )
         .await?;
         let actual_job_files: IndexSet<PathBuf> = job_files.into_iter().flatten().collect();
         if ctx.hook_ctx.failed.is_cancelled() {
@@ -918,7 +939,6 @@ fn push_stage_globs(globs: &mut Vec<String>, roots: &[String], pat: &str) {
 mod tests {
     use super::*;
     use std::sync::Mutex;
-    use tokio_util::sync::CancellationToken;
 
     const GRACE: Duration = Duration::from_secs(10);
 
@@ -944,7 +964,14 @@ mod tests {
         let mut set = tokio::task::JoinSet::<Result<()>>::new();
         set.spawn(async { Err(eyre::eyre!("first failure")) });
         recorder(&mut set, &recorded, "slow", Duration::from_millis(200));
-        let result = join_jobs(set, GRACE, |_| false, |_| None::<std::future::Ready<()>>).await;
+        let result = join_jobs(
+            set,
+            &CancellationToken::new(),
+            GRACE,
+            |_| false,
+            |_| None::<std::future::Ready<()>>,
+        )
+        .await;
         assert_eq!(result.unwrap_err().to_string(), "first failure");
         assert_eq!(*recorded.lock().unwrap(), ["slow"]);
     }
@@ -971,6 +998,7 @@ mod tests {
         let started = tokio::time::Instant::now();
         let result = join_jobs(
             set,
+            &CancellationToken::new(),
             GRACE,
             |_| false,
             |_| {
@@ -996,6 +1024,7 @@ mod tests {
         });
         let result = join_jobs(
             set,
+            &CancellationToken::new(),
             Duration::from_millis(50),
             |_| false,
             |_| Some(async {}),
@@ -1016,6 +1045,7 @@ mod tests {
         }
         join_jobs(
             set,
+            &CancellationToken::new(),
             GRACE,
             |e| e.to_string().starts_with("allowed"),
             |_| None::<std::future::Ready<()>>,
@@ -1065,6 +1095,7 @@ mod tests {
         }
         let result = join_jobs(
             set,
+            &CancellationToken::new(),
             GRACE,
             |e| e.to_string().starts_with("allowed"),
             |e| {
@@ -1082,10 +1113,86 @@ mod tests {
         for n in 0..3 {
             set.spawn(async move { Ok(n) });
         }
-        let mut done = join_jobs(set, GRACE, |_| false, |_| None::<std::future::Ready<()>>)
-            .await
-            .unwrap();
+        let mut done = join_jobs(
+            set,
+            &CancellationToken::new(),
+            GRACE,
+            |_| false,
+            |_| None::<std::future::Ready<()>>,
+        )
+        .await
+        .unwrap();
         done.sort();
         assert_eq!(done, [0, 1, 2]);
+    }
+
+    #[tokio::test]
+    async fn join_jobs_bounds_the_wait_after_user_cancel_without_a_failure() {
+        // No job fails; the token is cancelled from outside (Ctrl-C) and one
+        // job ignores it. The wait ends within the grace and is not an error.
+        let cancel = CancellationToken::new();
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        set.spawn(async { Ok(()) });
+        set.spawn(async {
+            std::future::pending::<()>().await;
+            Ok(())
+        });
+        {
+            let cancel = cancel.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                cancel.cancel();
+            });
+        }
+        let started = tokio::time::Instant::now();
+        let done = join_jobs(
+            set,
+            &cancel,
+            Duration::from_millis(200),
+            |_| false,
+            |_| None::<std::future::Ready<()>>,
+        )
+        .await
+        .unwrap();
+        assert_eq!(done.len(), 1);
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn join_jobs_bounds_the_wait_after_user_cancel_and_keeps_the_flag_clear() {
+        // A user cancellation is not a failure to abort siblings for
+        // (`on_failure` returns None), yet a stuck sibling is still aborted
+        // within the grace and the first error is returned unchanged.
+        let cancel = CancellationToken::new();
+        let on_failure_called = std::sync::atomic::AtomicBool::new(false);
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        {
+            let cancel = cancel.clone();
+            set.spawn(async move {
+                cancel.cancel();
+                Err(eyre::eyre!("cancelled by user"))
+            });
+        }
+        set.spawn(async {
+            std::future::pending::<()>().await;
+            Ok(())
+        });
+        let started = tokio::time::Instant::now();
+        let result = join_jobs(
+            set,
+            &cancel,
+            Duration::from_millis(200),
+            |_| false,
+            |_| {
+                on_failure_called.store(true, std::sync::atomic::Ordering::SeqCst);
+                None::<std::future::Ready<()>>
+            },
+        )
+        .await;
+        assert_eq!(result.unwrap_err().to_string(), "cancelled by user");
+        assert!(started.elapsed() < Duration::from_secs(5));
+        // The callback that would mark `fail_fast_aborted` ran but returned no
+        // cancellation, so the flag it guards stays clear.
+        assert!(on_failure_called.load(std::sync::atomic::Ordering::SeqCst));
     }
 }
