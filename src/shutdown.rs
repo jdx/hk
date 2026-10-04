@@ -3,8 +3,8 @@
 //!
 //! The first signal cancels the run's token, which stops the running steps'
 //! commands and lets the hook put the stashed changes back and delete its
-//! journal before hk exits with the conventional status, 128 plus the signal
-//! number. Restoring has [`GRACE`] to finish; after that hk exits and leaves
+//! journal before hk exits with the conventional status for SIGTERM and SIGHUP, 128 plus the
+//! signal number (Ctrl+C keeps the status the run ended with, 1 when cancelled). Restoring has [`GRACE`] to finish; after that hk exits and leaves
 //! the journal for the next run to recover from. The same signal twice exits
 //! at once.
 //!
@@ -21,7 +21,17 @@ use tokio_util::sync::CancellationToken;
 /// How long hk gets to stop its steps and restore the stash after a signal.
 const GRACE: Duration = Duration::from_secs(10);
 
-/// The exit status of the first termination signal received, 0 if none.
+/// SIGINT and Ctrl+C, whose exit status stays what hk's result says (1 for a
+/// cancelled run, or the original failure's status) as it was before SIGTERM and
+/// SIGHUP were handled.
+const INTERRUPT: i32 = 130;
+
+/// The exit status when hk has to leave at once, without finishing the run.
+fn immediate_status(code: i32) -> i32 {
+    if code == INTERRUPT { 1 } else { code }
+}
+
+/// The exit status of the first SIGTERM or SIGHUP received, 0 if none.
 static EXIT_CODE: AtomicI32 = AtomicI32::new(0);
 
 /// The status hk exits with after being terminated by a signal.
@@ -47,15 +57,17 @@ pub fn watch(cancel: CancellationToken) {
             match first {
                 None => {
                     first = Some(code);
-                    EXIT_CODE.store(code, Ordering::SeqCst);
+                    if code != INTERRUPT {
+                        EXIT_CODE.store(code, Ordering::SeqCst);
+                    }
                     cancel.cancel();
                     tokio::spawn(async move {
                         tokio::time::sleep(GRACE).await;
-                        std::process::exit(code);
+                        std::process::exit(immediate_status(code));
                     });
                 }
                 // The same signal again: stop waiting
-                Some(prev) if prev == code => std::process::exit(code),
+                Some(prev) if prev == code => std::process::exit(immediate_status(code)),
                 Some(_) => {}
             }
         }

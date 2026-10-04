@@ -110,8 +110,8 @@ term_mid_step() {
     term_mid_step 1 HUP 129
 }
 
-@test "SIGINT mid-step restores the stash and exits 130 (shell git)" {
-    term_mid_step 0 INT 130
+@test "SIGINT mid-step restores the stash and exits as a cancelled run (shell git)" {
+    term_mid_step 0 INT 1
 }
 
 kill9_then_recover() {
