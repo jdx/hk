@@ -156,6 +156,34 @@ Structured commands cannot be combined with the step's `shell` option or a strin
 structured command should run through a launcher. Other step behavior, including
 `dir`, `env`, and automatic batching for large file lists, continues to apply.
 
+### Shell commands on Windows
+
+On Windows, a string command runs through `cmd.exe` unless the step sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few builtins are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `typos`, and `yq`. `just_format` also needs a POSIX shell, with `xargs`, and `nix_fmt` has no Windows commands. Other builtins run as they are.
+
+To run one of them, set its `shell` to a POSIX shell, such as the `sh` that comes with Git for Windows. A value that contains quotes groups the quoted words, so a path with spaces can be quoted (on Windows backslashes stay literal, except before a double quote, as in `CommandLineToArgvW`):
+
+```pkl
+["jq"] = (Builtins.jq) {
+    shell = "\"C:/Program Files/Git/usr/bin/sh.exe\" -o errexit -c"
+}
+```
+
+If `sh` is already on `PATH`, `shell = "sh -o errexit -c"` is enough. Include `-o errexit -c`: it is what hk uses on other platforms, and the scripts rely on it.
+
+`go_imports` also defines a structured `fix`, which cannot be combined with `shell`. Replace it with a string command as well, keeping its write effect:
+
+```pkl
+["go_imports"] = (Builtins.go_imports) {
+    shell = "sh -o errexit -c"
+    fix = new CommandSpec {
+        command = "goimports -w {{files}}"
+        effect = "write"
+    }
+}
+```
+
+Set `shell` on the step itself, not on a group that also holds steps with structured commands: a step cannot combine `shell` with a structured `Command`, and a group passes its `shell` to every step that has none.
+
 ### Literal braces in commands
 
 Commands are rendered as [Tera](https://keats.github.io/tera/) templates, so `{{` starts an expression. A tool whose own syntax uses `{{`, such as a Go template, fails to render:
@@ -363,6 +391,10 @@ Keep these composition rules in mind:
   run in `pre-commit` or `fix`; add it to every event where it should run.
 - Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
   the root config. Subprojects contribute steps and their local environment.
+- A subproject's `skip_steps` name its own steps, and skip only those. A group, or a step
+  inside a group, cannot be skipped from a subproject; hk warns when an entry names one. Other
+  top-level settings in a subproject config, such as `exclude`, `fail_fast`, `jobs`, or `profiles`,
+  have no effect; hk warns that they are ignored. Set them in the root config.
 - Subprojects are loaded one level deep. A `subprojects` declaration inside a
   subproject config is ignored with a warning.
 - A subproject's literal `dir` is relative to that subproject. Templated workspace

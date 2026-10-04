@@ -1,7 +1,7 @@
 ---
 outline: deep
 description: Chart yer ship. Configure hooks, steps (the hands), file selection (the cargo), profiles (the watches), local overrides, and runtime settings.
-sourceHash: 1c416591a973
+sourceHash: e92a6791df3c
 ---
 
 # Configuration, the ship's charts
@@ -158,6 +158,34 @@ string `prefix`. When a structured command should run through a launcher, use an
 argv-list prefix such as `List("mise", "x", "--")`. The rest of a step's
 behaviour still applies, including `dir`, `env`, and automatic batching for
 large file lists.
+
+### Shell commands on Windows {#shell-commands-on-windows}
+
+On Windows, a string command runs through `cmd.exe` unless the hand sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few of the standing crew (builtins) are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `typos`, and `yq`. `just_format` also needs a POSIX shell, with `xargs`, and `nix_fmt` has no Windows commands. Other builtins sail as they are.
+
+To run one of them, set its `shell` to a POSIX shell, such as the `sh` that comes aboard with Git for Windows. A value that contains quotes groups the quoted words, so a path with spaces can be quoted (on Windows backslashes stay literal, except before a double quote, as in `CommandLineToArgvW`):
+
+```pkl
+["jq"] = (Builtins.jq) {
+    shell = "\"C:/Program Files/Git/usr/bin/sh.exe\" -o errexit -c"
+}
+```
+
+If `sh` is already on the `PATH`, `shell = "sh -o errexit -c"` is enough. Keep `-o errexit -c`: it is what hk uses on other platforms, and the scripts rely on it.
+
+`go_imports` also carries a structured `fix`, which can't sail with `shell`. Swap it for a string command too, keeping its write effect:
+
+```pkl
+["go_imports"] = (Builtins.go_imports) {
+    shell = "sh -o errexit -c"
+    fix = new CommandSpec {
+        command = "goimports -w {{files}}"
+        effect = "write"
+    }
+}
+```
+
+Set `shell` on the hand itself, not on a gang that also holds hands with structured commands: a hand can't sail with both `shell` and a structured `Command`, and a gang passes its `shell` to every hand that has none.
 
 ### Literal braces that must sail through {#literal-braces-in-commands}
 
@@ -366,6 +394,10 @@ Mind these rules for joining the charts together:
   run in `pre-commit` or `fix`; add it to every event where it should run.
 - Set hook-wide behaviour such as `fix`, `stash`, `stage`, and `report` in the
   root config, the master chart. Subprojects bring steps and their local environment.
+- A subproject's `skip_steps` name its own hands, and skip only those. A group, or a step
+  inside a group, cannot be skipped from a subproject; hk warns when an entry names one. Other
+  top-level settings in a subproject config, such as `exclude`, `fail_fast`, `jobs`, or `profiles`,
+  have no effect; hk warns that they are ignored. Set them in the root config, the master chart.
 - Subprojects are loaded one level deep. A `subprojects` declaration inside a
   subproject config is ignored, with a warning.
 - A subproject's literal `dir` is relative to that subproject. Templated workspace
