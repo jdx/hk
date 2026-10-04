@@ -154,7 +154,7 @@ kill9_then_recover() {
     [ ! -e "$JOURNAL" ]
 }
 
-@test "two runs recovering the same dead journal restore the stash once and leave no claim files" {
+@test "two runs recovering the same dead journal restore the stash once and leave no temporary files" {
     kill9_then_recover 1
     env HK_LIBGIT2=1 hk check --all >/dev/null 2>&1 &
     local a=$!
@@ -163,7 +163,7 @@ kill9_then_recover() {
     wait "$a" || true
     wait "$b" || true
     assert_changes_restored
-    run bash -c 'ls "$(git rev-parse --absolute-git-dir)" | grep -c "hk-pending-stash"'
+    run bash -c 'ls "$(git rev-parse --absolute-git-dir)" | grep "hk-pending-stash" | grep -vc "^hk-pending-stash.lock$"'
     assert_output 0
 }
 
@@ -211,4 +211,26 @@ crash_before_record() {
 
 @test "a stash made just before hk is killed is reported by the next run (shell git)" {
     crash_before_record 0
+}
+
+# A recovering run that is killed leaves the journal where it was: nothing was
+# renamed or claimed, so the next run finds it at the well-known path.
+kill_during_recovery() {
+    local use_libgit2="$1" point="$2"
+    kill9_then_recover "$use_libgit2"
+    run env "$point=1" HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_failure
+    assert_file_exists "$JOURNAL"
+    run bash -c 'ls "$(git rev-parse --absolute-git-dir)" | grep "hk-pending-stash" | grep -vc "^hk-pending-stash.lock$"'
+    assert_output 1
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_changes_restored
+}
+
+@test "a recovery killed before it restores leaves the journal for the next run (libgit2)" {
+    kill_during_recovery 1 HK_DEBUG_KILL_BEFORE_RECOVERY
+}
+
+@test "a recovery killed after it restores leaves the journal for the next run (shell git)" {
+    kill_during_recovery 0 HK_DEBUG_KILL_AFTER_RECOVERY
 }

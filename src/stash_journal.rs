@@ -115,6 +115,60 @@ impl Journal {
     }
 }
 
+/// Name of the lock file that serializes every operation on the journal. It is
+/// never deleted: the OS releases the lock when its holder exits or is killed,
+/// and an empty file left behind carries no state.
+pub const LOCK_NAME: &str = "hk-pending-stash.lock";
+
+/// How long an operation waits for the journal lock. Holders keep it for a few
+/// milliseconds, except a recovering run, which keeps it while it restores.
+const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Exclusive hold on the journal of one worktree, taken on a dedicated lock
+/// file next to it. Every create, update, remove and recovery happens while it
+/// is held, so no two hk processes act on the journal at once. Dropping it, or
+/// the process dying, releases it.
+#[derive(Debug)]
+pub struct JournalLock {
+    _file: std::fs::File,
+}
+
+impl JournalLock {
+    /// Waits for the lock next to the journal at `path`. `Ok(None)` when the
+    /// wait ran out or hk was told to shut down meanwhile; the caller then
+    /// leaves the journal alone.
+    pub fn acquire(path: &Path) -> Result<Option<Self>> {
+        Self::acquire_for(path, LOCK_WAIT)
+    }
+
+    fn acquire_for(path: &Path, wait: std::time::Duration) -> Result<Option<Self>> {
+        use std::fs::TryLockError;
+        let lock_path = path.with_file_name(LOCK_NAME);
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .wrap_err_with(|| format!("failed to open {}", lock_path.display()))?;
+        let deadline = std::time::Instant::now() + wait;
+        loop {
+            match file.try_lock() {
+                Ok(()) => return Ok(Some(Self { _file: file })),
+                Err(TryLockError::WouldBlock) => {}
+                Err(TryLockError::Error(err)) => {
+                    return Err(err)
+                        .wrap_err_with(|| format!("failed to lock {}", lock_path.display()));
+                }
+            }
+            if std::time::Instant::now() >= deadline || crate::shutdown::exit_code().is_some() {
+                return Ok(None);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+}
+
 /// Reads the journal at `path`. `Ok(None)` when there is none.
 pub fn read(path: &Path) -> Result<Option<Journal>> {
     match std::fs::read_to_string(path) {
@@ -124,19 +178,73 @@ pub fn read(path: &Path) -> Result<Option<Journal>> {
     }
 }
 
-fn write_temp(path: &Path, journal: &Journal) -> Result<PathBuf> {
-    use std::io::Write;
-    let tmp = path.with_file_name(format!("{FILE_NAME}.{}.tmp", std::process::id()));
-    let json = journal.to_json()?;
-    let write = || -> std::io::Result<()> {
-        let mut file = std::fs::File::create(&tmp)?;
-        file.write_all(json.as_bytes())?;
-        // On disk before it is linked in, or power loss could leave a journal
-        // whose content never made it
-        file.sync_all()
+fn is_temp_name(name: &str) -> bool {
+    name.starts_with(&format!("{FILE_NAME}.")) && name.ends_with(".tmp")
+}
+
+/// Deletes temporary files that a process which died mid-write left behind.
+/// Temporary files are only written while the lock is held, so under the lock
+/// every one that exists is such a leftover. Needs the proof of the lock.
+pub fn sweep_temp_files(path: &Path, _lock: &JournalLock) {
+    let Some(dir) = path.parent() else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
     };
-    write().wrap_err_with(|| format!("failed to write {}", tmp.display()))?;
-    Ok(tmp)
+    for entry in entries.flatten() {
+        if entry.file_name().to_str().is_some_and(is_temp_name) {
+            remove_file(&entry.path());
+        }
+    }
+}
+
+/// Writes `journal` to a temporary file that no one else has, and flushes it.
+/// The name carries a time and a counter besides the pid, and the file is
+/// created with `create_new`, so an existing file under that name (one a
+/// crashed process left, even one that shares an inode with the journal) is
+/// never opened, let alone truncated: a taken name is skipped.
+fn write_temp(path: &Path, journal: &Journal, _lock: &JournalLock) -> Result<PathBuf> {
+    use std::io::Write;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let json = journal.to_json()?;
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or_default();
+    for _ in 0..100 {
+        let tmp = path.with_file_name(format!(
+            "{FILE_NAME}.{}-{nanos:x}-{}.tmp",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut file = match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+        {
+            Ok(file) => file,
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(err) => {
+                return Err(err).wrap_err_with(|| format!("failed to write {}", tmp.display()));
+            }
+        };
+        let written = file
+            .write_all(json.as_bytes())
+            // On disk before it is renamed in, or power loss could leave a
+            // journal whose content never made it
+            .and_then(|()| file.sync_all());
+        return match written {
+            Ok(()) => Ok(tmp),
+            Err(err) => {
+                let _ = std::fs::remove_file(&tmp);
+                Err(err).wrap_err_with(|| format!("failed to write {}", tmp.display()))
+            }
+        };
+    }
+    Err(eyre!(
+        "no free temporary file name next to {}",
+        path.display()
+    ))
 }
 
 /// Flushes the directory entry of a created, renamed or removed file. Windows
@@ -154,54 +262,25 @@ fn sync_parent(path: &Path) {
     let _ = path;
 }
 
-/// Writes `journal` at `path` atomically and only if nothing is there:
-/// `Ok(false)` leaves the file that is. The content is written to a temporary
-/// file first, so a reader never sees a partial journal.
-fn create(path: &Path, journal: &Journal) -> Result<bool> {
-    let tmp = write_temp(path, journal)?;
-    let result = match std::fs::hard_link(&tmp, path) {
-        Ok(()) => {
-            sync_parent(path);
-            Ok(true)
-        }
-        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
-        // A filesystem without hard links: `create_new` is still an atomic
-        // no-clobber claim of the name. The content is written in place, so a
-        // reader that races the write sees an unreadable journal and leaves it
-        // alone.
-        Err(_) => create_in_place(path, journal),
-    };
-    let _ = std::fs::remove_file(&tmp);
-    result
-}
-
-fn create_in_place(path: &Path, journal: &Journal) -> Result<bool> {
-    use std::io::Write;
-    let mut file = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
+/// Writes `journal` at `path` only if nothing is there: `Ok(false)` leaves the
+/// file that is, whatever it holds. Under the lock no one else can create it
+/// between the check and the rename.
+fn create(path: &Path, journal: &Journal, lock: &JournalLock) -> Result<bool> {
+    sweep_temp_files(path, lock);
+    if path
+        .try_exists()
+        .wrap_err_with(|| format!("failed to check {}", path.display()))?
     {
-        Ok(file) => file,
-        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
-        Err(err) => {
-            return Err(err).wrap_err_with(|| format!("failed to write {}", path.display()));
-        }
-    };
-    let written = file
-        .write_all(journal.to_json()?.as_bytes())
-        .and_then(|()| file.sync_all());
-    if let Err(err) = written {
-        let _ = std::fs::remove_file(path);
-        return Err(err).wrap_err_with(|| format!("failed to write {}", path.display()));
+        return Ok(false);
     }
-    sync_parent(path);
+    replace(path, journal, lock)?;
     Ok(true)
 }
 
-/// Replaces the journal at `path` atomically.
-fn replace(path: &Path, journal: &Journal) -> Result<()> {
-    let tmp = write_temp(path, journal)?;
+/// Replaces the journal at `path` atomically: readers see the old or the new
+/// content, never a partial one.
+fn replace(path: &Path, journal: &Journal, lock: &JournalLock) -> Result<()> {
+    let tmp = write_temp(path, journal, lock)?;
     // Windows refuses to replace a file that a scanner or indexer has open for
     // a moment, so a denied rename is tried again
     let mut attempt = 0;
@@ -226,69 +305,15 @@ fn replace(path: &Path, journal: &Journal) -> Result<()> {
     Ok(())
 }
 
-/// A dead process's journal that this process has taken exclusive hold of by
-/// renaming it to a path of its own, so no other recovering hk can act on it.
-#[derive(Debug)]
-pub struct Claim {
-    original: PathBuf,
-    claimed: PathBuf,
+/// Deletes the journal at `path` and flushes the directory. Needs the lock.
+pub fn discard(path: &Path, _lock: &JournalLock) {
+    remove_file(path);
+    sync_parent(path);
 }
 
-impl Claim {
-    /// Claims the journal at `path`, provided it still is `expected`. `None`
-    /// when another process claimed or replaced it first.
-    pub fn take(path: &Path, expected: &Journal) -> Result<Option<Self>> {
-        let claimed = path.with_file_name(format!("{FILE_NAME}.{}.claim", std::process::id()));
-        match std::fs::rename(path, &claimed) {
-            Ok(()) => {}
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(err) => {
-                return Err(err).wrap_err_with(|| format!("failed to claim {}", path.display()));
-            }
-        }
-        let claim = Self {
-            original: path.to_path_buf(),
-            claimed,
-        };
-        // Between the read and the rename, the journal may have been recovered
-        // and a new one written: that one is not ours to act on
-        if read(&claim.claimed).ok().flatten().as_ref() != Some(expected) {
-            claim.release();
-            return Ok(None);
-        }
-        Ok(Some(claim))
-    }
-
-    /// Done with the journal: the changes are back or it said nothing.
-    pub fn finish(self) {
-        remove_file(&self.claimed);
-        sync_parent(&self.original);
-    }
-
-    /// Puts the journal back at its shared path, to keep reminding. Never
-    /// replaces a journal another run has written since.
-    pub fn release(self) {
-        match std::fs::hard_link(&self.claimed, &self.original) {
-            Ok(()) => remove_file(&self.claimed),
-            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => log::warn!(
-                "another pending-stash journal was written meanwhile; the one that was being recovered is kept as {}",
-                self.claimed.display()
-            ),
-            // No hard links: this rename is the best left
-            Err(_) => {
-                if let Err(err) = std::fs::rename(&self.claimed, &self.original) {
-                    log::warn!(
-                        "failed to put the pending-stash journal back; it is kept as {}: {err}",
-                        self.claimed.display()
-                    );
-                }
-            }
-        }
-        sync_parent(&self.original);
-    }
-}
-
-/// The journal this process owns while it has changes stashed.
+/// The journal this process owns while it has changes stashed. Each operation
+/// takes the journal lock for its own short critical section; the lock is not
+/// held in between.
 #[derive(Debug)]
 pub struct OwnedJournal {
     path: PathBuf,
@@ -300,7 +325,17 @@ impl OwnedJournal {
     /// `Ok(None)` when a journal already exists, whose owner or leftovers hk
     /// must not overwrite.
     pub fn begin(path: PathBuf, journal: Journal) -> Result<Option<Self>> {
-        Ok(create(&path, &journal)?.then_some(Self { path, journal }))
+        let lock = Self::lock(&path)?;
+        Ok(create(&path, &journal, &lock)?.then_some(Self { path, journal }))
+    }
+
+    fn lock(path: &Path) -> Result<JournalLock> {
+        JournalLock::acquire(path)?.ok_or_else(|| {
+            eyre!(
+                "gave up waiting for another hk to finish with {}",
+                path.display()
+            )
+        })
     }
 
     pub fn has_entries(&self) -> bool {
@@ -312,21 +347,32 @@ impl OwnedJournal {
         if self.journal.entries.iter().any(|e| e.commit == commit) {
             return Ok(());
         }
+        let lock = Self::lock(&self.path)?;
         self.journal.entries.push(JournalEntry {
             commit: commit.to_string(),
             kind,
         });
-        replace(&self.path, &self.journal)
+        replace(&self.path, &self.journal, &lock)
     }
 
     /// Forgets an entry hk dropped itself.
     pub fn forget(&mut self, commit: &str) -> Result<()> {
+        let lock = Self::lock(&self.path)?;
         self.journal.entries.retain(|e| e.commit != commit);
-        replace(&self.path, &self.journal)
+        replace(&self.path, &self.journal, &lock)
     }
 
-    /// Deletes the journal: the changes are back in the worktree.
+    /// Deletes the journal: the changes are back in the worktree. When the
+    /// lock cannot be had the journal stays, which is harmless: the next run
+    /// finds no entry of it in the stash and discards it.
     pub fn remove(self) {
+        let lock = match Self::lock(&self.path) {
+            Ok(lock) => lock,
+            Err(err) => {
+                log::warn!("left the pending-stash journal in place: {err}");
+                return;
+            }
+        };
         // Only a journal that is still this process's: nobody else writes
         // there while it lives, but a deletion must never take another's
         match read(&self.path) {
@@ -336,10 +382,7 @@ impl OwnedJournal {
                     self.path.display()
                 );
             }
-            _ => {
-                remove_file(&self.path);
-                sync_parent(&self.path);
-            }
+            _ => discard(&self.path, &lock),
         }
     }
 }
@@ -823,6 +866,19 @@ mod tests {
         assert!(status_has_worktree_changes("UU a.txt\0"));
     }
 
+    fn lock(path: &Path) -> JournalLock {
+        JournalLock::acquire(path).unwrap().expect("lock is free")
+    }
+
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    }
+
     #[test]
     fn begin_never_overwrites_an_existing_journal() {
         let dir = tempfile::tempdir().unwrap();
@@ -844,75 +900,112 @@ mod tests {
         assert!(read(&path).unwrap().unwrap().entries.is_empty());
         mine.remove();
         assert!(read(&path).unwrap().is_none());
-        // No temporary files are left behind
-        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+        // Only the lock file is left: no temporary or claim files
+        assert_eq!(names(dir.path()), vec![LOCK_NAME.to_string()]);
     }
 
     #[test]
-    fn only_one_claimant_takes_a_dead_journal() {
+    fn create_never_clobbers_even_an_unreadable_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE_NAME);
-        let dead = journal();
-        assert!(create(&path, &dead).unwrap());
-        let first = Claim::take(&path, &dead).unwrap();
-        assert!(first.is_some());
-        // The journal is no longer at the shared path for anyone else
-        assert!(Claim::take(&path, &dead).unwrap().is_none());
-        assert!(read(&path).unwrap().is_none());
-        first.unwrap().finish();
-        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
-    }
-
-    #[test]
-    fn claim_gives_back_a_journal_it_did_not_expect() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        let dead = journal();
-        // Someone recovered `dead` and began a journal of their own
-        let mut newer = journal();
-        newer.pid = 99;
-        assert!(create(&path, &newer).unwrap());
-        assert!(Claim::take(&path, &dead).unwrap().is_none());
-        assert_eq!(read(&path).unwrap().unwrap(), newer);
-    }
-
-    #[test]
-    fn released_claim_never_replaces_a_newer_journal() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
-        let dead = journal();
-        assert!(create(&path, &dead).unwrap());
-        let claim = Claim::take(&path, &dead).unwrap().unwrap();
-        let mut newer = journal();
-        newer.pid = 99;
-        assert!(create(&path, &newer).unwrap());
-        claim.release();
-        assert_eq!(read(&path).unwrap().unwrap(), newer);
-        // Released onto a free path, the journal is back
-        remove_file(&path);
-        let claim = {
-            assert!(create(&path, &dead).unwrap());
-            Claim::take(&path, &dead).unwrap().unwrap()
-        };
-        claim.release();
-        assert_eq!(read(&path).unwrap().unwrap(), dead);
-    }
-
-    #[test]
-    fn create_never_clobbers() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(FILE_NAME);
+        let l = lock(&path);
         let first = journal();
-        assert!(create(&path, &first).unwrap());
+        assert!(create(&path, &first, &l).unwrap());
         let mut second = journal();
         second.pid = 7;
-        assert!(!create(&path, &second).unwrap());
-        // The no-hard-link fallback is no-clobber too
-        assert!(!create_in_place(&path, &second).unwrap());
+        assert!(!create(&path, &second, &l).unwrap());
         assert_eq!(read(&path).unwrap().unwrap(), first);
-        remove_file(&path);
-        assert!(create_in_place(&path, &second).unwrap());
-        assert_eq!(read(&path).unwrap().unwrap(), second);
+        std::fs::write(&path, "garbage").unwrap();
+        assert!(!create(&path, &second, &l).unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "garbage");
+    }
+
+    #[test]
+    fn lock_is_exclusive_and_released_on_drop() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let held = lock(&path);
+        // A second hold, from another open file, waits and then gives up
+        let started = std::time::Instant::now();
+        assert!(
+            JournalLock::acquire_for(&path, std::time::Duration::from_millis(100))
+                .unwrap()
+                .is_none()
+        );
+        assert!(started.elapsed() >= std::time::Duration::from_millis(100));
+        drop(held);
+        assert!(
+            JournalLock::acquire_for(&path, std::time::Duration::from_millis(100))
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn stale_temp_file_sharing_the_journals_inode_is_never_truncated() {
+        // A process died after linking its temp file to the journal; a later
+        // process with the same pid must not write through that name
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let live = journal();
+        let l = lock(&path);
+        assert!(create(&path, &live, &l).unwrap());
+        let pid = std::process::id();
+        let stale = dir.path().join(format!("{FILE_NAME}.{pid}.tmp"));
+        std::fs::hard_link(&path, &stale).unwrap();
+        // Writing temporaries (any number) never opens the stale name
+        let mut next = journal();
+        next.pid = 5;
+        for _ in 0..3 {
+            let tmp = write_temp(&path, &next, &l).unwrap();
+            assert_ne!(tmp, stale);
+            std::fs::remove_file(tmp).unwrap();
+        }
+        assert_eq!(read(&path).unwrap().unwrap(), live);
+        assert_eq!(read(&stale).unwrap().unwrap(), live);
+        // Replacing goes through a fresh inode, so the stale name keeps its content
+        replace(&path, &next, &l).unwrap();
+        assert_eq!(read(&path).unwrap().unwrap(), next);
+        assert_eq!(read(&stale).unwrap().unwrap(), live);
+        // Under the lock, leftovers are swept and the journal is untouched
+        sweep_temp_files(&path, &l);
+        assert_eq!(
+            names(dir.path()),
+            vec![FILE_NAME.to_string()]
+                .into_iter()
+                .chain([LOCK_NAME.to_string()])
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(read(&path).unwrap().unwrap(), next);
+    }
+
+    #[test]
+    fn temp_names_do_not_repeat() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let l = lock(&path);
+        let a = write_temp(&path, &journal(), &l).unwrap();
+        let b = write_temp(&path, &journal(), &l).unwrap();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn interrupted_discard_or_replace_leaves_the_journal_in_place() {
+        // A crash after the temp file was written but before the rename:
+        // the journal is still the old one and the leftover is swept later
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let l = lock(&path);
+        let old = journal();
+        assert!(create(&path, &old, &l).unwrap());
+        let mut newer = journal();
+        newer.pid = 11;
+        let leftover = write_temp(&path, &newer, &l).unwrap();
+        assert!(leftover.exists());
+        assert_eq!(read(&path).unwrap().unwrap(), old);
+        sweep_temp_files(&path, &l);
+        assert!(!leftover.exists());
+        assert_eq!(read(&path).unwrap().unwrap(), old);
     }
 
     #[test]
@@ -924,9 +1017,73 @@ mod tests {
             .unwrap();
         let mut other = journal();
         other.pid = 99;
-        replace(&path, &other).unwrap();
+        replace(&path, &other, &lock(&path)).unwrap();
         mine.remove();
         assert_eq!(read(&path).unwrap().unwrap(), other);
+    }
+
+    #[test]
+    fn concurrent_creates_write_exactly_one_journal() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let winners: usize = std::thread::scope(|s| {
+            let handles: Vec<_> = (0..8u32)
+                .map(|i| {
+                    let path = path.clone();
+                    s.spawn(move || {
+                        let mut j = journal();
+                        j.pid = 1000 + i;
+                        OwnedJournal::begin(path, j).unwrap().is_some()
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|h| usize::from(h.join().unwrap()))
+                .sum()
+        });
+        assert_eq!(winners, 1);
+        assert!(read(&path).unwrap().is_some());
+        assert_eq!(
+            names(dir.path()),
+            vec![FILE_NAME.to_string(), LOCK_NAME.to_string()]
+        );
+    }
+
+    #[test]
+    fn concurrent_record_recover_and_remove_never_corrupt_the_journal() {
+        // The owner records and forgets entries while other threads take the
+        // lock the way a recovering run does (read, decide, maybe discard a
+        // journal that is not theirs to discard). Every read sees a whole
+        // journal, and discarding is only done by the one that owns it.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let mut mine = OwnedJournal::begin(path.clone(), journal())
+            .unwrap()
+            .unwrap();
+        let stop = std::sync::atomic::AtomicBool::new(false);
+        std::thread::scope(|s| {
+            for _ in 0..3 {
+                s.spawn(|| {
+                    while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+                        let l = lock(&path);
+                        sweep_temp_files(&path, &l);
+                        // Whatever is there is complete and parseable
+                        let j = read(&path).unwrap().expect("journal exists");
+                        assert_eq!(j.pid, 4242);
+                        drop(l);
+                    }
+                });
+            }
+            for i in 0..50 {
+                let commit = format!("c{i}");
+                mine.record(&commit, StashKind::Unstaged).unwrap();
+                mine.forget(&commit).unwrap();
+            }
+            stop.store(true, std::sync::atomic::Ordering::SeqCst);
+        });
+        mine.remove();
+        assert_eq!(names(dir.path()), vec![LOCK_NAME.to_string()]);
     }
 
     #[test]

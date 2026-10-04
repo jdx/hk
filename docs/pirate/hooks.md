@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: dcae974770d2
+sourceHash: d83e9d18b1fd
 ---
 
 # Git hooks and stowing the hold
@@ -83,9 +83,10 @@ Intent-to-add files are kept in a separate stash entry whose message ends with `
 
 ### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
 
-While hk has yer unstaged changes stowed in the hold, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and strikes it once yer changes are back up. It records the stash commit ids, the process id, the hook and the time.
+While hk has yer unstaged changes stowed in the hold, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and strikes it once yer changes are back up. It records the stash commit ids, the process id, the hook and the time. Every change to it, and every recovery, happens while hk holds a lock on a second file beside it, `hk-pending-stash.lock`, so two hk runs never lay hands on it at once; the operating system lets go of that lock if hk dies, and the file itself is harmless to leave or delete.
 
-- **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C, Ctrl+Break or closing the console on Windows): hk stops the running hands, brings yer changes back up, removes the journal and exits with `128` plus the signal number (for example `143` for SIGTERM, `130` for Ctrl+C). It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never writes to the terminal, so it works even when the terminal is already lost overboard.
+- **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C or Ctrl+Break on Windows): hk stops the running hands, brings yer changes back up, removes the journal and exits with `128` plus the signal number (for example `143` for SIGTERM, `130` for Ctrl+C). It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never depends on the terminal: when the terminal is lost overboard (SIGHUP), hk sends its output to the null device, so the restoring carries on.
+- **Closing the console, logging off or shutting down Windows**: hk handles these like SIGHUP (exit status `129`, output sent to `NUL`) and starts restoring at once. Windows ends the process a few seconds after these events, which can be before the restore finishes. When it is, the journal stays and the next hk run recovers it, as after a crash.
 - **SIGKILL, a crash or a power cut**: nothing can run, so yer changes stay in the hold and the journal stays. The next hk run in that repository (any hook, `check`, `fix` or `run`) reads it before it stows anything. If the process that wrote it is gone, hk brings the changes back up when the working tree has no unstaged changes and no untracked files. Otherwise, or when it cannot tell which stash entries are its own, it changes nothing and prints the exact `git stash apply <commit-id>` command to run. A journal whose process is still running is never touched.
 
 hk reminds ye on every run until the stash entry is gone: once ye have applied it and dropped it, hk removes the journal itself, or ye can delete the file. If another hk's journal is already in place, a run does not write its own.

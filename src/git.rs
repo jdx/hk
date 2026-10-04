@@ -2319,6 +2319,20 @@ impl Git {
 
     fn try_recover_pending_stash(&mut self) -> Result<()> {
         let path = Self::journal_file()?;
+        // The usual case, no journal, takes no lock and creates no file
+        if !path.try_exists().unwrap_or(true) {
+            return Ok(());
+        }
+        // Everything below happens under the journal lock, so that no other
+        // hk creates, recovers or deletes the journal meanwhile. Nothing is
+        // moved or renamed: the journal stays at its path until the changes
+        // are back, so being interrupted anywhere in here loses nothing and
+        // the next run starts over.
+        let Some(lock) = stash_journal::JournalLock::acquire(&path)? else {
+            debug!("another hk is working on the pending-stash journal; leaving it");
+            return Ok(());
+        };
+        stash_journal::sweep_temp_files(&path, &lock);
         let journal = match stash_journal::read(&path) {
             Ok(Some(journal)) => journal,
             Ok(None) => return Ok(()),
@@ -2341,31 +2355,20 @@ impl Git {
             );
             return Ok(());
         }
-        // Take the journal exclusively, so that no other recovering hk acts on
-        // the same entries or deletes what a later run writes at the path
-        let Some(claim) = stash_journal::Claim::take(&path, &journal)? else {
-            debug!("another hk took the pending-stash journal first");
-            return Ok(());
-        };
-        match self.recover_claimed(&journal, &path) {
-            Ok(true) => {
-                claim.finish();
-                Ok(())
-            }
-            Ok(false) => {
-                claim.release();
-                Ok(())
-            }
-            Err(err) => {
-                claim.release();
-                Err(err)
-            }
+        #[cfg(debug_assertions)]
+        die_for_test("HK_DEBUG_KILL_BEFORE_RECOVERY");
+        let done = self.recover_journal(&journal, &path)?;
+        #[cfg(debug_assertions)]
+        die_for_test("HK_DEBUG_KILL_AFTER_RECOVERY");
+        if done {
+            stash_journal::discard(&path, &lock);
         }
+        Ok(())
     }
 
-    /// Acts on a claimed journal. `Ok(true)` when it has nothing left to say,
+    /// Acts on a dead run's journal. `Ok(true)` when it has nothing left to say,
     /// `Ok(false)` when it must stay to keep reminding.
-    fn recover_claimed(
+    fn recover_journal(
         &mut self,
         journal: &stash_journal::Journal,
         path: &std::path::Path,
