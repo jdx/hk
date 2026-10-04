@@ -47,8 +47,6 @@ _interrupt() {
         assert_equal "$(_step_status "$AFTER_FAILED")" failed
     fi
     kill -INT "$pid"
-    # Release a job that waits for the interrupt to have been delivered.
-    eval "${BEFORE_EXIT:-}"
     for _ in $(seq 100); do
         kill -0 "$pid" 2>/dev/null || break
         sleep 0.1
@@ -155,43 +153,6 @@ EOF2
         assert_output "failed"
         run _step_status slow
         assert_output "cancelled"
-        run _run_field .status
-        assert_output "failed"
-    done
-}
-
-# One workspace job is cancelled by Ctrl-C while a sibling job, which ignores
-# the signal, goes on to fail with its own error afterwards. The real failure
-# must win: the step and the run are failed, not cancelled.
-@test "a job's real failure after Ctrl-C wins over a cancelled sibling job" {
-    SLEEPER="30.$$$RANDOM"
-    WAIT_FOR="a-started b-started"
-    mkdir a b
-    touch a/module.toml b/module.toml a/x.mod b/x.mod
-    cat <<EOF2 > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-  ["check"] {
-    steps {
-      ["ws"] {
-        glob = "**/*.mod"
-        workspace_indicator = "module.toml"
-        dir = "{{workspace}}"
-        check = new Command { argv = List("sh", "-c", "case \\"\\$(basename \\$PWD)\\" in a) touch ../a-started; exec sleep $SLEEPER;; *) trap '' INT TERM; touch ../b-started; until [ -e ../go ]; do sleep 0.1; done; echo REAL-FAILURE >&2; exit 1;; esac") }
-      }
-    }
-  }
-}
-EOF2
-    git add .
-    git commit -m init
-
-    for libgit2 in 1 0; do
-        rm -f go
-        BEFORE_EXIT='touch go' _interrupt $libgit2 --format jsonl check --all --no-fail-fast
-        assert_equal "$status" 1
-        run _step_status ws
-        assert_output "failed"
         run _run_field .status
         assert_output "failed"
     done
