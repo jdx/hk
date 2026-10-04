@@ -55,6 +55,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 - [`hk agent hooks <--target <TARGET>>`](/cli/agent/hooks.md)
 - [`hk agent instructions <--target <TARGET>>`](/cli/agent/instructions.md)
 - [`hk agent mcp <--target <TARGET>>`](/cli/agent/mcp.md)
+- [`hk agent stop-hook [--timeout <SECONDS>] [--target <TARGET>]`](/cli/agent/stop-hook.md)
 - [`hk builtins`](/cli/builtins.md)
 - [`hk cache clear`](/cli/cache/clear.md)
 - [`hk check [FLAGS] [FILES]…`](/cli/check.md)

@@ -205,6 +205,82 @@
             "hidden_aliases": [],
             "examples": [],
             "headings": []
+          },
+          "stop-hook": {
+            "full_cmd": ["agent", "stop-hook"],
+            "usage": "agent stop-hook [--timeout <SECONDS>] [--target <TARGET>]",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "timeout",
+                "usage": "--timeout <SECONDS>",
+                "help": "Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.",
+                "help_first_line": "Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.",
+                "short": [],
+                "long": ["timeout"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "SECONDS",
+                  "usage": "<SECONDS>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "target",
+                "usage": "--target <TARGET>",
+                "help": "Agent running the hook; `codex` prints `{}` when the check passes",
+                "help_first_line": "Agent running the hook; `codex` prints `{}` when the check passes",
+                "short": [],
+                "long": ["target"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TARGET",
+                  "usage": "<TARGET>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["codex", "claude-code"],
+                    "details": [
+                      {
+                        "value": "codex"
+                      },
+                      {
+                        "value": "claude-code"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Run `hk run check --safe` as an agent Stop hook",
+            "help_long": "Run `hk run check --safe` as an agent Stop hook\n\nReads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way. When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's documentation is inconsistent about empty stdout and `{}` is valid under either reading.",
+            "name": "stop-hook",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
           }
         },
         "args": [],
