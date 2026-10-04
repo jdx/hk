@@ -1091,6 +1091,32 @@ impl Git {
         })
     }
 
+    /// The lock file that serializes stashing across hk processes: in the
+    /// repository's common git directory, so linked worktrees share it.
+    pub fn stash_lock_path(&self) -> Result<PathBuf> {
+        let common_dir = match &self.repo {
+            Some(repo) => repo.commondir().to_path_buf(),
+            None => {
+                let dir = PathBuf::from(git_read(["rev-parse", "--git-common-dir"])?);
+                std::env::current_dir()?.join(dir)
+            }
+        };
+        Ok(common_dir.join(crate::stash_lock::LOCK_FILE_NAME))
+    }
+
+    /// Permission mode for a lock file hk creates, when `core.sharedRepository`
+    /// asks for a shared repository; `None` keeps the umask.
+    pub fn stash_lock_shared_mode(&self) -> Option<u32> {
+        let value = match &self.repo {
+            Some(repo) => repo
+                .config()
+                .and_then(|c| c.get_string("core.sharedrepository"))
+                .ok(),
+            None => git_read(["config", "--get", "core.sharedRepository"]).ok(),
+        };
+        crate::stash_lock::shared_repository_mode(value.as_deref())
+    }
+
     /// Get the patches directory for this repository
     fn patches_dir(&self) -> Result<PathBuf> {
         let patches_dir = env::HK_STATE_DIR.join("patches");

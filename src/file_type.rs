@@ -108,6 +108,148 @@ pub fn matches_types(path: &Path, type_filters: &[String]) -> bool {
         .any(|filter| file_types.contains(filter))
 }
 
+/// The interpreter a shebang line names: its program's base name, or for
+/// `env` the command it runs.
+///
+/// `env` is followed by its own options and `NAME=value` assignments before
+/// the command: `#!/usr/bin/env -S python3 -u`, `#!/usr/bin/env FOO=1 python3`,
+/// and `#! /usr/bin/env\tpython3` all run `python3`. Whitespace between the
+/// shebang and the program, and tabs between arguments, are allowed.
+fn shebang_interpreter(line: &str) -> &str {
+    fn base_name(program: &str) -> &str {
+        // A quoted command line such as `'python3 -u'` runs its first word
+        let program = program.trim_matches(['"', '\'']);
+        let program = program.split_whitespace().next().unwrap_or("");
+        program.rsplit('/').next().unwrap_or(program)
+    }
+
+    let text = line.trim().trim_start_matches("#!");
+    let mut tokens = shebang_words(text);
+    let program = base_name(tokens.next().unwrap_or(""));
+    if program != "env" {
+        return program;
+    }
+    // The text glued to `-S` is the start of the command line env splits.
+    let mut pending = None;
+    loop {
+        let Some(token) = pending.take().or_else(|| tokens.next()) else {
+            return "";
+        };
+        if let Some(command) = split_string_command(token) {
+            // GNU env refuses to run a script whose `-S` string has an escape
+            // it does not know, so the script has no interpreter to type by.
+            if has_invalid_env_escape(text) {
+                return "";
+            }
+            pending = Some(command).filter(|command| !command.is_empty());
+        } else if token.starts_with('-') {
+            // These options take the next token as their argument.
+            if matches!(token, "-u" | "--unset" | "-C" | "--chdir" | "-P") {
+                tokens.next();
+            }
+        } else if !is_env_assignment(token) {
+            return base_name(token);
+        }
+    }
+}
+
+/// Splits `text` at whitespace outside quotes, as env does for `-S`, so that
+/// `FOO="a b"` stays one word. Quotes are left in the words.
+fn shebang_words(text: &str) -> impl Iterator<Item = &str> {
+    let mut rest = text;
+    std::iter::from_fn(move || {
+        rest = rest.trim_start();
+        if rest.is_empty() {
+            return None;
+        }
+        let mut quote = None;
+        let mut escaped = false;
+        let mut end = rest.len();
+        for (i, c) in rest.char_indices() {
+            // A backslash escapes the next character; inside single quotes
+            // only a backslash or a quote
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if c == '\\' {
+                let next = rest[i + 1..].chars().next();
+                if quote != Some('\'') || matches!(next, Some('\\' | '\'')) {
+                    escaped = true;
+                    continue;
+                }
+            }
+            match quote {
+                Some(q) if c == q => quote = None,
+                Some(_) => {}
+                None if c == '"' || c == '\'' => quote = Some(c),
+                None if c.is_whitespace() => {
+                    end = i;
+                    break;
+                }
+                None => {}
+            }
+        }
+        let (word, remainder) = rest.split_at(end);
+        rest = remainder;
+        Some(word)
+    })
+}
+
+/// Whether `text`, split by env's `-S`, has a backslash escape GNU env rejects.
+/// Outside single quotes it knows `\c \f \n \r \t \v \_ \# \$ \" \' \\`; inside
+/// them only `\\` and `\'` are escapes, and other backslashes are literal.
+fn has_invalid_env_escape(text: &str) -> bool {
+    let mut quote = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (Some('\''), '\\') => {
+                if matches!(chars.peek(), Some('\\' | '\'')) {
+                    chars.next();
+                }
+            }
+            (_, '\\') => match chars.next() {
+                Some('c' | 'f' | 'n' | 'r' | 't' | 'v' | '_' | '#' | '$' | '"' | '\'' | '\\') => {}
+                _ => return true,
+            },
+            _ => {}
+        }
+    }
+    false
+}
+
+/// If `token` is env's `-S` / `--split-string` option, the start of the command
+/// line that is glued to it (empty when the command is the next token). A
+/// cluster such as `-iS` counts.
+fn split_string_command(token: &str) -> Option<&str> {
+    if let Some(rest) = token.strip_prefix("--split-string") {
+        return match rest.strip_prefix('=') {
+            Some(command) => Some(command),
+            None if rest.is_empty() => Some(""),
+            None => None,
+        };
+    }
+    let flags = token.strip_prefix('-').filter(|f| !f.starts_with('-'))?;
+    let at = flags.find('S')?;
+    // Only flags that take no argument may precede the `S`.
+    flags[..at]
+        .chars()
+        .all(|c| matches!(c, 'i' | 'v' | '0'))
+        .then(|| &flags[at + 1..])
+}
+
+/// Whether `token` is a `NAME=value` assignment that `env` applies.
+fn is_env_assignment(token: &str) -> bool {
+    token.split_once('=').is_some_and(|(name, _)| {
+        !name.is_empty()
+            && !name.starts_with(|c: char| c.is_ascii_digit())
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    })
+}
+
 /// Detect file types by reading shebang line
 fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
     let file = File::open(path).ok()?;
@@ -122,27 +264,7 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
     let mut types = HashSet::new();
     types.insert("text".to_string());
 
-    let shebang = first_line.trim();
-
-    // Handle /usr/bin/env cases
-    let interpreter = if shebang.contains("/env ") {
-        shebang
-            .split_whitespace()
-            .nth(1)
-            .unwrap_or("")
-            .split('/')
-            .next_back()
-            .unwrap_or("")
-    } else {
-        shebang
-            .trim_start_matches("#!")
-            .split_whitespace()
-            .next()
-            .unwrap_or("")
-            .split('/')
-            .next_back()
-            .unwrap_or("")
-    };
+    let interpreter = shebang_interpreter(&first_line);
 
     match interpreter {
         s if s.starts_with("python") => {
@@ -624,6 +746,70 @@ mod tests {
         ));
         assert!(matches_types(&path, &["text".to_string()]));
         assert!(!matches_types(&path, &["ruby".to_string()]));
+    }
+
+    #[test]
+    fn shebang_interpreter_skips_env_options_and_assignments() {
+        for (line, expected) in [
+            ("#!/bin/sh\n", "sh"),
+            ("#!/usr/bin/python3 -u\n", "python3"),
+            ("#!/usr/bin/env python3\n", "python3"),
+            ("#! /usr/bin/env python3\n", "python3"),
+            ("#!/usr/bin/env\tpython3\n", "python3"),
+            ("#!/usr/bin/env -S python3 -u\n", "python3"),
+            ("#!/usr/bin/env -S\tpython3 -u\n", "python3"),
+            ("#!/usr/bin/env -Spython3 -u\n", "python3"),
+            ("#!/usr/bin/env --split-string=python3 -u\n", "python3"),
+            ("#!/usr/bin/env --split-string python3\n", "python3"),
+            ("#!/usr/bin/env -iS python3\n", "python3"),
+            ("#!/usr/bin/env -S 'python3 -u'\n", "python3"),
+            ("#!/usr/bin/env FOO=bar python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=bar BAZ=1 python3 -u\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a b\" python3\n", "python3"),
+            // An escaped quote does not end a quoted value; an escaped
+            // backslash does not escape the closing quote
+            ("#!/usr/bin/env -S FOO=\"a\\\" b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\\\\" python3\n", "python3"),
+            // Backslashes are literal inside single quotes
+            ("#!/usr/bin/env -S FOO='a\\b' python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a\\\\' python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\$b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\'b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=a\\'b python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a\\'b' python3\n", "python3"),
+            // GNU env rejects other escapes, such as a backslash and a space,
+            // so the script cannot start and has no interpreter
+            ("#!/usr/bin/env -S FOO=a\\ b python3\n", ""),
+            ("#!/usr/bin/env -S FOO=\"a\\qb\" python3\n", ""),
+            ("#!/usr/bin/env -S FOO='a b' BAR=\"c  d\" ruby -w\n", "ruby"),
+            ("#!/usr/bin/env -u HOME -i ruby\n", "ruby"),
+            ("#!/usr/bin/env -C /tmp node\n", "node"),
+            ("#!/bin/env bash\n", "bash"),
+            ("#!/usr/bin/env\n", ""),
+            ("#!/usr/bin/env -S\n", ""),
+        ] {
+            assert_eq!(shebang_interpreter(line), expected, "{line:?}");
+        }
+    }
+
+    #[test]
+    fn env_shebang_variants_are_typed_by_their_interpreter() {
+        for (shebang, tag) in [
+            ("#!/usr/bin/env -S python3 -u", "python"),
+            ("#! /usr/bin/env python3", "python"),
+            ("#!/usr/bin/env\tbash", "bash"),
+            ("#!/usr/bin/env FOO=1 ruby", "ruby"),
+            (
+                "#!/usr/bin/env -S node --experimental-strip-types",
+                "javascript",
+            ),
+        ] {
+            let mut file = NamedTempFile::new().unwrap();
+            file.write_all(format!("{shebang}\nbody\n").as_bytes())
+                .unwrap();
+            let types = detect_shebang(file.path()).unwrap();
+            assert!(types.contains(tag), "{shebang:?}: {types:?}");
+        }
     }
 
     #[test]

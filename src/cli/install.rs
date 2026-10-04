@@ -98,6 +98,7 @@ impl Install {
         }
 
         let command = local_hook_command(use_mise);
+        let path_fallback = local_path_fallback(use_mise);
         let use_config_hooks = !self.legacy && git_util::git_at_least(2, 54);
 
         // Load and validate the project config before touching anything, so a
@@ -137,11 +138,17 @@ impl Install {
         }
 
         if use_config_hooks {
-            let result = install_local_config(&events, &command);
+            let result = install_local_config(&events, &command, path_fallback.as_deref());
             note_global_overlap(&events);
             result
         } else {
-            install_local_shims(&events, &command, self.force)
+            // Shims are written as text; a directory name that is not valid
+            // UTF-8 would be altered, so leave the fallback out of them
+            // rather than point it wrong. Config hooks carry the raw bytes.
+            let shim_fallback = path_fallback
+                .as_deref()
+                .filter(|dir| dir.to_str().is_some());
+            install_local_shims(&events, &command, shim_fallback, self.force)
         }
     }
 }
@@ -257,13 +264,72 @@ fn local_hook_command(use_mise: bool) -> OsString {
     }
 }
 
+/// The directory hook commands append to `PATH` so a bare `hk` still resolves
+/// when Git is launched with a minimal `PATH` (GUI Git clients, IDEs), where
+/// the user's shell `PATH` is not present. It is appended, so an `hk` the
+/// environment already provides keeps priority. `None` with `--mise`, where
+/// mise is the launcher.
+fn local_path_fallback(use_mise: bool) -> Option<PathBuf> {
+    if use_mise {
+        return None;
+    }
+    let exe = std::env::current_exe().ok()?;
+    let hk = stable_hk_path(&exe, std::env::var_os("PATH"));
+    hk.parent().map(Path::to_path_buf)
+}
+
+/// A path to the running hk that survives upgrades.
+///
+/// `current_exe()` is the resolved binary, such as
+/// `~/.local/share/mise/installs/hk/2.3.1/bin/hk` or a Homebrew Cellar path.
+/// That version's directory is deleted when the version is pruned or
+/// upgraded, and every hook then fails with `hk: not found`. Prefer, in order:
+/// the mise shim, which resolves the active version when it runs, if hk is a
+/// mise install; or the `hk` on `PATH` that points at this same binary (a
+/// Homebrew or package-manager symlink). Otherwise use the binary itself.
+fn stable_hk_path(exe: &Path, path_var: Option<OsString>) -> PathBuf {
+    if let Some(shim) = mise_shim_for(exe) {
+        return shim;
+    }
+    let exe_real = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
+    let name = exe.file_name().unwrap_or(OsStr::new("hk"));
+    for dir in path_var.iter().flat_map(std::env::split_paths) {
+        if !dir.is_absolute() {
+            continue;
+        }
+        let candidate = dir.join(name);
+        // The binary's own (versioned) directory on PATH is not a stable
+        // link: only a symlink to it survives the version being removed.
+        let is_link =
+            std::fs::symlink_metadata(&candidate).is_ok_and(|meta| meta.file_type().is_symlink());
+        if is_link && candidate.canonicalize().is_ok_and(|real| real == exe_real) {
+            return candidate;
+        }
+    }
+    exe.to_path_buf()
+}
+
+/// The mise shim for `exe` when it is inside mise's `installs` directory.
+fn mise_shim_for(exe: &Path) -> Option<PathBuf> {
+    let components: Vec<_> = exe.components().collect();
+    // `<data dir>/installs/<tool>/<version>/...`: the tool must be hk. A
+    // custom data dir may itself contain an `installs` component, so look
+    // for the first `installs` that is followed by `hk`.
+    let installs = (0..components.len().saturating_sub(1)).find(|&i| {
+        components[i].as_os_str() == "installs" && components[i + 1].as_os_str() == "hk"
+    })?;
+    let data_dir: PathBuf = components[..installs].iter().collect();
+    let shim = data_dir.join("shims").join(exe.file_name()?);
+    std::fs::symlink_metadata(&shim).ok().map(|_| shim)
+}
+
 fn global_hook_command(use_mise: bool) -> Result<OsString> {
     if use_mise {
         let mise = xx::file::which("mise")
             .ok_or_else(|| eyre::eyre!("could not find mise on PATH for global hook install"))?;
         Ok(mise_hook_command(&mise))
     } else {
-        let hk = std::env::current_exe()?;
+        let hk = stable_hk_path(&std::env::current_exe()?, std::env::var_os("PATH"));
         Ok(hk_hook_command(&hk))
     }
 }
@@ -459,15 +525,25 @@ fn install_global(events: &[String], command: &OsStr) -> Result<()> {
     Ok(())
 }
 
-fn install_local_config(events: &[String], command: &OsStr) -> Result<()> {
+fn install_local_config(
+    events: &[String],
+    command: &OsStr,
+    path_fallback: Option<&Path>,
+) -> Result<()> {
+    let command = with_path_fallback(command, path_fallback);
     for event in events {
-        write_config_hook("--local", command, event, false)?;
+        write_config_hook("--local", &command, event, false)?;
         info!("Installed hk hook via git config: hook.hk-{event}.command");
     }
     Ok(())
 }
 
-fn install_local_shims(events: &[String], command: &OsStr, force: bool) -> Result<()> {
+fn install_local_shims(
+    events: &[String],
+    command: &OsStr,
+    path_fallback: Option<&Path>,
+    force: bool,
+) -> Result<()> {
     let hooks = legacy_hooks_dir(true)?;
     for event in events {
         let hook_file = hooks.join(event);
@@ -486,7 +562,7 @@ fn install_local_shims(events: &[String], command: &OsStr, force: bool) -> Resul
             .tempfile_in(&hooks)?;
         std::io::Write::write_all(
             &mut temp,
-            git_hook_content(&command.to_string_lossy(), event).as_bytes(),
+            git_hook_content(&command.to_string_lossy(), event, path_fallback).as_bytes(),
         )?;
         // The temp file starts private (0600); hooks are world-readable and
         // executable, as when the shim was written directly.
@@ -708,12 +784,34 @@ where
     Ok(())
 }
 
-fn git_hook_content(hk: &str, hook: &str) -> String {
-    format!(
-        r#"#!/bin/sh
+fn git_hook_content(hk: &str, hook: &str, path_fallback: Option<&Path>) -> String {
+    match path_fallback {
+        // The braces keep the `HK=0` escape hatch on one line.
+        Some(dir) => format!(
+            r#"#!/bin/sh
+test "${{HK:-1}}" = "0" || {{ PATH="$PATH":{}; export PATH; exec {hk} run {hook} --from-hook "$@"; }}
+"#,
+            shell_quote_path(dir).to_string_lossy()
+        ),
+        None => format!(
+            r#"#!/bin/sh
 test "${{HK:-1}}" = "0" || exec {hk} run {hook} --from-hook "$@"
 "#,
-    )
+        ),
+    }
+}
+
+/// `command` run with `dir` appended to `PATH`, for a hook command string
+/// that Git runs through the shell.
+fn with_path_fallback(command: &OsStr, dir: Option<&Path>) -> OsString {
+    let Some(dir) = dir else {
+        return command.to_os_string();
+    };
+    let mut with = OsString::from(r#"PATH="$PATH":"#);
+    with.push(shell_quote_path(dir));
+    with.push(" ");
+    with.push(command);
+    with
 }
 
 fn hook_run_args(event: &str, staged_pre_commit: bool) -> OsString {
@@ -798,6 +896,95 @@ mod tests {
             hk_hook_command(&home.join(".local/bin/hk")).to_string_lossy(),
             "~/.local/bin/hk"
         );
+    }
+
+    #[test]
+    fn stable_hk_path_prefers_the_mise_shim_over_a_versioned_install() {
+        let data = tempfile::tempdir().unwrap();
+        let exe = data.path().join("installs/hk/2.3.1/bin/hk");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        std::fs::create_dir_all(data.path().join("shims")).unwrap();
+        std::fs::write(data.path().join("shims/hk"), "").unwrap();
+        // A PATH entry for the versioned directory, as `mise activate` adds.
+        let path = std::env::join_paths([exe.parent().unwrap()]).unwrap();
+        assert_eq!(
+            stable_hk_path(&exe, Some(path)),
+            data.path().join("shims/hk")
+        );
+    }
+
+    #[test]
+    fn mise_shim_is_found_when_the_data_dir_contains_an_installs_component() {
+        let root = tempfile::tempdir().unwrap();
+        let data = root.path().join("installs/mise-data");
+        let exe = data.join("installs/hk/2.3.1/bin/hk");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        std::fs::create_dir_all(data.join("shims")).unwrap();
+        std::fs::write(data.join("shims/hk"), "").unwrap();
+        assert_eq!(mise_shim_for(&exe), Some(data.join("shims/hk")));
+    }
+
+    #[test]
+    fn stable_hk_path_ignores_other_mise_tools_and_missing_shims() {
+        let data = tempfile::tempdir().unwrap();
+        let other = data.path().join("installs/other/1/bin/hk");
+        let exe = data.path().join("installs/hk/2.3.1/bin/hk");
+        for p in [&other, &exe] {
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, "").unwrap();
+        }
+        // No shim exists yet.
+        assert_eq!(stable_hk_path(&exe, None), exe);
+        std::fs::create_dir_all(data.path().join("shims")).unwrap();
+        std::fs::write(data.path().join("shims/hk"), "").unwrap();
+        assert_eq!(stable_hk_path(&other, None), other);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stable_hk_path_uses_a_path_symlink_to_the_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("Cellar/hk/2.3.1/bin/hk");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::os::unix::fs::symlink(&exe, bin.join("hk")).unwrap();
+        // The binary's own directory earlier on PATH is not a stable link.
+        let versioned = exe.parent().unwrap().to_path_buf();
+        let path = std::env::join_paths([versioned, bin.clone()]).unwrap();
+        assert_eq!(stable_hk_path(&exe, Some(path)), bin.join("hk"));
+        // A different hk earlier on PATH is not this binary and is skipped.
+        let elsewhere = dir.path().join("elsewhere");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        std::fs::write(elsewhere.join("hk"), "other").unwrap();
+        let path = std::env::join_paths([elsewhere, bin.clone()]).unwrap();
+        assert_eq!(stable_hk_path(&exe, Some(path)), bin.join("hk"));
+        assert_eq!(stable_hk_path(&exe, None), exe);
+    }
+
+    #[test]
+    fn shim_and_config_command_append_the_fallback_dir_to_path() {
+        let dir = Path::new("/opt/hk bin");
+        let shim = git_hook_content("hk", "pre-commit", Some(dir));
+        assert!(shim.contains(r#"test "${HK:-1}" = "0" || { PATH="$PATH":'/opt/hk bin'; export PATH; exec hk run pre-commit --from-hook "$@"; }"#), "{shim}");
+        assert!(is_hk_shim_like(&shim));
+        let plain = git_hook_content("hk", "pre-commit", None);
+        assert!(plain.contains(r#"|| exec hk run pre-commit --from-hook "$@""#));
+        assert_eq!(
+            with_path_fallback(OsStr::new("hk"), Some(dir)),
+            OsString::from(r#"PATH="$PATH":'/opt/hk bin' hk"#)
+        );
+        assert_eq!(
+            with_path_fallback(OsStr::new("mise x -- hk"), None),
+            OsString::from("mise x -- hk")
+        );
+    }
+
+    fn is_hk_shim_like(content: &str) -> bool {
+        content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run")
     }
 
     #[test]

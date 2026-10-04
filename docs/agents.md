@@ -52,8 +52,9 @@ hk agent mcp --target vscode
 | `all`      | Every tracked file, plus untracked files unless stashing is enabled (see below)           | `--all`        |
 | `changed`  | Staged and unstaged files, plus untracked files (see below): all that differs from `HEAD` | `--stash none` |
 | `unstaged` | Unstaged files, plus untracked files (see below), without staged files                    | `--unstaged`   |
+| `staged`   | Only files staged in the index, which is what a pre-commit hook checks                    | `--staged`     |
 
-`changed` turns stashing off for the run, so it always covers staged and unstaged edits even when the project or `HK_STASH` enables stashing. `--stash none` does not override `HK_STASH_UNTRACKED=0`: with that setting hk skips untracked-file discovery, so `changed` and `unstaged` leave untracked files out. `all` keeps the project's stash setting, and hk leaves untracked files out of `--all` while stashing is enabled. Use `changed` or `unstaged` to lint only what an agent just edited instead of the whole project.
+`changed` turns stashing off for the run, so it always covers staged and unstaged edits even when the project or `HK_STASH` enables stashing. `--stash none` does not override `HK_STASH_UNTRACKED=0`: with that setting hk skips untracked-file discovery, so `changed` and `unstaged` leave untracked files out. `staged` is unaffected, because untracked files are never staged. `all` keeps the project's stash setting, and hk leaves untracked files out of `--all` while stashing is enabled. Use `changed` or `unstaged` to lint only what an agent just edited instead of the whole project, or `staged` to check just what the next commit would contain. Like `changed`, `staged` runs without stashing, so a staged file that also has unstaged edits is checked as it is in the working tree.
 
 Codex, Claude Code, Claude Desktop, and VS Code can use the structured MCP tools. Hosts that implement MCP Apps also receive the hk dashboard; other hosts receive the same structured content and a useful text fallback.
 
