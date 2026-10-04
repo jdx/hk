@@ -11,7 +11,7 @@ description: "Run as the command of a Claude Code or Codex Stop hook; see the ho
 
 Run `hk run check --safe` as an agent Stop hook
 
-Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way. When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's documentation is inconsistent about empty stdout and `{}` is valid under either reading.
+Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. In a project without an hk config, or one with no `check` hook, it passes like a hook from `hk install --global`, so it is safe in user-level agent settings. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way. When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's documentation is inconsistent about empty stdout and `{}` is valid under either reading.
 
 ## Flags
 
