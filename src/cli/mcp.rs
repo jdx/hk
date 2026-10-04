@@ -24,7 +24,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{
-    io::{AsyncRead, AsyncReadExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
     process::Command,
     sync::Mutex,
 };
@@ -130,6 +130,8 @@ struct RunRecord {
     stdout_event_buffer: Vec<u8>,
     output_truncated: bool,
     stdout_truncated: bool,
+    /// A step kept the structured-output pipe open after hk exited, so later output was lost.
+    stdout_drain_timed_out: bool,
     saw_run_completed: bool,
     result: Option<Value>,
     diff: String,
@@ -394,6 +396,7 @@ impl HkMcpServer {
                 stdout_event_buffer: Vec::new(),
                 output_truncated: false,
                 stdout_truncated: false,
+                stdout_drain_timed_out: false,
                 saw_run_completed: false,
                 result: None,
                 diff: String::new(),
@@ -418,7 +421,13 @@ impl HkMcpServer {
         scope: RunScope,
         cancel: CancellationToken,
     ) {
-        let diff_baseline = prepare_diff_baseline(&root).await;
+        // A root that is not a git repository has no diff to capture; that is not an error.
+        // If git itself cannot run, that is a capture failure rather than "not a repository".
+        let diff_baseline = match git_repository_state(&root).await {
+            Ok(true) => Some(snapshot_tree(&root).await),
+            Ok(false) => None,
+            Err(error) => Some(Err(error)),
+        };
         let executable = match std::env::current_exe() {
             Ok(path) => path,
             Err(error) => {
@@ -455,6 +464,7 @@ impl HkMcpServer {
             }
         };
         self.set_status(&id, "running").await;
+        let child_pid = child.id();
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
         let stdout_task = tokio::spawn(read_output(self.state.clone(), id.clone(), stdout, true));
@@ -466,15 +476,42 @@ impl HkMcpServer {
             }
         };
         // A step that outlives hk can keep an output pipe open; do not wait for it forever.
-        for task in [stdout_task, stderr_task] {
+        // Known limitation: only processes still in hk's own process group are killed below.
+        // A step that detached into its own session or group keeps running after the run is
+        // reported finished, and the captured diff may not include its later changes.
+        let mut lost_stdout = false;
+        let mut lost_stderr = false;
+        for (is_stdout, task) in [(true, stdout_task), (false, stderr_task)] {
             let abort = task.abort_handle();
             if tokio::time::timeout(PIPE_DRAIN_GRACE, task).await.is_err() {
                 abort.abort();
+                if is_stdout {
+                    lost_stdout = true;
+                } else {
+                    lost_stderr = true;
+                }
             }
         }
-        let diff = match diff_baseline {
-            Ok(tree) => git_diff(&root, &tree).await.unwrap_or_default(),
-            Err(_) => CapturedDiff::default(),
+        if lost_stdout || lost_stderr {
+            // Something still holds the pipe open: stop what is left of hk's group so it
+            // stops changing files, and flag that later output was not captured.
+            #[cfg(unix)]
+            if let Some(pid) = child_pid {
+                // SAFETY: the child led its own group (see `process_group(0)`); this only
+                // signals processes hk started.
+                unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+            }
+            #[cfg(not(unix))]
+            let _ = child_pid;
+            let mut state = self.state.lock().await;
+            if let Some(run) = state.runs.iter_mut().find(|run| run.id == id) {
+                run.stdout_drain_timed_out |= lost_stdout;
+                run.output_truncated |= lost_stdout || lost_stderr;
+            }
+        }
+        let (diff, diff_error) = match diff_baseline {
+            Some(baseline) => capture_run_diff(&root, baseline).await,
+            None => (CapturedDiff::default(), None),
         };
         let mut state = self.state.lock().await;
         let Some(run) = state.runs.iter_mut().find(|run| run.id == id) else {
@@ -504,6 +541,7 @@ impl HkMcpServer {
                 run.error = Some(format!("failed to wait for hk: {error}"));
             }
         }
+        record_diff_error(run, diff_error);
         state.cleanup();
     }
 
@@ -1001,6 +1039,10 @@ fn parse_run_result(run: &mut RunRecord, killed: bool) -> bool {
             "structured result exceeded the {} byte capture limit",
             MAX_RUN_OUTPUT_BYTES
         ));
+    } else if run.stdout_drain_timed_out {
+        run.error = Some(
+            "hk exited but a step kept the output pipe open; later output was not captured".into(),
+        );
     } else if run.error.is_none() {
         // hk exited without a final result, usually because it failed before
         // running any step. Its first stderr paragraph says why.
@@ -1220,6 +1262,11 @@ async fn run_hk_capture(root: &Path, args: &[&str]) -> Result<std::process::Outp
 }
 
 async fn is_git_repository(root: &Path) -> bool {
+    git_repository_state(root).await.unwrap_or(false)
+}
+
+/// Whether `root` is inside a git repository; `Err` when git could not be started.
+async fn git_repository_state(root: &Path) -> Result<bool, String> {
     Command::new("git")
         .arg("-C")
         .arg(root)
@@ -1229,7 +1276,8 @@ async fn is_git_repository(root: &Path) -> bool {
         .stderr(std::process::Stdio::null())
         .status()
         .await
-        .is_ok_and(|status| status.success())
+        .map(|status| status.success())
+        .map_err(|error| format!("failed to run git rev-parse --git-dir: {error}"))
 }
 
 #[derive(Debug, Default)]
@@ -1238,76 +1286,252 @@ struct CapturedDiff {
     truncated: bool,
 }
 
-async fn prepare_diff_baseline(root: &Path) -> Result<String, String> {
-    let index_output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "--git-path", "index"])
+async fn run_git(root: &Path, args: &[&str], index: Option<&Path>) -> Result<Vec<u8>, String> {
+    let mut command = Command::new("git");
+    command.arg("-C").arg(root).args(args);
+    if let Some(index) = index {
+        command.env("GIT_INDEX_FILE", index);
+    }
+    let output = command
         .stdin(std::process::Stdio::null())
         .output()
         .await
-        .map_err(|error| error.to_string())?;
-    if !index_output.status.success() {
-        return Err("failed to locate git index".to_string());
+        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
-    let index_path = PathBuf::from(String::from_utf8_lossy(&index_output.stdout).trim());
-    let index_path = if index_path.is_absolute() {
-        index_path
-    } else {
-        root.join(index_path)
-    };
-    let temp_index = tempfile::NamedTempFile::new().map_err(|error| error.to_string())?;
-    std::fs::copy(&index_path, temp_index.path()).map_err(|error| error.to_string())?;
-
-    let add_status = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["add", "-u", "--"])
-        .env("GIT_INDEX_FILE", temp_index.path())
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .map_err(|error| error.to_string())?;
-    if !add_status.success() {
-        return Err("failed to snapshot working tree".to_string());
-    }
-
-    let tree_output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .arg("write-tree")
-        .env("GIT_INDEX_FILE", temp_index.path())
-        .stdin(std::process::Stdio::null())
-        .output()
-        .await
-        .map_err(|error| error.to_string())?;
-    if !tree_output.status.success() {
-        return Err("failed to write working-tree snapshot".to_string());
-    }
-    Ok(String::from_utf8_lossy(&tree_output.stdout)
-        .trim()
-        .to_string())
+    Ok(output.stdout)
 }
 
-async fn git_diff(root: &Path, baseline_tree: &str) -> Result<CapturedDiff, String> {
+/// Runs git with `input` on stdin; otherwise like [`run_git`].
+async fn run_git_with_input(
+    root: &Path,
+    args: &[&str],
+    index: &Path,
+    input: Vec<u8>,
+) -> Result<Vec<u8>, String> {
     let mut child = Command::new("git")
         .arg("-C")
         .arg(root)
-        .args(["diff", "--no-ext-diff", "--binary"])
-        .arg(baseline_tree)
-        .arg("--")
-        .stdin(std::process::Stdio::null())
+        .args(args)
+        .env("GIT_INDEX_FILE", index)
+        .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
         .kill_on_drop(true)
         .spawn()
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    let mut stdin = child.stdin.take().ok_or("failed to open git stdin")?;
+    let writer = tokio::spawn(async move {
+        let _ = stdin.write_all(&input).await;
+        // Dropping stdin closes it so git sees the end of the list.
+    });
+    let output = child
+        .wait_with_output()
+        .await
+        .map_err(|error| format!("failed to run git {}: {error}", args.join(" ")))?;
+    let _ = writer.await;
+    if !output.status.success() {
+        return Err(format!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(output.stdout)
+}
+
+/// Records the files under `root` (tracked and untracked, excluding ignored untracked
+/// files) as a git tree object using a private temporary index, so the user's real index
+/// is never touched.
+///
+/// The temporary index starts empty and every file is hashed from its worktree bytes, with
+/// no CRLF conversion and no clean filters (those come from attributes, which are read from
+/// the empty tree instead). Reusing the real index would keep its already-converted blobs
+/// for files whose cached stat still matches, so a clean file would differ between the
+/// snapshots taken before and after a run. It also carries unmerged entries, which
+/// `write-tree` refuses. Git older than 2.40 lacks `--attr-source`.
+async fn snapshot_tree(root: &Path) -> Result<String, String> {
+    // The temp index lives in its own directory (removed on drop) because git rejects an
+    // empty pre-created index file.
+    let temp_dir = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let temp_index = temp_dir.path().join("index");
+    run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
+    // Tracked files first, so tracked files that .gitignore also matches are included.
+    let tracked = tracked_files_without_gitlinks(root).await?;
+    let raw = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"];
+    // Decide from the git version, once per run, whether `--attr-source` exists (git 2.40+).
+    // Without it, repository attributes are used. Any other failure is returned as is.
+    let attr_source = if git_supports_attr_source().await {
+        Some(format!("--attr-source={}", empty_tree(root).await?))
+    } else {
+        None
+    };
+    for use_attr_source in [true, false] {
+        if use_attr_source && attr_source.is_none() {
+            continue;
+        }
+        let mut prefix = raw.to_vec();
+        if let (true, Some(attr_source)) = (use_attr_source, &attr_source) {
+            prefix.push(attr_source);
+        }
+        let mut update = prefix.clone();
+        update.extend(["update-index", "--add", "--remove", "-z", "--stdin"]);
+        let mut add = prefix;
+        add.extend(["add", "-A", "--", "."]);
+        let result = async {
+            if !tracked.is_empty() {
+                run_git_with_input(root, &update, &temp_index, tracked.clone()).await?;
+            }
+            run_git(root, &add, Some(&temp_index)).await
+        }
+        .await;
+        match result {
+            Ok(_) => break,
+            // Safety net for a version that was not parseable or lied: retry only when git
+            // itself rejected the option.
+            Err(error) if use_attr_source && is_attr_source_unsupported(&error) => {
+                run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    let tree = run_git(root, &["write-tree"], Some(&temp_index)).await?;
+    Ok(String::from_utf8_lossy(&tree).trim().to_string())
+}
+
+/// Whether the installed git has `--attr-source` (2.40+). Checked once per process; an
+/// unparseable or unavailable version is treated as supported, leaving
+/// [`is_attr_source_unsupported`] as the safety net.
+async fn git_supports_attr_source() -> bool {
+    static SUPPORTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if let Some(supported) = SUPPORTED.get() {
+        return *supported;
+    }
+    let version = Command::new("git")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .await
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| parse_git_version(&String::from_utf8_lossy(&output.stdout)));
+    let supported = version.is_none_or(|version| version >= (2, 40));
+    *SUPPORTED.get_or_init(|| supported)
+}
+
+/// Parses `git version 2.43.0.windows.1` or `git version 2.50.1 (Apple Git-155)` into
+/// `(major, minor)`.
+fn parse_git_version(output: &str) -> Option<(u32, u32)> {
+    let version = output.trim().strip_prefix("git version ")?;
+    let mut parts = version.split(|c: char| !c.is_ascii_digit() && c != '.');
+    let mut numbers = parts.next()?.split('.');
+    let major = numbers.next()?.parse().ok()?;
+    let minor = numbers.next()?.parse().ok()?;
+    Some((major, minor))
+}
+
+/// Whether an error from [`run_git`] says git rejected `--attr-source` as an unknown option.
+/// Only git's stderr is inspected, because the message also echoes the arguments.
+fn is_attr_source_unsupported(error: &str) -> bool {
+    let Some((_, stderr)) = error.split_once(" failed: ") else {
+        return false;
+    };
+    let stderr = stderr.to_ascii_lowercase();
+    stderr.contains("attr-source")
+        && (stderr.contains("unknown option")
+            || stderr.contains("unrecognized option")
+            || stderr.contains("usage:"))
+}
+
+/// Lists tracked paths NUL-separated, leaving out gitlinks (submodules): on disk those are
+/// directories, which `update-index` cannot hash as files. `add -A` records initialized ones.
+async fn tracked_files_without_gitlinks(root: &Path) -> Result<Vec<u8>, String> {
+    let staged = run_git(root, &["ls-files", "-z", "--stage"], None).await?;
+    let mut paths: Vec<&[u8]> = Vec::new();
+    for entry in staged
+        .split(|byte| *byte == 0)
+        .filter(|entry| !entry.is_empty())
+    {
+        // Each entry is "<mode> <object> <stage>\t<path>".
+        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
+            continue;
+        };
+        if entry.starts_with(b"160000 ") {
+            continue;
+        }
+        let path = &entry[tab + 1..];
+        // Unmerged paths appear once per stage.
+        if paths.last() != Some(&path) {
+            paths.push(path);
+        }
+    }
+    let mut out = Vec::new();
+    for path in paths {
+        out.extend_from_slice(path);
+        out.push(0);
+    }
+    Ok(out)
+}
+
+/// The empty tree's id in the repository's own object format (SHA-1 or SHA-256), written
+/// to the object database so `--attr-source` can read it. Writing it is harmless.
+async fn empty_tree(root: &Path) -> Result<String, String> {
+    let out = run_git(root, &["hash-object", "-t", "tree", "-w", "--stdin"], None).await?;
+    Ok(String::from_utf8_lossy(&out).trim().to_string())
+}
+
+async fn diff_tree_bytes(
+    root: &Path,
+    before: &str,
+    after: &str,
+    attributes: Option<&Path>,
+    ignore_repo_attributes: bool,
+) -> Result<(Vec<u8>, bool), String> {
+    let mut command = Command::new("git");
+    command.arg("-C").arg(root);
+    if let Some(attributes) = attributes {
+        let mut setting = std::ffi::OsString::from("core.attributesFile=");
+        setting.push(attributes);
+        command.arg("-c").arg(setting);
+    }
+    if ignore_repo_attributes {
+        command.arg(format!("--attr-source={}", empty_tree(root).await?));
+    }
+    let mut child = command
+        .args([
+            "diff-tree",
+            "-p",
+            "--binary",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--relative",
+            before,
+            after,
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|error| format!("failed to run git diff-tree: {error}"))?;
     let mut stdout = child
         .stdout
         .take()
         .ok_or_else(|| "failed to capture git diff output".to_string())?;
+    let mut stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| "failed to capture git diff errors".to_string())?;
+    let stderr_task = tokio::spawn(async move {
+        let mut text = Vec::new();
+        let _ = stderr.read_to_end(&mut text).await;
+        text
+    });
     let mut bytes = Vec::new();
     let mut truncated = false;
     let mut buffer = [0_u8; 8192];
@@ -1324,20 +1548,84 @@ async fn git_diff(root: &Path, baseline_tree: &str) -> Result<CapturedDiff, Stri
         truncated |= count > remaining;
     }
     let status = child.wait().await.map_err(|error| error.to_string())?;
+    let stderr = stderr_task.await.unwrap_or_default();
     if !status.success() {
-        return Ok(CapturedDiff::default());
+        return Err(format!(
+            "git diff-tree failed: {}",
+            String::from_utf8_lossy(&stderr).trim()
+        ));
     }
-    Ok(CapturedDiff {
-        text: String::from_utf8_lossy(&bytes).into_owned(),
-        truncated,
-    })
+    Ok((bytes, truncated))
+}
+
+/// Diffs two trees from `snapshot_tree`. Output that is not valid UTF-8 (text files in
+/// other encodings) is regenerated with every file encoded as a base64 binary patch so
+/// no bytes are altered and the result still applies with `git apply`.
+async fn git_diff(root: &Path, before: &str, after: &str) -> Result<CapturedDiff, String> {
+    let (bytes, truncated) = diff_tree_bytes(root, before, after, None, false).await?;
+    if let Some(text) = utf8_patch(&bytes, truncated) {
+        return Ok(CapturedDiff { text, truncated });
+    }
+    let temp_dir = tempfile::tempdir().map_err(|error| error.to_string())?;
+    let attributes = temp_dir.path().join("attributes");
+    std::fs::write(&attributes, "* -diff\n").map_err(|error| error.to_string())?;
+    // Repository attributes override `core.attributesFile`, so ignore them too.
+    let (bytes, truncated) =
+        match diff_tree_bytes(root, before, after, Some(&attributes), true).await {
+            Ok(result) => result,
+            Err(_) => diff_tree_bytes(root, before, after, Some(&attributes), false).await?,
+        };
+    match utf8_patch(&bytes, truncated) {
+        Some(text) => Ok(CapturedDiff { text, truncated }),
+        None => Err("the patch is not valid UTF-8 even as a binary patch".into()),
+    }
+}
+
+/// The patch as text when it is valid UTF-8; a capture cut off mid-character keeps the
+/// complete characters before the cut.
+fn utf8_patch(bytes: &[u8], truncated: bool) -> Option<String> {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => Some(text.to_string()),
+        Err(error) if truncated && error.error_len().is_none() => {
+            Some(String::from_utf8_lossy(&bytes[..error.valid_up_to()]).into_owned())
+        }
+        Err(_) => None,
+    }
+}
+
+/// Diffs the working tree against the snapshot taken before a run. A failure is
+/// returned beside an empty diff so the run can report it.
+async fn capture_run_diff(
+    root: &Path,
+    baseline: Result<String, String>,
+) -> (CapturedDiff, Option<String>) {
+    let result = async {
+        let before = baseline?;
+        let after = snapshot_tree(root).await?;
+        git_diff(root, &before, &after).await
+    }
+    .await;
+    match result {
+        Ok(diff) => (diff, None),
+        Err(error) => (CapturedDiff::default(), Some(error)),
+    }
+}
+
+fn record_diff_error(run: &mut RunRecord, error: Option<String>) {
+    if let Some(error) = error {
+        let diff_error = format!("failed to capture diff: {error}");
+        run.error = Some(match run.error.take() {
+            Some(existing) => format!("{existing}; {diff_error}"),
+            None => diff_error,
+        });
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::io::{AsyncBufReadExt, BufReader};
 
     fn test_run(id: &str, status: &str, output: Vec<u8>) -> RunRecord {
         RunRecord {
@@ -1356,6 +1644,7 @@ mod tests {
             stdout_event_buffer: Vec::new(),
             output_truncated: false,
             stdout_truncated: false,
+            stdout_drain_timed_out: false,
             saw_run_completed: false,
             result: None,
             diff: String::new(),
@@ -1445,13 +1734,383 @@ mod tests {
             .status()
             .unwrap();
         std::fs::write(root.join("before.txt"), "pre-existing\n").unwrap();
-        let baseline = prepare_diff_baseline(root).await.unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
 
         std::fs::write(root.join("during.txt"), "changed by run\n").unwrap();
-        let diff = git_diff(root, &baseline).await.unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
 
         assert!(diff.text.contains("during.txt"));
         assert!(!diff.text.contains("before.txt"));
+    }
+
+    fn git_in(root: &Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+
+    #[tokio::test]
+    async fn diff_includes_untracked_files_and_leaves_the_real_index_alone() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        std::fs::write(root.join("tracked.txt"), "x\n").unwrap();
+        git_in(root, &["add", "."]);
+        let index_before = std::fs::read(root.join(".git/index")).unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("new.txt"), "created by run\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+++ b/new.txt"));
+        assert!(diff.text.contains("+created by run"));
+        assert_eq!(
+            std::fs::read(root.join(".git/index")).unwrap(),
+            index_before
+        );
+    }
+
+    #[tokio::test]
+    async fn diff_works_without_a_git_index() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        assert!(!root.join(".git/index").exists());
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("new.txt"), "hello\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+++ b/new.txt"));
+        assert!(!root.join(".git/index").exists());
+    }
+
+    #[tokio::test]
+    async fn diff_preserves_binary_and_non_utf8_content() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("latin1.txt"), b"caf\xe9\n").unwrap();
+        std::fs::write(root.join("blob.bin"), [0_u8, 159, 146, 150, 255]).unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+        assert!(!diff.text.contains('\u{fffd}'));
+        assert!(diff.text.contains("GIT binary patch"));
+
+        // The captured patch must reproduce the files byte for byte.
+        let patch = root.join("run.patch");
+        std::fs::write(&patch, &diff.text).unwrap();
+        std::fs::remove_file(root.join("latin1.txt")).unwrap();
+        std::fs::remove_file(root.join("blob.bin")).unwrap();
+        git_in(root, &["-c", "core.autocrlf=false", "apply", "run.patch"]);
+        assert_eq!(
+            std::fs::read(root.join("latin1.txt")).unwrap(),
+            b"caf\xe9\n"
+        );
+        assert_eq!(
+            std::fs::read(root.join("blob.bin")).unwrap(),
+            [0_u8, 159, 146, 150, 255]
+        );
+    }
+
+    #[tokio::test]
+    async fn snapshot_failure_is_an_error_not_an_empty_diff() {
+        let directory = tempfile::tempdir().unwrap();
+        assert!(snapshot_tree(directory.path()).await.is_err());
+        let error = git_diff(directory.path(), "deadbeef", "cafebabe")
+            .await
+            .unwrap_err();
+        assert!(error.contains("diff-tree"));
+    }
+
+    #[tokio::test]
+    async fn diff_from_a_subdirectory_root_stays_inside_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        let root = repo.join("app");
+        std::fs::create_dir(&root).unwrap();
+        let baseline = snapshot_tree(&root).await.unwrap();
+
+        std::fs::write(root.join("inside.txt"), "in\n").unwrap();
+        std::fs::write(repo.join("outside.txt"), "out\n").unwrap();
+        let after = snapshot_tree(&root).await.unwrap();
+        let diff = git_diff(&root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+++ b/inside.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("outside.txt"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn snapshots_survive_a_merge_conflict_outside_the_root() {
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        git_in(repo, &["config", "user.email", "t@t"]);
+        git_in(repo, &["config", "user.name", "t"]);
+        std::fs::write(repo.join("conflict.txt"), "base\n").unwrap();
+        git_in(repo, &["add", "."]);
+        git_in(repo, &["commit", "-qm", "base"]);
+        git_in(repo, &["checkout", "-qb", "other"]);
+        std::fs::write(repo.join("conflict.txt"), "other\n").unwrap();
+        git_in(repo, &["commit", "-qam", "other"]);
+        git_in(repo, &["checkout", "-q", "-"]);
+        std::fs::write(repo.join("conflict.txt"), "mine\n").unwrap();
+        git_in(repo, &["commit", "-qam", "mine"]);
+        // Leaves unmerged stages in the real index; the merge itself fails.
+        let _ = std::process::Command::new("git")
+            .args(["merge", "other"])
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        let root = repo.join("app");
+        std::fs::create_dir(&root).unwrap();
+
+        let baseline = snapshot_tree(&root).await.unwrap();
+        std::fs::write(root.join("new.txt"), "x\n").unwrap();
+        let after = snapshot_tree(&root).await.unwrap();
+        let diff = git_diff(&root, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+++ b/new.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("conflict.txt"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn clean_files_do_not_appear_when_line_ending_conversion_is_configured() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        git_in(root, &["config", "user.email", "t@t"]);
+        git_in(root, &["config", "user.name", "t"]);
+        git_in(root, &["config", "core.autocrlf", "true"]);
+        // The index holds LF; the worktree holds CRLF, and stays that way.
+        std::fs::write(root.join("clean.txt"), b"a\r\nb\r\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-qm", "init"]);
+        std::fs::write(root.join("clean.txt"), b"a\r\nb\r\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("other.txt"), b"x\r\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+++ b/other.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("clean.txt"), "{}", diff.text);
+    }
+
+    #[test]
+    fn parses_git_versions() {
+        assert_eq!(parse_git_version("git version 2.39.5\n"), Some((2, 39)));
+        assert_eq!(parse_git_version("git version 2.40.0"), Some((2, 40)));
+        assert_eq!(
+            parse_git_version("git version 2.43.0.windows.1"),
+            Some((2, 43))
+        );
+        assert_eq!(
+            parse_git_version("git version 2.50.1 (Apple Git-155)"),
+            Some((2, 50))
+        );
+        assert_eq!(parse_git_version("something else"), None);
+        assert!((2, 39) < (2, 40) && (2, 50) >= (2, 40) && (3, 0) >= (2, 40));
+    }
+
+    #[test]
+    fn only_unknown_option_errors_retry_without_attr_source() {
+        let old = "git add -A -- . failed: unknown option: --attr-source=4b825dc\nusage: git [-v | --version]";
+        assert!(is_attr_source_unsupported(old));
+        assert!(is_attr_source_unsupported(
+            "git add failed: error: unrecognized option '--attr-source=abc'"
+        ));
+        // The echoed arguments alone must not trigger a retry.
+        assert!(!is_attr_source_unsupported(
+            "git --attr-source=abc add -A failed: fatal: index file corrupt"
+        ));
+        assert!(!is_attr_source_unsupported(
+            "git --attr-source=abc add -A failed: error: unable to create temporary file: No space left on device"
+        ));
+        assert!(!is_attr_source_unsupported("failed to run git add: denied"));
+    }
+
+    #[tokio::test]
+    async fn snapshot_tree_returns_real_git_errors() {
+        let directory = tempfile::tempdir().unwrap();
+        // Not a repository: the error is surfaced, not masked by a retry.
+        let error = snapshot_tree(directory.path()).await.unwrap_err();
+        assert!(error.contains("failed"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn tracked_files_matching_gitignore_are_still_diffed() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        std::fs::write(root.join("kept.log"), "one\n").unwrap();
+        git_in(root, &["add", "-f", "kept.log"]);
+        std::fs::write(root.join(".gitignore"), "*.log\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+        std::fs::write(root.join("kept.log"), "two\n").unwrap();
+        std::fs::write(root.join("ignored.log"), "x\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+two"), "{}", diff.text);
+        assert!(!diff.text.contains("ignored.log"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn snapshot_tree_tolerates_gitlink_entries() {
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        std::fs::write(repo.join("file.txt"), "x\n").unwrap();
+        // An uninitialized submodule: a gitlink in the index with only an empty directory on disk.
+        git_in(
+            repo,
+            &[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                "160000,1111111111111111111111111111111111111111,sub",
+            ],
+        );
+        std::fs::create_dir(repo.join("sub")).unwrap();
+        let baseline = snapshot_tree(repo).await.unwrap();
+        std::fs::write(repo.join("new.txt"), "y\n").unwrap();
+        let after = snapshot_tree(repo).await.unwrap();
+        let diff = git_diff(repo, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+++ b/new.txt"), "{}", diff.text);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn conflicted_files_with_pathspec_or_non_utf8_names_do_not_break_snapshots() {
+        use std::os::unix::ffi::OsStrExt;
+        let directory = tempfile::tempdir().unwrap();
+        let repo = directory.path();
+        git_in(repo, &["init", "-q"]);
+        git_in(repo, &["config", "user.email", "t@t"]);
+        git_in(repo, &["config", "user.name", "t"]);
+        // macOS filesystems reject non-UTF-8 names, so only the pathspec-looking name applies there.
+        let raw: &[u8] = if cfg!(target_os = "macos") {
+            b":(glob)*badname.txt"
+        } else {
+            b":(glob)*bad\xffname.txt"
+        };
+        let name = std::ffi::OsStr::from_bytes(raw);
+        std::fs::write(repo.join(name), "base\n").unwrap();
+        git_in(repo, &["add", "."]);
+        git_in(repo, &["commit", "-qm", "base"]);
+        git_in(repo, &["checkout", "-qb", "other"]);
+        std::fs::write(repo.join(name), "other\n").unwrap();
+        git_in(repo, &["commit", "-qam", "other"]);
+        git_in(repo, &["checkout", "-q", "-"]);
+        std::fs::write(repo.join(name), "mine\n").unwrap();
+        git_in(repo, &["commit", "-qam", "mine"]);
+        let _ = std::process::Command::new("git")
+            .args(["merge", "other"])
+            .current_dir(repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("sibling.txt"), "keep\n").unwrap();
+
+        let baseline = snapshot_tree(repo).await.unwrap();
+        std::fs::write(repo.join("new.txt"), "x\n").unwrap();
+        let after = snapshot_tree(repo).await.unwrap();
+        let diff = git_diff(repo, &baseline, &after).await.unwrap();
+        assert!(diff.text.contains("+++ b/new.txt"), "{}", diff.text);
+        assert!(!diff.text.contains("sibling.txt"), "{}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn diff_keeps_worktree_bytes_despite_line_ending_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        git_in(root, &["init", "-q"]);
+        git_in(root, &["config", "core.autocrlf", "true"]);
+        std::fs::write(root.join(".gitattributes"), "*.txt text eol=lf\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("crlf.txt"), b"a\r\nb\r\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert!(diff.text.contains("+a\r\n"), "{:?}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn sha256_repositories_ignore_repository_attributes_in_snapshots() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        let init = std::process::Command::new("git")
+            .args(["init", "-q", "--object-format=sha256"])
+            .current_dir(root)
+            .status();
+        if !init.map(|status| status.success()).unwrap_or(false) {
+            eprintln!("skipping: installed git does not support --object-format=sha256");
+            return;
+        }
+        git_in(root, &["config", "core.autocrlf", "true"]);
+        std::fs::write(root.join(".gitattributes"), "*.txt text eol=lf\n").unwrap();
+        let baseline = snapshot_tree(root).await.unwrap();
+
+        std::fs::write(root.join("crlf.txt"), b"a\r\nb\r\n").unwrap();
+        let after = snapshot_tree(root).await.unwrap();
+        let diff = git_diff(root, &baseline, &after).await.unwrap();
+
+        assert_eq!(baseline.len(), 64);
+        assert!(diff.text.contains("+a\r\n"), "{:?}", diff.text);
+    }
+
+    #[tokio::test]
+    async fn drain_timeout_is_reported_separately_from_the_capture_limit() {
+        let mut run = test_run("drain", "running", Vec::new());
+        run.stdout_drain_timed_out = true;
+        assert!(parse_run_result(&mut run, false));
+        let error = run.error.as_deref().unwrap();
+        assert!(error.contains("kept the output pipe open"), "{error}");
+        assert!(!error.contains("capture limit"), "{error}");
+
+        let mut run = test_run("cap", "running", Vec::new());
+        run.stdout_truncated = true;
+        assert!(parse_run_result(&mut run, false));
+        let error = run.error.as_deref().unwrap();
+        assert!(error.contains("byte capture limit"), "{error}");
+        assert!(!error.contains("pipe"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn capture_failures_are_attached_to_the_run() {
+        let directory = tempfile::tempdir().unwrap();
+        let (diff, error) = capture_run_diff(directory.path(), Err("no baseline".into())).await;
+        assert!(diff.text.is_empty());
+        let mut run = test_run("failed-diff", "succeeded", Vec::new());
+        record_diff_error(&mut run, error);
+        assert_eq!(
+            run.error.as_deref(),
+            Some("failed to capture diff: no baseline")
+        );
+        run.error = Some("hk failed".into());
+        record_diff_error(&mut run, Some("again".into()));
+        assert_eq!(
+            run.error.as_deref(),
+            Some("hk failed; failed to capture diff: again")
+        );
+        record_diff_error(&mut run, None);
+        assert!(run.error.unwrap().ends_with("again"));
+    }
+
+    #[test]
+    fn utf8_patch_rejects_invalid_bytes_but_trims_a_truncated_character() {
+        assert_eq!(utf8_patch("é".as_bytes(), false).as_deref(), Some("é"));
+        assert_eq!(utf8_patch(&"é".as_bytes()[..1], true).as_deref(), Some(""));
+        assert!(utf8_patch(b"caf\xe9\n", false).is_none());
+        assert!(utf8_patch(b"caf\xe9\n", true).is_none());
     }
 
     #[test]
