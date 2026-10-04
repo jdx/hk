@@ -1762,6 +1762,17 @@
             "conflicts": ["--global"]
           },
           {
+            "name": "force",
+            "usage": "--force",
+            "help": "With the legacy `.git/hooks/` script shims, replace an existing hook\nthat hk did not write, and replace a symlinked hook with a regular\nfile (the symlink's target is left alone). By default hk refuses to\ninstall if any target is a hook it did not write or a symlink, and\ninstalls nothing.",
+            "help_first_line": "With the legacy `.git/hooks/` script shims, replace an existing hook",
+            "short": [],
+            "long": ["force"],
+            "hide": false,
+            "global": false,
+            "conflicts": ["--global"]
+          },
+          {
             "name": "mise",
             "usage": "--mise",
             "help": "Run hooks through `mise x` so mise-managed tools are available\nwithout activating mise in the shell.",
