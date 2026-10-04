@@ -28,7 +28,7 @@ Describe 'batching' {
 import os, sys
 # One file per call: batches run concurrently, and appending to a shared file can fail.
 with open('calls-%d.log' % os.getpid(), 'w') as f:
-    f.write(str(len(sys.argv) - 1) + '\n')
+    f.write(''.join(os.path.basename(a) + '\n' for a in sys.argv[1:]))
 "@
             Set-Content -Path "$binDir/argv-count.cmd" -Encoding ascii -Value @'
 @ECHO off
@@ -66,9 +66,12 @@ hooks {
             $output = hk check --all 2>&1 | Out-String
             $code = $LASTEXITCODE
             $code | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
-            $calls = @(Get-ChildItem "calls-*.log" | ForEach-Object { [int](Get-Content $_.FullName) })
-            $calls.Count | Should -BeGreaterThan 1 -Because "the files should be split; calls: $($calls -join ','); output:`n$output"
-            ($calls | Measure-Object -Sum).Sum | Should -Be 300
+            $logs = @(Get-ChildItem "calls-*.log")
+            $logs.Count | Should -BeGreaterThan 1 -Because "the files should be split; output:`n$output"
+            # Compare the names, not just the count: a repeated file plus an omitted one still sums to 300.
+            $seen = @($logs | ForEach-Object { Get-Content $_.FullName } | Sort-Object)
+            $expected = @(1..300 | ForEach-Object { "file_{0:D5}_abcdefghij.txt" -f $_ } | Sort-Object)
+            ($seen -join ',') | Should -Be ($expected -join ',')
         } finally {
             $env:PATH = $originalPath
             $env:HK_LOG = $originalHkLog
