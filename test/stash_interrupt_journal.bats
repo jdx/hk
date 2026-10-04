@@ -298,6 +298,49 @@ foreign_owner_is_reported() {
     foreign_owner_is_reported 1 "-"
 }
 
+# The same crash, but the journal looks like another host's (or an older
+# hk's, with no host recorded), so hk cannot judge its owner. The entry the
+# journal never recorded is still named in the report, and nothing is touched.
+foreign_owner_unrecorded_entry_is_reported() {
+    local use_libgit2="$1" identity="$2"
+    write_config
+    prepare_repo
+    run env HK_DEBUG_KILL_BEFORE_JOURNAL_RECORD=1 HK_LIBGIT2="$use_libgit2" hk run pre-commit
+    assert_failure
+    run grep -c '"commit"' "$JOURNAL"
+    assert_output 0
+    local commit before
+    commit="$(git stash list --format=%H)"
+    [ -n "$commit" ]
+    set_owner_host "$identity"
+    before="$(cat "$JOURNAL")"
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_output --partial "git stash apply $commit"
+    assert_output --partial "cannot tell whether it is still running"
+    assert_output --partial "not recorded in the journal"
+    # Nothing was restored, dropped or rewritten
+    assert_file_exists "$JOURNAL"
+    assert_equal "$(cat "$JOURNAL")" "$before"
+    assert_equal "$(git stash list --format=%H)" "$commit"
+    assert_equal "$(cat file.txt)" "staged"
+}
+
+@test "an unrecorded stash entry is reported for a journal from another host (libgit2)" {
+    foreign_owner_unrecorded_entry_is_reported 1 "elsewhere.example|pid:[4026539999]"
+}
+
+@test "an unrecorded stash entry is reported for a journal from another host (shell git)" {
+    foreign_owner_unrecorded_entry_is_reported 0 "elsewhere.example|pid:[4026539999]"
+}
+
+@test "an unrecorded stash entry is reported for a journal with no recorded host (libgit2)" {
+    foreign_owner_unrecorded_entry_is_reported 1 "-"
+}
+
+@test "an unrecorded stash entry is reported for a journal with no recorded host (shell git)" {
+    foreign_owner_unrecorded_entry_is_reported 0 "-"
+}
+
 # Recovery takes the same stash lock stashing does, so it cannot interleave
 # with another worktree's stash or pop.
 recovery_waits_for_the_stash_lock() {

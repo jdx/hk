@@ -2426,25 +2426,23 @@ impl Git {
                 // Report only: restoring or dropping could pull the changes
                 // out from under a run that is still going somewhere hk
                 // cannot see
-                let stash = stash_entries()?;
-                let commits: Vec<String> = journal
-                    .entries
-                    .iter()
-                    .filter(|e| stash.iter().any(|row| row.commit == e.commit))
-                    .map(|e| e.commit.clone())
-                    .collect();
-                if commits.is_empty() {
-                    debug!("{}: {why}; it holds no stash entry", path.display());
-                } else {
-                    warn!(
-                        "{}",
-                        stash_journal::report_message(
-                            &journal,
-                            &path,
-                            &stash_journal::ReportReason::UnknownOwner(why),
-                            &commits
-                        )
-                    );
+                let rows: std::result::Result<Vec<stash_journal::StashRow>, String> =
+                    stash_entries().map_err(|e| format!("{e:#}")).map(|list| {
+                        list.into_iter()
+                            .map(|e| stash_journal::StashRow {
+                                commit: e.commit,
+                                subject: e.subject,
+                            })
+                            .collect()
+                    });
+                match stash_journal::unknown_owner_report(
+                    &journal,
+                    &path,
+                    why,
+                    rows.as_deref().map_err(|e| e.clone()),
+                ) {
+                    Some(message) => warn!("{message}"),
+                    None => debug!("{}: {why}; it holds no stash entry", path.display()),
                 }
                 return Ok(());
             }

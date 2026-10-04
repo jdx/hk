@@ -562,6 +562,71 @@ pub enum Action {
     },
 }
 
+/// hk-looking entries that appeared since the journal began and that the
+/// journal does not name: hk died between creating one and recording it. They
+/// are found by the pid in their message (or, for the fixed message earlier
+/// versions gave the intent-to-add entry, by not predating the journal).
+pub fn unrecorded_entries(journal: &Journal, stash: &[StashRow]) -> Vec<String> {
+    stash
+        .iter()
+        .filter(|row| {
+            (message_pid(&row.subject) == Some(journal.pid)
+                || (is_intent_to_add(&row.subject)
+                    && !journal.stashes_before.contains(&row.commit)))
+                && !journal.stashes_before.contains(&row.commit)
+                && !journal.entries.iter().any(|e| e.commit == row.commit)
+        })
+        .map(|row| row.commit.clone())
+        .collect()
+}
+
+/// What to print for a journal whose owner cannot be told: every commit it
+/// names that is still in the stash, then the unrecorded entries carrying its
+/// pid, each once. Nothing is restored or dropped. `None` when there is
+/// nothing to report. If the stash list could not be read, the warning says
+/// how to look for the entries by hand.
+pub fn unknown_owner_report(
+    journal: &Journal,
+    path: &Path,
+    why: &'static str,
+    stash: Result<&[StashRow], String>,
+) -> Option<String> {
+    let stash = match stash {
+        Ok(stash) => stash,
+        Err(err) => {
+            return Some(format!(
+                "{} has your unstaged changes stashed, or may have, and hk cannot tell whether it is still running: {why}. hk could not read the stash list ({err}), so it restored and dropped nothing. Run `git stash list` and look for entries named `hk: {}-...`; `git stash apply <commit-id>` brings one back. hk keeps reminding you until the journal {} is deleted.",
+                journal.describe(),
+                journal.pid,
+                path.display()
+            ));
+        }
+    };
+    let mut commits: Vec<String> = journal
+        .entries
+        .iter()
+        .filter(|e| stash.iter().any(|row| row.commit == e.commit))
+        .map(|e| e.commit.clone())
+        .collect();
+    let unrecorded = unrecorded_entries(journal, stash);
+    for commit in &unrecorded {
+        if !commits.contains(commit) {
+            commits.push(commit.clone());
+        }
+    }
+    if commits.is_empty() {
+        return None;
+    }
+    let mut message = report_message(journal, path, &ReportReason::UnknownOwner(why), &commits);
+    if !unrecorded.is_empty() {
+        message.push_str(&format!(
+            "\nSome of these entries are not recorded in the journal: they are named `hk: {}-...` after its process id, so they are listed in case that run stopped before it recorded them. They may belong to a run on another host or PID namespace that is still going.",
+            journal.pid
+        ));
+    }
+    Some(message)
+}
+
 /// What to do with a journal whose owner is gone. `stash` is the stash list
 /// now, and `worktree_clean` whether the worktree has no change that is not
 /// staged and no untracked file.
@@ -572,19 +637,7 @@ pub fn decide(journal: &Journal, stash: &[StashRow], worktree_clean: bool) -> Ac
         .filter(|e| stash.iter().any(|row| row.commit == e.commit))
         .cloned()
         .collect();
-    // hk-looking entries that appeared since the journal began and that the
-    // journal does not name
-    let unrecorded: Vec<String> = stash
-        .iter()
-        .filter(|row| {
-            (message_pid(&row.subject) == Some(journal.pid)
-                || (is_intent_to_add(&row.subject)
-                    && !journal.stashes_before.contains(&row.commit)))
-                && !journal.stashes_before.contains(&row.commit)
-                && !journal.entries.iter().any(|e| e.commit == row.commit)
-        })
-        .map(|row| row.commit.clone())
-        .collect();
+    let unrecorded = unrecorded_entries(journal, stash);
     if !unrecorded.is_empty() {
         let mut commits: Vec<String> = present.iter().map(|e| e.commit.clone()).collect();
         commits.extend(unrecorded);
@@ -928,6 +981,62 @@ mod tests {
             decide(&journal(), &stash, true),
             Action::Discard(_)
         ));
+    }
+
+    #[test]
+    fn unknown_owner_lists_unrecorded_entries_and_never_acts() {
+        let path = Path::new("/r/.git/hk-pending-stash");
+        let why = "written elsewhere";
+        // Empty journal, an entry carrying its pid, one of another pid
+        let stash = [
+            row("new", "On main: hk: 4242-1a2b-0"),
+            row("other", "On main: hk: 777-1a2b-0"),
+        ];
+        let msg = unknown_owner_report(&journal(), path, why, Ok(&stash)).unwrap();
+        assert!(msg.contains("git stash apply new"), "{msg}");
+        assert!(!msg.contains("git stash apply other"), "{msg}");
+        assert!(msg.contains("not recorded"), "{msg}");
+        assert!(msg.contains("another host"), "{msg}");
+        // Recorded and unrecorded, each once
+        let mut j = journal();
+        j.entries.push(entry("a"));
+        let stash = [
+            row("a", "On main: hk: 4242-9-0"),
+            row("b", "On main: hk: 4242-9-1"),
+        ];
+        let msg = unknown_owner_report(&j, path, why, Ok(&stash)).unwrap();
+        assert_eq!(msg.matches("git stash apply a\n").count(), 1, "{msg}");
+        assert_eq!(msg.matches("git stash apply b\n").count(), 1, "{msg}");
+        // Nothing of the journal's in the stash: nothing to say
+        assert!(unknown_owner_report(&journal(), path, why, Ok(&[])).is_none());
+    }
+
+    #[test]
+    fn unknown_owner_report_covers_foreign_host_and_missing_host() {
+        let stash = [row("new", "On main: hk: 4242-1a2b-0")];
+        for host in [None, Some("elsewhere|pid:[1]".to_string())] {
+            let mut j = journal();
+            j.owner_host = host;
+            let Owner::Unknown(why) = j.owner(HERE, false, None) else {
+                panic!("expected an unknown owner");
+            };
+            let msg = unknown_owner_report(&j, Path::new("/j"), why, Ok(&stash)).unwrap();
+            assert!(msg.contains("git stash apply new"), "{msg}");
+        }
+    }
+
+    #[test]
+    fn unreadable_stash_list_gets_a_warning_not_silence() {
+        let msg = unknown_owner_report(
+            &journal(),
+            Path::new("/j"),
+            "written elsewhere",
+            Err("boom".to_string()),
+        )
+        .unwrap();
+        assert!(msg.contains("git stash list"), "{msg}");
+        assert!(msg.contains("hk: 4242-"), "{msg}");
+        assert!(msg.contains("boom"), "{msg}");
     }
 
     #[test]
