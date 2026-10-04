@@ -231,6 +231,13 @@ impl StepOrGroup {
 
 type CommandEffectsByStep = IndexMap<String, Vec<(String, Option<CommandEffect>)>>;
 
+/// One command's diagnostic output and the directory it ran in.
+#[derive(Debug, Clone)]
+pub struct DiagnosticSegment {
+    pub dir: Option<String>,
+    pub output: String,
+}
+
 pub struct HookContext {
     pub file_locks: FileRwLocks,
     /// Commands and staging share access; patch apply/rollback requires exclusive access
@@ -259,6 +266,9 @@ pub struct HookContext {
     /// separate so a successful fixer does not resurrect a suppressed
     /// check-first failure in the human summary.
     pub diagnostic_output_by_step: std::sync::Mutex<IndexMap<String, String>>,
+    /// The same output as `diagnostic_output_by_step`, kept per command with the
+    /// directory it ran in so parsed diagnostic paths can be made repo-relative.
+    pub diagnostic_segments_by_step: std::sync::Mutex<IndexMap<String, Vec<DiagnosticSegment>>>,
     /// Command fields and effects actually selected for execution per step.
     pub command_effects_by_step: std::sync::Mutex<CommandEffectsByStep>,
     /// Names of steps that failed during this run. Tracked here because
@@ -335,6 +345,7 @@ impl HookContext {
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
             diagnostic_output_by_step: StdMutex::new(IndexMap::new()),
+            diagnostic_segments_by_step: StdMutex::new(IndexMap::new()),
             command_effects_by_step: StdMutex::new(IndexMap::new()),
             failed_steps: StdMutex::new(HashSet::new()),
             allowed_failure_steps: StdMutex::new(HashSet::new()),
@@ -432,9 +443,24 @@ impl HookContext {
             .or_insert_with(|| (mode, text.to_string()));
     }
 
-    pub fn append_diagnostic_output(&self, step_name: &str, text: &str) {
+    /// Record a check command's output for `diagnostic_format` parsing. `dir` is the
+    /// directory (relative to the repo root) the command ran in, if the step has one.
+    pub fn append_diagnostic_output(&self, step_name: &str, dir: Option<&str>, text: &str) {
         if text.is_empty() {
             return;
+        }
+        {
+            let mut segments = self.diagnostic_segments_by_step.lock().unwrap();
+            let segments = segments.entry(step_name.to_string()).or_default();
+            if !segments
+                .iter()
+                .any(|s| s.dir.as_deref() == dir && s.output == text)
+            {
+                segments.push(DiagnosticSegment {
+                    dir: dir.map(str::to_string),
+                    output: text.to_string(),
+                });
+            }
         }
         let mut map = self.diagnostic_output_by_step.lock().unwrap();
         map.entry(step_name.to_string())
