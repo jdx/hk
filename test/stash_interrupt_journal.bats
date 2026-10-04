@@ -245,3 +245,143 @@ kill_during_recovery() {
 @test "a recovery killed after it restores leaves the journal for the next run (shell git)" {
     kill_during_recovery 0 HK_DEBUG_KILL_AFTER_RECOVERY
 }
+
+# The git directory can be shared by hosts or PID namespaces that cannot see
+# each other's processes, so a pid that is not running proves nothing unless
+# the journal was written where hk runs now. Rewrite the recorded identity
+# (or drop it, as an older hk's journal has none) to play another host.
+set_owner_host() {
+    python3 - "$JOURNAL" "$1" <<'PY'
+import json, sys
+path, value = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    j = json.load(f)
+if value == "-":
+    j.pop("owner_host", None)
+else:
+    j["owner_host"] = value
+with open(path, "w") as f:
+    json.dump(j, f, indent=2)
+PY
+}
+
+foreign_owner_is_reported() {
+    local use_libgit2="$1" identity="$2"
+    kill9_then_recover "$use_libgit2"
+    local original
+    original="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner_host"])' "$JOURNAL")"
+    set_owner_host "$identity"
+    local commit
+    commit="$(git stash list --format=%H)"
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_output --partial "git stash apply $commit"
+    assert_output --partial "cannot tell whether it is still running"
+    # Nothing was restored or dropped
+    assert_file_exists "$JOURNAL"
+    assert_equal "$(git stash list --format=%H)" "$commit"
+    assert_equal "$(cat file.txt)" "staged"
+    # The same journal written where hk runs is recovered as before
+    set_owner_host "$original"
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_changes_restored
+}
+
+@test "a journal from another host is reported, never restored (libgit2)" {
+    foreign_owner_is_reported 1 "elsewhere.example|pid:[4026539999]"
+}
+
+@test "a journal from another PID namespace is reported, never restored (shell git)" {
+    foreign_owner_is_reported 0 "$(hostname)|pid:[1]"
+}
+
+@test "a journal with no recorded host is reported when its pid is not running (libgit2)" {
+    foreign_owner_is_reported 1 "-"
+}
+
+# Recovery takes the same stash lock stashing does, so it cannot interleave
+# with another worktree's stash or pop.
+recovery_waits_for_the_stash_lock() {
+    local use_libgit2="$1"
+    kill9_then_recover "$use_libgit2"
+    local commit lock
+    commit="$(git stash list --format=%H)"
+    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    python3 - "$lock" "$BATS_TEST_TMPDIR/lock-held" <<'PY' &
+import fcntl, sys, time
+f = open(sys.argv[1], "w")
+fcntl.flock(f, fcntl.LOCK_EX)
+open(sys.argv[2], "w").close()
+time.sleep(60)
+PY
+    local holder=$!
+    for _ in $(seq 100); do
+        [ -e "$BATS_TEST_TMPDIR/lock-held" ] && break
+        sleep 0.1
+    done
+    if [ ! -e "$BATS_TEST_TMPDIR/lock-held" ]; then
+        kill "$holder" 2>/dev/null || true
+        fail "lock holder never took the lock"
+    fi
+    HK_STASH_LOCK_TIMEOUT=1 HK_LIBGIT2="$use_libgit2" run hk check --all
+    assert_output --partial "waiting for another hk process to finish stashing"
+    assert_output --partial "left its journal"
+    # Nothing was restored while the lock was held elsewhere
+    assert_file_exists "$JOURNAL"
+    assert_equal "$(git stash list --format=%H)" "$commit"
+    assert_equal "$(cat file.txt)" "staged"
+    kill "$holder"
+    wait "$holder" 2>/dev/null || true
+    # Once it is free the next run recovers
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    assert_changes_restored
+}
+
+@test "recovery waits for the stash lock and restores nothing without it (libgit2)" {
+    recovery_waits_for_the_stash_lock 1
+}
+
+@test "recovery waits for the stash lock and restores nothing without it (shell git)" {
+    recovery_waits_for_the_stash_lock 0
+}
+
+# A journal that was only reported (the tree had edits of its own) stays. A
+# run that then stashes those edits and starts its fixers holds the stash lock,
+# so a third run cannot see a clean tree and restore the old stash over them.
+reported_journal_is_not_restored_over_a_running_fixer() {
+    local use_libgit2="$1"
+    kill9_then_recover "$use_libgit2"
+    local old
+    old="$(git stash list --format=%H)"
+    printf 'staged\nnew edit\n' > file.txt
+    HK_LIBGIT2="$use_libgit2" hk run pre-commit >"$BATS_TEST_TMPDIR/b.out" 2>&1 &
+    local pid=$!
+    wait_for_step
+    # The second run reported the old journal and kept it, the changes it
+    # reported are still in the stash, and its own edit is the one stashed now
+    assert_file_exists "$JOURNAL"
+    assert_equal "$(cat file.txt)" "staged"
+    run git stash list --format=%H
+    assert_equal "${#lines[@]}" 2
+    # A third run sees a clean tree but may not recover while that is so
+    HK_STASH_LOCK_TIMEOUT=1 HK_LIBGIT2="$use_libgit2" run hk check --all
+    assert_output --partial "left its journal"
+    assert_equal "$(cat file.txt)" "staged"
+    run git stash list --format=%H
+    assert_equal "${#lines[@]}" 2
+    assert_file_exists "$JOURNAL"
+    kill -TERM "$pid"
+    wait "$pid" || true
+    # The running one put its own edit back and left the reported entry alone
+    assert_equal "$(cat file.txt)" "$(printf 'staged\nnew edit\n')"
+    assert_equal "$(git stash list --format=%H)" "$old"
+    assert_file_exists "$JOURNAL"
+    grep -q "pending-stash journal is still in place" "$BATS_TEST_TMPDIR/b.out"
+}
+
+@test "a reported journal is not restored over a running fixer (libgit2)" {
+    reported_journal_is_not_restored_over_a_running_fixer 1
+}
+
+@test "a reported journal is not restored over a running fixer (shell git)" {
+    reported_journal_is_not_restored_over_a_running_fixer 0
+}

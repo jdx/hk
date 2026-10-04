@@ -1283,7 +1283,8 @@ impl Hook {
         // Changes an earlier, killed run left in the stash, before this run stashes more
         {
             let mut repo = repo.lock().await;
-            repo.recover_pending_stash();
+            // May wait for the stash lock, which blocks this thread
+            tokio::task::block_in_place(|| repo.recover_pending_stash());
             repo.set_stash_hook_name(&self.name);
         }
         let stash_method = match self.resolve_stash_method_for_opts(&opts) {

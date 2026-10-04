@@ -45,6 +45,13 @@ pub struct Journal {
     /// When that process started, to tell it from a later process that reuses
     /// the pid. `None` where hk cannot read it.
     pub pid_start: Option<String>,
+    /// Which machine and PID namespace the owner ran in (see
+    /// [`host_identity`]). The git directory can be shared by hosts or
+    /// containers that cannot see each other's processes, so a pid that is not
+    /// running here proves nothing unless this matches. `None` in journals
+    /// written by older hk versions and where it cannot be read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_host: Option<String>,
     /// Seconds since the Unix epoch when the journal was written.
     pub timestamp: u64,
     pub hook: String,
@@ -63,6 +70,7 @@ impl Journal {
             version: VERSION,
             pid,
             pid_start: process_start_token(pid),
+            owner_host: host_identity(),
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_secs())
@@ -89,14 +97,53 @@ impl Journal {
         Ok(serde_json::to_string_pretty(self)? + "\n")
     }
 
-    /// Whether the process that wrote this journal is gone. `alive` and
-    /// `current_start` describe the process that now has `self.pid`.
-    pub fn owner_is_gone(&self, alive: bool, current_start: Option<&str>) -> bool {
-        if !alive {
-            return true;
+    /// Whether the owner of this journal is gone, running or cannot be told.
+    /// `here` is the identity of the current process (see [`host_identity`]),
+    /// `alive` whether a process with `self.pid` exists in this namespace and
+    /// `current_start` that process's start token.
+    ///
+    /// A pid that is not running only means the owner is gone when the journal
+    /// was written where hk is running now. From another host or PID namespace
+    /// the owner may well be running, so nothing is assumed.
+    pub fn owner(&self, here: Option<&str>, alive: bool, current_start: Option<&str>) -> Owner {
+        let start_differs =
+            matches!((self.pid_start.as_deref(), current_start), (Some(a), Some(b)) if a != b);
+        match (self.owner_host.as_deref(), here) {
+            (Some(recorded), Some(here)) if recorded == here => {
+                if !alive || start_differs {
+                    Owner::Gone
+                } else {
+                    Owner::Running
+                }
+            }
+            (Some(_), Some(_)) => Owner::Unknown(
+                "it was written by another host or PID namespace, whose processes hk cannot see",
+            ),
+            (Some(_), None) => Owner::Unknown(
+                "hk cannot tell which host and PID namespace it is running in to compare with the journal",
+            ),
+            // Written by an older hk, which did not record it: a pid that is
+            // visible here is judged as before, one that is not proves nothing
+            (None, _) if alive => {
+                if start_differs {
+                    Owner::Gone
+                } else {
+                    Owner::Running
+                }
+            }
+            (None, _) => Owner::Unknown(
+                "it does not record which host or PID namespace it was written in, and its pid is not running here",
+            ),
         }
-        // Alive, but a different process than the one that wrote the journal
-        matches!((self.pid_start.as_deref(), current_start), (Some(a), Some(b)) if a != b)
+    }
+
+    /// [`Self::owner`] judged from this process.
+    pub fn owner_now(&self) -> Owner {
+        self.owner(
+            host_identity().as_deref(),
+            process_is_alive(self.pid),
+            process_start_token(self.pid).as_deref(),
+        )
     }
 
     /// The owner, as the journal records it, for messages.
@@ -112,6 +159,56 @@ impl Journal {
             "hk (pid {}, hook `{}`, started {when})",
             self.pid, self.hook
         )
+    }
+}
+
+/// What a journal's owner is doing, as far as hk can tell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Owner {
+    /// The process that wrote it no longer exists, where it ran.
+    Gone,
+    /// Still running here.
+    Running,
+    /// hk cannot see the owner's processes: nothing may be restored or dropped.
+    Unknown(&'static str),
+}
+
+/// Identifies where this process runs, so that a journal in a git directory
+/// shared by several hosts (a network file system) or PID namespaces (a
+/// repository mounted into a container) is only judged by a process that can
+/// see the owner. The host name, and on Linux the PID namespace.
+pub fn host_identity() -> Option<String> {
+    let host = hostname()?;
+    #[cfg(target_os = "linux")]
+    {
+        let ns = std::fs::read_link("/proc/self/ns/pid").ok()?;
+        Some(format!("{host}|{}", ns.display()))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Some(host)
+    }
+}
+
+fn hostname() -> Option<String> {
+    #[cfg(unix)]
+    {
+        let mut buf = [0u8; 256];
+        // SAFETY: the buffer is valid for its length, which is passed
+        let rc = unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.len()) };
+        if rc != 0 {
+            return None;
+        }
+        let end = buf.iter().position(|b| *b == 0).unwrap_or(buf.len());
+        let name = String::from_utf8_lossy(&buf[..end]).trim().to_string();
+        (!name.is_empty()).then_some(name)
+    }
+    #[cfg(windows)]
+    {
+        std::env::var("COMPUTERNAME")
+            .ok()
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty())
     }
 }
 
@@ -137,19 +234,23 @@ impl JournalLock {
     /// Waits for the lock next to the journal at `path`. `Ok(None)` when the
     /// wait ran out or hk was told to shut down meanwhile; the caller then
     /// leaves the journal alone.
-    pub fn acquire(path: &Path) -> Result<Option<Self>> {
-        Self::acquire_for(path, LOCK_WAIT)
+    ///
+    /// The lock file is opened like the stash lock's: an existing one
+    /// read-only, which is enough to lock it, and a new one with the mode
+    /// `core.sharedRepository` asks for (`shared_mode`), so a file another
+    /// account created never locks this one out.
+    pub fn acquire(path: &Path, shared_mode: Option<u32>) -> Result<Option<Self>> {
+        Self::acquire_for(path, LOCK_WAIT, shared_mode)
     }
 
-    fn acquire_for(path: &Path, wait: std::time::Duration) -> Result<Option<Self>> {
+    fn acquire_for(
+        path: &Path,
+        wait: std::time::Duration,
+        shared_mode: Option<u32>,
+    ) -> Result<Option<Self>> {
         use std::fs::TryLockError;
         let lock_path = path.with_file_name(LOCK_NAME);
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&lock_path)
+        let file = crate::stash_lock::open_lock_file(&lock_path, shared_mode)
             .wrap_err_with(|| format!("failed to open {}", lock_path.display()))?;
         let deadline = std::time::Instant::now() + wait;
         loop {
@@ -318,19 +419,28 @@ pub fn discard(path: &Path, _lock: &JournalLock) {
 pub struct OwnedJournal {
     path: PathBuf,
     journal: Journal,
+    shared_mode: Option<u32>,
 }
 
 impl OwnedJournal {
     /// Writes a journal with no entries yet, before the worktree is touched.
     /// `Ok(None)` when a journal already exists, whose owner or leftovers hk
     /// must not overwrite.
-    pub fn begin(path: PathBuf, journal: Journal) -> Result<Option<Self>> {
-        let lock = Self::lock(&path)?;
-        Ok(create(&path, &journal, &lock)?.then_some(Self { path, journal }))
+    pub fn begin(
+        path: PathBuf,
+        journal: Journal,
+        shared_mode: Option<u32>,
+    ) -> Result<Option<Self>> {
+        let lock = Self::lock(&path, shared_mode)?;
+        Ok(create(&path, &journal, &lock)?.then_some(Self {
+            path,
+            journal,
+            shared_mode,
+        }))
     }
 
-    fn lock(path: &Path) -> Result<JournalLock> {
-        JournalLock::acquire(path)?.ok_or_else(|| {
+    fn lock(path: &Path, shared_mode: Option<u32>) -> Result<JournalLock> {
+        JournalLock::acquire(path, shared_mode)?.ok_or_else(|| {
             eyre!(
                 "gave up waiting for another hk to finish with {}",
                 path.display()
@@ -347,7 +457,7 @@ impl OwnedJournal {
         if self.journal.entries.iter().any(|e| e.commit == commit) {
             return Ok(());
         }
-        let lock = Self::lock(&self.path)?;
+        let lock = Self::lock(&self.path, self.shared_mode)?;
         self.journal.entries.push(JournalEntry {
             commit: commit.to_string(),
             kind,
@@ -357,7 +467,7 @@ impl OwnedJournal {
 
     /// Forgets an entry hk dropped itself.
     pub fn forget(&mut self, commit: &str) -> Result<()> {
-        let lock = Self::lock(&self.path)?;
+        let lock = Self::lock(&self.path, self.shared_mode)?;
         self.journal.entries.retain(|e| e.commit != commit);
         replace(&self.path, &self.journal, &lock)
     }
@@ -366,7 +476,7 @@ impl OwnedJournal {
     /// lock cannot be had the journal stays, which is harmless: the next run
     /// finds no entry of it in the stash and discards it.
     pub fn remove(self) {
-        let lock = match Self::lock(&self.path) {
+        let lock = match Self::lock(&self.path, self.shared_mode) {
             Ok(lock) => lock,
             Err(err) => {
                 log::warn!("left the pending-stash journal in place: {err}");
@@ -435,6 +545,8 @@ pub enum ReportReason {
     UnrecordedEntry,
     /// The journal names more than one entry of a kind, which hk never makes.
     Ambiguous,
+    /// The owner may still be running, in another host or PID namespace.
+    UnknownOwner(&'static str),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -513,14 +625,16 @@ pub fn report_message(
     commits: &[String],
 ) -> String {
     let why = match reason {
+        ReportReason::UnknownOwner(_) => String::new(),
         ReportReason::DirtyWorktree => {
-            "The working tree has changes of its own, so hk did not apply them itself."
+            "The working tree has changes of its own, so hk did not apply them itself.".to_string()
         }
         ReportReason::UnrecordedEntry => {
             "hk cannot tell which stash entries are its own, so it did not apply them itself."
+                .to_string()
         }
         ReportReason::Ambiguous => {
-            "More than one stash entry is recorded, so hk did not apply them itself."
+            "More than one stash entry is recorded, so hk did not apply them itself.".to_string()
         }
     };
     let commands = commits
@@ -528,6 +642,14 @@ pub fn report_message(
         .map(|c| format!("  git stash apply {c}"))
         .collect::<Vec<_>>()
         .join("\n");
+    if let ReportReason::UnknownOwner(why) = reason {
+        return format!(
+            "{} has your unstaged changes stashed, and hk cannot tell whether it is still running: {why}. hk restored and dropped nothing. If it is running, let it finish. If it is not, get the changes back with:\n{commands}\n\
+             hk keeps reminding you until the stash entries are dropped (`git stash list`, then `git stash drop`), or until you delete {}.",
+            journal.describe(),
+            path.display()
+        );
+    }
     format!(
         "{} was stopped while it had your unstaged changes stashed, and they were not put back. {why}\n\
          To get them back, once the working tree is ready for them, run:\n{commands}\n\
@@ -668,6 +790,7 @@ mod tests {
             version: VERSION,
             pid: 4242,
             pid_start: Some("boot:100".into()),
+            owner_host: Some("host|pid:[1]".into()),
             timestamp: 1_700_000_000,
             hook: "pre-commit".into(),
             worktree: "/repo".into(),
@@ -710,17 +833,92 @@ mod tests {
         assert!(Journal::parse(&j.to_json().unwrap()).is_err());
     }
 
+    const HERE: Option<&str> = Some("host|pid:[1]");
+
     #[test]
-    fn owner_gone_when_dead_or_pid_reused() {
+    fn owner_gone_when_same_place_and_dead_or_pid_reused() {
         let j = journal();
-        assert!(j.owner_is_gone(false, None));
-        assert!(!j.owner_is_gone(true, Some("boot:100")));
-        assert!(j.owner_is_gone(true, Some("boot:999")));
+        assert_eq!(j.owner(HERE, false, None), Owner::Gone);
+        assert_eq!(j.owner(HERE, true, Some("boot:100")), Owner::Running);
+        assert_eq!(j.owner(HERE, true, Some("boot:999")), Owner::Gone);
         // Without start information a live pid is trusted
-        assert!(!j.owner_is_gone(true, None));
-        let mut unknown = journal();
-        unknown.pid_start = None;
-        assert!(!unknown.owner_is_gone(true, Some("boot:999")));
+        assert_eq!(j.owner(HERE, true, None), Owner::Running);
+        let mut no_start = journal();
+        no_start.pid_start = None;
+        assert_eq!(no_start.owner(HERE, true, Some("boot:999")), Owner::Running);
+    }
+
+    #[test]
+    fn owner_is_unknown_from_another_host_or_namespace() {
+        let j = journal();
+        // The pid is not visible here, but that proves nothing
+        for there in [Some("other|pid:[1]"), Some("host|pid:[2]"), None] {
+            assert!(matches!(j.owner(there, false, None), Owner::Unknown(_)));
+            // Even a visible pid is a different process in another namespace
+            assert!(matches!(
+                j.owner(there, true, Some("boot:999")),
+                Owner::Unknown(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn journal_without_identity_is_unknown_unless_its_pid_is_visible() {
+        let mut old = journal();
+        old.owner_host = None;
+        assert!(matches!(old.owner(HERE, false, None), Owner::Unknown(_)));
+        // As before for a pid that is alive
+        assert_eq!(old.owner(HERE, true, Some("boot:100")), Owner::Running);
+        assert_eq!(old.owner(HERE, true, Some("boot:999")), Owner::Gone);
+    }
+
+    #[test]
+    fn identity_is_optional_in_json_and_this_process_has_one() {
+        let mut j = journal();
+        j.owner_host = None;
+        let text = j.to_json().unwrap();
+        assert!(!text.contains("owner_host"));
+        assert_eq!(Journal::parse(&text).unwrap().owner_host, None);
+        assert_eq!(
+            Journal::new("h", Path::new("/r"), vec![]).owner_host,
+            host_identity()
+        );
+        assert!(host_identity().is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn read_only_journal_lock_file_can_still_be_locked() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let lock_path = dir.path().join(LOCK_NAME);
+        std::fs::write(&lock_path, "").unwrap();
+        std::fs::set_permissions(&lock_path, std::fs::Permissions::from_mode(0o444)).unwrap();
+        let held = JournalLock::acquire(&path, None).unwrap().expect("locked");
+        assert!(
+            JournalLock::acquire_for(&path, std::time::Duration::from_millis(50), None)
+                .unwrap()
+                .is_none()
+        );
+        drop(held);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn journal_lock_file_honors_the_shared_mode_over_the_umask() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME);
+        let _held = JournalLock::acquire(&path, Some(0o660))
+            .unwrap()
+            .expect("locked");
+        let mode = std::fs::metadata(dir.path().join(LOCK_NAME))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o660);
     }
 
     #[test]
@@ -867,7 +1065,9 @@ mod tests {
     }
 
     fn lock(path: &Path) -> JournalLock {
-        JournalLock::acquire(path).unwrap().expect("lock is free")
+        JournalLock::acquire(path, None)
+            .unwrap()
+            .expect("lock is free")
     }
 
     fn names(dir: &Path) -> Vec<String> {
@@ -883,14 +1083,14 @@ mod tests {
     fn begin_never_overwrites_an_existing_journal() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE_NAME);
-        let mut mine = OwnedJournal::begin(path.clone(), journal())
+        let mut mine = OwnedJournal::begin(path.clone(), journal(), None)
             .unwrap()
             .expect("first journal is written");
         mine.record("abc", StashKind::Unstaged).unwrap();
         assert!(mine.has_entries());
         // A second writer is refused and the first one's content is intact
         assert!(
-            OwnedJournal::begin(path.clone(), journal())
+            OwnedJournal::begin(path.clone(), journal(), None)
                 .unwrap()
                 .is_none()
         );
@@ -928,14 +1128,14 @@ mod tests {
         // A second hold, from another open file, waits and then gives up
         let started = std::time::Instant::now();
         assert!(
-            JournalLock::acquire_for(&path, std::time::Duration::from_millis(100))
+            JournalLock::acquire_for(&path, std::time::Duration::from_millis(100), None)
                 .unwrap()
                 .is_none()
         );
         assert!(started.elapsed() >= std::time::Duration::from_millis(100));
         drop(held);
         assert!(
-            JournalLock::acquire_for(&path, std::time::Duration::from_millis(100))
+            JournalLock::acquire_for(&path, std::time::Duration::from_millis(100), None)
                 .unwrap()
                 .is_some()
         );
@@ -1012,7 +1212,7 @@ mod tests {
     fn remove_leaves_a_journal_another_process_wrote() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE_NAME);
-        let mine = OwnedJournal::begin(path.clone(), journal())
+        let mine = OwnedJournal::begin(path.clone(), journal(), None)
             .unwrap()
             .unwrap();
         let mut other = journal();
@@ -1033,7 +1233,7 @@ mod tests {
                     s.spawn(move || {
                         let mut j = journal();
                         j.pid = 1000 + i;
-                        OwnedJournal::begin(path, j).unwrap().is_some()
+                        OwnedJournal::begin(path, j, None).unwrap().is_some()
                     })
                 })
                 .collect();
@@ -1058,7 +1258,7 @@ mod tests {
         // journal, and discarding is only done by the one that owns it.
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FILE_NAME);
-        let mut mine = OwnedJournal::begin(path.clone(), journal())
+        let mut mine = OwnedJournal::begin(path.clone(), journal(), None)
             .unwrap()
             .unwrap();
         let stop = std::sync::atomic::AtomicBool::new(false);

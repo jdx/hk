@@ -116,7 +116,10 @@ pub fn shared_repository_mode(value: Option<&str>) -> Option<u32> {
     }
 }
 
-fn open_lock_file(path: &Path, shared_mode: Option<u32>) -> std::io::Result<File> {
+/// Opens (creating if needed) a lock file in the repository: an existing one
+/// read-only, a new one with `shared_mode` when set. Shared with the journal's
+/// lock so both honor `core.sharedRepository` alike.
+pub fn open_lock_file(path: &Path, shared_mode: Option<u32>) -> std::io::Result<File> {
     // An existing file only needs to be readable to be locked, so a lock file
     // another account created without group write still works for us.
     match OpenOptions::new().read(true).open(path) {

@@ -2298,12 +2298,14 @@ impl Git {
                 &std::env::current_dir()?,
                 stash_entries()?.into_iter().map(|e| e.commit).collect(),
             );
-            stash_journal::OwnedJournal::begin(path, journal)
+            stash_journal::OwnedJournal::begin(path, journal, self.stash_lock_shared_mode())
         })();
         match begun {
             Ok(Some(journal)) => self.journal = Some(journal),
             Ok(None) => {
-                debug!("another pending-stash journal exists; this run keeps none");
+                warn!(
+                    "an earlier pending-stash journal is still in place, so this run keeps none of its own. If hk is killed before it restores, the changes it stashed stay in `git stash list` as `hk: <pid>-...` entries"
+                );
                 self.journal_declined = true;
             }
             Err(err) => warn!("failed to write the pending-stash journal: {err:?}"),
@@ -2349,16 +2351,57 @@ impl Git {
         if !path.try_exists().unwrap_or(true) {
             return Ok(());
         }
+        // A journal whose owner is running here needs nothing, and must not
+        // make this run wait for the stash lock that owner holds
+        if let Ok(Some(journal)) = stash_journal::read(&path)
+            && journal.owner_now() == stash_journal::Owner::Running
+        {
+            debug!(
+                "{} is still running; leaving its journal",
+                journal.describe()
+            );
+            return Ok(());
+        }
+        // Lock order is the one stashing uses: the stash lock, then the
+        // journal lock. Holding the stash lock keeps every other hk process
+        // in the repository from stashing, restoring or recovering while the
+        // tree is checked and the changes are put back, so the decision below
+        // cannot be made stale by a run that stashes meanwhile.
+        let shared_mode = self.stash_lock_shared_mode();
+        let lock_path = self.stash_lock_path()?;
+        let timeout = std::time::Duration::from_secs(Settings::get().stash_lock_timeout as u64);
+        let _stash_lock = match crate::stash_lock::StashLock::acquire(
+            &lock_path,
+            shared_mode,
+            timeout,
+            &tokio_util::sync::CancellationToken::new(),
+            || {
+                warn!(
+                    "waiting for another hk process to finish stashing before checking for stashed changes an interrupted hk left (lock: {})",
+                    lock_path.display()
+                )
+            },
+        ) {
+            Ok(lock) => lock,
+            Err(err) => {
+                warn!(
+                    "did not check for stashed changes left by an interrupted hk, and left its journal {} untouched: {err:#}",
+                    path.display()
+                );
+                return Ok(());
+            }
+        };
         // Everything below happens under the journal lock, so that no other
         // hk creates, recovers or deletes the journal meanwhile. Nothing is
         // moved or renamed: the journal stays at its path until the changes
         // are back, so being interrupted anywhere in here loses nothing and
         // the next run starts over.
-        let Some(lock) = stash_journal::JournalLock::acquire(&path)? else {
+        let Some(lock) = stash_journal::JournalLock::acquire(&path, shared_mode)? else {
             debug!("another hk is working on the pending-stash journal; leaving it");
             return Ok(());
         };
         stash_journal::sweep_temp_files(&path, &lock);
+        // Read again under the locks: what the unlocked look saw may be stale
         let journal = match stash_journal::read(&path) {
             Ok(Some(journal)) => journal,
             Ok(None) => return Ok(()),
@@ -2370,16 +2413,41 @@ impl Git {
                 return Ok(());
             }
         };
-        let pid = journal.pid;
-        if !journal.owner_is_gone(
-            stash_journal::process_is_alive(pid),
-            stash_journal::process_start_token(pid).as_deref(),
-        ) {
-            debug!(
-                "{} is still running; leaving its journal",
-                journal.describe()
-            );
-            return Ok(());
+        match journal.owner_now() {
+            stash_journal::Owner::Gone => {}
+            stash_journal::Owner::Running => {
+                debug!(
+                    "{} is still running; leaving its journal",
+                    journal.describe()
+                );
+                return Ok(());
+            }
+            stash_journal::Owner::Unknown(why) => {
+                // Report only: restoring or dropping could pull the changes
+                // out from under a run that is still going somewhere hk
+                // cannot see
+                let stash = stash_entries()?;
+                let commits: Vec<String> = journal
+                    .entries
+                    .iter()
+                    .filter(|e| stash.iter().any(|row| row.commit == e.commit))
+                    .map(|e| e.commit.clone())
+                    .collect();
+                if commits.is_empty() {
+                    debug!("{}: {why}; it holds no stash entry", path.display());
+                } else {
+                    warn!(
+                        "{}",
+                        stash_journal::report_message(
+                            &journal,
+                            &path,
+                            &stash_journal::ReportReason::UnknownOwner(why),
+                            &commits
+                        )
+                    );
+                }
+                return Ok(());
+            }
         }
         #[cfg(debug_assertions)]
         die_for_test("HK_DEBUG_KILL_BEFORE_RECOVERY");
