@@ -85,7 +85,7 @@ EOF
     git init --bare ../lfs-remote.git
     git remote add origin ../lfs-remote.git
     git push -u origin main
-    hk install
+    hk install --force
     dd if=/dev/urandom bs=1024 count=1 of=test2.bin 2>/dev/null
     git add test2.bin && git commit -m "second lfs file"
     run git push origin main

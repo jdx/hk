@@ -391,6 +391,10 @@ Keep these composition rules in mind:
   run in `pre-commit` or `fix`; add it to every event where it should run.
 - Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
   the root config. Subprojects contribute steps and their local environment.
+- A subproject's `skip_steps` name its own steps, and skip only those. A group, or a step
+  inside a group, cannot be skipped from a subproject; hk warns when an entry names one. Other
+  top-level settings in a subproject config, such as `exclude`, `fail_fast`, `jobs`, or `profiles`,
+  have no effect; hk warns that they are ignored. Set them in the root config.
 - Subprojects are loaded one level deep. A `subprojects` declaration inside a
   subproject config is ignored with a warning.
 - A subproject's literal `dir` is relative to that subproject. Templated workspace

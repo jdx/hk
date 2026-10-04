@@ -1012,6 +1012,10 @@ open class Step {
   /// - `eslint-json`: the output of `eslint --format json`
   /// - `cargo-json`: the output of `cargo check --message-format=json`
   ///
+  /// When the step sets `dir` (including `dir = "{{workspace}}"`), the tool prints paths relative
+  /// to that directory. hk rebases them onto the repository root, so SARIF, JSON and MCP
+  /// diagnostics name the file as the repository sees it. Absolute paths are left as printed.
+  ///
   /// ```pkl
   /// check = "my-compiler {{files}}"
   /// diagnostic_format = "gcc"

@@ -30,6 +30,11 @@ If hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), 
   repos without an `hk.pkl`, the installed hook is a silent no-op.
 - **`--legacy`** — Force using the legacy `.git/hooks/` script shims instead of Git
   2.54+ config-based hooks. Not compatible with `--global`.
+- **`--force`** — With the legacy `.git/hooks/` script shims, replace an existing hook
+  that hk did not write, and replace a symlinked hook with a regular
+  file (the symlink's target is left alone). By default hk refuses to
+  install if any target is a hook it did not write or a symlink, and
+  installs nothing.
 - **`--mise`** — Run hooks through `mise x` so mise-managed tools are available
   without activating mise in the shell.
 
