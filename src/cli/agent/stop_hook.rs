@@ -197,6 +197,20 @@ struct KillPlan {
 /// process's group is already in the set": a descendant that stayed in the hook's group, or
 /// that shares a group with an unrelated process, would drag that peer in. The hook's own
 /// pid, parent and group are never signalled.
+///
+/// The check leads its own process group (`process_group(0)`), so its pid is its pgid, and
+/// that id cannot be reused by another group while any member lives. Every process whose
+/// pgid is `root` was therefore created inside the check's tree and is owned even if its
+/// parent chain no longer reaches the check (reparented to init or a subreaper, or the
+/// check already gone). Such members also seed the parent walk. This holds for `root`'s
+/// group only, never for other groups.
+///
+/// The check's own group (`root`) and pid are always in the plan, even for an empty
+/// snapshot; the snapshot only adds descendants.
+///
+/// Known limit: a step in its own group (pgid != root) whose parent is already gone before
+/// the first snapshot cannot be traced back to the check. This is best effort, with no
+/// heuristic: `seen`, from an earlier scan, catches it when that scan was in time.
 #[cfg(unix)]
 fn plan_kill(
     procs: &[Proc],
@@ -213,7 +227,7 @@ fn plan_kill(
     descendants.extend(
         procs
             .iter()
-            .filter(|p| seen.contains(&p.pid) && !excluded(p.pid))
+            .filter(|p| (seen.contains(&p.pid) || p.pgid == root) && !excluded(p.pid))
             .map(|p| p.pid),
     );
     loop {
@@ -228,6 +242,12 @@ fn plan_kill(
         }
     }
     let mut plan = KillPlan::default();
+    // The check's group and pid are always signalled, whatever the snapshot holds (ps may
+    // have failed or returned nothing): the snapshot only adds descendants.
+    let root_owned = !excluded(root) && root != own.pgid;
+    if root_owned {
+        plan.groups.insert(root);
+    }
     for p in procs.iter().filter(|p| descendants.contains(&p.pid)) {
         let g = p.pgid;
         if excluded(g) || g == own.pgid || plan.groups.contains(&g) {
@@ -246,6 +266,9 @@ fn plan_kill(
         .filter(|p| descendants.contains(&p.pid) && !plan.groups.contains(&p.pgid))
         .map(|p| p.pid)
         .collect();
+    if root_owned {
+        plan.pids.insert(root);
+    }
     plan.descendants = descendants;
     plan
 }
@@ -650,7 +673,7 @@ mod tests {
                 procs("1 0 1\n50 1 90\n90 50 90\n100 50 90\n200 100 200\n201 200 200\n300 201 300");
             let plan = plan_kill(&p, 200, &set(&[]), &OWN);
             assert_eq!(plan.groups, set(&[200, 300]));
-            assert!(plan.pids.is_empty());
+            assert_eq!(plan.pids, set(&[200]));
         }
 
         #[test]
@@ -659,7 +682,7 @@ mod tests {
             let p = procs("50 1 90\n90 50 90\n100 50 90\n200 100 200\n301 200 90");
             let plan = plan_kill(&p, 200, &set(&[]), &OWN);
             assert_eq!(plan.groups, set(&[200]));
-            assert_eq!(plan.pids, set(&[301]));
+            assert_eq!(plan.pids, set(&[200, 301]));
             assert!(!plan.descendants.contains(&90) && !plan.descendants.contains(&100));
         }
 
@@ -669,7 +692,7 @@ mod tests {
             let p = procs("200 100 200\n300 200 300\n400 7 300\n7 1 7");
             let plan = plan_kill(&p, 200, &set(&[]), &OWN);
             assert_eq!(plan.groups, set(&[200]));
-            assert_eq!(plan.pids, set(&[300]));
+            assert_eq!(plan.pids, set(&[200, 300]));
             assert!(!plan.descendants.contains(&400));
         }
 
@@ -693,11 +716,72 @@ mod tests {
         }
 
         #[test]
+        fn a_child_reparented_after_the_check_exited_is_killed_via_the_check_group() {
+            // The check (200) is gone; 301 hangs off init but is still in group 200, and
+            // its own child 302 sits in another group.
+            let p = procs("1 0 1\n50 1 90\n100 50 90\n301 1 200\n302 301 302");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200, 302]));
+            assert_eq!(plan.pids, set(&[200]));
+        }
+
+        #[test]
+        fn an_unrelated_reparented_process_is_not_killed() {
+            let p = procs("1 0 1\n301 1 200\n400 1 400\n401 400 400");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200]));
+            assert!(!plan.descendants.contains(&400) && !plan.descendants.contains(&401));
+        }
+
+        #[test]
+        fn an_unrelated_process_in_the_hooks_group_is_not_killed() {
+            let p = procs("50 1 90\n100 50 90\n150 50 90\n301 1 200");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200]));
+            assert_eq!(plan.pids, set(&[200]));
+            assert!(!plan.descendants.contains(&150));
+        }
+
+        #[test]
+        fn a_reparented_step_in_its_own_group_is_not_discoverable_without_an_earlier_scan() {
+            // Known limit: 300 is in its own group and its parent is gone, so nothing ties
+            // it to the check; only `seen` from an earlier scan can.
+            let p = procs("1 0 1\n301 1 200\n300 1 300");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200]));
+            assert!(!plan.descendants.contains(&300));
+            assert!(plan_kill(&p, 200, &set(&[300]), &OWN).groups.contains(&300));
+        }
+
+        #[test]
+        fn an_empty_snapshot_still_kills_the_check_group_and_pid() {
+            let plan = plan_kill(&[], 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200]));
+            assert_eq!(plan.pids, set(&[200]));
+        }
+
+        #[test]
+        fn a_snapshot_missing_the_check_still_kills_the_check_group_and_pid() {
+            let p = procs("1 0 1\n50 1 90\n100 50 90\n400 1 400");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200]));
+            assert_eq!(plan.pids, set(&[200]));
+        }
+
+        #[test]
+        fn own_pid_and_group_are_never_planned_even_as_the_root() {
+            for root in [100, 90, 50, 1] {
+                let plan = plan_kill(&[], root, &set(&[]), &OWN);
+                assert!(!plan.groups.contains(&root) && !plan.pids.contains(&root));
+            }
+        }
+
+        #[test]
         fn an_unrelated_process_is_not_adopted_just_for_having_a_seen_group() {
             let p = procs("300 1 300\n500 9 300\n9 1 9");
             let plan = plan_kill(&p, 200, &set(&[300]), &OWN);
-            assert!(plan.groups.is_empty());
-            assert_eq!(plan.pids, set(&[300]));
+            assert_eq!(plan.groups, set(&[200]));
+            assert_eq!(plan.pids, set(&[200, 300]));
         }
     }
 
@@ -766,6 +850,76 @@ mod tests {
                 .status();
         }
         assert!(!survived, "the step's grandchild outlived the stop hook");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_child_that_outlives_the_check_is_killed_through_the_check_group() {
+        use std::os::unix::process::CommandExt;
+        let have = |tool: &str| {
+            std::process::Command::new("sh")
+                .args(["-c", &format!("command -v {tool}")])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        };
+        if !have("pgrep") {
+            eprintln!("skipping: needs pgrep");
+            return;
+        }
+        let marker = 8_000_000 + std::process::id();
+        let alive = |m: u32| {
+            std::process::Command::new("pgrep")
+                .args(["-f", &format!("sleep {m}")])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        };
+        let other = marker + 1;
+        let other_session = if have("setsid") {
+            format!("setsid sleep {other}")
+        } else if have("perl") {
+            format!("perl -MPOSIX -e 'POSIX::setsid() or die; exec q(sleep), q({other})'")
+        } else {
+            format!("sleep {other}")
+        };
+        // The check starts one sleeper in its own group, one in a new session, and exits
+        // at once: both are reparented before any snapshot.
+        let mut check = std::process::Command::new("sh");
+        check
+            .args(["-c", &format!("sleep {marker} & {other_session} & exit 0")])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .process_group(0);
+        let mut child = check.spawn().unwrap();
+        let pid = child.id() as libc::pid_t;
+        child.wait().unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !alive(marker) && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        assert!(alive(marker), "the sleeper never started");
+        kill_tree(pid).await;
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while alive(marker) && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let survived = alive(marker);
+        // The new-session sleeper is the documented best-effort limit: clean it up, but do
+        // not assert on it. Match it by its unique marker only.
+        let _ = std::process::Command::new("pkill")
+            .args(["-f", &format!("sleep {other}")])
+            .status();
+        if survived {
+            let _ = std::process::Command::new("pkill")
+                .args(["-f", &format!("sleep {marker}")])
+                .status();
+        }
+        assert!(
+            !survived,
+            "a member of the check's group outlived the stop hook"
+        );
     }
 
     #[cfg(windows)]
