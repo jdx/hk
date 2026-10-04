@@ -111,12 +111,21 @@ fn reexec_for_cd(cd: &Path) -> Result<std::process::ExitStatus> {
         child_args.push(arg);
     }
 
-    let status = std::process::Command::new(std::env::current_exe()?)
-        .args(child_args)
-        .current_dir(cd)
+    let mut command = std::process::Command::new(std::env::current_exe()?);
+    command.args(child_args).current_dir(cd);
+
+    // Replace this process so signals and the exit status go straight to the
+    // real hk instead of stopping at a wrapper process.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let err = command.exec();
+        Err(err).wrap_err_with(|| format!("failed to run hk in {}", cd.display()))
+    }
+    #[cfg(not(unix))]
+    command
         .status()
-        .wrap_err_with(|| format!("failed to run hk in {}", cd.display()))?;
-    Ok(status)
+        .wrap_err_with(|| format!("failed to run hk in {}", cd.display()))
 }
 
 #[derive(usage_rs::Subcommands)]

@@ -163,7 +163,9 @@ fn restore_operation_state(state: OperationState) -> Result<()> {
     }
 }
 
-fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
+/// Runs `git stash push`, returning what it printed. Its messages are read to
+/// tell a stash that had nothing to save, so they are not translated.
+fn run_git_stash(cmd: xx::process::XXExpression) -> Result<String> {
     const LOCK_RETRY_DELAYS: [Duration; 5] = [
         Duration::from_millis(25),
         Duration::from_millis(50),
@@ -191,8 +193,7 @@ fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
         }
     }
 
-    cmd.run()?;
-    Ok(())
+    Ok(cmd.env("LC_ALL", "C").env("LANGUAGE", "C").read()?)
 }
 
 fn git_read<I, S>(args: I) -> Result<String>
@@ -233,6 +234,21 @@ where
         }
     }
     Ok((paths, unnamed))
+}
+
+/// Runs git and splits its NUL-separated output into paths, keeping names
+/// that are not valid UTF-8 as they are. Reading the output as a `String`
+/// would cut it short at such a name or replace its bytes.
+fn git_read_raw_paths<I, S>(args: I) -> Result<Vec<PathBuf>>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    Ok(git_read_bytes(args)?
+        .split(|&b| b == 0)
+        .filter(|name| !name.is_empty())
+        .map(path_from_raw)
+        .collect())
 }
 
 /// A path git printed, which need not be valid UTF-8.
@@ -1324,17 +1340,12 @@ impl Git {
                 })
                 .collect())
         } else {
-            let mut cmd = git_cmd(["ls-files", "-z"]);
+            let mut args = vec![OsString::from("ls-files"), OsString::from("-z")];
             if let Some(pathspec) = pathspec {
-                cmd = cmd.arg("--");
-                cmd = cmd.args(pathspec.iter().filter_map(|p| p.to_str()));
+                args.push(OsString::from("--"));
+                args.extend(pathspec.iter().filter(|p| p.to_str().is_some()).cloned());
             }
-            let output = cmd.read()?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            Ok(git_read_raw_paths(args)?.into_iter().collect())
         }
     }
 
@@ -1703,6 +1714,53 @@ impl Git {
 
     // removed patch-file custom path for now
 
+    /// Remembers the stash entry hk created, by its commit id, and saves a
+    /// patch backup of it.
+    fn record_stash(&mut self, commit: String, kind: StashType) -> Option<StashType> {
+        self.stash_commit = Some(commit.clone());
+        self.save_stash_patch(&commit);
+        Some(kind)
+    }
+
+    /// Pushes a stash with `git stash push` and finds the entry it created.
+    /// The entry carries a message unique to this run, which proves it is
+    /// hk's whatever else other worktrees and processes push meanwhile.
+    /// `Ok(None)` only when git reported that there was nothing to save.
+    /// When git may have removed the changes but hk cannot find the entry, an
+    /// error says so, rather than pretending that nothing was stashed.
+    fn push_shell_stash(
+        &mut self,
+        untracked: bool,
+        paths: Option<&[OsString]>,
+    ) -> Result<Option<StashType>> {
+        let message = unique_stash_message();
+        let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", message.as_str()]);
+        if untracked {
+            cmd = cmd.arg("--include-untracked");
+        }
+        if let Some(paths) = paths
+            && !paths.is_empty()
+        {
+            cmd = cmd.arg("--");
+            cmd = cmd.args(paths.iter().cloned());
+        }
+        let output = run_git_stash(cmd)?;
+        if output.contains(NOTHING_TO_STASH) {
+            debug!("git stash created no entry for hk to restore");
+            return Ok(None);
+        }
+        let found = stash_entries().and_then(|entries| find_stash_by_message(&entries, &message));
+        match found {
+            Ok(Some(commit)) => Ok(self.record_stash(commit, StashType::Git)),
+            Ok(None) => Err(eyre!(
+                "git stashed your unstaged changes, but hk could not find its stash entry ({message}) in the stash list, so it restored nothing. Your changes may be in `git stash list`; look for that message and run `git stash apply` on it"
+            )),
+            Err(err) => Err(err.wrap_err(format!(
+                "git stashed your unstaged changes, but hk could not identify its stash entry ({message}), so it restored nothing. Your changes may be in `git stash list`; look for that message and run `git stash apply` on it"
+            ))),
+        }
+    }
+
     /// Stashes the unstaged changes, leaving the state of a merge,
     /// cherry-pick, revert or squash in progress as it was. `git stash push`
     /// without a pathspec resets the worktree, which deletes those files and
@@ -1795,27 +1853,12 @@ impl Git {
             flags.set(git2::StashFlags::KEEP_INDEX, true);
             // If partial paths requested, force shell git path since libgit2 does not support it
             if let Some(paths) = tracked_subset.as_deref() {
-                let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
-                if *env::HK_STASH_UNTRACKED {
-                    cmd = cmd.arg("--include-untracked");
-                }
                 let utf8_paths: Vec<OsString> = paths
                     .iter()
                     .filter(|p| p.to_str().is_some())
                     .map(|p| literal_pathspec(p))
                     .collect();
-                if !utf8_paths.is_empty() {
-                    cmd = cmd.arg("--");
-                    cmd = cmd.args(utf8_paths);
-                }
-                run_git_stash(&cmd)?;
-                // Record the stash commit we just created and save patch backup
-                if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
-                    let commit_hash = h.trim().to_string();
-                    self.stash_commit = Some(commit_hash.clone());
-                    self.save_stash_patch(&commit_hash);
-                }
-                Ok(Some(StashType::Git))
+                self.push_shell_stash(*env::HK_STASH_UNTRACKED, Some(&utf8_paths))
             } else {
                 // libgit2 stashes an intent-to-add entry and then leaves it in
                 // the index as a staged empty file, so leave that to git, which
@@ -1826,58 +1869,26 @@ impl Git {
                     repo.stash_save(&sig, "hk", Some(flags))
                 };
                 match saved {
-                    Ok(_) => {
-                        // Record the stash commit we just created and save patch backup
-                        if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read()
-                        {
-                            let commit_hash = h.trim().to_string();
-                            self.stash_commit = Some(commit_hash.clone());
-                            self.save_stash_patch(&commit_hash);
-                        }
-                        Ok(Some(StashType::LibGit))
+                    // libgit2 returns the id of the entry it created
+                    Ok(oid) => {
+                        debug!("libgit2 stashed the unstaged changes as {oid}");
+                        Ok(self.record_stash(oid.to_string(), StashType::LibGit))
                     }
                     Err(e) => {
                         debug!("libgit2 stash failed, falling back to shell git: {e}");
-                        let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
-                        if *env::HK_STASH_UNTRACKED {
-                            cmd = cmd.arg("--include-untracked");
-                        }
-                        run_git_stash(&cmd)?;
-                        // Record the stash commit we just created and save patch backup
-                        if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read()
-                        {
-                            let commit_hash = h.trim().to_string();
-                            self.stash_commit = Some(commit_hash.clone());
-                            self.save_stash_patch(&commit_hash);
-                        }
-                        Ok(Some(StashType::Git))
+                        self.push_shell_stash(*env::HK_STASH_UNTRACKED, None)
                     }
                 }
             }
         } else {
-            let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
-            if *env::HK_STASH_UNTRACKED {
-                cmd = cmd.arg("--include-untracked");
-            }
-            if let Some(paths) = tracked_subset.as_deref() {
-                let utf8_paths: Vec<OsString> = paths
+            let utf8_paths: Option<Vec<OsString>> = tracked_subset.as_deref().map(|paths| {
+                paths
                     .iter()
                     .filter(|p| p.to_str().is_some())
                     .map(|p| literal_pathspec(p))
-                    .collect();
-                if !utf8_paths.is_empty() {
-                    cmd = cmd.arg("--");
-                    cmd = cmd.args(utf8_paths);
-                }
-            }
-            run_git_stash(&cmd)?;
-            // Record the stash commit we just created and save patch backup
-            if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
-                let commit_hash = h.trim().to_string();
-                self.stash_commit = Some(commit_hash.clone());
-                self.save_stash_patch(&commit_hash);
-            }
-            Ok(Some(StashType::Git))
+                    .collect()
+            });
+            self.push_shell_stash(*env::HK_STASH_UNTRACKED, utf8_paths.as_deref())
         }
     }
 
@@ -2026,7 +2037,7 @@ impl Git {
                     "failed to check out the staged contents, and restoring the reverted files failed ({restore_err}); their contents are kept in {stash_ref}"
                 ));
             }
-            if let Err(err) = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run() {
+            if let Err(err) = drop_stash_commit(&commit) {
                 warn!("failed to drop stash {stash_ref} of reverted files: {err:?}");
             }
             return Err(err).wrap_err("failed to check out the staged contents");
@@ -2157,7 +2168,7 @@ impl Git {
                 occupied.iter().map(display_path).join(", ")
             ));
         }
-        if let Err(err) = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run() {
+        if let Err(err) = drop_stash_commit(&ita.commit) {
             warn!("failed to drop stash of intent-to-add files: {err:?}");
         }
         Ok(())
@@ -2225,12 +2236,31 @@ impl Git {
             .start();
         match diff {
             StashType::LibGit | StashType::Git => {
-                // Resolve the specific stash entry we created using its commit id, falling back to top
-                let stash_ref = self
-                    .stash_commit
-                    .as_deref()
-                    .and_then(find_stash_ref)
-                    .unwrap_or_else(|| "stash@{0}".to_string());
+                // The entry hk created is identified by its commit id and never
+                // by `stash@{n}` or its message: the stash is shared with other
+                // worktrees and processes, so positions move and other entries
+                // may be named alike. Everything below reads that commit.
+                let Some(stash_ref) = self.stash_commit.clone() else {
+                    return Err(eyre!(
+                        "hk did not record the commit of its stash entry, so it restored nothing and left every stash entry alone; your unstaged changes are in `git stash list`"
+                    ));
+                };
+                let Some(stash_name) = find_stash_ref(&stash_ref) else {
+                    let exists = git_cmd(["cat-file", "-e", &format!("{stash_ref}^{{commit}}")])
+                        .run()
+                        .is_ok();
+                    let recover = if exists {
+                        format!(" Its changes can be recovered with `git stash apply {stash_ref}`.")
+                    } else {
+                        String::new()
+                    };
+                    self.stash_commit = None;
+                    self.saved_worktree = None;
+                    return Err(eyre!(
+                        "hk's stash entry {stash_ref} is no longer in the stash list; something else dropped or popped it. hk restored nothing and left every stash entry alone.{recover}"
+                    ));
+                };
+                let stash_label = format!("{stash_name} ({stash_ref})");
 
                 // Track whether any file restoration failed so we can preserve the stash
                 let mut restoration_failed = false;
@@ -2892,13 +2922,13 @@ impl Git {
                 // Only drop the stash if all file restorations succeeded
                 if !not_restored.is_empty() {
                     error!(
-                        "Did not restore {} from the stash. Stash has been preserved at '{stash_ref}'.",
+                        "Did not restore {} from the stash. Stash has been preserved at '{stash_label}'.",
                         not_restored.keys().map(display_path).join(", ")
                     );
                     for (path, reason) in &not_restored {
                         let source = match changes.entry(path) {
-                            StashedEntry::Untracked => format!("{stash_ref}^3"),
-                            _ => stash_ref.clone(),
+                            StashedEntry::Untracked => format!("{stash_name}^3"),
+                            _ => stash_name.clone(),
                         };
                         error!(
                             "{reason}. To take its stashed version, run: {}",
@@ -2906,19 +2936,19 @@ impl Git {
                         );
                     }
                     error!(
-                        "hk restored the other stashed changes, so `git stash pop` or `git stash apply` would apply those twice. Compare with `git stash show -p --include-untracked {stash_ref}`, and run `git stash drop {stash_ref}` only once every path above is recovered."
+                        "hk restored the other stashed changes, so `git stash pop` or `git stash apply` would apply those twice. Compare with `git stash show -p --include-untracked {stash_ref}`, and run `git stash drop {stash_name}` only once every path above is recovered."
                     );
                     return Err(eyre!(
-                        "Stash restoration failed - stash preserved at {stash_ref}"
+                        "Stash restoration failed - stash preserved at {stash_label}"
                     ));
                 } else if restoration_failed {
                     error!(
-                        "Failed to restore some files from stash. Stash has been preserved at '{stash_ref}'."
+                        "Failed to restore some files from stash. Stash has been preserved at '{stash_label}'."
                     );
                     if plan.is_some() {
                         // The stashed changes were restored, but not checked
                         error!(
-                            "Compare the worktree with `git stash show -p --include-untracked {stash_ref}` before running `git stash drop {stash_ref}`."
+                            "Compare the worktree with `git stash show -p --include-untracked {stash_ref}` before running `git stash drop {stash_name}`."
                         );
                     } else {
                         error!(
@@ -2927,11 +2957,13 @@ impl Git {
                     }
                     // Keep the stash around and return an error
                     return Err(eyre!(
-                        "Stash restoration failed - stash preserved at {stash_ref}"
+                        "Stash restoration failed - stash preserved at {stash_label}"
                     ));
                 } else {
                     // All files restored successfully, safe to drop the stash
-                    if let Err(err) = git_cmd(["stash", "drop", &stash_ref]).run() {
+                    // The name is looked up again: entries pushed or dropped
+                    // meanwhile moved it, and only hk's own entry may go
+                    if let Err(err) = drop_stash_commit(&stash_ref) {
                         warn!("failed to drop stash: {err:?}");
                     }
                 }
@@ -3045,36 +3077,26 @@ impl Git {
                 None => format!("{from_ref}..{to_ref}"),
             };
 
-            let output = git_read([
+            git_read_raw_paths([
                 "diff",
                 "-z",
                 "--name-only",
                 "--diff-filter=ACMRTUXB",
                 "--end-of-options",
                 range.as_str(),
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         } else {
             // No resolvable base: lint every file at `to_ref`. `ls-tree` is
             // object-format agnostic, unlike a hard-coded empty-tree hash.
             debug!("could not resolve from-ref '{from_ref}'; listing all files at {to_ref}");
-            let output = git_read([
+            git_read_raw_paths([
                 "ls-tree",
                 "-z",
                 "-r",
                 "--name-only",
                 "--end-of-options",
                 to_ref,
-            ])?;
-            Ok(output
-                .split('\0')
-                .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
-                .collect())
+            ])
         }
     }
 }
@@ -3108,15 +3130,144 @@ fn literal_pathspecs<P: AsRef<std::path::Path>>(paths: &[P]) -> Vec<u8> {
     pathspecs
 }
 
-/// The `stash@{n}` name of the stash entry whose commit is `hash`.
-fn find_stash_ref(hash: &str) -> Option<String> {
-    let list = git_cmd(["stash", "list", "--format=%H %gd"])
+/// One entry of the stash list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StashEntry {
+    /// The id of the stash commit, which never changes
+    commit: String,
+    /// `stash@{n}`, which changes whenever anything pushes or drops an entry
+    name: String,
+    subject: String,
+}
+
+/// Parses `git stash list --format=%H%x09%gd%x09%gs`, newest first.
+fn parse_stash_entries(list: &str) -> Vec<StashEntry> {
+    list.lines()
+        .filter_map(|line| {
+            let mut fields = line.splitn(3, '\t');
+            Some(StashEntry {
+                commit: fields.next()?.to_string(),
+                name: fields.next()?.to_string(),
+                subject: fields.next().unwrap_or_default().to_string(),
+            })
+        })
+        .collect()
+}
+
+/// What `git stash push` prints, with `LC_ALL=C`, when it stashed nothing.
+const NOTHING_TO_STASH: &str = "No local changes to save";
+
+/// A stash message no other process will use, so hk's entry is recognizable
+/// in the stash list that every worktree shares.
+fn unique_stash_message() -> String {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("hk: {}-{nanos:x}-{n}", std::process::id())
+}
+
+/// The stash list as it is right now. Other worktrees and processes share it.
+/// A list that cannot be read is an error, never an empty list.
+fn stash_entries() -> Result<Vec<StashEntry>> {
+    let list = git_cmd(["stash", "list", "--format=%H%x09%gd%x09%gs"])
+        .env("LC_ALL", "C")
         .read()
-        .unwrap_or_default();
-    list.lines().find_map(|line| {
-        let (h, gd) = line.split_once(' ')?;
-        (h == hash).then(|| gd.to_string())
-    })
+        .wrap_err("failed to read the stash list")?;
+    Ok(parse_stash_entries(&list))
+}
+
+/// The commit of the entry that carries `message`, the text hk gave its own
+/// push (git shows it as `On <branch>: <message>`). `Ok(None)` if no entry
+/// has it; an error if several do, since then hk cannot tell which is its own.
+fn find_stash_by_message(entries: &[StashEntry], message: &str) -> Result<Option<String>> {
+    let suffix = format!(": {message}");
+    let mut found = entries
+        .iter()
+        .filter(|e| e.subject == message || e.subject.ends_with(&suffix));
+    match (found.next(), found.next()) {
+        (None, _) => Ok(None),
+        (Some(e), None) => Ok(Some(e.commit.clone())),
+        _ => Err(eyre!("several stash entries carry the message {message}")),
+    }
+}
+
+/// The current `stash@{n}` name of the stash entry whose commit is `hash`,
+/// looked up in `entries`.
+fn stash_name_in(entries: &[StashEntry], hash: &str) -> Option<String> {
+    entries
+        .iter()
+        .find(|e| e.commit == hash)
+        .map(|e| e.name.clone())
+}
+
+/// The `stash@{n}` name of the stash entry whose commit is `hash`, as of now.
+fn find_stash_ref(hash: &str) -> Option<String> {
+    stash_entries()
+        .ok()
+        .and_then(|entries| stash_name_in(&entries, hash))
+}
+
+/// The commit id in git's `Dropped stash@{0} (<sha>)`.
+fn parse_dropped_commit(output: &str) -> Option<&str> {
+    let (_, rest) = output.rsplit_once('(')?;
+    let (sha, _) = rest.split_once(')')?;
+    (!sha.is_empty() && sha.bytes().all(|b| b.is_ascii_hexdigit())).then_some(sha)
+}
+
+/// Drops the stash entry whose commit is `hash`, and nothing else.
+///
+/// `git stash drop` takes a position, and another worktree or process may
+/// push or drop between looking the position up and dropping. Git offers no
+/// compare-and-delete, so the window is narrowed to one command after the
+/// lookup, and then closed after the fact: git prints the commit it dropped,
+/// and when that is not `hash`, the entry that went is put back with
+/// `git stash store` (at the top, with its message) and hk tries again. What
+/// remains is a foreign entry that is missing between the drop and the
+/// store, and one that has moved to the top, which only another process
+/// racing a few milliseconds apart can cause; hk's cross-process lock does
+/// not stop git commands that are not hk's. Never drops by position without
+/// this check, and leaves hk's own entry in place when it cannot be sure.
+fn drop_stash_commit(hash: &str) -> Result<()> {
+    for _ in 0..3 {
+        let entries = stash_entries()?;
+        let Some(name) = stash_name_in(&entries, hash) else {
+            return Err(eyre!(
+                "stash entry {hash} is no longer in the stash list, so hk left every stash entry alone"
+            ));
+        };
+        let output = git_cmd(["stash", "drop", &name]).read()?;
+        let dropped = parse_dropped_commit(&output).map(str::to_string);
+        if dropped.as_deref() == Some(hash) {
+            return Ok(());
+        }
+        // The position named another entry by then
+        let Some(dropped) = dropped else {
+            return Err(eyre!(
+                "git dropped a stash entry at {name} but did not say which, so hk cannot tell it was its own entry {hash}; check `git stash list`"
+            ));
+        };
+        let subject = entries
+            .iter()
+            .find(|e| e.commit == dropped)
+            .map(|e| e.subject.clone())
+            .unwrap_or_default();
+        let mut store = git_cmd(["stash", "store"]);
+        if !subject.is_empty() {
+            store = store.args(["-m", subject.as_str()]);
+        }
+        if let Err(err) = store.arg(&dropped).run() {
+            return Err(eyre!(
+                "hk dropped stash entry {dropped}, which is not its own, because another process changed the stash at the same time, and could not put it back ({err}). Restore it with `git stash store {dropped}`"
+            ));
+        }
+        debug!("stash {name} changed under hk; put back {dropped} and trying again");
+    }
+    Err(eyre!(
+        "the stash kept changing, so hk left its own entry {hash} in the stash list; drop it with `git stash drop` once you have checked it"
+    ))
 }
 
 fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
@@ -3588,6 +3739,9 @@ fn libgit2_cannot_read_index(err: &eyre::Report) -> bool {
 struct SkippedPaths {
     /// The paths, shown lossily
     names: Vec<String>,
+    /// The same paths as git printed them, which tell apart names that differ
+    /// only in bytes that are not valid UTF-8
+    raw: Vec<Vec<u8>>,
     /// Whether any of them has changes in the worktree
     unstaged: bool,
     /// Whether any of them is untracked
@@ -3664,6 +3818,7 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
             skipped
                 .names
                 .push(String::from_utf8_lossy(bytes).into_owned());
+            skipped.raw.push(bytes.to_vec());
             None
         }
     }
@@ -3672,10 +3827,32 @@ fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
 /// Warns that a status read left out `skipped`, so that files hk does not
 /// check are not left out silently.
 fn warn_skipped_paths(skipped: &SkippedPaths) {
-    if !skipped.names.is_empty() {
+    warn_non_utf8_paths(
+        skipped
+            .raw
+            .iter()
+            .map(|raw| (raw.clone(), format!("{:?}", path_from_raw(raw)))),
+    );
+}
+
+/// Warns that hk skipped paths that are not valid UTF-8, once per path for the
+/// whole run: a status read and the file selection can both come across the
+/// same file. Each path is its raw bytes, which identify it (two names can
+/// differ only in bytes that show the same lossily), and how to show it.
+pub(crate) fn warn_non_utf8_paths(paths: impl IntoIterator<Item = (Vec<u8>, String)>) {
+    static WARNED: std::sync::Mutex<BTreeSet<Vec<u8>>> = std::sync::Mutex::new(BTreeSet::new());
+    let shown = {
+        let mut warned = WARNED.lock().unwrap();
+        paths
+            .into_iter()
+            .filter(|(raw, _)| warned.insert(raw.clone()))
+            .map(|(_, shown)| shown)
+            .collect_vec()
+    };
+    if !shown.is_empty() {
         warn!(
             "skipped {} because hk cannot handle paths that are not valid UTF-8",
-            skipped.names.iter().map(|p| format!("{p:?}")).join(", ")
+            shown.join(", ")
         );
     }
 }
@@ -4143,5 +4320,91 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    fn entry(commit: &str, n: usize, subject: &str) -> StashEntry {
+        StashEntry {
+            commit: commit.to_string(),
+            name: format!("stash@{{{n}}}"),
+            subject: subject.to_string(),
+        }
+    }
+
+    #[test]
+    fn parses_the_stash_list() {
+        let list = "aaa\tstash@{0}\tOn main: hk\nbbb\tstash@{1}\tWIP on main: 123 msg\n";
+        assert_eq!(
+            parse_stash_entries(list),
+            vec![
+                entry("aaa", 0, "On main: hk"),
+                entry("bbb", 1, "WIP on main: 123 msg")
+            ]
+        );
+        assert!(parse_stash_entries("").is_empty());
+    }
+
+    #[test]
+    fn finds_the_current_name_of_a_commit() {
+        // Another process pushed on top of hk's entry, which moved it
+        let entries = [
+            entry("foreign", 0, "On main: hk"),
+            entry("ours", 1, "On main: hk"),
+        ];
+        assert_eq!(
+            stash_name_in(&entries, "ours").as_deref(),
+            Some("stash@{1}")
+        );
+        assert_eq!(stash_name_in(&entries, "gone"), None);
+    }
+
+    #[test]
+    fn finds_the_entry_by_its_unique_message() {
+        let after = [
+            entry("foreign", 0, "On main: hk"),
+            entry("ours", 1, "On main: hk: 12-ab-0"),
+            entry("old", 2, "On main: hk: 12-ab-01"),
+        ];
+        assert_eq!(
+            find_stash_by_message(&after, "hk: 12-ab-0")
+                .unwrap()
+                .as_deref(),
+            Some("ours")
+        );
+    }
+
+    #[test]
+    fn no_entry_with_the_message_is_none() {
+        // Somebody else's entry is never taken for hk's
+        let after = [entry("foreign", 0, "On main: hk")];
+        assert_eq!(find_stash_by_message(&after, "hk: 1-a-0").unwrap(), None);
+        assert_eq!(find_stash_by_message(&[], "hk: 1-a-0").unwrap(), None);
+    }
+
+    #[test]
+    fn several_entries_with_the_message_is_an_error() {
+        let after = [
+            entry("a", 0, "On main: hk: 1-a-0"),
+            entry("b", 1, "On x: hk: 1-a-0"),
+        ];
+        assert!(find_stash_by_message(&after, "hk: 1-a-0").is_err());
+    }
+
+    #[test]
+    fn stash_messages_are_unique() {
+        assert_ne!(unique_stash_message(), unique_stash_message());
+    }
+
+    #[test]
+    fn parses_the_commit_git_dropped() {
+        assert_eq!(
+            parse_dropped_commit("Dropped refs/stash@{0} (0123abcdef)\n"),
+            Some("0123abcdef")
+        );
+        assert_eq!(
+            parse_dropped_commit("Dropped stash@{1} (abc123)"),
+            Some("abc123")
+        );
+        assert_eq!(parse_dropped_commit("nothing here"), None);
+        assert_eq!(parse_dropped_commit("(not hex)"), None);
     }
 }

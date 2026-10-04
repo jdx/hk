@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Other Languages"
@@ -18,8 +19,31 @@ clang_format = new Config.Step {
     }
     effect = "read"
   }
+  // With -Werror, clang-format prints `path:line:column: error: message [rule]` by default
+  diagnostic_format = "gcc"
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("clang-format", "-i", "{{files}}") }
     effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.c" }
+    local const unformatted = "int main(){int x=1;return x;}\n"
+    local const formatted = "int main() {\n  int x = 1;\n  return x;\n}\n"
+    ["check bad file"] = testMaker.checkFail(unformatted, 1)
+    ["check good file"] = testMaker.checkPass(formatted)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        unformatted,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.c"
+          line = 1
+          column = 12
+          severity = "error"
+          rule = "-Wclang-format-violations"
+          message = "code should be clang-formatted"
+        }),
+      )
+    ["fix bad file"] = testMaker.fixPass(unformatted, formatted)
   }
 }

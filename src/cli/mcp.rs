@@ -222,6 +222,39 @@ struct RootRequest {
     root: Option<String>,
 }
 
+/// Which files a run covers.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum RunScope {
+    /// Every tracked file plus untracked files that are not ignored (`hk --all`).
+    #[default]
+    All,
+    /// Staged and unstaged files, plus untracked files unless `HK_STASH_UNTRACKED=0` skips untracked discovery (`hk --stash none` only stops a configured stash method from narrowing it to staged files; it does not override that setting).
+    Changed,
+    /// Unstaged files, plus untracked files unless `HK_STASH_UNTRACKED=0`, excluding staged files (`hk --unstaged`).
+    Unstaged,
+}
+
+impl RunScope {
+    fn args(self) -> &'static [&'static str] {
+        match self {
+            Self::All => &["--all"],
+            // With stashing off, hk's default selection is staged + unstaged + untracked.
+            Self::Changed => &["--stash", "none"],
+            Self::Unstaged => &["--unstaged"],
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct StartRequest {
+    /// An allowed root returned by inspect_project; omit when only one root is available.
+    root: Option<String>,
+    /// Files to run on: "all" (default), "changed" (staged and unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0), or "unstaged" (unstaged files, plus untracked files unless HK_STASH_UNTRACKED=0).
+    #[serde(default)]
+    scope: RunScope,
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 struct RunRequest {
     /// Run identifier returned by a start tool.
@@ -329,7 +362,12 @@ impl HkMcpServer {
         }
     }
 
-    async fn start(&self, root: PathBuf, kind: RunKind) -> Result<RunSnapshot, String> {
+    async fn start(
+        &self,
+        root: PathBuf,
+        kind: RunKind,
+        scope: RunScope,
+    ) -> Result<RunSnapshot, String> {
         let id = format!("hk-{}", self.next_id.fetch_add(1, Ordering::Relaxed));
         let cancel = CancellationToken::new();
         let snapshot = {
@@ -368,11 +406,18 @@ impl HkMcpServer {
             snapshot
         };
         let server = self.clone();
-        tokio::spawn(async move { server.execute(id, root, kind, cancel).await });
+        tokio::spawn(async move { server.execute(id, root, kind, scope, cancel).await });
         Ok(snapshot)
     }
 
-    async fn execute(&self, id: String, root: PathBuf, kind: RunKind, cancel: CancellationToken) {
+    async fn execute(
+        &self,
+        id: String,
+        root: PathBuf,
+        kind: RunKind,
+        scope: RunScope,
+        cancel: CancellationToken,
+    ) {
         let diff_baseline = prepare_diff_baseline(&root).await;
         let executable = match std::env::current_exe() {
             Ok(path) => path,
@@ -384,15 +429,17 @@ impl HkMcpServer {
         };
         let mut command = Command::new(executable);
         command
-            .arg("--cd")
-            .arg(&root)
+            .current_dir(&root)
             .args(["--format", "jsonl"])
             .arg(kind.command())
-            .arg("--all")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
+        command.args(scope.args());
+        // Own process group, so a stuck run can be killed together with its steps.
+        #[cfg(unix)]
+        command.process_group(0);
         if kind.safe() {
             command.arg("--safe");
         }
@@ -415,12 +462,16 @@ impl HkMcpServer {
         let (status, cancelled) = tokio::select! {
             status = child.wait() => (status, false),
             _ = cancel.cancelled() => {
-                let _ = child.kill().await;
-                (child.wait().await, true)
+                (stop_child(&mut child, CANCEL_GRACE).await, true)
             }
         };
-        let _ = stdout_task.await;
-        let _ = stderr_task.await;
+        // A step that outlives hk can keep an output pipe open; do not wait for it forever.
+        for task in [stdout_task, stderr_task] {
+            let abort = task.abort_handle();
+            if tokio::time::timeout(PIPE_DRAIN_GRACE, task).await.is_err() {
+                abort.abort();
+            }
+        }
         let diff = match diff_baseline {
             Ok(tree) => git_diff(&root, &tree).await.unwrap_or_default(),
             Err(_) => CapturedDiff::default(),
@@ -578,7 +629,7 @@ impl HkMcpServer {
     )]
     async fn start_check(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::Check).await
@@ -595,7 +646,7 @@ impl HkMcpServer {
     )]
     async fn start_safe_check(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::SafeCheck).await
@@ -612,7 +663,7 @@ impl HkMcpServer {
     )]
     async fn start_safe_fix(
         &self,
-        Parameters(request): Parameters<RootRequest>,
+        Parameters(request): Parameters<StartRequest>,
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, String> {
         self.start_tool(request, peer, RunKind::SafeFix).await
@@ -825,13 +876,13 @@ impl HkMcpServer {
 
     async fn start_tool(
         &self,
-        request: RootRequest,
+        request: StartRequest,
         peer: Peer<RoleServer>,
         kind: RunKind,
     ) -> Result<CallToolResult, String> {
         self.refresh_client_roots(&peer).await;
         let root = self.select_root(request.root.as_deref()).await?;
-        let snapshot = self.start(root, kind).await?;
+        let snapshot = self.start(root, kind, request.scope).await?;
         let value = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
         Ok(tool_success(format!("Started run {}", snapshot.id), value))
     }
@@ -1121,11 +1172,38 @@ fn append_capped(target: &mut Vec<u8>, bytes: &[u8]) -> bool {
     bytes.len() > remaining
 }
 
+/// How long a cancelled hk run gets to stop its own steps before it is killed.
+const CANCEL_GRACE: Duration = Duration::from_secs(10);
+
+/// How long to keep reading output after hk has exited.
+const PIPE_DRAIN_GRACE: Duration = Duration::from_secs(5);
+
+/// Stop a run the way Ctrl-C would: SIGINT lets hk stop its steps and clean up,
+/// and SIGKILL follows only if it has not exited after the grace period.
+async fn stop_child(
+    child: &mut tokio::process::Child,
+    grace: Duration,
+) -> std::io::Result<std::process::ExitStatus> {
+    #[cfg(unix)]
+    if let Some(pid) = child.id() {
+        // SAFETY: plain signal delivery to a child process we spawned and have not reaped.
+        unsafe { libc::kill(pid as libc::pid_t, libc::SIGINT) };
+        if let Ok(status) = tokio::time::timeout(grace, child.wait()).await {
+            return status;
+        }
+        // hk did not stop in time: kill its whole process group, steps included.
+        // SAFETY: the child leads its own group (see `process_group(0)`), so this
+        // signals only hk and the processes it started.
+        unsafe { libc::kill(-(pid as libc::pid_t), libc::SIGKILL) };
+    }
+    let _ = child.kill().await;
+    child.wait().await
+}
+
 async fn run_hk_capture(root: &Path, args: &[&str]) -> Result<std::process::Output, String> {
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
     let output = Command::new(executable)
-        .arg("--cd")
-        .arg(root)
+        .current_dir(root)
         .args(args)
         .stdin(std::process::Stdio::null())
         .output()
@@ -1602,6 +1680,30 @@ mod tests {
         assert!(!run.saw_run_completed);
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stop_child_kills_the_process_group_when_sigint_is_ignored() {
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "trap '' INT; sleep 300 & wait"])
+            .stdout(std::process::Stdio::piped())
+            .process_group(0)
+            .kill_on_drop(true);
+        let mut child = command.spawn().unwrap();
+        let mut stdout = child.stdout.take().unwrap();
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let status = stop_child(&mut child, Duration::from_millis(300))
+            .await
+            .unwrap();
+        assert!(!status.success());
+        // The step's `sleep` held stdout open; it must be gone so the pipe closes.
+        let mut rest = Vec::new();
+        tokio::time::timeout(Duration::from_secs(5), stdout.read_to_end(&mut rest))
+            .await
+            .expect("output pipe was still held by a surviving step")
+            .unwrap();
+    }
+
     #[test]
     fn events_split_across_many_reads_are_applied_once_complete() {
         let mut run = test_run("split", "running", Vec::new());
@@ -1770,10 +1872,15 @@ mod tests {
         let root = root.path().canonicalize().unwrap();
         let server = HkMcpServer::new(root.clone());
         let first = server
-            .start(root.clone(), RunKind::SafeCheck)
+            .start(root.clone(), RunKind::SafeCheck, RunScope::All)
             .await
             .unwrap();
-        assert!(server.start(root, RunKind::SafeCheck).await.is_err());
+        assert!(
+            server
+                .start(root, RunKind::SafeCheck, RunScope::All)
+                .await
+                .is_err()
+        );
         {
             let mut state = server.state.lock().await;
             let run = state
@@ -1813,6 +1920,32 @@ mod tests {
             server.snapshot("active").await.unwrap().status,
             "cancelling"
         );
+    }
+
+    #[test]
+    fn scope_defaults_to_all_and_maps_to_cli_flags() {
+        let request: StartRequest = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert_eq!(request.scope, RunScope::All);
+        assert_eq!(request.scope.args(), ["--all"]);
+        for (value, args) in [
+            ("all", &["--all"][..]),
+            ("changed", &["--stash", "none"][..]),
+            ("unstaged", &["--unstaged"][..]),
+        ] {
+            let request: StartRequest =
+                serde_json::from_value(serde_json::json!({ "scope": value })).unwrap();
+            assert_eq!(request.scope.args(), args, "{value}");
+        }
+    }
+
+    #[test]
+    fn unknown_scope_is_rejected_with_the_valid_values() {
+        let error =
+            serde_json::from_value::<StartRequest>(serde_json::json!({ "scope": "staged" }))
+                .unwrap_err()
+                .to_string();
+        assert!(error.contains("unknown variant `staged`"), "{error}");
+        assert!(error.contains("`all`, `changed`, `unstaged`"), "{error}");
     }
 
     #[tokio::test]
@@ -1884,6 +2017,16 @@ mod tests {
             tools["start_safe_fix"]["annotations"]["destructiveHint"],
             false
         );
+        for name in ["start_check", "start_safe_check", "start_safe_fix"] {
+            let schema = &tools[name]["inputSchema"];
+            assert!(schema["properties"]["scope"].is_object(), "{name}");
+            assert!(
+                schema["required"]
+                    .as_array()
+                    .is_none_or(|required| !required.iter().any(|field| field == "scope")),
+                "{name}"
+            );
+        }
         assert_eq!(
             tools["inspect_project"]["annotations"]["readOnlyHint"],
             true
