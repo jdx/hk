@@ -590,8 +590,12 @@ impl Step {
         };
         let job_files = join_jobs(set, CANCELLED_JOBS_GRACE, failure_allowed, |err| {
             ctx.status_errored(&format!("{err}"));
-            (fail_fast && !failure_allowed(err))
-                .then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
+            // A user's Ctrl-C already cancelled everything; it is not a step
+            // failure to abort the siblings for.
+            (fail_fast
+                && !failure_allowed(err)
+                && !crate::step_group::cancelled_by_user(&ctx.hook_ctx))
+            .then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
         })
         .await?;
         let actual_job_files: IndexSet<PathBuf> = job_files.into_iter().flatten().collect();

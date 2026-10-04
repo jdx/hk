@@ -3,6 +3,7 @@ use eyre::Context;
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     Result,
@@ -15,7 +16,10 @@ use crate::{
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 #[serde_as]
@@ -55,14 +59,35 @@ impl StepGroupContext {
     }
 }
 
+/// Whether the run was cancelled from outside (Ctrl-C) rather than by a
+/// step failure aborting its siblings.
+pub(crate) fn cancelled_by_user(hook_ctx: &HookContext) -> bool {
+    user_cancelled(&hook_ctx.failed, &hook_ctx.fail_fast_aborted)
+}
+
+fn user_cancelled(failed: &CancellationToken, aborted: &AtomicBool) -> bool {
+    failed.is_cancelled() && !aborted.load(Ordering::SeqCst)
+}
+
+/// Record that a step failure is about to cancel the run, unless something
+/// else (Ctrl-C) already did.
+fn mark_failure_abort(failed: &CancellationToken, aborted: &AtomicBool) {
+    if !failed.is_cancelled() {
+        aborted.store(true, Ordering::SeqCst);
+    }
+}
+
 /// Stop everything that is running after a fail-fast failure.
 ///
 /// Remaining steps are marked before their commands are cancelled so a woken
 /// runner cannot record cancellation as a command failure.
+///
+/// `fail_fast_aborted` is only set when this is the first thing to cancel the
+/// run. After a user's Ctrl-C the token is already cancelled, and the
+/// cancellation errors that follow must reach the caller exactly as they did
+/// before fail-fast aborts existed.
 pub(crate) async fn abort_running_steps(hook_ctx: &HookContext) {
-    hook_ctx
-        .fail_fast_aborted
-        .store(true, std::sync::atomic::Ordering::SeqCst);
+    mark_failure_abort(&hook_ctx.failed, &hook_ctx.fail_fast_aborted);
     for step_ctx in hook_ctx.step_contexts.lock().unwrap().values() {
         step_ctx.status_aborted();
     }
@@ -329,6 +354,30 @@ impl StepGroup {
 mod tests {
     use super::*;
     use crate::step::{ArgvCommand, Command};
+
+    #[test]
+    fn user_cancellation_does_not_count_as_a_fail_fast_abort() {
+        let (failed, aborted) = (CancellationToken::new(), AtomicBool::new(false));
+        assert!(!user_cancelled(&failed, &aborted));
+        failed.cancel(); // Ctrl-C
+        assert!(user_cancelled(&failed, &aborted));
+        // A failure reported after Ctrl-C does not claim the abort.
+        mark_failure_abort(&failed, &aborted);
+        assert!(!aborted.load(Ordering::SeqCst));
+        assert!(user_cancelled(&failed, &aborted));
+    }
+
+    #[test]
+    fn step_failure_abort_is_recorded_before_cancelling() {
+        let (failed, aborted) = (CancellationToken::new(), AtomicBool::new(false));
+        mark_failure_abort(&failed, &aborted);
+        failed.cancel();
+        assert!(aborted.load(Ordering::SeqCst));
+        assert!(!user_cancelled(&failed, &aborted));
+        // A second failure racing in keeps the flag.
+        mark_failure_abort(&failed, &aborted);
+        assert!(aborted.load(Ordering::SeqCst));
+    }
 
     #[test]
     fn init_inherits_group_fields_without_merging_child_overrides() {

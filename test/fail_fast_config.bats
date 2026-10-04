@@ -124,3 +124,52 @@ EOF
         assert_output --partial "working directory does not exist"
     done
 }
+
+# Ctrl-C is a cancellation, not a step failure: fail-fast must not treat it as
+# one, or the hook could report success (or hang on a dependent step).
+@test "Ctrl-C under fail-fast exits as a cancelled hook, never as success" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["slow"] { check = "touch started && sleep 30" }
+      ["dependent"] { depends = "slow"; check = "echo DEPENDENT-RAN" }
+    }
+  }
+}
+EOF
+    echo "test" > test.txt
+    git add hk.pkl test.txt
+    git commit -m "init"
+
+    for libgit2 in 1 0; do
+        rm -f started
+        HK_LIBGIT2=$libgit2 hk check --all >out.txt 2>&1 &
+        pid=$!
+        for _ in $(seq 100); do
+            [ -e started ] && break
+            sleep 0.1
+        done
+        assert_file_exists started
+        kill -INT "$pid"
+        # Poll instead of `wait` so a hang fails the test rather than the suite.
+        for _ in $(seq 100); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid"
+            pkill -f "sleep 30" || true
+            fail "hk hung after Ctrl-C (HK_LIBGIT2=$libgit2)"
+        fi
+        status=0
+        wait "$pid" || status=$?
+        # Same outcome as before fail-fast aborts existed: a failed hook that
+        # reports the cancelled command.
+        assert_equal "$status" 1
+        run cat out.txt
+        assert_output --partial "command was cancelled"
+        refute_output --partial "DEPENDENT-RAN"
+    done
+}
