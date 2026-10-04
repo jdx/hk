@@ -6,6 +6,10 @@ setup() {
 }
 
 teardown() {
+    # Kill any sleeper a failed test left behind, matching its unique marker exactly.
+    if [ -n "${STOP_HOOK_SLEEP_MARKER:-}" ]; then
+        pkill -f "sleep ${STOP_HOOK_SLEEP_MARKER//./\\.}\$" 2>/dev/null || true
+    fi
     _common_teardown
 }
 
@@ -134,7 +138,9 @@ EOF
 }
 
 @test "agent stop-hook --timeout also stops a step's grandchild in its own session" {
-    local marker="$((7100000 + RANDOM))" new_session
+    # Short but unique sleep duration; teardown kills anything matching it.
+    local new_session marker="600.${RANDOM}${RANDOM}"
+    STOP_HOOK_SLEEP_MARKER="$marker"
     if command -v setsid >/dev/null; then
         new_session="setsid sleep $marker"
     elif command -v perl >/dev/null; then
@@ -149,11 +155,10 @@ EOF
     assert_output --partial "did not finish within 3 seconds"
     local i
     for i in $(seq 1 50); do
-        pgrep -f "sleep $marker" >/dev/null || break
+        pgrep -f "sleep ${marker//./\\.}\$" >/dev/null || break
         sleep 0.1
     done
-    if pgrep -f "sleep $marker" >/dev/null; then
-        pkill -f "sleep $marker"
+    if pgrep -f "sleep ${marker//./\\.}\$" >/dev/null; then
         fail "the step's grandchild outlived the stop hook"
     fi
 }

@@ -799,21 +799,91 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(5));
     }
 
+    /// Helpers for tests that start real `sleep` processes marked by a unique duration.
     #[cfg(unix)]
-    #[tokio::test]
-    async fn a_timed_out_check_also_kills_steps_in_their_own_process_groups() {
-        // A step that, like hk's, runs in a group of its own: killing the check's group
-        // alone would miss it.
-        let have = |tool: &str| {
-            std::process::Command::new("sh")
+    mod sleepers {
+        use std::process::{Child, Command, Stdio};
+
+        pub fn have(tool: &str) -> bool {
+            Command::new("sh")
                 .args(["-c", &format!("command -v {tool}")])
                 .output()
                 .map(|o| o.status.success())
                 .unwrap_or(false)
-        };
+        }
+
+        /// A unique, short-lived sleep duration (about ten minutes), so a run that is
+        /// SIGKILLed before its guard drops leaves only a brief orphan. `n` tells apart
+        /// several markers in one test.
+        pub fn marker(n: u32) -> String {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.subsec_nanos())
+                .unwrap_or(0);
+            format!("600.{}{n}{nanos}", std::process::id())
+        }
+
+        /// The anchored pattern matching exactly `sleep <marker>` and nothing wider.
+        fn pattern(marker: &str) -> String {
+            format!("sleep {}$", marker.replace('.', "\\."))
+        }
+
+        pub fn alive(marker: &str) -> bool {
+            Command::new("pgrep")
+                .args(["-f", &pattern(marker)])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        }
+
+        /// Kills the processes matching its markers (and any stored children) when
+        /// dropped, so an assertion failure or panic cannot orphan a sleeper. Create it
+        /// before anything that can panic.
+        #[derive(Default)]
+        pub struct Cleanup {
+            markers: Vec<String>,
+            children: Vec<Child>,
+        }
+
+        impl Cleanup {
+            pub fn marker(&mut self, marker: &str) {
+                self.markers.push(marker.to_string());
+            }
+            pub fn child(&mut self, child: Child) {
+                self.children.push(child);
+            }
+        }
+
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                for child in &mut self.children {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                for marker in &self.markers {
+                    // Silently skipped when pkill is missing.
+                    let _ = Command::new("pkill")
+                        .args(["-f", &pattern(marker)])
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status();
+                }
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_timed_out_check_also_kills_steps_in_their_own_process_groups() {
+        use sleepers::*;
+        // Created before anything can panic, so the sleeper never outlives a failure.
+        let mut cleanup = Cleanup::default();
+        let marker = marker(0);
+        cleanup.marker(&marker);
+        // A step that, like hk's, runs in a group of its own: killing the check's group
+        // alone would miss it.
         // Start the sleeper in a new session. `setsid` is missing on macOS, but its system
         // perl has POSIX::setsid; the `&` child is not a group leader, so setsid succeeds.
-        let marker = format!("{}", 7_000_000 + std::process::id());
         let in_new_session = if have("setsid") {
             format!("setsid sleep {marker}")
         } else if have("perl") {
@@ -832,50 +902,30 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(outcome, CheckOutcome::TimedOut));
-        let alive = || {
-            std::process::Command::new("pgrep")
-                .args(["-f", &format!("sleep {marker}")])
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-        };
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while alive() && std::time::Instant::now() < deadline {
+        while alive(&marker) && std::time::Instant::now() < deadline {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        let survived = alive();
-        if survived {
-            let _ = std::process::Command::new("pkill")
-                .args(["-f", &format!("sleep {marker}")])
-                .status();
-        }
-        assert!(!survived, "the step's grandchild outlived the stop hook");
+        assert!(
+            !alive(&marker),
+            "the step's grandchild outlived the stop hook"
+        );
     }
 
     #[cfg(unix)]
     #[tokio::test]
     async fn a_child_that_outlives_the_check_is_killed_through_the_check_group() {
+        use sleepers::*;
         use std::os::unix::process::CommandExt;
-        let have = |tool: &str| {
-            std::process::Command::new("sh")
-                .args(["-c", &format!("command -v {tool}")])
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-        };
+        // Created before anything can panic, so no sleeper outlives a failed assertion.
+        let mut cleanup = Cleanup::default();
+        let (marker, other) = (marker(0), marker(1));
+        cleanup.marker(&marker);
+        cleanup.marker(&other);
         if !have("pgrep") {
             eprintln!("skipping: needs pgrep");
             return;
         }
-        let marker = 8_000_000 + std::process::id();
-        let alive = |m: u32| {
-            std::process::Command::new("pgrep")
-                .args(["-f", &format!("sleep {m}")])
-                .output()
-                .map(|o| o.status.success())
-                .unwrap_or(false)
-        };
-        let other = marker + 1;
         let other_session = if have("setsid") {
             format!("setsid sleep {other}")
         } else if have("perl") {
@@ -895,29 +945,21 @@ mod tests {
         let mut child = check.spawn().unwrap();
         let pid = child.id() as libc::pid_t;
         child.wait().unwrap();
+        cleanup.child(child);
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while !alive(marker) && std::time::Instant::now() < deadline {
+        while !alive(&marker) && std::time::Instant::now() < deadline {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        assert!(alive(marker), "the sleeper never started");
+        assert!(alive(&marker), "the sleeper never started");
         kill_tree(pid).await;
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while alive(marker) && std::time::Instant::now() < deadline {
+        while alive(&marker) && std::time::Instant::now() < deadline {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        let survived = alive(marker);
-        // The new-session sleeper is the documented best-effort limit: clean it up, but do
-        // not assert on it. Match it by its unique marker only.
-        let _ = std::process::Command::new("pkill")
-            .args(["-f", &format!("sleep {other}")])
-            .status();
-        if survived {
-            let _ = std::process::Command::new("pkill")
-                .args(["-f", &format!("sleep {marker}")])
-                .status();
-        }
+        // The new-session sleeper is the documented best-effort limit: the guard cleans it
+        // up, and it is not asserted on.
         assert!(
-            !survived,
+            !alive(&marker),
             "a member of the check's group outlived the stop hook"
         );
     }
