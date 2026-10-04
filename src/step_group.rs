@@ -65,6 +65,22 @@ pub(crate) fn cancelled_by_user(hook_ctx: &HookContext) -> bool {
     user_cancelled(&hook_ctx.failed, &hook_ctx.fail_fast_aborted)
 }
 
+/// The single place that decides an error is a cancellation, not a failure: a
+/// command (or a wait) stopped because the run's cancellation token fired.
+///
+/// The token may have been cancelled by a user's Ctrl-C or by a fail-fast
+/// abort; either way the error describes work that was stopped, not work that
+/// failed. A step ends cancelled, never errored, and is never listed among the
+/// failed steps. Anything else, including a real failure that happened before
+/// the cancel, is an ordinary failure.
+pub(crate) fn is_cancelled_run_error(hook_ctx: &HookContext, err: &eyre::Report) -> bool {
+    cancellation_error(&hook_ctx.failed, err)
+}
+
+fn cancellation_error(failed: &CancellationToken, err: &eyre::Report) -> bool {
+    failed.is_cancelled() && crate::error::is_cancellation(err)
+}
+
 /// The single place that decides how a step ends once its jobs are joined.
 ///
 /// The cancellation token is authoritative for a user's Ctrl-C, whatever the
@@ -278,7 +294,7 @@ impl StepGroup {
                     } {
                         Ok(failure_allowed) => failure_allowed,
                         Err(err) => {
-                            step_ctx.status_errored(&err.to_string());
+                            step_ctx.status_error(&err);
                             if !fail_fast {
                                 step_ctx.depends.mark_done(&step.name)?;
                             }
@@ -294,7 +310,7 @@ impl StepGroup {
                         hook_ctx.mark_step_failure_allowed(&step.name);
                     }
                     if let Err(err) = &result {
-                        step_ctx.status_errored(&err.to_string());
+                        step_ctx.status_error(err);
                     }
                     if (!fail_fast || failure_allowed) && result.is_err() {
                         step_ctx.depends.mark_done(&step.name)?;
@@ -415,6 +431,20 @@ impl StepGroup {
 mod tests {
     use super::*;
     use crate::step::{ArgvCommand, Command};
+
+    #[test]
+    fn only_a_cancellation_under_a_cancelled_run_is_a_cancellation() {
+        let failed = CancellationToken::new();
+        let cancelled = || eyre::Report::new(ensembler::Error::Cancelled).wrap_err("sleep 60");
+        let failure = || eyre::eyre!("tool exited 1");
+        // Nothing cancelled the run: even a cancellation-shaped error is not one.
+        assert!(!cancellation_error(&failed, &cancelled()));
+        assert!(!cancellation_error(&failed, &failure()));
+        failed.cancel();
+        assert!(cancellation_error(&failed, &cancelled()));
+        // A real failure stays a failure, whenever it is reported.
+        assert!(!cancellation_error(&failed, &failure()));
+    }
 
     #[test]
     fn user_cancellation_does_not_count_as_a_fail_fast_abort() {

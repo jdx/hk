@@ -202,6 +202,7 @@ pub struct ReportPaths<'a> {
     pub junit: Option<&'a Path>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn emit_run(
     format: OutputFormat,
     hook: &str,
@@ -209,13 +210,14 @@ pub fn emit_run(
     duration_ms: u128,
     ctx: &HookContext,
     failure: Option<String>,
+    run_cancelled: bool,
     reports: ReportPaths,
 ) -> Result<()> {
     let failed = ctx.failed_steps.lock().unwrap();
     let allowed_failures = ctx.allowed_failure_steps.lock().unwrap();
     let finished = ctx.finished_steps.lock().unwrap();
     let cancelled = ctx.cancelled_steps.lock().unwrap();
-    let run_was_cancelled = !cancelled.is_empty();
+    let run_was_cancelled = run_cancelled || !cancelled.is_empty();
     let skipped = ctx.get_skipped_steps();
     let outputs = ctx.output_by_step.lock().unwrap();
     let diagnostic_outputs = ctx.diagnostic_output_by_step.lock().unwrap();

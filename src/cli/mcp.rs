@@ -488,7 +488,10 @@ impl HkMcpServer {
             Ok(status) => {
                 run.exit_code = status.code();
                 let invalid_result = parse_run_result(run, cancelled);
-                run.status = if cancelled {
+                // hk reports a run its user interrupted (Ctrl-C) as cancelled.
+                let reported_cancelled = !invalid_result
+                    && run.result.as_ref().and_then(|r| r["status"].as_str()) == Some("cancelled");
+                run.status = if cancelled || reported_cancelled {
                     "cancelled"
                 } else if invalid_result {
                     "failed"

@@ -612,7 +612,7 @@ impl Step {
                                 &ctx, &job, stdout, stderr, combined, true,
                             );
                         }
-                        job.status_errored(&ctx, format!("{err}")).await?;
+                        job.status_error(&ctx, err).await?;
                     }
                     ctx.hook_ctx.inc_completed_jobs(1);
                     if !matches!(job.status, StepJobStatus::Pending) {
@@ -658,7 +658,7 @@ impl Step {
             CANCELLED_JOBS_GRACE,
             failure_allowed,
             |err| {
-                ctx.status_errored(&format!("{err}"));
+                ctx.status_error(err);
                 // A user's Ctrl-C already cancelled everything; it is not a step
                 // failure to abort the siblings for.
                 (fail_fast

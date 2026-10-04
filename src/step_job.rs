@@ -259,6 +259,22 @@ impl StepJob {
         Ok(())
     }
 
+    /// Record that the job ended with `err`: the step ends cancelled for a
+    /// cancellation of the run, errored otherwise.
+    pub async fn status_error(&mut self, ctx: &StepContext, err: &eyre::Report) -> Result<()> {
+        if crate::step_group::is_cancelled_run_error(&ctx.hook_ctx, err) {
+            self.status = StepJobStatus::Errored(err.to_string());
+            if let Some(progress) = &mut self.progress {
+                progress.prop("message", &err.to_string());
+                progress.set_status(ProgressStatus::Failed);
+            }
+            ctx.status_aborted();
+            Ok(())
+        } else {
+            self.status_errored(ctx, err.to_string()).await
+        }
+    }
+
     pub async fn status_errored(&mut self, ctx: &StepContext, err: String) -> Result<()> {
         match &mut self.status {
             // A command may finish successfully before an orchestration-level
