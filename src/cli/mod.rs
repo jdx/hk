@@ -175,8 +175,45 @@ impl Commands {
     }
 }
 
+impl Commands {
+    /// The hook a check, fix or run command executes, for labelling the
+    /// structured result of a run that fails before the hook starts.
+    fn hook_name(&self) -> Option<String> {
+        match self {
+            Self::Check(_) => Some("check".into()),
+            Self::Fix(_) => Some("fix".into()),
+            Self::Run(command) => command.hook_name().map(str::to_string),
+            _ => None,
+        }
+    }
+}
+
 pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     let args = Cli::parse();
+    let format = args.command.output_format().unwrap_or(args.format);
+    let hook = args.command.hook_name();
+    let started_at = chrono::Utc::now().to_rfc3339();
+    let started = std::time::Instant::now();
+    let result = run_command(args).await;
+    // Machine consumers wait for a final result. A failure before the hook
+    // starts (a broken config, say) would otherwise leave stdout empty.
+    if let (Err(err), Some(hook)) = (&result, hook)
+        && format != crate::structured_output::OutputFormat::Human
+        && !crate::structured_output::result_emitted()
+    {
+        crate::structured_output::emit_error_run(
+            format,
+            &hook,
+            started_at,
+            started.elapsed().as_millis(),
+            format!("{err:#}"),
+            Default::default(),
+        )?;
+    }
+    result
+}
+
+async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
     if args.hkrc.is_some() {
         return Err(eyre::eyre!(
             "--hkrc was removed in hk v2; use {}/config.pkl for global config or hk.local.pkl for project overrides\n\nSee {}",
