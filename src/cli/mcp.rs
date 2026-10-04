@@ -1364,12 +1364,13 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
     // Tracked files first, so tracked files that .gitignore also matches are included.
     let tracked = tracked_files_without_gitlinks(root).await?;
     let raw = ["-c", "core.autocrlf=false", "-c", "core.safecrlf=false"];
-    // None (git failed to produce the repository's empty tree) means repository attributes
-    // are used, as with git older than 2.40.
-    let attr_source = empty_tree(root)
-        .await
-        .ok()
-        .map(|tree| format!("--attr-source={tree}"));
+    // Decide from the git version, once per run, whether `--attr-source` exists (git 2.40+).
+    // Without it, repository attributes are used. Any other failure is returned as is.
+    let attr_source = if git_supports_attr_source().await {
+        Some(format!("--attr-source={}", empty_tree(root).await?))
+    } else {
+        None
+    };
     for use_attr_source in [true, false] {
         if use_attr_source && attr_source.is_none() {
             continue;
@@ -1391,14 +1392,60 @@ async fn snapshot_tree(root: &Path) -> Result<String, String> {
         .await;
         match result {
             Ok(_) => break,
-            Err(error) if !use_attr_source => return Err(error),
-            Err(_) => {
+            // Safety net for a version that was not parseable or lied: retry only when git
+            // itself rejected the option.
+            Err(error) if use_attr_source && is_attr_source_unsupported(&error) => {
                 run_git(root, &["read-tree", "--empty"], Some(&temp_index)).await?;
             }
+            Err(error) => return Err(error),
         }
     }
     let tree = run_git(root, &["write-tree"], Some(&temp_index)).await?;
     Ok(String::from_utf8_lossy(&tree).trim().to_string())
+}
+
+/// Whether the installed git has `--attr-source` (2.40+). Checked once per process; an
+/// unparseable or unavailable version is treated as supported, leaving
+/// [`is_attr_source_unsupported`] as the safety net.
+async fn git_supports_attr_source() -> bool {
+    static SUPPORTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if let Some(supported) = SUPPORTED.get() {
+        return *supported;
+    }
+    let version = Command::new("git")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .await
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| parse_git_version(&String::from_utf8_lossy(&output.stdout)));
+    let supported = version.is_none_or(|version| version >= (2, 40));
+    *SUPPORTED.get_or_init(|| supported)
+}
+
+/// Parses `git version 2.43.0.windows.1` or `git version 2.50.1 (Apple Git-155)` into
+/// `(major, minor)`.
+fn parse_git_version(output: &str) -> Option<(u32, u32)> {
+    let version = output.trim().strip_prefix("git version ")?;
+    let mut parts = version.split(|c: char| !c.is_ascii_digit() && c != '.');
+    let mut numbers = parts.next()?.split('.');
+    let major = numbers.next()?.parse().ok()?;
+    let minor = numbers.next()?.parse().ok()?;
+    Some((major, minor))
+}
+
+/// Whether an error from [`run_git`] says git rejected `--attr-source` as an unknown option.
+/// Only git's stderr is inspected, because the message also echoes the arguments.
+fn is_attr_source_unsupported(error: &str) -> bool {
+    let Some((_, stderr)) = error.split_once(" failed: ") else {
+        return false;
+    };
+    let stderr = stderr.to_ascii_lowercase();
+    stderr.contains("attr-source")
+        && (stderr.contains("unknown option")
+            || stderr.contains("unrecognized option")
+            || stderr.contains("usage:"))
 }
 
 /// Lists tracked paths NUL-separated, leaving out gitlinks (submodules): on disk those are
@@ -1856,6 +1903,47 @@ mod tests {
 
         assert!(diff.text.contains("+++ b/other.txt"), "{}", diff.text);
         assert!(!diff.text.contains("clean.txt"), "{}", diff.text);
+    }
+
+    #[test]
+    fn parses_git_versions() {
+        assert_eq!(parse_git_version("git version 2.39.5\n"), Some((2, 39)));
+        assert_eq!(parse_git_version("git version 2.40.0"), Some((2, 40)));
+        assert_eq!(
+            parse_git_version("git version 2.43.0.windows.1"),
+            Some((2, 43))
+        );
+        assert_eq!(
+            parse_git_version("git version 2.50.1 (Apple Git-155)"),
+            Some((2, 50))
+        );
+        assert_eq!(parse_git_version("something else"), None);
+        assert!((2, 39) < (2, 40) && (2, 50) >= (2, 40) && (3, 0) >= (2, 40));
+    }
+
+    #[test]
+    fn only_unknown_option_errors_retry_without_attr_source() {
+        let old = "git add -A -- . failed: unknown option: --attr-source=4b825dc\nusage: git [-v | --version]";
+        assert!(is_attr_source_unsupported(old));
+        assert!(is_attr_source_unsupported(
+            "git add failed: error: unrecognized option '--attr-source=abc'"
+        ));
+        // The echoed arguments alone must not trigger a retry.
+        assert!(!is_attr_source_unsupported(
+            "git --attr-source=abc add -A failed: fatal: index file corrupt"
+        ));
+        assert!(!is_attr_source_unsupported(
+            "git --attr-source=abc add -A failed: error: unable to create temporary file: No space left on device"
+        ));
+        assert!(!is_attr_source_unsupported("failed to run git add: denied"));
+    }
+
+    #[tokio::test]
+    async fn snapshot_tree_returns_real_git_errors() {
+        let directory = tempfile::tempdir().unwrap();
+        // Not a repository: the error is surfaced, not masked by a retry.
+        let error = snapshot_tree(directory.path()).await.unwrap_err();
+        assert!(error.contains("failed"), "{error}");
     }
 
     #[tokio::test]
