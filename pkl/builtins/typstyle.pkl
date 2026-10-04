@@ -1,0 +1,39 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Typst"
+  description = "Typst formatter"
+  project_indicators {
+    new { glob = "*.typ"; recursive = true }
+  }
+}
+typstyle = new Config.Step {
+  glob = "**/*.typ"
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command { argv = List("typstyle", "--diff", "{{files}}") }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("typstyle", "--inplace", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.typ" }
+    local const bad = "#let x=1+2\n"
+    local const good = "#let x = 1 + 2\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+    ["diff file without final newline"] = testMaker.diffPass("#let x=1+2", good)
+    ["diff nested file with spaces"] =
+      testMaker.withFilename("a b/test file.typ").diffPass(bad, good)
+    ["diff multiple files"] = (testMaker.diffPass(bad, good)) {
+      write { ["other.typ"] = bad }
+      expect { files { ["other.typ"] = good } }
+    }
+  }
+}
