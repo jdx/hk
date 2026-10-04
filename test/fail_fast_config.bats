@@ -261,3 +261,156 @@ EOF
         assert_output --partial "command was cancelled"
     done
 }
+
+# Sends Ctrl-C to `hk check --all "$@"` once `$1` exists and asserts the run
+# ends within 15s with the status and message a Ctrl-C always had: a failed,
+# cancelled hook, never success and never a hang. Dependent steps must not run.
+_interrupt_and_expect_cancelled() {
+    local marker=$1
+    shift
+    rm -f "$marker"
+    hk check --all "$@" >out.txt 2>&1 &
+    local pid=$!
+    for _ in $(seq 100); do
+        [ -e "$marker" ] && break
+        sleep 0.1
+    done
+    assert_file_exists "$marker"
+    sleep 0.3
+    kill -INT "$pid"
+    local start=$SECONDS
+    # Poll instead of `wait` so a hang fails the test rather than the suite.
+    for _ in $(seq 200); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid"
+        [ -z "${SLEEPER:-}" ] || pkill -f "sleep $SLEEPER" || true
+        [ -z "${STUB_SLEEPER:-}" ] || pkill -f "sleep $STUB_SLEEPER" || true
+        fail "hk hung after Ctrl-C"
+    fi
+    local status=0
+    wait "$pid" || status=$?
+    assert [ $((SECONDS - start)) -lt 15 ]
+    assert_equal "$status" 1
+    run cat out.txt
+    assert_output --partial "command was cancelled"
+    refute_output --partial "DEPENDENT-RAN"
+}
+
+# Every job is still resolving `mise env` when Ctrl-C arrives, so no command
+# ever started. That is still a cancelled run (exit 1), not a successful one,
+# and the step that depends on it must not hang or run.
+@test "Ctrl-C while every job resolves the mise environment is a cancelled run" {
+    if ! command -v mise >/dev/null 2>&1; then
+        skip "mise is not installed"
+    fi
+    STUB_SLEEPER="60.$$$RANDOM"
+    real_mise=$(command -v mise)
+    mkdir -p stubbin
+    cat <<EOF2 > stubbin/mise
+#!/bin/sh
+if [ "\$1" = env ]; then
+    case "\$PWD" in
+        */w) touch "$PWD/mise-stuck"; exec sleep $STUB_SLEEPER ;;
+    esac
+fi
+exec "$real_mise" "\$@"
+EOF2
+    chmod +x stubbin/mise
+    export PATH="$PWD/stubbin:$PATH"
+    export HK_MISE=1
+    export MISE_TRUSTED_CONFIG_PATHS="$TEST_TEMP_DIR"
+    mkdir -p w
+    touch w/module.toml
+    echo w > w/f.mod
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["ws"] {
+        glob = "**/*.mod"
+        workspace_indicator = "module.toml"
+        dir = "{{workspace}}"
+        check = "echo RAN-CMD"
+      }
+      ["dependent"] { depends = "ws"; check = "echo DEPENDENT-RAN" }
+    }
+  }
+}
+EOF2
+    git add hk.pkl w
+    git commit -m "init"
+
+    for libgit2 in 1 0; do
+        for flags in "" "--no-fail-fast"; do
+            export HK_LIBGIT2=$libgit2
+            _interrupt_and_expect_cancelled mise-stuck $flags
+        done
+    done
+    pkill -f "sleep $STUB_SLEEPER" || true
+}
+
+# Ctrl-C while a step waits for the step it depends on: the whole chain ends,
+# none of the waiting steps runs, and nothing waits on a done notification that
+# never comes.
+@test "Ctrl-C with steps waiting on a dependency ends the whole chain" {
+    SLEEPER="30.$$$RANDOM"
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["slow"] { check = "touch started && sleep $SLEEPER" }
+      ["d1"] { depends = "slow"; check = "echo DEPENDENT-RAN" }
+      ["d2"] { depends = "d1"; check = "echo DEPENDENT-RAN" }
+    }
+  }
+}
+EOF2
+    echo "test" > test.txt
+    git add hk.pkl test.txt
+    git commit -m "init"
+
+    for libgit2 in 1 0; do
+        for flags in "" "--no-fail-fast"; do
+            export HK_LIBGIT2=$libgit2
+            _interrupt_and_expect_cancelled started $flags
+        done
+    done
+}
+
+# Ctrl-C while one job's failure is allowed and a sibling is still running.
+@test "Ctrl-C with an allowed failure in the step is a cancelled run" {
+    SLEEPER="30.$$$RANDOM"
+    mkdir -p a b
+    touch a/module.toml b/module.toml
+    echo a > a/f.mod
+    echo b > b/f.mod
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["ws"] {
+        allow_failure = true
+        glob = "**/*.mod"
+        workspace_indicator = "module.toml"
+        dir = "{{workspace}}"
+        check = "touch \$PWD/../started; case \$PWD in */a) sleep 1; exit 3;; *) sleep $SLEEPER;; esac"
+      }
+      ["dependent"] { depends = "ws"; check = "echo DEPENDENT-RAN" }
+    }
+  }
+}
+EOF2
+    git add hk.pkl a b
+    git commit -m "init"
+
+    for libgit2 in 1 0; do
+        export HK_LIBGIT2=$libgit2
+        _interrupt_and_expect_cancelled started
+    done
+}

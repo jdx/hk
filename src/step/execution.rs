@@ -27,6 +27,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::expr_env::eval_condition;
 use super::types::{AllowFailure, CheckFirstCmd, RunType, Step};
+use crate::step_depends::StepDepends;
 
 /// How long jobs get to wind down after a cancellation (a fail-fast abort or a
 /// user's Ctrl-C) before they are aborted. Cancelled commands are killed at once, so this only bounds a
@@ -122,6 +123,44 @@ where
     }
 }
 
+/// Marks a step done when it ends while the run is cancelled, on every exit
+/// path (return, error, or the task being dropped). A failure that is not a
+/// cancellation is left alone: dependents must not start after it.
+struct WakeDependentsOnCancel {
+    ctx: Arc<StepContext>,
+    step: String,
+}
+
+impl Drop for WakeDependentsOnCancel {
+    fn drop(&mut self) {
+        wake_dependents_if_cancelled(&self.ctx.depends, &self.step, &self.ctx.hook_ctx.failed);
+    }
+}
+
+fn wake_dependents_if_cancelled(depends: &StepDepends, step: &str, cancel: &CancellationToken) {
+    if cancel.is_cancelled() {
+        let _ = depends.mark_done(step);
+    }
+}
+
+/// Wait until `dep` is done. A cancelled run ends the wait with a cancellation
+/// error even if `dep` never reports done, and a dependency that finished by
+/// being cancelled does not let the waiting step start.
+async fn wait_for_dependency(
+    depends: &StepDepends,
+    dep: &str,
+    cancel: &CancellationToken,
+) -> Result<()> {
+    tokio::select! {
+        res = depends.wait_for(dep) => res?,
+        _ = cancel.cancelled() => {}
+    }
+    if cancel.is_cancelled() {
+        return Err(ensembler::Error::Cancelled.into());
+    }
+    Ok(())
+}
+
 /// Default stage pattern for steps with fix commands when staging is enabled.
 static DEFAULT_STAGE: LazyLock<Vec<String>> = LazyLock::new(|| vec!["<JOB_FILES>".to_string()]);
 
@@ -163,6 +202,11 @@ impl Step {
         semaphore: Option<OwnedSemaphorePermit>,
         fail_fast: bool,
     ) -> Result<()> {
+        // Whatever way this step ends, a cancelled run must wake its dependents.
+        let _wake_dependents = WakeDependentsOnCancel {
+            ctx: ctx.clone(),
+            step: self.name.clone(),
+        };
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
         let ctx = Arc::new(ctx);
 
@@ -627,7 +671,12 @@ impl Step {
         let actual_job_files: IndexSet<PathBuf> = job_files.into_iter().flatten().collect();
         if ctx.hook_ctx.failed.is_cancelled() {
             ctx.status_aborted();
-            return Ok(());
+            // The token is authoritative. A user's Ctrl-C is a cancelled run
+            // even if every job returned Ok (none had started a command, or
+            // they were aborted after the grace period); only a fail-fast
+            // abort, whose failure is reported by the step that caused it, ends
+            // quietly.
+            return crate::step_group::cancelled_run_outcome(&ctx.hook_ctx);
         }
         // Skip staging if no jobs actually processed any files (e.g., all jobs skipped by condition)
         if non_skip_jobs > 0
@@ -657,7 +706,12 @@ impl Step {
                 debug!("{self}: waiting for {dep}");
                 semaphore.take(); // release semaphore for another step
             }
-            ctx.depends.wait_for(dep).await?;
+            if let Err(err) = wait_for_dependency(&ctx.depends, dep, &ctx.hook_ctx.failed).await {
+                debug!("{self}: cancelled while waiting for {dep}");
+                // Never started: report it as aborted, not as a failed step.
+                ctx.status_aborted();
+                return Err(err);
+            }
         }
         match semaphore {
             Some(semaphore) => Ok(semaphore),
@@ -1194,5 +1248,89 @@ mod tests {
         // The callback that would mark `fail_fast_aborted` ran but returned no
         // cancellation, so the flag it guards stays clear.
         assert!(on_failure_called.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn user_cancel_with_every_job_ok_is_still_a_cancelled_step() {
+        // Row 1: no job started a command (all returned Ok, one was aborted by
+        // the grace period). join_jobs reports no error; the token decides.
+        let cancel = CancellationToken::new();
+        let aborted = std::sync::atomic::AtomicBool::new(false);
+        let mut set = tokio::task::JoinSet::<Result<()>>::new();
+        set.spawn(async { Ok(()) });
+        set.spawn(async {
+            std::future::pending::<()>().await;
+            Ok(())
+        });
+        cancel.cancel();
+        let done = join_jobs(
+            set,
+            &cancel,
+            Duration::from_millis(50),
+            |_| false,
+            |_| None::<std::future::Ready<()>>,
+        )
+        .await
+        .unwrap();
+        assert_eq!(done.len(), 1);
+        let outcome = crate::step_group::cancelled_outcome(&cancel, &aborted);
+        assert!(crate::error::is_cancellation(&outcome.unwrap_err()));
+        // A fail-fast abort ends quietly: the failing step reports the error.
+        aborted.store(true, std::sync::atomic::Ordering::SeqCst);
+        assert!(crate::step_group::cancelled_outcome(&cancel, &aborted).is_ok());
+    }
+
+    #[tokio::test]
+    async fn dependency_wait_ends_on_cancel_even_if_the_dependency_never_finishes() {
+        let depends = StepDepends::new(&["dep"]);
+        let cancel = CancellationToken::new();
+        {
+            let cancel = cancel.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                cancel.cancel();
+            });
+        }
+        let started = tokio::time::Instant::now();
+        let err = wait_for_dependency(&depends, "dep", &cancel)
+            .await
+            .unwrap_err();
+        assert!(crate::error::is_cancellation(&err));
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn dependency_wait_does_not_start_a_step_after_cancel() {
+        let depends = StepDepends::new(&["dep"]);
+        let cancel = CancellationToken::new();
+        // The dependency "finished" because it was cancelled.
+        cancel.cancel();
+        wake_dependents_if_cancelled(&depends, "dep", &cancel);
+        assert!(depends.is_done("dep"));
+        let err = wait_for_dependency(&depends, "dep", &cancel)
+            .await
+            .unwrap_err();
+        assert!(crate::error::is_cancellation(&err));
+    }
+
+    #[tokio::test]
+    async fn dependency_wait_passes_when_done_and_not_cancelled() {
+        let depends = StepDepends::new(&["dep"]);
+        depends.mark_done("dep").unwrap();
+        wait_for_dependency(&depends, "dep", &CancellationToken::new())
+            .await
+            .unwrap();
+    }
+
+    #[test]
+    fn dependents_are_only_woken_by_cancellation_not_by_failure() {
+        // A failure that is not a cancellation must not let dependents start.
+        let depends = StepDepends::new(&["dep"]);
+        let cancel = CancellationToken::new();
+        wake_dependents_if_cancelled(&depends, "dep", &cancel);
+        assert!(!depends.is_done("dep"));
+        cancel.cancel();
+        wake_dependents_if_cancelled(&depends, "dep", &cancel);
+        assert!(depends.is_done("dep"));
     }
 }

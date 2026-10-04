@@ -263,8 +263,11 @@ impl Step {
             tokio::select! {
                 env = crate::mise_env::mise_env_for_dir(&command_dir) => Some(env),
                 _ = ctx.hook_ctx.failed.cancelled() => {
-                    trace!("{self}: skipping step due to cancellation");
-                    return Ok(());
+                    // No command ran, so report the same cancellation a command
+                    // killed by the cancel would. Returning Ok here would let
+                    // a user's Ctrl-C finish as success.
+                    trace!("{self}: cancelled while resolving the mise environment");
+                    return Err(eyre::Report::new(ensembler::Error::Cancelled).wrap_err(run));
                 }
             }
         } else {

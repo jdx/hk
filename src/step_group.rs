@@ -65,6 +65,24 @@ pub(crate) fn cancelled_by_user(hook_ctx: &HookContext) -> bool {
     user_cancelled(&hook_ctx.failed, &hook_ctx.fail_fast_aborted)
 }
 
+/// How a step ends once the run's token is cancelled and its jobs are done.
+///
+/// The token is authoritative, not the jobs' results: a user's Ctrl-C is a
+/// cancelled step even when every job returned Ok (none had started a
+/// command yet, or they were aborted after the grace period). A fail-fast
+/// abort ends quietly because the step that failed reports the error.
+pub(crate) fn cancelled_run_outcome(hook_ctx: &HookContext) -> Result<()> {
+    cancelled_outcome(&hook_ctx.failed, &hook_ctx.fail_fast_aborted)
+}
+
+pub(crate) fn cancelled_outcome(failed: &CancellationToken, aborted: &AtomicBool) -> Result<()> {
+    if user_cancelled(failed, aborted) {
+        Err(ensembler::Error::Cancelled.into())
+    } else {
+        Ok(())
+    }
+}
+
 fn user_cancelled(failed: &CancellationToken, aborted: &AtomicBool) -> bool {
     failed.is_cancelled() && !aborted.load(Ordering::SeqCst)
 }
@@ -269,6 +287,11 @@ impl StepGroup {
             });
         }
         let mut result = Ok(());
+        // The first cancellation error after a user's Ctrl-C. Steps that were
+        // only cancelled (a dependent that never started) can report before the
+        // step whose command was killed, so wait for the rest and let a more
+        // specific error, or the cancelled command's own, come first.
+        let mut cancelled: Option<eyre::Report> = None;
         while let Some(res) = set.join_next().await {
             match res {
                 Ok(Ok(())) => {}
@@ -285,6 +308,17 @@ impl StepGroup {
                         debug!("ignoring cancellation after fail-fast abort: {err:#}");
                         continue;
                     }
+                    if crate::error::is_cancellation(&err) && cancelled_by_user(&ctx.hook_ctx) {
+                        // Prefer the error that says which command was cancelled
+                        // over a bare one from a step that never started.
+                        if cancelled
+                            .as_ref()
+                            .is_none_or(|c| c.chain().count() < err.chain().count())
+                        {
+                            cancelled = Some(err);
+                        }
+                        continue;
+                    }
                     if ctx.fail_fast {
                         abort_running_steps(&ctx.hook_ctx).await;
                         return Err(err);
@@ -298,6 +332,11 @@ impl StepGroup {
                     std::panic::resume_unwind(e.into_panic());
                 }
             }
+        }
+        if result.is_ok()
+            && let Some(err) = cancelled
+        {
+            result = Err(err);
         }
         if let Some(progress) = ctx.progress {
             if result.is_ok() {

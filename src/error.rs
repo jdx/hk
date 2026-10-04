@@ -36,3 +36,16 @@ pub fn is_cancellation(error: &eyre::Report) -> bool {
         )
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancellation_is_found_through_context() {
+        let err = eyre::Report::new(ensembler::Error::Cancelled).wrap_err("some command");
+        assert!(is_cancellation(&err));
+        assert!(!is_command_failure(&err));
+        assert!(!is_cancellation(&eyre::eyre!("other")));
+    }
+}
