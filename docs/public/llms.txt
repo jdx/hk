@@ -35,6 +35,7 @@
 - [agent hooks](https://hk.jdx.dev/cli/agent/hooks.html): Print a hook configuration for an agent or editor
 - [agent instructions](https://hk.jdx.dev/cli/agent/instructions.html): Print project instructions for a coding agent
 - [agent mcp](https://hk.jdx.dev/cli/agent/mcp.html): Print an MCP server configuration
+- [agent stop-hook](https://hk.jdx.dev/cli/agent/stop-hook.html): Run hk run check --safe as an agent Stop hook
 - [builtins](https://hk.jdx.dev/cli/builtins.html): List all available builtin linters
 - [cache clear](https://hk.jdx.dev/cli/cache/clear.html): Clear the cache directory
 - [check](https://hk.jdx.dev/cli/check.html): Run the check hook

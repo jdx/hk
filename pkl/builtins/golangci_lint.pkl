@@ -20,4 +20,25 @@ golangci_lint = new Config.Step {
     command = "golangci-lint run --fix ./..."
     effect = "write"
   }
+  tests {
+    ["check good file"] {
+      run = "check"
+      tmpdir = true
+      write = new Mapping<String, String> {
+        ["go.mod"] =
+          """
+            module example.com/test
+
+            go 1.21
+          """
+        ["main.go"] =
+          """
+            package main
+
+            func main() {}
+          """
+      }
+      expect { code = 0 }
+    }
+  }
 }

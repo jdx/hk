@@ -268,12 +268,21 @@ pub fn emit_run(
                         segments
                             .iter()
                             .map(|segment| (segment.dir.as_deref(), segment.output.as_str())),
+                        step.diagnostic_severity.clone(),
                     )
                 }
                 (Some(format), _) => output
                     .as_deref()
                     .filter(|output| !output.is_empty())
-                    .map(|output| diagnostics::parse(format, name, tool, output))
+                    .map(|output| {
+                        diagnostics::parse_with_default(
+                            format,
+                            name,
+                            tool,
+                            output,
+                            step.diagnostic_severity.clone(),
+                        )
+                    })
                     .unwrap_or_default(),
                 _ => Default::default(),
             };

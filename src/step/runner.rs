@@ -258,7 +258,18 @@ impl Step {
             }
         }
         let mise_env = if rendered_dir.is_some() && *env::HK_MISE {
-            Some(crate::mise_env::mise_env_for_dir(&command_dir).await)
+            // Stop waiting if the run is cancelled (Ctrl-C, fail-fast) so a
+            // stalled `mise env` cannot keep this job, and the run, alive.
+            tokio::select! {
+                env = crate::mise_env::mise_env_for_dir(&command_dir) => Some(env),
+                _ = ctx.hook_ctx.failed.cancelled() => {
+                    // No command ran, so report the same cancellation a command
+                    // killed by the cancel would. Returning Ok here would let
+                    // a user's Ctrl-C finish as success.
+                    trace!("{self}: cancelled while resolving the mise environment");
+                    return Err(eyre::Report::new(ensembler::Error::Cancelled).wrap_err(run));
+                }
+            }
         } else {
             None
         };

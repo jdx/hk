@@ -59,12 +59,30 @@ pub struct ParseResult {
     pub warnings: Vec<String>,
 }
 
+#[cfg(test)]
 pub fn parse(format: DiagnosticFormat, step: &str, tool: &str, output: &str) -> ParseResult {
+    parse_with_default(format, step, tool, output, None)
+}
+
+/// Like [`parse`], but `default_severity` is used (instead of `error`) for `gcc` findings
+/// whose line carries no severity word.
+pub fn parse_with_default(
+    format: DiagnosticFormat,
+    step: &str,
+    tool: &str,
+    output: &str,
+    default_severity: Option<Severity>,
+) -> ParseResult {
     let mut result = match format {
         DiagnosticFormat::Sarif => parse_sarif(step, tool, output),
         DiagnosticFormat::CargoJson => parse_cargo(step, tool, output),
         DiagnosticFormat::EslintJson => parse_eslint(step, tool, output),
-        DiagnosticFormat::Gcc => parse_gcc(step, tool, output),
+        DiagnosticFormat::Gcc => parse_gcc(
+            step,
+            tool,
+            output,
+            default_severity.unwrap_or(Severity::Error),
+        ),
     };
     let mut seen = IndexSet::new();
     result
@@ -83,10 +101,11 @@ pub fn parse_segments<'a>(
     step: &str,
     tool: &str,
     segments: impl IntoIterator<Item = (Option<&'a str>, &'a str)>,
+    default_severity: Option<Severity>,
 ) -> ParseResult {
     let mut merged = ParseResult::default();
     for (dir, output) in segments {
-        let mut parsed = parse(format, step, tool, output);
+        let mut parsed = parse_with_default(format, step, tool, output, default_severity.clone());
         if let Some(dir) = dir {
             rebase_paths(&mut parsed.diagnostics, dir);
         }
@@ -322,13 +341,15 @@ fn parse_eslint(step: &str, tool: &str, output: &str) -> ParseResult {
 /// Beyond the classic GCC shape, this is deliberately tolerant of the way other
 /// tools print the same thing, without reading anything ambiguous:
 ///
+/// - a line without a severity word is an `error`, except that a `rule-name: message` finding
+///   gets `default_severity` when the step sets `diagnostic_severity`;
 /// - the column is optional (`path:line: message`, as mypy and buildifier print);
 /// - go vet's `vet: ` prefix is ignored, and `# package` header lines (also
 ///   `path:1: : # package`, as golangci-lint prints) are skipped, but not
 ///   preprocessor lines such as `#define X`;
 /// - a message continues over the following lines only until a blank line or a
 ///   recognizable summary line, so trailing summaries never reach the last finding.
-fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
+fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -> ParseResult {
     const RULE: &str = r"(?:\s+\[([^\]]+)\](?:\s+\[\d+\])?)?$";
     let with_column = regex::Regex::new(&format!(
         r"^(.*?):(\d+):(\d+):\s*(?:(error|warning|note|help):\s*)?(.*?){RULE}"
@@ -342,6 +363,9 @@ fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
         r"^(\S+?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){RULE}"
     ))
     .expect("valid column-less diagnostic regex");
+    // `diagnostic_severity` applies only to findings shaped `rule-name: message`; any other
+    // line without a severity word (for example `syntax error`) stays an error.
+    let rule_prefixed = regex::Regex::new(r"^[A-Za-z_][\w.-]*:\s").expect("valid rule regex");
     // Only go vet's prefix is stripped: any other `word: ` may be the start of a path.
     let tool_prefix = regex::Regex::new(r"^vet: (\S)").expect("valid prefix regex");
     // `# example.com/m`, `# [example.com/m]`, `# example.com/m [example.com/m.test]`
@@ -423,7 +447,16 @@ fn parse_gcc(step: &str, tool: &str, output: &str) -> ParseResult {
         Some(Diagnostic {
             step: step.to_string(),
             tool: tool.to_string(),
-            severity: severity(level.map_or("error", |value| value.as_str())),
+            severity: level.map_or_else(
+                || {
+                    if rule_prefixed.is_match(&message) {
+                        default_severity.clone()
+                    } else {
+                        Severity::Error
+                    }
+                },
+                |value| severity(value.as_str()),
+            ),
             message,
             path: Some(path),
             range: Some(Range {
@@ -795,6 +828,34 @@ mod tests {
     }
 
     #[test]
+    fn gcc_default_severity_applies_only_to_findings_without_one() {
+        let output = "a.bzl:1: rule: no severity\nb.c:2:3: error: named\nc.c:4: note: also named\nd.bzl:3:1: syntax error\ne.bzl:5: unexpected token\n";
+        let parsed = parse_with_default(
+            DiagnosticFormat::Gcc,
+            "step",
+            "tool",
+            output,
+            Some(Severity::Warning),
+        );
+        let severities: Vec<_> = parsed
+            .diagnostics
+            .iter()
+            .map(|d| d.severity.clone())
+            .collect();
+        assert_eq!(
+            severities,
+            vec![
+                Severity::Warning,
+                Severity::Error,
+                Severity::Note,
+                Severity::Error,
+                Severity::Error
+            ]
+        );
+        assert_eq!(gcc(output).diagnostics[0].severity, Severity::Error);
+    }
+
+    #[test]
     fn gcc_reads_cpplint_category_and_clamps_line_zero() {
         let output = "main.cc:0:  No copyright message found.  You should have a line: \"Copyright [year] <Copyright Owner>\"  [legal/copyright] [5]\nmain.cc:1:  Missing spaces around =  [whitespace/operators] [4]\nDone processing main.cc\nTotal errors found: 2\n";
         let parsed = gcc(output);
@@ -1016,6 +1077,7 @@ mod tests {
                 (Some("b"), "x.go:1:2: error: bad"),
                 (None, "y.go:3:4: warning: meh"),
             ],
+            None,
         );
         let paths: Vec<_> = parsed
             .diagnostics
@@ -1050,6 +1112,7 @@ mod tests {
                 "s",
                 "t",
                 [(Some("pkg/a"), a.as_str()), (Some("pkg/b"), b.as_str())],
+                None,
             );
             assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
             let paths: Vec<_> = parsed
