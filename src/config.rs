@@ -1157,8 +1157,8 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let outcome = run_pklr_blocking(|| evaluator.eval(path))
-        .map_err(|e| match pklr_syntax_error(&e) {
+    let outcome =
+        run_pklr_blocking(|| evaluator.eval(path)).map_err(|e| match pklr_syntax_error(&e) {
             Some(err) => eyre::Report::new(err),
             None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
         })?;
