@@ -169,62 +169,118 @@ async fn list_processes() -> Vec<Proc> {
         .collect()
 }
 
-/// Adds to `pids` and `pgids` every process that descends from, or shares a group with, what
-/// they already hold. Returns whether anything was added.
+/// The hook's own place in the process table, which a kill plan must never touch.
 #[cfg(unix)]
-fn grow_tree(
-    procs: &[Proc],
-    pids: &mut std::collections::HashSet<libc::pid_t>,
-    pgids: &mut std::collections::HashSet<libc::pid_t>,
-) -> bool {
-    let mut grew = false;
-    loop {
-        let mut changed = false;
-        for p in procs {
-            if p.pid > 1
-                && (pids.contains(&p.ppid) || pgids.contains(&p.pgid))
-                && pids.insert(p.pid)
-            {
-                pgids.insert(p.pgid);
-                changed = true;
-            }
-        }
-        if !changed {
-            return grew;
-        }
-        grew = true;
-    }
+struct Own {
+    pid: libc::pid_t,
+    ppid: libc::pid_t,
+    pgid: libc::pid_t,
 }
 
-/// SIGKILLs the check, everything it started, and the process groups they lead. hk runs each
-/// step in a group of its own, so signalling the check's group alone would leave the linters
-/// running. The tree is snapshotted before anything dies (afterwards the orphans can no longer
-/// be traced to the check) and re-scanned once to catch processes spawned during the kill.
+/// What `kill_tree` may signal: whole process groups (every live member of each is a
+/// descendant of the check) and individual descendant pids outside those groups.
+#[cfg(unix)]
+#[derive(Debug, Default, PartialEq)]
+struct KillPlan {
+    groups: std::collections::BTreeSet<libc::pid_t>,
+    pids: std::collections::BTreeSet<libc::pid_t>,
+    /// Every descendant seen, to seed the next scan.
+    descendants: std::collections::BTreeSet<libc::pid_t>,
+}
+
+/// Plans what to kill from one `ps` snapshot.
+///
+/// The rule: a process is signalled only if it is a descendant of the check, found by
+/// following parent links (ppid) from `root` and from `seen` (descendants of an earlier
+/// scan, still alive but possibly reparented to init since). A process group is signalled
+/// only if every member in the snapshot is such a descendant. Never expand by "this
+/// process's group is already in the set": a descendant that stayed in the hook's group, or
+/// that shares a group with an unrelated process, would drag that peer in. The hook's own
+/// pid, parent and group are never signalled.
+#[cfg(unix)]
+fn plan_kill(
+    procs: &[Proc],
+    root: libc::pid_t,
+    seen: &std::collections::BTreeSet<libc::pid_t>,
+    own: &Own,
+) -> KillPlan {
+    use std::collections::BTreeSet;
+    let excluded = |pid: libc::pid_t| pid <= 1 || pid == own.pid || pid == own.ppid;
+    let mut descendants: BTreeSet<libc::pid_t> = BTreeSet::new();
+    if !excluded(root) {
+        descendants.insert(root);
+    }
+    descendants.extend(
+        procs
+            .iter()
+            .filter(|p| seen.contains(&p.pid) && !excluded(p.pid))
+            .map(|p| p.pid),
+    );
+    loop {
+        let before = descendants.len();
+        for p in procs {
+            if !excluded(p.pid) && descendants.contains(&p.ppid) {
+                descendants.insert(p.pid);
+            }
+        }
+        if descendants.len() == before {
+            break;
+        }
+    }
+    let mut plan = KillPlan::default();
+    for p in procs.iter().filter(|p| descendants.contains(&p.pid)) {
+        let g = p.pgid;
+        if excluded(g) || g == own.pgid || plan.groups.contains(&g) {
+            continue;
+        }
+        if procs
+            .iter()
+            .filter(|m| m.pgid == g)
+            .all(|m| descendants.contains(&m.pid))
+        {
+            plan.groups.insert(g);
+        }
+    }
+    plan.pids = procs
+        .iter()
+        .filter(|p| descendants.contains(&p.pid) && !plan.groups.contains(&p.pgid))
+        .map(|p| p.pid)
+        .collect();
+    plan.descendants = descendants;
+    plan
+}
+
+/// SIGKILLs the check and everything it started. hk runs each step in a group of its own,
+/// so signalling the check's group alone would leave the linters running. The tree is
+/// snapshotted before anything dies (afterwards the orphans can no longer be traced to the
+/// check by parent links) and re-scanned once, seeded with what was already seen, to catch
+/// processes spawned during the kill. See `plan_kill` for what may be signalled.
 #[cfg(unix)]
 async fn kill_tree(root: libc::pid_t) {
-    use std::collections::HashSet;
-    // SAFETY: getpgrp has no preconditions.
-    let own_group = unsafe { libc::getpgrp() };
-    let mut pids = HashSet::from([root]);
-    let mut pgids = HashSet::from([root]);
-    grow_tree(&list_processes().await, &mut pids, &mut pgids);
+    use std::collections::BTreeSet;
+    // SAFETY: getpgrp and getppid have no preconditions.
+    let own = Own {
+        pid: std::process::id() as libc::pid_t,
+        ppid: unsafe { libc::getppid() },
+        pgid: unsafe { libc::getpgrp() },
+    };
+    let mut seen = BTreeSet::new();
     for pass in 0..2 {
-        for &pgid in pgids.iter().filter(|g| **g > 1 && **g != own_group) {
-            // SAFETY: a group of the check's own tree; ESRCH (already gone) is ignored.
+        let plan = plan_kill(&list_processes().await, root, &seen, &own);
+        if pass == 1 && plan.descendants.is_subset(&seen) {
+            break;
+        }
+        for &pgid in &plan.groups {
+            // SAFETY: every live member of this group descends from the check; ESRCH is ignored.
             unsafe { libc::kill(-pgid, libc::SIGKILL) };
         }
-        for &pid in pids
-            .iter()
-            .filter(|p| **p > 1 && **p != std::process::id() as libc::pid_t)
-        {
-            // SAFETY: a process of the check's own tree; ESRCH is ignored.
+        for &pid in &plan.pids {
+            // SAFETY: a descendant of the check; ESRCH is ignored.
             unsafe { libc::kill(pid, libc::SIGKILL) };
         }
+        seen.extend(plan.descendants);
         if pass == 0 {
             tokio::time::sleep(Duration::from_millis(100)).await;
-            if !grow_tree(&list_processes().await, &mut pids, &mut pgids) {
-                break;
-            }
         }
     }
 }
@@ -559,6 +615,90 @@ mod tests {
     fn falls_back_to_stderr_and_truncates() {
         assert!(diagnose("", "boom", Some(2)).contains("boom"));
         assert!(diagnose("", &"x".repeat(5000), None).chars().count() <= MAX_REASON_CHARS + 3);
+    }
+
+    #[cfg(unix)]
+    mod plan {
+        use super::super::*;
+        use std::collections::BTreeSet;
+
+        fn procs(text: &str) -> Vec<Proc> {
+            text.lines()
+                .map(|l| {
+                    let f: Vec<i32> = l.split_whitespace().map(|x| x.parse().unwrap()).collect();
+                    Proc {
+                        pid: f[0],
+                        ppid: f[1],
+                        pgid: f[2],
+                    }
+                })
+                .collect()
+        }
+        // hook 100 (parent 50, group 90), check 200 leads group 200.
+        const OWN: Own = Own {
+            pid: 100,
+            ppid: 50,
+            pgid: 90,
+        };
+        fn set(v: &[i32]) -> BTreeSet<i32> {
+            v.iter().copied().collect()
+        }
+
+        #[test]
+        fn kills_the_check_group_and_a_step_in_its_own_group() {
+            let p =
+                procs("1 0 1\n50 1 90\n90 50 90\n100 50 90\n200 100 200\n201 200 200\n300 201 300");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200, 300]));
+            assert!(plan.pids.is_empty());
+        }
+
+        #[test]
+        fn a_descendant_in_the_hooks_own_group_spares_its_peers() {
+            // 301 descends from the check but sits in the hook's group, next to 90 and 100.
+            let p = procs("50 1 90\n90 50 90\n100 50 90\n200 100 200\n301 200 90");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200]));
+            assert_eq!(plan.pids, set(&[301]));
+            assert!(!plan.descendants.contains(&90) && !plan.descendants.contains(&100));
+        }
+
+        #[test]
+        fn a_group_shared_with_an_unrelated_process_is_not_signalled() {
+            // 400 is unrelated but joined group 300 via setpgid.
+            let p = procs("200 100 200\n300 200 300\n400 7 300\n7 1 7");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            assert_eq!(plan.groups, set(&[200]));
+            assert_eq!(plan.pids, set(&[300]));
+            assert!(!plan.descendants.contains(&400));
+        }
+
+        #[test]
+        fn never_signals_own_pid_parent_or_group() {
+            let p = procs("50 1 90\n100 50 90\n200 100 200\n201 200 90\n202 201 100");
+            let plan = plan_kill(&p, 200, &set(&[]), &OWN);
+            for banned in [100, 50, 1] {
+                assert!(!plan.pids.contains(&banned) && !plan.groups.contains(&banned));
+            }
+            assert!(!plan.groups.contains(&90));
+        }
+
+        #[test]
+        fn a_reparented_step_is_still_found_from_the_earlier_scan() {
+            // 300 lost its parent 201 and now hangs off init; its child 301 is new.
+            let p = procs("200 100 200\n300 1 300\n301 300 300");
+            assert!(plan_kill(&p, 200, &set(&[]), &OWN).groups == set(&[200]));
+            let plan = plan_kill(&p, 200, &set(&[300]), &OWN);
+            assert_eq!(plan.groups, set(&[200, 300]));
+        }
+
+        #[test]
+        fn an_unrelated_process_is_not_adopted_just_for_having_a_seen_group() {
+            let p = procs("300 1 300\n500 9 300\n9 1 9");
+            let plan = plan_kill(&p, 200, &set(&[300]), &OWN);
+            assert!(plan.groups.is_empty());
+            assert_eq!(plan.pids, set(&[300]));
+        }
     }
 
     #[cfg(unix)]
