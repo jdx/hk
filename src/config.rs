@@ -2974,6 +2974,11 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn synchronous_pklr_work_yields_the_tokio_worker() {
+        assert_eq!(run_pklr_blocking(|| Ok::<_, pklr::Error>(42)).unwrap(), 42);
+    }
+
     #[test]
     fn relative_module_path_points_at_the_shared_file() {
         let dir = Path::new("/repo/.config");
