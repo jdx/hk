@@ -15,10 +15,7 @@ use std::{
     },
     time::Instant,
 };
-use tokio::{
-    signal,
-    sync::{Mutex, OwnedSemaphorePermit, RwLock, Semaphore},
-};
+use tokio::sync::{Mutex, OwnedSemaphorePermit, RwLock, Semaphore};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -1286,6 +1283,13 @@ impl Hook {
                 return Err(err);
             }
         };
+        // Changes an earlier, killed run left in the stash, before this run stashes more
+        {
+            let mut repo = repo.lock().await;
+            // May wait for the stash lock, which blocks this thread
+            tokio::task::block_in_place(|| repo.recover_pending_stash());
+            repo.set_stash_hook_name(&self.name);
+        }
         let stash_method = match self.resolve_stash_method_for_opts(&opts) {
             Ok(method) => method,
             Err(err) => {
@@ -1427,7 +1431,7 @@ impl Hook {
             git_status.unstaged_files.clone(),
         ));
 
-        watch_for_ctrl_c(hook_ctx.failed.clone());
+        crate::shutdown::watch(hook_ctx.failed.clone());
 
         // Held from before the stash is made until it is restored, so another
         // hk process in this repository cannot stash in between.
@@ -2091,20 +2095,6 @@ impl fmt::Display for Hook {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
-}
-
-fn watch_for_ctrl_c(cancel: CancellationToken) {
-    tokio::spawn(async move {
-        if let Err(err) = signal::ctrl_c().await {
-            warn!("Failed to watch for ctrl-c: {err}");
-        }
-        tokio::spawn(async move {
-            // exit immediately on second ctrl-c
-            signal::ctrl_c().await.unwrap();
-            std::process::exit(1);
-        });
-        cancel.cancel();
-    });
 }
 
 /// Use `/` separators, as git paths and exclude patterns do. Rebuilding a path

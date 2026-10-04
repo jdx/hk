@@ -34,7 +34,9 @@ mod mise_env;
 mod par;
 mod plan;
 mod settings;
+mod shutdown;
 mod stage_queue;
+mod stash_journal;
 mod stash_lock;
 mod step;
 mod step_context;
@@ -102,6 +104,10 @@ async fn async_main() -> Result<()> {
     handle_panic();
     let result = cli::run().await;
     clx::progress::flush();
+    // Stopped by SIGINT, SIGTERM or SIGHUP: leave as a process killed by it would
+    if let Some(code) = shutdown::exit_code() {
+        std::process::exit(code);
+    }
     match result {
         Ok(Some(status)) => std::process::exit(status.code().unwrap_or(1)),
         Ok(None) => Ok(()),

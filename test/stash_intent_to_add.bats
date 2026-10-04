@@ -225,7 +225,7 @@ PKL
     run git status --porcelain
     assert_output "$(printf ' A new.txt\nM  staged.txt')"
     run git stash list --format=%gs
-    assert_output "hk: intent-to-add files"
+    assert_output --regexp "^hk: [0-9]+-[0-9a-f]+-[0-9]+ \(intent-to-add files\)$"
     run git show 'stash@{0}^3:new.txt'
     assert_output "mine"
 }
