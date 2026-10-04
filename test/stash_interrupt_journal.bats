@@ -82,7 +82,13 @@ term_mid_step() {
     wait "$pid" || status=$?
     assert_equal "$status" "$want"
     assert_changes_restored
-    # Nothing was left running
+    # Nothing was left running. The step's process group is killed before hk
+    # exits, but the kernel reaps the dead processes asynchronously, so a
+    # zombie can still show up for a moment (seen on macOS).
+    for _ in $(seq 50); do
+        pgrep -f "sleep 30" >/dev/null || return 0
+        sleep 0.1
+    done
     run pgrep -f "sleep 30"
     assert_failure
 }
