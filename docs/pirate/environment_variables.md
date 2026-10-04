@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: a895c7ba2ea3
+sourceHash: 6d7bc0c67e1c
 ---
 
 # Standing orders (environment variables)
@@ -166,7 +166,7 @@ hk reads this one straight from the environment before `hk.pkl` is evaluated, so
 
 **Type:** path · **Unless ye say otherwise:** unset
 
-A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, the seals it will honour. This must be set before the configuration is evaluated.
+A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots, the seals it will honour when it downloads Pkl packages. This is useful behind an SSL-intercepting proxy. This must be set before the configuration is evaluated.
 
 ## `HK_PKL_EMBEDDED` {#hk-pkl-embedded}
 
@@ -183,7 +183,9 @@ hk reads this one straight from the environment before `hk.pkl` is evaluated, so
 
 **Type:** string · **Unless ye say otherwise:** unset
 
-A URL rewrite for the built-in pklr evaluator, so the boats it sends ashore land at another address. The value has the form `https://source.example/=https://mirror.example/`, and it must be set before evaluation.
+URL rewrite rules for the built-in pklr evaluator, so the boats it sends ashore land at another address. A rule has the form `https://source.example/=https://mirror.example/`: a URL that starts with the left side is fetched from the right side instead. Separate several rules with commas; when more than one matches, the longest source prefix wins. A rule with no `=` is ignored with a warning. The variable must be set before evaluation.
+
+Package downloads are rewritten as the `https://host/path/name@version.zip` URL, so one rule can redirect a whole package host to a mirror. See [share configuration across repositories](/configuration#share-rewrite), including how to supply credentials.
 
 ## `HK_PKL_OFFLINE` {#hk-pkl-offline}
 
@@ -193,6 +195,12 @@ Unless ye say otherwise: `false`
 Keeps the built-in pklr evaluator off the network: no boats go ashore. Package imports already in `HK_PKL_CACHE_DIR`, along with the package embedded for the running version (see `HK_PKL_EMBEDDED`), stay available; a missing package fails at once, with its URL and cache location.
 
 hk reads this one straight from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
+
+## `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` {#proxy-variables}
+
+**Type:** URL, URL, host list · **Unless ye say otherwise:** unset
+
+The built-in pklr evaluator sends its boats ashore, package and module downloads, through a proxy. It uses the first of `http_proxy`, `HTTP_PROXY`, `https_proxy`, and `HTTPS_PROXY` that is set and nonempty, for every download whatever its scheme. `no_proxy` or `NO_PROXY` lists hosts that bypass it. A proxy that intercepts TLS also needs [`HK_PKL_CA_CERTIFICATES`](#hk-pkl-ca-certificates).
 
 ## `HK_PROFILE` {#hk-profile}
 

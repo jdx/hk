@@ -1,5 +1,5 @@
 ---
-sourceHash: f3602939a19e
+sourceHash: 04660483a9ef
 ---
 
 # Clockwork hands: coding agents
@@ -23,7 +23,7 @@ Every generator writes only to stdout. Look the result over, then place or merge
 1. Look the ship over and ask for a passage plan.
 2. Keep the work to the cargo that changed. Use `--files0-from` when exact filenames matter, and `--cd` to choose the project root.
 3. Inspect each command's effects on the cargo, and prefer safe execution. `--safe` refuses a run before any step starts if a runnable command is unknown or destructive. That includes the hook's `report` command, so declare its effect with a `CommandSpec` (`report = new CommandSpec { command = "node scripts/report-timings.js"; effect = "read" }`). `--safe` checks declared effects only. It is no sandbox, and hk does not verify that a command behaves as declared.
-4. Read the JSON or JSONL diagnostics, and keep the raw output when ye investigate parser warnings.
+4. Read the JSON or JSONL diagnostics, and keep the raw output when ye investigate parser warnings. A hand with no `diagnostic_format` has no diagnostics, so read its raw `output` field instead, when present (see [diagnostics](/configuration#diagnostics)). A step's `output` in a structured result is capped at 64 KiB and ends with a marker stating the cap; the MCP server fails a run whose structured stream outgrows 16 MiB. A run that founders before any step starts, such as a configuration error, still produces a failed `run_result` with the reason in `failure`.
 5. Review the resulting diff before ye accept a fix.
 
 Without MCP, here's a portable way to hail hk:
@@ -48,6 +48,16 @@ hk agent mcp --target claude-desktop
 hk agent mcp --target claude-code
 hk agent mcp --target vscode
 ```
+
+`start_check`, `start_safe_check`, and `start_safe_fix` take an optional `scope` argument that picks the cargo a run covers. It defaults to `all`, and any other value is turned away at the gangway.
+
+| `scope`    | The cargo                                                                                                      | hk flag        |
+| ---------- | -------------------------------------------------------------------------------------------------------------- | -------------- |
+| `all`      | The whole of the cargo: every tracked file, plus untracked files unless stowing is enabled (see below)         | `--all`        |
+| `changed`  | Cargo loaded aboard and cargo left on the dock, plus untracked files (see below): all that differs from `HEAD` | `--stash none` |
+| `unstaged` | Cargo left on the dock, plus untracked files (see below), without the cargo loaded aboard                      | `--unstaged`   |
+
+`changed` stands the stowing down for the run, so it always covers cargo loaded aboard and cargo left on the dock even when the project or `HK_STASH` enables stashing. `--stash none` does not overrule `HK_STASH_UNTRACKED=0`: with that set, hk never goes looking for untracked cargo, so `changed` and `unstaged` leave it out. `all` keeps the project's stash setting, and hk leaves untracked files out of `--all` while stashing is enabled. Use `changed` or `unstaged` to inspect only what a clockwork hand just touched, instead of the whole ship.
 
 Codex, Claude Code, Claude Desktop, and VS Code can all work the structured MCP tools. Hosts that implement MCP Apps also get the hk dashboard; other hosts get the same structured content and a useful text fallback.
 

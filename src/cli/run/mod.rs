@@ -56,6 +56,25 @@ impl Run {
         command_format.or(self.hook.format)
     }
 
+    /// Name of the hook this invocation runs, used to label a structured
+    /// result when the run fails before the hook starts.
+    pub(crate) fn hook_name(&self) -> Option<&str> {
+        if let Some(hook) = &self.other {
+            return Some(hook);
+        }
+        self.command.as_ref().map(|command| match command {
+            Commands::CommitMsg(_) => "commit-msg",
+            Commands::PostCheckout(_) => "post-checkout",
+            Commands::PostCommit(_) => "post-commit",
+            Commands::PostMerge(_) => "post-merge",
+            Commands::PostRewrite(_) => "post-rewrite",
+            Commands::PreCommit(_) => "pre-commit",
+            Commands::PrePush(_) => "pre-push",
+            Commands::PreRebase(_) => "pre-rebase",
+            Commands::PrepareCommitMsg(_) => "prepare-commit-msg",
+        })
+    }
+
     pub async fn run(mut self) -> Result<()> {
         if let Some(hook) = &self.other {
             // Hooks without a dedicated handler get an empty hook_args;

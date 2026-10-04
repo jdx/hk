@@ -90,3 +90,25 @@ teardown() {
 -“smart”
 +"smart"'
 }
+
+@test "util fix-smart-quotes - leaves non-UTF-8 files untouched" {
+    python3 -c "
+import sys
+sys.stdout.buffer.write(b'\xff\xfe one\n' + '“q”\n'.encode() + b'three \x80\n')" > bin.txt
+    cp bin.txt bin.orig
+    run hk util fix-smart-quotes bin.txt
+    assert_success
+    cmp bin.txt bin.orig
+}
+
+@test "util fix-smart-quotes - preserves symlinks and modes" {
+    python3 -c "print('“q”', end='')" > target.txt
+    chmod 755 target.txt
+    ln -s target.txt link.txt
+    run hk util fix-smart-quotes link.txt
+    assert_success
+    [ -L link.txt ]
+    run cat target.txt
+    assert_output '"q"'
+    assert_file_permission 755 target.txt
+}

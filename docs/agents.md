@@ -19,7 +19,7 @@ Every generator writes only to stdout. Review the result and place or merge it i
 1. Inspect the project and request a plan.
 2. Scope execution to changed files. Use `--files0-from` when exact filenames matter and `--cd` to choose the project root.
 3. Inspect command effects and prefer safe execution. `--safe` rejects a run before any step starts if a runnable command is unknown or destructive. That includes the hook's `report` command, so declare its effect with a `CommandSpec` (`report = new CommandSpec { command = "node scripts/report-timings.js"; effect = "read" }`). `--safe` checks declared effects only. It is not a sandbox, and hk does not verify that a command behaves as declared.
-4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings.
+4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings. A step with no `diagnostic_format` has no diagnostics, so read its raw `output` field instead, when present (see [diagnostics](/configuration#diagnostics)). A step's `output` in a structured result is capped at 64 KiB and ends with a marker stating the cap; the MCP server fails a run whose structured stream exceeds 16 MiB. A run that fails before any step starts, such as a configuration error, still produces a failed `run_result` with the reason in `failure`.
 5. Review the resulting diff before accepting a fix.
 
 Without MCP, a portable invocation is:
@@ -44,6 +44,16 @@ hk agent mcp --target claude-desktop
 hk agent mcp --target claude-code
 hk agent mcp --target vscode
 ```
+
+`start_check`, `start_safe_check`, and `start_safe_fix` take an optional `scope` argument that selects the files a run covers. It defaults to `all`, and any other value is rejected.
+
+| `scope`    | Files                                                                                     | hk flag        |
+| ---------- | ----------------------------------------------------------------------------------------- | -------------- |
+| `all`      | Every tracked file, plus untracked files unless stashing is enabled (see below)           | `--all`        |
+| `changed`  | Staged and unstaged files, plus untracked files (see below): all that differs from `HEAD` | `--stash none` |
+| `unstaged` | Unstaged files, plus untracked files (see below), without staged files                    | `--unstaged`   |
+
+`changed` turns stashing off for the run, so it always covers staged and unstaged edits even when the project or `HK_STASH` enables stashing. `--stash none` does not override `HK_STASH_UNTRACKED=0`: with that setting hk skips untracked-file discovery, so `changed` and `unstaged` leave untracked files out. `all` keeps the project's stash setting, and hk leaves untracked files out of `--all` while stashing is enabled. Use `changed` or `unstaged` to lint only what an agent just edited instead of the whole project.
 
 Codex, Claude Code, Claude Desktop, and VS Code can use the structured MCP tools. Hosts that implement MCP Apps also receive the hk dashboard; other hosts receive the same structured content and a useful text fallback.
 

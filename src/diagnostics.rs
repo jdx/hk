@@ -91,6 +91,96 @@ pub fn parse_with_default(
     result
 }
 
+/// Parse several commands' output, each run in its own directory, into one result.
+///
+/// Tools print paths relative to the directory they ran in, so each segment is
+/// parsed on its own and its paths are rebased onto the repository root with
+/// [`rebase_paths`].
+pub fn parse_segments<'a>(
+    format: DiagnosticFormat,
+    step: &str,
+    tool: &str,
+    segments: impl IntoIterator<Item = (Option<&'a str>, &'a str)>,
+    default_severity: Option<Severity>,
+) -> ParseResult {
+    let mut merged = ParseResult::default();
+    for (dir, output) in segments {
+        let mut parsed = parse_with_default(format, step, tool, output, default_severity.clone());
+        if let Some(dir) = dir {
+            rebase_paths(&mut parsed.diagnostics, dir);
+        }
+        merged.diagnostics.append(&mut parsed.diagnostics);
+        merged.warnings.append(&mut parsed.warnings);
+    }
+    let mut seen = IndexSet::new();
+    merged
+        .diagnostics
+        .retain(|diagnostic| seen.insert(diagnostic.clone()));
+    merged
+}
+
+/// Make diagnostic paths relative to the repository root.
+///
+/// `dir` is the directory, relative to the repository root, the tool ran in.
+/// Relative paths are prefixed with it and lexically normalized (`./` and
+/// `..` segments resolved, `\` treated as a separator). Absolute paths, Windows
+/// drive paths and URIs with a scheme are left alone.
+pub fn rebase_paths(diagnostics: &mut [Diagnostic], dir: &str) {
+    let dir = dir.replace('\\', "/");
+    if Path::new(&dir).is_absolute() || dir.starts_with('/') {
+        return;
+    }
+    let dir = normalize(&dir);
+    if dir.is_empty() {
+        return;
+    }
+    for diagnostic in diagnostics {
+        if let Some(path) = &mut diagnostic.path {
+            *path = rebase(&dir, path);
+        }
+        if let Some(path) = diagnostic.fix.as_mut().and_then(|fix| fix.path.as_mut()) {
+            *path = rebase(&dir, path);
+        }
+    }
+}
+
+fn is_absolute_like(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    path.starts_with('/')
+        || path.starts_with('\\')
+        // `C:\x` or `C:/x`
+        || (bytes.len() > 1 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+            && matches!(bytes.get(2), Some(b'/' | b'\\')))
+        // URIs such as `file:///x`
+        || path.contains("://")
+}
+
+fn rebase(dir: &str, path: &str) -> String {
+    if path.is_empty() || is_absolute_like(path) {
+        return path.to_string();
+    }
+    normalize(&format!("{dir}/{}", path.replace('\\', "/")))
+}
+
+/// Lexically resolve `.` and `..`; a leading `..` that escapes the root is kept.
+fn normalize(path: &str) -> String {
+    let mut parts: Vec<&str> = Vec::new();
+    for part in path.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                if parts.last().is_some_and(|last| *last != "..") {
+                    parts.pop();
+                } else {
+                    parts.push("..");
+                }
+            }
+            part => parts.push(part),
+        }
+    }
+    parts.join("/")
+}
+
 fn severity(value: &str) -> Severity {
     match value.to_ascii_lowercase().as_str() {
         "warning" | "warn" | "1" => Severity::Warning,
@@ -905,5 +995,132 @@ mod tests {
         assert_eq!(region["startLine"], 2);
         assert!(region.get("endLine").is_none());
         assert!(region.get("endColumn").is_none());
+    }
+
+    fn diag(path: Option<&str>) -> Diagnostic {
+        Diagnostic {
+            step: "s".into(),
+            tool: "t".into(),
+            severity: Severity::Error,
+            message: "m".into(),
+            path: path.map(str::to_string),
+            range: None,
+            rule: None,
+            help_url: None,
+            fix: None,
+        }
+    }
+
+    fn rebased(dir: &str, path: &str) -> String {
+        let mut d = [diag(Some(path))];
+        rebase_paths(&mut d, dir);
+        d[0].path.clone().unwrap()
+    }
+
+    #[test]
+    fn rebase_prefixes_relative_paths_with_the_dir() {
+        assert_eq!(rebased("svc/api", "main.go"), "svc/api/main.go");
+        assert_eq!(rebased("svc/api", "./pkg/a.go"), "svc/api/pkg/a.go");
+        assert_eq!(rebased("./svc/api/", "main.go"), "svc/api/main.go");
+    }
+
+    #[test]
+    fn rebase_resolves_parent_segments() {
+        assert_eq!(rebased("svc/api", "../shared/x.go"), "svc/shared/x.go");
+        assert_eq!(rebased("svc/api", "../../x.go"), "x.go");
+        assert_eq!(rebased("svc", "../../x.go"), "../x.go");
+    }
+
+    #[test]
+    fn rebase_handles_windows_separators() {
+        assert_eq!(rebased("svc\\api", "pkg\\a.go"), "svc/api/pkg/a.go");
+        assert_eq!(rebased("svc", ".\\a.go"), "svc/a.go");
+    }
+
+    #[test]
+    fn rebase_leaves_absolute_paths_and_uris_alone() {
+        assert_eq!(rebased("svc", "/abs/a.go"), "/abs/a.go");
+        assert_eq!(rebased("svc", "C:\\src\\a.go"), "C:\\src\\a.go");
+        assert_eq!(rebased("svc", "C:/src/a.go"), "C:/src/a.go");
+        assert_eq!(rebased("svc", "file:///abs/a.go"), "file:///abs/a.go");
+        assert_eq!(rebased("svc", "a:b.go"), "svc/a:b.go");
+    }
+
+    #[test]
+    fn rebase_is_a_no_op_for_the_repo_root_and_absolute_dirs() {
+        assert_eq!(rebased(".", "a.go"), "a.go");
+        assert_eq!(rebased("", "./a.go"), "./a.go");
+        assert_eq!(rebased("/abs/dir", "a.go"), "a.go");
+    }
+
+    #[test]
+    fn rebase_covers_missing_paths_and_fix_paths() {
+        let mut d = [diag(None)];
+        d[0].fix = Some(DiagnosticFix {
+            replacement: "x".into(),
+            path: Some("a.go".into()),
+            range: None,
+        });
+        rebase_paths(&mut d, "svc");
+        assert_eq!(d[0].path, None);
+        assert_eq!(d[0].fix.as_ref().unwrap().path.as_deref(), Some("svc/a.go"));
+    }
+
+    #[test]
+    fn segments_are_rebased_per_directory() {
+        let parsed = parse_segments(
+            DiagnosticFormat::Gcc,
+            "s",
+            "t",
+            [
+                (Some("a"), "x.go:1:2: error: bad"),
+                (Some("b"), "x.go:1:2: error: bad"),
+                (None, "y.go:3:4: warning: meh"),
+            ],
+            None,
+        );
+        let paths: Vec<_> = parsed
+            .diagnostics
+            .iter()
+            .map(|d| d.path.as_deref().unwrap())
+            .collect();
+        assert_eq!(paths, ["a/x.go", "b/x.go", "y.go"]);
+    }
+
+    #[test]
+    fn json_segments_are_parsed_separately_not_concatenated() {
+        let eslint = |file: &str| {
+            format!(
+                r#"[{{"filePath":"{file}","messages":[{{"severity":2,"message":"bad","line":1,"column":1}}]}}]"#
+            )
+        };
+        let sarif = |file: &str| {
+            format!(
+                r#"{{"version":"2.1.0","runs":[{{"results":[{{"ruleId":"R1","level":"warning","message":{{"text":"p"}},"locations":[{{"physicalLocation":{{"artifactLocation":{{"uri":"{file}"}},"region":{{"startLine":1}}}}}}]}}]}}]}}"#
+            )
+        };
+        for (format, make) in [
+            (
+                DiagnosticFormat::EslintJson,
+                &eslint as &dyn Fn(&str) -> String,
+            ),
+            (DiagnosticFormat::Sarif, &sarif),
+        ] {
+            let (a, b) = (make("x.js"), make("y.js"));
+            let parsed = parse_segments(
+                format,
+                "s",
+                "t",
+                [(Some("pkg/a"), a.as_str()), (Some("pkg/b"), b.as_str())],
+                None,
+            );
+            assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+            let paths: Vec<_> = parsed
+                .diagnostics
+                .iter()
+                .map(|d| d.path.as_deref().unwrap())
+                .collect();
+            assert_eq!(paths, ["pkg/a/x.js", "pkg/b/y.js"]);
+        }
     }
 }

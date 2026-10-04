@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail, eyre};
@@ -35,6 +36,7 @@ impl Config {
         config.load_subprojects()?;
         config.materialize_default_hooks()?;
         config.apply_hkrc()?;
+        config.apply_subproject_skip_steps();
         config.validate()?;
         Ok(config)
     }
@@ -66,7 +68,7 @@ impl Config {
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
         let mut local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
             .map(|v| v.into_iter().collect())
-            .map_err(|e| eyre::eyre!("{e}"))?;
+            .map_err(|e| pklr_error_report(&e))?;
         // Glob imports expand to whatever matched at analysis time, so the
         // patterns themselves have to be recorded to notice later additions.
         let glob_imports = Self::collect_glob_imports(path, &local_paths);
@@ -555,8 +557,14 @@ impl Config {
         let mut config = match build_config_cache_mgr(&env_values).get() {
             Some(config) => config,
             None => {
-                let (config, env_reads) = Self::read(&path, is_root)
-                    .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))?;
+                let (config, env_reads) = Self::read(&path, is_root).map_err(|err| {
+                    // A syntax error already names its own file, line and column.
+                    if err.downcast_ref::<PklSyntaxError>().is_some() {
+                        err
+                    } else {
+                        err.wrap_err(format!("Failed to read config file: {}", path.display()))
+                    }
+                })?;
                 // Keyed on every variable the evaluation read, so a later lookup
                 // hits only while all of them keep these values.
                 env_values.extend(env_reads);
@@ -631,6 +639,7 @@ impl Config {
         }
 
         // Scalar settings: project wins — fall back to hkrc when project has None
+        self.jobs = self.jobs.or(hkrc.jobs);
         self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
         self.stage = self.stage.or(hkrc.stage);
         self.display_skip_reasons = self
@@ -931,6 +940,15 @@ impl Config {
             None => subdir.to_string(),
         };
         let sub_env = std::mem::take(&mut sub.env);
+        let sub_skip_steps = sub.skip_steps.take().unwrap_or_default();
+        let ignored = sub.ignored_subproject_settings();
+        if !ignored.is_empty() {
+            warn!(
+                "subprojects: ignoring top-level {} in {}; only `steps`, `hooks`, `env` and `skip_steps` of a subproject config apply, so set these in the root config",
+                ignored.join(", "),
+                sub.path.display()
+            );
+        }
         for (hook_name, sub_hook) in std::mem::take(&mut sub.hooks) {
             if !sub_hook.enabled {
                 continue;
@@ -1000,7 +1018,76 @@ impl Config {
                 root_hook.steps.insert(scoped_name, step_or_group);
             }
         }
+        // The subproject's `skip_steps` name its own steps, which the root
+        // config knows by their scoped names. Execution matches skips against
+        // step names only, and the steps inside a group keep their unscoped
+        // names, so a group (or a step inside one) cannot be skipped by name.
+        for name in sub_skip_steps {
+            let scoped_name = format!("{subdir}:{name}");
+            let mut is_step = false;
+            let mut is_group = false;
+            for step_or_group in self
+                .hooks
+                .values()
+                .filter_map(|hook| hook.steps.get(&scoped_name))
+            {
+                match step_or_group {
+                    crate::hook::StepOrGroup::Step(_) => is_step = true,
+                    crate::hook::StepOrGroup::Group(_) => is_group = true,
+                }
+            }
+            if !is_step {
+                let reason = if is_group {
+                    "names a group, and skipping a group is not supported"
+                } else {
+                    "names no step of that subproject"
+                };
+                warn!(
+                    "subprojects: skip_steps entry '{name}' in {} {reason}, so it is ignored (a step inside a group cannot be skipped from a subproject)",
+                    sub.path.display()
+                );
+                continue;
+            }
+            self.subproject_skip_steps.insert(scoped_name);
+        }
         Ok(())
+    }
+
+    /// Adds the steps subprojects skip to `skip_steps`, after the user config
+    /// has been merged so that it neither hides nor is hidden by them.
+    fn apply_subproject_skip_steps(&mut self) {
+        if self.subproject_skip_steps.is_empty() {
+            return;
+        }
+        let skip_steps = self.skip_steps.get_or_insert_default();
+        for name in std::mem::take(&mut self.subproject_skip_steps) {
+            if !skip_steps.contains(&name) {
+                skip_steps.push(name);
+            }
+        }
+    }
+
+    /// Names of the top-level settings this config sets that have no effect
+    /// when it is loaded as a subproject.
+    fn ignored_subproject_settings(&self) -> Vec<&'static str> {
+        [
+            ("default_branch", self.default_branch.is_some()),
+            ("display_skip_reasons", self.display_skip_reasons.is_some()),
+            ("exclude", self.exclude.is_some()),
+            ("fail_fast", self.fail_fast.is_some()),
+            ("hide_warnings", self.hide_warnings.is_some()),
+            ("jobs", self.jobs.is_some()),
+            ("profiles", self.profiles.is_some()),
+            ("skip_hooks", self.skip_hooks.is_some()),
+            ("stage", self.stage.is_some()),
+            ("stash_backup_count", self.stash_backup_count.is_some()),
+            ("terminal_progress", self.terminal_progress.is_some()),
+            ("walk_ignore", self.walk_ignore.is_some()),
+            ("warnings", self.warnings.is_some()),
+        ]
+        .into_iter()
+        .filter_map(|(name, set)| set.then_some(name))
+        .collect()
     }
 
     fn scope_subproject_step(
@@ -1038,7 +1125,7 @@ fn get_http_proxy() -> Option<String> {
 /// The pkl package for this version, staged by `build/embed_pkl_package.rs`.
 /// Empty when the pkl sources were not generated.
 static EMBEDDED_PKL_PACKAGE: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/hk_pkl_package.zip"));
+    include_bytes!(concat!(std::env!("OUT_DIR"), "/hk_pkl_package.zip"));
 
 /// The release archive URL `hk init` writes into `hk.pkl` for this version.
 fn embedded_pkl_package_url() -> String {
@@ -1071,8 +1158,11 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let outcome = block_on_pklr(evaluator.eval(path))?
-        .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
+    let outcome =
+        block_on_pklr(evaluator.eval(path))?.map_err(|e| match pklr_syntax_error(&e) {
+            Some(err) => eyre::Report::new(err),
+            None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
+        })?;
     let value = serde_json::from_value(outcome.json)
         .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))?;
     Ok((value, outcome.env_reads))
@@ -1136,6 +1226,114 @@ fn get_no_proxy() -> Option<String> {
         .or_else(|_| std::env::var("NO_PROXY"))
         .ok()
         .filter(|s| !s.is_empty())
+}
+
+/// A Pkl lex or parse error with the file it is in and where.
+#[derive(Debug, PartialEq, Eq)]
+struct PklSyntaxError {
+    /// `file:line:col`, as the source names itself (an imported file is
+    /// reported under its own name, not the config that imports it).
+    location: String,
+    message: String,
+    /// The offending source line, if the offset falls inside the source.
+    excerpt: Option<(usize, String, String)>,
+}
+
+impl std::fmt::Display for PklSyntaxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Failed to evaluate Pkl config\n\n{}: {}",
+            self.location, self.message
+        )?;
+        if let Some((line, text, pad)) = &self.excerpt {
+            let gutter = " ".repeat(line.to_string().len());
+            write!(f, "\n {gutter} |\n {line} | {text}\n {gutter} | {}^", pad)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for PklSyntaxError {}
+
+/// 1-based line and column of a byte `offset` into `source`. An offset past the
+/// end, or inside a multi-byte character, is clamped to the nearest position
+/// before it.
+fn line_col(source: &str, offset: usize) -> (usize, usize) {
+    let mut end = offset.min(source.len());
+    while !source.is_char_boundary(end) {
+        end -= 1;
+    }
+    let before = &source[..end];
+    let line = before.matches('\n').count() + 1;
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    (line, before[line_start..].chars().count() + 1)
+}
+
+/// A source name for display: `./` segments dropped, and relative to the
+/// current directory when the file lives under it.
+fn display_source_name(name: &str) -> String {
+    // A module fetched by URI keeps its name; treating it as a path would
+    // collapse the `//` after the scheme.
+    if name.contains("://") {
+        return name.to_string();
+    }
+    let path: PathBuf = Path::new(name).components().collect();
+    let relative = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| path.strip_prefix(cwd).ok().map(Path::to_path_buf));
+    relative.unwrap_or(path).display().to_string()
+}
+
+fn syntax_error(name: &str, source: &str, offset: usize, message: &str) -> PklSyntaxError {
+    let (line, col) = line_col(source, offset);
+    PklSyntaxError {
+        location: format!("{}:{line}:{col}", display_source_name(name)),
+        message: message.to_string(),
+        excerpt: source.lines().nth(line - 1).map(|text| {
+            // Keep tabs as tabs so the caret lines up whatever width the
+            // terminal gives them.
+            let pad = text
+                .chars()
+                .take(col.saturating_sub(1))
+                .map(|c| if c == '\t' { '\t' } else { ' ' })
+                .collect();
+            (line, text.trim_end().to_string(), pad)
+        }),
+    }
+}
+
+fn pklr_syntax_error(error: &pklr::Error) -> Option<PklSyntaxError> {
+    match error {
+        pklr::Error::Lex { src, span, message } | pklr::Error::Parse { src, span, message } => {
+            Some(syntax_error(
+                src.name(),
+                src.inner(),
+                span.offset(),
+                message,
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn pklr_error_report(error: &pklr::Error) -> eyre::Report {
+    match pklr_syntax_error(error) {
+        Some(err) => eyre::Report::new(err),
+        None => eyre::eyre!("{error}"),
+    }
+}
+
+/// Replaces the `user:password@` part of every URL in `text` with `***@`.
+///
+/// An `HK_PKL_HTTP_REWRITE` target may carry credentials
+/// (`https://user:token@mirror.example/`), and pklr echoes the rewritten URL
+/// in its download errors. The user-info runs through the last `@` before the
+/// path, so a password that itself contains `@` is hidden too.
+fn redact_url_credentials(text: &str) -> String {
+    static USERINFO: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/?#\s]*@").unwrap());
+    USERINFO.replace_all(text, "${1}***@").into_owned()
 }
 
 fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
@@ -1310,6 +1508,12 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     implicit_default_hooks: IndexSet<String>,
+    /// Scoped names of steps that subprojects' `skip_steps` skip. Kept apart
+    /// from `skip_steps` until the user config is merged, which uses its own
+    /// `skip_steps` only when the project sets none.
+    #[serde(skip)]
+    #[serde(default)]
+    subproject_skip_steps: IndexSet<String>,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
     /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
@@ -1323,6 +1527,8 @@ pub struct Config {
     pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Parallel steps; `0` or unset means auto-detect.
+    pub jobs: Option<usize>,
     pub fail_fast: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
@@ -1378,6 +1584,22 @@ impl Config {
         }
         self.default_hooks_materialized = true;
         Ok(())
+    }
+
+    /// The project config exactly as Pkl evaluated it, before hk drops
+    /// properties it does not know. `None` when there is no project config.
+    pub fn project_config_json() -> Result<Option<serde_json::Value>> {
+        let paths = Self::project_config_search_paths();
+        let Some(path) = Self::find_project_config(&paths) else {
+            return Ok(None);
+        };
+        Ok(Some(eval_pklr::<serde_json::Value>(&path)?.0))
+    }
+
+    /// Warnings about a config that loads but probably does not do what its
+    /// author meant. Run by `hk validate`; never fatal.
+    pub fn lint(&self) -> Vec<String> {
+        crate::lint::lint_hooks(&self.hooks, &self.implicit_default_hooks)
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -1708,6 +1930,22 @@ mod tests {
     use crate::step::Step;
     use crate::step_group::StepGroup;
 
+    #[test]
+    fn redact_url_credentials_hides_userinfo_only() {
+        assert_eq!(
+            redact_url_credentials(
+                "HTTP fetch failed for http://alice:s3cret@127.0.0.1:1/a.zip: error (https://tok@host/x?y=a@b)"
+            ),
+            "HTTP fetch failed for http://***@127.0.0.1:1/a.zip: error (https://***@host/x?y=a@b)"
+        );
+        assert_eq!(
+            redact_url_credentials("failed for http://alice@corp:s3cret@mirror.example/a.zip"),
+            "failed for http://***@mirror.example/a.zip"
+        );
+        let plain = "failed for https://example.com/a@1.0.zip (user@example.com)";
+        assert_eq!(redact_url_credentials(plain), plain);
+    }
+
     fn exclude_from(value: serde_json::Value) -> Exclude {
         serde_json::from_value(value).unwrap()
     }
@@ -1895,6 +2133,48 @@ mod tests {
             config_with_steps(vec![bad_regex]).validate().unwrap_err()
         );
         assert!(err.contains("invalid exclude"), "{err}");
+    }
+
+    #[test]
+    fn line_col_counts_lines_and_characters() {
+        let source = "a = 1\nb = \"é\" +\n";
+        assert_eq!(line_col(source, 0), (1, 1));
+        assert_eq!(line_col(source, 4), (1, 5));
+        // `+` follows the two-byte `é`: column counts characters, not bytes.
+        let plus = source.find('+').unwrap();
+        assert_eq!(line_col(source, plus), (2, 9));
+        // Inside a multi-byte character, or past the end, clamps.
+        assert_eq!(line_col(source, plus - 2), (2, 7));
+        assert_eq!(line_col(source, 999), (3, 1));
+    }
+
+    #[test]
+    fn syntax_errors_report_the_failing_file_with_line_and_column() {
+        let err = syntax_error("steps/./lint.pkl", "a = 1\nglob = = 2\n", 13, "bad token");
+        let file = Path::new("steps").join("lint.pkl").display().to_string();
+        assert_eq!(err.location, format!("{file}:2:8"));
+        let text = err.to_string();
+        assert!(text.contains(&format!("{file}:2:8: bad token")), "{text}");
+        assert!(text.contains(" 2 | glob = = 2"), "{text}");
+        assert!(text.ends_with("|        ^"), "{text}");
+    }
+
+    #[test]
+    fn syntax_errors_keep_uri_names_and_tabs() {
+        let err = syntax_error("https://host/dir/m.pkl", "\tx = =\n", 5, "bad");
+        assert_eq!(err.location, "https://host/dir/m.pkl:1:6");
+        // The caret padding repeats the line's tab instead of one space.
+        assert!(err.to_string().ends_with("| \t    ^"), "{err}");
+    }
+
+    #[test]
+    fn pklr_lex_and_parse_errors_are_located() {
+        let source = "x = 1\ny = @\n";
+        let error = pklr::Error::parse("dir/other.pkl", source, 10, "unexpected".to_string());
+        let located = pklr_syntax_error(&error).unwrap();
+        let file = Path::new("dir").join("other.pkl").display().to_string();
+        assert_eq!(located.location, format!("{file}:2:5"));
+        assert!(pklr_syntax_error(&pklr::Error::Eval("boom".into())).is_none());
     }
 
     #[test]
@@ -2161,6 +2441,123 @@ mod tests {
         assert_eq!(fmt.dir.as_deref(), Some("packages/web/nested"));
         // step env wins over subproject config env
         assert_eq!(fmt.env.get("FOO").map(String::as_str), Some("from-step"));
+    }
+
+    #[test]
+    fn merge_subproject_scopes_skip_steps_to_the_subproject() {
+        let mut root = Config {
+            skip_steps: Some(vec!["root-step".to_string()]),
+            ..Default::default()
+        };
+        let mut sub = Config {
+            skip_steps: Some(vec![
+                "lint".to_string(),
+                "grouped".to_string(),
+                "missing".to_string(),
+            ]),
+            ..Default::default()
+        };
+        let mut check = hook("check");
+        check.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        check
+            .steps
+            .insert("fmt".to_string(), StepOrGroup::Step(Box::new(step("fmt"))));
+        let group = crate::step_group::StepGroup {
+            name: Some("grouped".to_string()),
+            ..Default::default()
+        };
+        check
+            .steps
+            .insert("grouped".to_string(), StepOrGroup::Group(Box::new(group)));
+        sub.hooks.insert("check".to_string(), check);
+
+        root.merge_subproject("web", None, sub).unwrap();
+
+        // Only the subproject's own steps are skipped, by scoped name; `fmt`
+        // still runs, and a group or a name that matches nothing is dropped.
+        // The root's own list is untouched until the user config is merged.
+        assert_eq!(root.skip_steps, Some(vec!["root-step".to_string()]));
+        assert_eq!(
+            root.subproject_skip_steps,
+            IndexSet::from(["web:lint".to_string()])
+        );
+        root.apply_subproject_skip_steps();
+        assert_eq!(
+            root.skip_steps,
+            Some(vec!["root-step".to_string(), "web:lint".to_string()])
+        );
+    }
+
+    #[test]
+    fn merge_subproject_skip_steps_do_not_leak_to_other_subprojects() {
+        let mut root = Config::default();
+        for dir in ["a", "b"] {
+            let mut sub = Config::default();
+            if dir == "a" {
+                sub.skip_steps = Some(vec!["lint".to_string()]);
+            }
+            let mut check = hook("check");
+            check.steps.insert(
+                "lint".to_string(),
+                StepOrGroup::Step(Box::new(step("lint"))),
+            );
+            sub.hooks.insert("check".to_string(), check);
+            root.merge_subproject(dir, None, sub).unwrap();
+        }
+
+        root.apply_subproject_skip_steps();
+        assert_eq!(root.skip_steps, Some(vec!["a:lint".to_string()]));
+    }
+
+    #[test]
+    fn subproject_skip_steps_do_not_displace_the_user_configs() {
+        // The root sets no `skip_steps`, so the user config's apply; a
+        // subproject's skip must add to them, not replace them.
+        let mut root = Config::default();
+        let mut sub = Config {
+            skip_steps: Some(vec!["lint".to_string()]),
+            ..Default::default()
+        };
+        let mut check = hook("check");
+        check.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("check".to_string(), check);
+        root.merge_subproject("web", None, sub).unwrap();
+
+        let user = Config {
+            skip_steps: Some(vec!["user-step".to_string()]),
+            ..Default::default()
+        };
+        root.merge_from_hkrc(user).unwrap();
+        root.apply_subproject_skip_steps();
+
+        assert_eq!(
+            root.skip_steps,
+            Some(vec!["user-step".to_string(), "web:lint".to_string()])
+        );
+    }
+
+    #[test]
+    fn subproject_settings_with_no_effect_are_listed() {
+        let sub = Config {
+            fail_fast: Some(false),
+            exclude: Some(Exclude::default()),
+            jobs: Some(2),
+            skip_steps: Some(vec!["lint".to_string()]),
+            env: IndexMap::from([("FOO".to_string(), "bar".to_string())]),
+            ..Default::default()
+        };
+        // `skip_steps` and `env` are honored, so they are not listed
+        assert_eq!(
+            sub.ignored_subproject_settings(),
+            ["exclude", "fail_fast", "jobs"]
+        );
+        assert!(Config::default().ignored_subproject_settings().is_empty());
     }
 
     #[test]

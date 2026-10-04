@@ -23,7 +23,7 @@ use std::path::PathBuf;
 
 use super::command::argv_runner;
 use super::expr_env::eval_condition;
-use super::shell::ShellType;
+use super::shell::{ShellType, split_shell};
 use super::types::{
     CheckFirstCmd, Command, CommandPrefix, Pattern, RenderedCommand, RunType, Step,
 };
@@ -46,6 +46,9 @@ fn truncate_progress_message(s: &str, max_chars: usize) -> String {
     }
     console::truncate_str(s, max_chars, "…").into_owned()
 }
+
+/// Exit status POSIX shells use when the command to run is not found.
+const COMMAND_NOT_FOUND_EXIT_CODE: i32 = 127;
 
 impl Step {
     pub fn commands_for_jobs<'a>(
@@ -332,13 +335,11 @@ impl Step {
             RenderedCommand::Shell(run) => {
                 let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
                 if let Some(shell) = &self.shell {
-                    let shell = shell.to_string();
-                    let shell = shell.split_whitespace().collect_vec();
-                    let mut cmd = if use_raw_cmd {
-                        CmdLineRunner::new_direct(shell[0])
-                    } else {
-                        CmdLineRunner::new(shell[0])
-                    };
+                    let shell = split_shell(&shell.to_string());
+                    // Start the shell itself. `CmdLineRunner::new` would wrap it in
+                    // `cmd.exe /c` on Windows, which ends a script at its first
+                    // newline and re-parses its quotes.
+                    let mut cmd = CmdLineRunner::new_direct(&shell[0]);
                     for arg in shell[1..].iter() {
                         cmd = cmd.arg(arg);
                     }
@@ -350,7 +351,7 @@ impl Step {
                 } else if use_raw_cmd {
                     CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(run)
                 } else {
-                    CmdLineRunner::new("sh")
+                    CmdLineRunner::new_direct("sh")
                         .arg("-o")
                         .arg("errexit")
                         .arg("-c")
@@ -429,8 +430,11 @@ impl Step {
         match exec_result {
             Ok(result) => {
                 if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
-                    ctx.hook_ctx
-                        .append_diagnostic_output(&self.name, &result.combined_output);
+                    ctx.hook_ctx.append_diagnostic_output(
+                        &self.name,
+                        rendered_dir.as_deref(),
+                        &result.combined_output,
+                    );
                 }
                 // For both check_list_files and check_diff: stderr is informational only
                 // Files are read from stdout; stderr may contain warnings, debug info, etc.
@@ -470,8 +474,11 @@ impl Step {
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
                     if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
-                        ctx.hook_ctx
-                            .append_diagnostic_output(&self.name, &e.3.combined_output);
+                        ctx.hook_ctx.append_diagnostic_output(
+                            &self.name,
+                            rendered_dir.as_deref(),
+                            &e.3.combined_output,
+                        );
                     }
                     self.collect_failure_hint(ctx, &e.3.combined_output);
                     if job.check_first && matches!(job.run_type, RunType::Check) {
@@ -492,8 +499,14 @@ impl Step {
                         true, // is a failure
                     );
 
-                    // If we're in check mode and a fix command exists, collect a helpful suggestion
-                    self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    // If we're in check mode and a fix command exists, collect a helpful
+                    // suggestion. Skip it when the check never ran (the shell exits 127
+                    // for a missing tool, with a "not found" message): the files were not found to need fixing.
+                    let tool_missing = e.3.status.code() == Some(COMMAND_NOT_FOUND_EXIT_CODE)
+                        && e.3.combined_output.contains("not found");
+                    if !tool_missing {
+                        self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    }
                 }
                 if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
@@ -703,7 +716,7 @@ impl Step {
             .as_ref()
             .map(|s| s.to_string())
             .unwrap_or_default();
-        let shell = shell.split_whitespace().next().unwrap_or_default();
+        let shell = split_shell(&shell).into_iter().next().unwrap_or_default();
         let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
         // Use case-insensitive matching for shell names
         // Include .exe variants for Windows environments (Git Bash, MSYS2, Cygwin)
