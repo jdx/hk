@@ -19,7 +19,7 @@ HK_BIN=~/Downloads/hk mise run benchmark            # measure a specific binary
 | `generate-project.sh`   | Generates the fixture: `clean` and `dirty` tags, where fixing `dirty` must give `clean` byte for byte and both pass mypy and tsc. |
 | `lib/reference-fix.sh`  | The ten fixers, run one after another. It defines what `clean` is.                                       |
 | `lib/inject-defects.sh` | Breaks a quarter of the files so that two or three fixers must write each one.                           |
-| `subjects/`             | Each tool's configuration. prek's is pre-commit's plus `priority` keys, and `setup.sh` checks that.     |
+| `subjects/`             | Each tool's configuration, including prek's native `prek.toml`.                          |
 | `setup.sh`              | One clone of the fixture per subject in `~/.cache/hk-bench` (`.work` links to it).                       |
 | `tak.toml`              | Scenarios, commands and the per-sample `check`, timed by [tak](https://github.com/jdx/tak) 0.0.13.       |
 | `report.py`             | Writes `results.json` from tak's export, publishable only if every subject always passed.                |
@@ -32,9 +32,9 @@ time against other programs. `run.sh` passes it to tak with `--config`.
 
 1. Add the configuration under `subjects/<name>/` and map the subject to it in
    `CONFIG` in `setup.sh`. Use the tool's fastest settings in which two fixers can never
-   write the same file at once: concurrency for hooks that write nothing
-   (checks, type checkers), and fixers one at a time unless the tool
-   coordinates writes to the same file.
+   write the same file at once: run read-only hooks and fixers with disjoint
+   file sets concurrently, and order fixers that share files unless the tool
+   coordinates their writes.
 2. In `tak.toml`, add a shared `[subject.<name>]` with its `version_cmd`, list
    it in each benchmark's `subjects`, and give each benchmark a
    `[bench.<scenario>.subject.<name>]` with the command for that scenario.

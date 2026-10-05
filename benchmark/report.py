@@ -45,7 +45,7 @@ SUBJECTS = {
     "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "fixers in turn, parallel checks",
                  "modes": {"check-all": "parallel: true"}},
     "pre-commit": {"tool": "pre-commit", "label": "pre-commit", "mode": "sequential hooks, batched files"},
-    "prek": {"tool": "prek", "label": "prek", "mode": "fixers in turn, parallel checks, batched",
+    "prek": {"tool": "prek", "label": "prek", "mode": "safe priority groups, batched files",
              "modes": {"check-all": "shared priority, batched files"}},
 }
 

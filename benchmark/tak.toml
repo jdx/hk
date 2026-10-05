@@ -19,16 +19,10 @@
 # to the fixture's clean commit. report.py refuses to publish a run in which any
 # subject failed a single check.
 #
-# Every subject is a configuration that is safe by design. lefthook's
-# `parallel: true` and prek's shared `priority` run overlapping fixers at once
-# with nothing to stop two of them writing the same file, so their timings
-# would be for output nobody can rely on.
-#
-# Whether a race corrupts a run depends on timing, so a racing mode that
-# happens to pass on one machine is still left out. Hooks that write nothing
-# do use those modes: lefthook's and prek's check hooks run everything at
-# once, and their fix hooks run the two type checkers together after the
-# fixers.
+# Every configuration avoids overlapping writes. hk coordinates access with
+# file locks; prek groups fixers with disjoint file types under one priority
+# and orders fixers that share files. lefthook runs its fixers sequentially.
+# Read-only checks run concurrently where the tool supports it.
 #
 # The type checkers change no files, so a failure shows only in the exit
 # code. hk and lefthook must exit 0 in every scenario. pre-commit and prek exit

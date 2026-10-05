@@ -34,18 +34,6 @@ declare -A CONFIG=(
     [prek]=prek
 )
 
-# prek's configuration must be pre-commit's plus `priority` keys, so the two
-# run the same hooks and differ only in scheduling.
-# Assignments, so that `set -e` stops here if yq cannot read either file.
-strip_priority() { yq -o json 'del(.. | select(tag == "!!map") | .priority)' "$1"; }
-pre_commit_hooks=$(strip_priority "$BENCH/subjects/pre-commit/.pre-commit-config.yaml")
-prek_hooks=$(strip_priority "$BENCH/subjects/prek/.pre-commit-config.yaml")
-if [ -z "$pre_commit_hooks" ] || [ "$pre_commit_hooks" != "$prek_hooks" ]; then
-    diff -u <(echo "$pre_commit_hooks") <(echo "$prek_hooks") >&2 || true
-    echo "error: subjects/prek differs from subjects/pre-commit in more than priority" >&2
-    exit 1
-fi
-
 if [ -z "${HK_PKL:-}" ]; then
     HK_PKL="$REPO/pkl"
     [ -f "$HK_PKL/Builtins.pkl" ] || (cd "$REPO" && mise run pkl:gen >/dev/null)
@@ -68,7 +56,7 @@ if [ "${REGENERATE:-0}" != "0" ] || [ "$(cat "$WORK/fixture.inputs" 2>/dev/null)
 fi
 
 dirty_files() {
-    git diff --name-only clean dirty -- . ':!hk.pkl' ':!lefthook.yml' ':!.pre-commit-config.yaml'
+    git diff --name-only clean dirty -- . ':!hk.pkl' ':!lefthook.yml' ':!.pre-commit-config.yaml' ':!prek.toml'
 }
 # A commit-sized change for the staged scenario: every 25th dirty file, about
 # 60, in the same language mix as the project.
@@ -125,8 +113,8 @@ for list in staged-files small-commit-files; do
 done
 git checkout -q main
 
-# Install pre-commit-hooks for pre-commit and prek outside the timed runs, as a
-# developer would have before their first commit.
+# Prepare hook environments outside the timed runs. prek uses native builtins
+# for the text fixers, so only pre-commit installs pre-commit-hooks.
 for tool in pre-commit prek; do
     cd "$WORK/$tool"
     if [ "$tool" = prek ]; then cmd=prepare-hooks; else cmd=install-hooks; fi
