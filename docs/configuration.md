@@ -91,7 +91,9 @@ both the manifest edit and the generated snapshot. When `fail_on_fix` is not
 `true`, enable staging for a custom hook with `stage = true` or for a manual
 run with `hk fix --stage`. When `fail_on_fix = true`, hk does not stage fix
 output. Prefer declaring generated outputs on the step rather than running
-`git add` inside the command.
+`git add` inside the command. Newly created outputs also depend on untracked-file
+discovery: setting [`HK_STASH_UNTRACKED`](/environment_variables#hk-stash-untracked)
+to `false` disables that discovery, so the generated file may not be staged.
 
 ### Config file paths
 

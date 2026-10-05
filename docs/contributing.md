@@ -55,11 +55,12 @@ Tests should verify meaningful behavior: a clean check, a failing check, and the
 
 Files in `test/builtin_tool_stubs/` are mise tool stubs, not mock executables:
 each needs a `tool` and `version` declaration so the test harness can validate
-and provision it. When a builtin test needs deterministic tool output or should
-avoid installing a large/networked dependency, put a fake executable in a
-separate test-only directory and prepend that directory to `PATH` before
-`test/builtin_tool_stubs/`. Keep the mise stub in place so the builtin still
-declares its real tool requirement.
+and provision it. The Bats setup task installs every declared stub before tests
+run; putting a fake executable earlier on `PATH` changes what the test executes,
+but does not avoid that installation. When a builtin test needs deterministic
+tool output, put a fake executable in a separate test-only directory and prepend
+that directory to `PATH` before `test/builtin_tool_stubs/`. Keep the mise stub in
+place so the builtin still declares its real tool requirement.
 
 ## Edit documentation
 
