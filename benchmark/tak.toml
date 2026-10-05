@@ -61,8 +61,6 @@ version_cmd = ["pre-commit", "--version"]
 
 [subject.prek]
 version_cmd = ["prek", "--version"]
-# Hooks already run concurrently, and Black/Ruff parallelize internally.
-env = { PREK_CONCURRENT_BATCHES = "2" }
 
 # --- Fix every file ------------------------------------------------------------
 # A quarter of the files have formatting defects; each defective file needs two
