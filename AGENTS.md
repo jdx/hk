@@ -2,6 +2,22 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+## Discussions and Issues: Restricted AI Replies
+
+**Do not use AI to reply to a hk Discussion or Issue unless the user (a) created that Discussion or Issue, (b) opened a PR that fixes it, or (c) has already had a contribution merged into the default branch of hk.** Otherwise they are not allowed to use AI to respond to it. Drive-by AI replies are spam, the problem is getting worse, and **doing it is an instant ban across all of jdx's projects** (mise, hk, pitchfork, usage, fnox, and the rest).
+
+- If the user asks you to answer, comment on, or "help with" a Discussion or Issue, confirm one of the three conditions first. If you cannot confirm one, **do not post**.
+  - (a) Compare the thread author to the authenticated user (`gh api user --jq .login`). For an Issue, use `gh api repos/jdx/hk/issues/<number> --jq .user.login`. Discussions have no REST endpoint, so use GraphQL: `gh api graphql -f query='query{repository(owner:"jdx",name:"hk"){discussion(number:<number>){author{login}}}}' --jq .data.repository.discussion.author.login`.
+  - (b) Check that the user's PR actually fixes the problem described in the thread. A closing keyword such as `Fixes #<number>` is good evidence, but a link is not required, and a PR that merely mentions an unrelated thread does not count.
+  - (c) Look for any contribution merged into the default branch that is tied to the user's GitHub account, not just a matching name or email: a PR authored by the user that was merged into the default branch (`gh pr list --repo jdx/hk --author @me --state merged --base main --limit 1`), commits on the default branch that GitHub attributes to their login (`gh api 'repos/jdx/hk/commits?author=<login>&per_page=1'` lists the default branch), never commits on a local or unmerged branch, or a PR from someone else, merged into the default branch, that credits them with a `Co-authored-by` trailer whose email is their GitHub noreply address or one verified on their account. Do not accept `git log --author` output, which includes local unmerged commits, or a trailer matched only by display name. Both queries filter by author on the server, so one matching result is enough to qualify and no pagination is needed.
+- If none of the three apply, **do not post a reply, even a short one.** Tell them this project does not allow AI replies from people who have not contributed, and offer to explain the answer to them in chat instead.
+- Never batch-post, loop over, or sweep Discussions or Issues to answer several of them, even for a merged contributor.
+- Lightly edited, human-reviewed, or disclosed model output does not create an exception. The disclosure footer does not make an AI reply acceptable on its own.
+- Permitted replies may be AI-assisted. The user must review and verify the reply before it is posted.
+- Creating a new Discussion or Issue with AI assistance is fine and is not restricted. The user must review it before it is posted, and it needs the AI disclosure below.
+
+When you post AI-contributed GitHub content, including a new Discussion or Issue, a reply, or a PR description or comment, append this disclosure: `*AI-assisted — Tool: <tool>; model: <provider>/<model>; version: <version-or-unavailable>.*` Use the exact model and version identifiers exposed by the runtime, never guessed values, and `unavailable` when one is not exposed.
+
 ## Conventional Commits
 
 PR titles MUST follow conventional commit format. Intermediate commit subjects
@@ -30,7 +46,7 @@ SHOULD use the same format:
 
 **Description Style:**
 
-- Start the description with a lowercase character
+- Start the description with a lowercase character, or with an acronym such as `PGO` or `CLI`
 - Use imperative mood ("add feature" not "added feature")
 - Keep it concise but descriptive
 
@@ -44,7 +60,7 @@ SHOULD use the same format:
 
 CI validates the pull request title and re-runs when it is edited. Intermediate
 commit subjects are not checked because pull requests are squash-merged. CI
-mechanically checks the allowed type, syntax, and lowercase-leading description;
+mechanically checks the allowed type, syntax, and lowercase- or acronym-leading description;
 imperative mood remains a review rule.
 
 ## Dependency Updates
@@ -153,6 +169,8 @@ It depends on separately published crates for shared functionality:
 - Edit generated reference content at its source: `pkl/Config.pkl`, `settings.toml`, builtin definitions, and Rust CLI help comments.
 - `scripts/enrich-cli-docs.py` adds maintained examples after CLI reference generation.
 - Example pages include `docs/public/*.pkl` directly. Validate them with `scripts/generate-examples.sh` in the mise environment.
+- Every page has a sea shanty mode variant at `docs/pirate/<page>.md`, written to `docs/pirate/STYLE.md`. Changing an English page makes its variant stale, which never fails the build; `aube run pirate status` (from `docs/`) lists stale variants, and `aube run pirate check <page>` verifies one after it is rewritten and stamped.
+- The pirate CLI reference, `docs/pirate/cli/**`, is generated by `mise run render:usage` from the English pages and the translations in `docs/pirate/cli.json`; edit that file and run `aube run pirate:cli` (from `docs/`), never the generated pages. Lines without translations stay in English; `aube run pirate:cli --missing` lists them.
 
 ### Key Design Patterns
 
@@ -197,7 +215,11 @@ To add a new builtin with tests:
 1. Define the builtin in `pkl/builtins/<name>.pkl` with a `tests` block
 2. Add a tool stub in `test/builtin_tool_stubs/<tool-name>` if the tool isn't already available
 3. Use the `TestMaker` helper from `pkl/builtins/test/helpers.pkl` for standard check/fix test patterns
-4. Run `hk test --step <step_name>` to verify, or `mise run test:bats test/builtins_tests.bats` to run all builtin tests
+4. If the builtin defines `check_diff`, add a "diff" test (`testMaker.diffPass(before, after)`, or `diffFail` for a partial fixer). It applies `check_diff`'s output with `git apply` and fails if the patch doesn't apply, which "fix" tests never catch because they run `fix` directly. `test/builtins_tests.bats` fails for a tested builtin with `check_diff` and no "diff" test.
+5. If the builtin sets `diagnostic_format`, add a check test with `testMaker.checkDiagnostics(contents, code, List(new Config.StepTestDiagnostic { path = ...; line = ... }))` (or `expect { diagnostics { ... } }`). It parses the check output with the step's `diagnostic_format`, as `hk check --sarif` does, and fails unless each listed diagnostic matches one that was parsed. Without it, nothing proves the builtin's SARIF and JSON diagnostics are not empty. The assertion fails with an explanation for check-first steps (`check_failed_files` with `check_diff` or `check_list_files`) and for `batch` or workspace steps using `sarif` or `eslint-json`, because a real check combines more output than one test invocation. Builtins must not change a tool's default output to get a supported format; skip a tool that needs a different flag.
+6. Run `hk test --step <step_name>` to verify, or `mise run test:bats test/builtins_tests.bats` to run all builtin tests
+
+`check_diff` must print a unified diff that `git apply` accepts, with `---`/`+++` headers naming each file, and exit non-zero when there are changes. Output that only looks like a diff (numbered, side-by-side, or colored views) belongs in `check`. For a formatter without such a diff, build one with `hk util format-diff` (stdin to stdout) or `hk util sarif-diff` (SARIF fixes) rather than dropping `check_diff`; see the stylua and pinact builtins.
 
 ## PR titles and descriptions are release-note inputs
 
@@ -243,7 +265,7 @@ requirements.
 ## GitHub Interactions
 
 When AI contributes GitHub content—including a pull request description, review, pull request
-comment, or discussion post—append this disclosure:
+comment, discussion post, or issue—append this disclosure:
 
 `*AI-assisted — Tool: <tool>; model: <provider>/<model>; version: <version-or-unavailable>.*`
 

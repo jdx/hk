@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build hk with rustc PGO followed by a BOLT post-link layout rewrite.
+# Build hk with rustc PGO, optionally followed by a BOLT post-link layout
+# rewrite on glibc Linux.
 #
 # The instrumented binary is trained against a hermetic workload that covers
 # clap startup, Pkl evaluation and caching, Git discovery/status, file
@@ -10,7 +11,9 @@
 #   HK_PGO_TARGET        Optional target triple. The resulting binary must run
 #                        on this host so the training phases can execute it.
 #   HK_PGO_BUILD_TOOL    cargo or cross (default: cargo)
-#   HK_PGO_BOLT          Set to 0 to stop after PGO (default: 1)
+#   HK_PGO_BOLT          Set to 0 to stop after PGO (default: 1). BOLT only
+#                        supports glibc Linux: its instrumentation runtime
+#                        crashes against musl, and it does not rewrite Mach-O.
 #   HK_PGO_FEATURES      Cargo features used by release builds
 #                        (default: git2/vendored-libgit2,git2/vendored-openssl)
 
@@ -92,6 +95,18 @@ if [ "$PGO_BUILD_TOOL" = "cross" ]; then
 	export CROSS_CONTAINER_OPTS="${CROSS_CONTAINER_OPTS:-} -v $PGO_DATA_DIR:$PGO_DATA_DIR:rw"
 fi
 
+# Keep PGO Rust-only on macOS. The cc crate mirrors -Cprofile-generate and
+# -Cprofile-use from RUSTFLAGS into the C compiler, so vendored libgit2 and
+# OpenSSL would be instrumented by Apple clang, whose profile format follows
+# Xcode's LLVM rather than rustc's. When the two disagree, every profile write
+# aborts with "Runtime and instrumentation version mismatch" and training
+# produces no .profraw files. cc appends environment flags after the ones it
+# inherits from rustc, so these overrides win.
+if [ "$(uname -s)" = "Darwin" ]; then
+	export CFLAGS="${CFLAGS:-} -fno-profile-generate -fno-profile-use"
+	export CXXFLAGS="${CXXFLAGS:-} -fno-profile-generate -fno-profile-use"
+fi
+
 build() {
 	local rustflags=$1
 	# target_arg is intentionally word-split: an empty value must disappear.
@@ -166,44 +181,45 @@ fi
 phase3_flags="-Cprofile-use=$PGO_MERGED -Cllvm-args=-pgo-warn-missing-function=false"
 if [ "$PGO_BOLT" != "0" ]; then
 	phase3_flags="$phase3_flags -Clink-arg=-Wl,--emit-relocs -Clink-arg=-Wl,-q"
+else
+	# serious-pgo keeps the symbol table for BOLT. Without BOLT there is no
+	# later rewrite, so let rustc strip it; the last -Cstrip wins.
+	phase3_flags="$phase3_flags -Cstrip=symbols"
 fi
 build "$phase3_flags"
 
-if [ "$PGO_BOLT" = "0" ]; then
-	echo ">>> PGO build complete: $FINAL_BIN"
-	exit 0
+if [ "$PGO_BOLT" != "0" ]; then
+	echo ">>> [4/4] Instrumenting, training, and applying BOLT"
+	"$LLVM_BOLT" "$FINAL_BIN" \
+		--instrument \
+		--instrumentation-file="$BOLT_FDATA_PREFIX" \
+		--instrumentation-file-append-pid \
+		-o "$BOLT_INSTR_BIN"
+
+	train "$BOLT_INSTR_BIN" bolt
+
+	fdata_files=("$PGO_DATA_DIR"/bolt.*.fdata)
+	if [ ! -e "${fdata_files[0]}" ]; then
+		echo "ERROR: BOLT training produced no fdata files" >&2
+		exit 1
+	fi
+	"$MERGE_FDATA" "${fdata_files[@]}" -o "$BOLT_FDATA"
+
+	"$LLVM_BOLT" "$FINAL_BIN" \
+		-o "$FINAL_BIN.bolt" \
+		-data="$BOLT_FDATA" \
+		-reorder-blocks=ext-tsp \
+		-reorder-functions=cdsort \
+		-split-functions \
+		-split-all-cold \
+		-split-eh \
+		-use-gnu-stack
+	mv -f "$FINAL_BIN.bolt" "$FINAL_BIN"
+	strip --strip-all "$FINAL_BIN"
 fi
-
-echo ">>> [4/4] Instrumenting, training, and applying BOLT"
-"$LLVM_BOLT" "$FINAL_BIN" \
-	--instrument \
-	--instrumentation-file="$BOLT_FDATA_PREFIX" \
-	--instrumentation-file-append-pid \
-	-o "$BOLT_INSTR_BIN"
-
-train "$BOLT_INSTR_BIN" bolt
-
-fdata_files=("$PGO_DATA_DIR"/bolt.*.fdata)
-if [ ! -e "${fdata_files[0]}" ]; then
-	echo "ERROR: BOLT training produced no fdata files" >&2
-	exit 1
-fi
-"$MERGE_FDATA" "${fdata_files[@]}" -o "$BOLT_FDATA"
-
-"$LLVM_BOLT" "$FINAL_BIN" \
-	-o "$FINAL_BIN.bolt" \
-	-data="$BOLT_FDATA" \
-	-reorder-blocks=ext-tsp \
-	-reorder-functions=cdsort \
-	-split-functions \
-	-split-all-cold \
-	-split-eh \
-	-use-gnu-stack
-mv -f "$FINAL_BIN.bolt" "$FINAL_BIN"
-strip --strip-all "$FINAL_BIN"
 
 # Release-pipeline smoke checks use both configuration-free and representative
-# project paths after the final rewrite and strip.
+# project paths on the final binary.
 SMOKE_STATE_ROOT="$PGO_DATA_DIR/state-smoke"
 rm -rf "$SMOKE_STATE_ROOT"
 mkdir -p \
@@ -216,5 +232,9 @@ run_isolated "$FINAL_BIN" "$SMOKE_STATE_ROOT" usage >/dev/null
 run_isolated "$FINAL_BIN" "$SMOKE_STATE_ROOT" validate --quiet
 run_isolated "$FINAL_BIN" "$SMOKE_STATE_ROOT" check --all --quiet
 
-echo ">>> PGO+BOLT build complete: $FINAL_BIN"
+if [ "$PGO_BOLT" = "0" ]; then
+	echo ">>> PGO build complete: $FINAL_BIN"
+else
+	echo ">>> PGO+BOLT build complete: $FINAL_BIN"
+fi
 ls -lh "$FINAL_BIN"

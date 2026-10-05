@@ -2,7 +2,7 @@
 min_usage_version "4.0"
 name hk
 bin hk
-version "2.1.0"
+version "2.5.0"
 unknown_flags error
 subcommand_required #true
 flagset hook-options {
@@ -147,6 +147,25 @@ cmd agent help="Generate integration snippets for coding agents" effect=read sub
                     choice claude-desktop
                     choice claude-code
                     choice vscode
+                }
+            }
+        }
+        flag "-h --help" help="Print help" action=help builtin=#true
+    }
+    cmd stop-hook help="Run `hk run check --safe` as an agent Stop hook" {
+        long_help #"""
+Run `hk run check --safe` as an agent Stop hook
+
+Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. In a project without an hk config, or one with no `check` hook, it passes like a hook from `hk install --global`, so it is safe in user-level agent settings. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way. When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's documentation is inconsistent about empty stdout and `{}` is valid under either reading.
+"""#
+        flag --timeout help="Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout." {
+            arg <SECONDS>
+        }
+        flag --target help="Agent running the hook; `codex` prints `{}` when the check passes" {
+            arg <TARGET> {
+                choices {
+                    choice codex
+                    choice claude-code
                 }
             }
         }
@@ -297,6 +316,13 @@ repos without an `hk.pkl`, the installed hook is a silent no-op.
 Force using the legacy `.git/hooks/` script shims instead of Git
 2.54+ config-based hooks. Not compatible with `--global`.
 """# conflicts=--global
+    flag --force help=#"""
+With the legacy `.git/hooks/` script shims, replace an existing hook
+that hk did not write, and replace a symlinked hook with a regular
+file (the symlink's target is left alone). By default hk refuses to
+install if any target is a hook it did not write or a symlink, and
+installs nothing.
+"""# conflicts=--global
     flag --mise help=#"""
 Run hooks through `mise x` so mise-managed tools are available
 without activating mise in the shell.
@@ -319,13 +345,37 @@ cmd mcp help="Run an MCP server for coding agents over standard input/output" {
 }
 cmd migrate help="Migrate from other hook managers to hk" effect=read subcommand_required=#true {
     flag "-h --help" help="Print help" action=help builtin=#true
-    cmd pre-commit help="Migrate from pre-commit to hk" effect=write {
+    cmd pre-commit help="Migrate from pre-commit (or prek) to hk" effect=write {
+        long_help #"""
+Migrate from pre-commit (or prek) to hk
+
+Reads a .pre-commit-config.yaml and writes an hk.pkl that runs the same hooks at the same git stages:
+
+- Hooks from well-known repositories become hk builtins, for example
+  `ruff` from astral-sh/ruff-pre-commit becomes `Builtins.ruff`.
+- Local `system`, `script`, and `fail` hooks become native hk steps with
+  the same command and file filters.
+- Every other hook keeps running through prek or pre-commit, which reads
+  the original config. This includes hooks whose `args`,
+  `additional_dependencies`, or filters a builtin cannot reproduce.
+  Each of these steps has a comment explaining why it was not converted.
+
+`manual` hooks run only with `hk check` and `hk fix`.
+"""#
         flag "-c --config" help="Path to .pre-commit-config.yaml" default=.pre-commit-config.yaml {
             arg <CONFIG>
         }
         flag "-f --force" help="Overwrite existing hk.pkl file"
         flag "-o --output" help="Output path for hk.pkl" default=hk.pkl {
             arg <OUTPUT>
+        }
+        flag --runner help=#"""
+Tool that runs hooks hk cannot convert.
+Defaults to pre-commit when only pre-commit is on PATH, otherwise prek.
+"""# {
+            arg <RUNNER> {
+                choices prek pre-commit
+            }
         }
         flag --hk-pkl-root help="Root path for hk pkl files (e.g. \"pkl\" for a local checkout, or a package URL prefix). If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl" {
             arg <HK_PKL_ROOT>
@@ -514,7 +564,7 @@ cmd util help="Utility commands for file operations" effect=read subcommand_requ
         long_help #"""
 Check that a commit message follows the Conventional Commits format
 
-Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.
+Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation, as do titles git generates itself: `Merge branch '`, `Merge branches '`, `Merge tag '`, `Merge tags '`, `Merge commit '`, `Merge remote-tracking branch '`, `Merge remote-tracking branches '`, `Merge pull request `, and `Revert "`.
 """#
         flag --allowed-types help="Comma-separated list of commit types to accept" var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test delimiter=, {
             arg <ALLOWED_TYPES>
@@ -548,6 +598,11 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         arg <FILES>... help="Files to check"
     }
     cmd end-of-file-fixer help="Check for and optionally fix missing final newlines" effect=write {
+        long_help #"""
+Check for and optionally fix missing final newlines
+
+A missing final newline is added as the file's most frequent line ending, so a CRLF file gets CRLF. Every line ending in the file counts, as in `mixed-line-ending`, and a tie gives LF. Trailing blank lines, LF or CRLF, are removed. A file that already ends with exactly one newline is left as it is.
+"""#
         flag "-d --diff" help="Output a diff of the change. Cannot use with `fix`." conflicts=--fix
         flag "-f --fix" help="Fix files to end with exactly one newline"
         flag "-h --help" help="Print help" action=help builtin=#true
@@ -567,9 +622,29 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-h --help" help="Print help" action=help builtin=#true
         arg "[PATHS]..." help="Paths to check. Defaults to the whole repository."
     }
+    cmd format-diff help="Print a patch of what a formatter would change, for a `check_diff` command" {
+        long_help #"""
+Print a patch of what a formatter would change, for a `check_diff` command
+
+Runs COMMAND once for each file, with the file on stdin, and compares what it prints with the file. `{}` in COMMAND is replaced with the file's path, for formatters that take the path of their input as an option. With `--no-stdin`, COMMAND reads the file itself, from the path `{}` gives it. Files are formatted in parallel.
+
+Prints a unified diff for every file that would change and exits 1, or exits 0 when none would. If COMMAND fails for any file, or prints nothing for a file that isn't empty, no patch is printed: its error output is shown and hk runs the step's fixer instead.
+
+Example: `hk util format-diff a.lua b.lua -- stylua --stdin-filepath {} -`
+"""#
+        flag --no-stdin help="Give COMMAND no stdin, for a formatter that reads the file at `{}`"
+        flag "-h --help" help="Print help" action=help builtin=#true
+        arg <FILES>... help="Files to format"
+        arg <COMMAND>... help="The formatter, reading stdin and writing the formatted file to stdout" double_dash=required
+    }
     cmd mixed-line-ending help="Detect and fix mixed line endings" effect=write {
+        long_help #"""
+Detect and fix mixed line endings
+
+Fixing normalizes every line to the file's most frequent ending, or LF when LF and CRLF are tied. A lone CR is left alone.
+"""#
         flag "-d --diff" help="Output a diff of the change. Cannot use with `fix`." conflicts=--fix
-        flag "-f --fix" help="Fix mixed line endings by normalizing to LF"
+        flag "-f --fix" help="Fix mixed line endings by normalizing to the most frequent one (LF on a tie)"
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check or fix"
     }
@@ -587,14 +662,40 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check"
     }
+    cmd sarif-diff help="Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command" {
+        long_help #"""
+Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command
+
+Runs COMMAND, reads the SARIF log it prints on stdout, and applies the fixes its results carry to the files they name, printing a unified diff of the changes. Exits 0 when there are no results, and 1 after printing the patch when every result has a fix.
+
+If any result has no fix, a fix can't be applied, or COMMAND fails, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest. COMMAND fails when it exits with anything but 0 or a findings exit code, which is 1 unless `--findings-exit-code` says otherwise.
+
+Example: `hk util sarif-diff -- pinact run --check --format sarif a.yml`
+"""#
+        flag --findings-exit-code help="An exit code COMMAND uses for \"found problems\" rather than for failing (repeatable; default 1)" var=#true {
+            arg <CODE>
+        }
+        flag "-h --help" help="Print help" action=help builtin=#true
+        arg <COMMAND>... help="The tool, printing a SARIF log on stdout" double_dash=required
+    }
     cmd trailing-whitespace help="Check for and optionally fix trailing whitespace" effect=write {
+        long_help #"""
+Check for and optionally fix trailing whitespace
+
+Only spaces and tabs before a line's terminator count as trailing whitespace. Each line keeps its own terminator, so a CRLF file stays CRLF.
+"""#
         flag "-d --diff" help="Output a diff of the change. Cannot use with `fix`." conflicts=--fix
-        flag "-f --fix" help="Fix trailing whitespace by removing it"
+        flag "-f --fix" help="Fix trailing whitespace by removing the spaces and tabs"
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check/fix"
     }
 }
 cmd validate help="Validate the config file" effect=read {
+    long_help #"""
+Validate the config file
+
+Errors for configs hk cannot run. Also prints warnings for settings that load but probably do not do what was meant: unknown properties (which release builds silently drop), `depends` that never orders anything, steps without a command, and globs that cannot match.
+"""#
     flag "-h --help" help="Print help" action=help builtin=#true
 }
 cmd version help="Print the version of hk" effect=read {

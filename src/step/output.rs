@@ -122,12 +122,20 @@ impl Step {
         let mut suggest_files = job.files.clone();
         if let (Some(run_cmd), Some(result)) = (run_cmd, cmd_result) {
             let (files, parser) = if Some(run_cmd) == self.check_diff.as_ref() {
-                let (files, _extras) =
-                    self.filter_files_from_check_diff(&job.files, &result.stdout);
-                (files, Some("check_diff"))
+                let dir = self
+                    .render_dir(&job.tctx(&ctx.hook_ctx.tctx))
+                    .ok()
+                    .flatten();
+                let parsed =
+                    self.filter_files_from_check_diff(&job.files, &result.stdout, dir.as_deref());
+                (parsed.files, Some("check_diff"))
             } else if Some(run_cmd) == self.check_list_files.as_ref() {
+                let dir = self
+                    .render_dir(&job.tctx(&ctx.hook_ctx.tctx))
+                    .ok()
+                    .flatten();
                 let (files, _extras) =
-                    self.filter_files_from_check_list(&job.files, &result.stdout);
+                    self.filter_files_from_check_list(&job.files, &result.stdout, dir.as_deref());
                 (files, Some("check_list_files"))
             } else {
                 (vec![], None)
@@ -142,13 +150,15 @@ impl Step {
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace
         let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
-        let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
+        let suggest_ctx = temp_job
+            .tctx(&ctx.hook_ctx.tctx)
+            .for_user(self.shell_type());
         if let Some(fix_cmd) = self
             .run_cmd(RunType::Fix)
             .filter(|command| !command.is_empty())
             && let Ok(rendered) = fix_cmd.render(&suggest_ctx, self.prefix.as_ref())
         {
-            let rendered = rendered.display(self.shell_type());
+            let rendered = rendered.display_user(self.shell_type());
             let should_use_hk_fix =
                 rendered.contains('\n') || rendered.chars().count() > MAX_INLINE_FIX_COMMAND_CHARS;
             if should_use_hk_fix {

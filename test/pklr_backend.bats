@@ -94,3 +94,42 @@ EOF
     run hk validate
     assert_success
 }
+
+@test "a step test resolves a local before the StepTest property of the same name when the step is amended" {
+    # `after` is both a local here and a nullable `StepTest` property. Pkl
+    # resolves the local, so the test writes and expects "formatted".
+    cat <<EOF > formatter.pkl
+import "$PKL_PATH/Config.pkl"
+
+formatter = new Config.Step {
+  glob = "*.txt"
+  check = "grep -qx formatted {{ files }}"
+  tests {
+    local const after = "formatted\n"
+    ["check formatted file"] {
+      tmpdir = true
+      write { ["a.txt"] = after }
+      expect { files { ["a.txt"] = after } }
+    }
+  }
+}
+EOF
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "formatter.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["formatter"] = (formatter.formatter) { exclude = "vendor/**" }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_success
+    run hk test --step formatter
+    assert_success
+    assert_output --partial "ok - formatter :: check formatted file"
+}

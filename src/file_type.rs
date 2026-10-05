@@ -1,32 +1,48 @@
-use dashmap::DashMap;
+use crate::par::PathMemo;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
+use std::path::Path;
+use std::sync::{Arc, LazyLock};
 
-/// Cache for file type detection results
-static FILE_TYPE_CACHE: LazyLock<DashMap<PathBuf, HashSet<String>>> = LazyLock::new(DashMap::new);
+/// Cache for file type detection results. Steps that filter the same files at
+/// once share one detection per file.
+static FILE_TYPE_CACHE: LazyLock<PathMemo<Arc<HashSet<String>>>> = LazyLock::new(PathMemo::new);
 
 /// Get all type tags for a given file path
 /// Returns a set of tags like: {"text", "python"}, {"binary", "image", "png"}, etc.
+#[cfg(test)]
 pub fn get_file_types(path: &Path) -> HashSet<String> {
-    // Check cache first
-    if let Some(types) = FILE_TYPE_CACHE.get(path) {
-        return types.clone();
-    }
+    cached_file_types(path).as_ref().clone()
+}
 
+fn cached_file_types(path: &Path) -> Arc<HashSet<String>> {
+    FILE_TYPE_CACHE
+        .get_or_try_init(path, || Some(Arc::new(detect_file_types(path))))
+        .expect("file type detection always returns a value")
+}
+
+fn detect_file_types(path: &Path) -> HashSet<String> {
     let mut types = HashSet::new();
 
     // 1. Check if it's a symlink (but continue to detect target's type)
-    if let Ok(metadata) = std::fs::symlink_metadata(path)
-        && metadata.is_symlink()
-    {
+    let symlink_metadata = std::fs::symlink_metadata(path).ok();
+    let is_symlink = symlink_metadata.as_ref().is_some_and(|m| m.is_symlink());
+    if let Some(metadata) = &symlink_metadata {
+        crate::step::cache_symlink_check(path, metadata);
+    }
+    if is_symlink {
         types.insert("symlink".to_string());
     }
 
-    // 2. Check if it's executable (follows symlinks)
-    if let Ok(metadata) = std::fs::metadata(path) {
+    // 2. Check if it's executable (follows symlinks). Only a symlink needs a
+    // second stat; if `lstat` failed, `stat` would too.
+    let metadata = if is_symlink {
+        std::fs::metadata(path).ok()
+    } else {
+        symlink_metadata
+    };
+    if let Some(metadata) = metadata {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -77,7 +93,6 @@ pub fn get_file_types(path: &Path) -> HashSet<String> {
         types.insert("text".to_string());
     }
 
-    FILE_TYPE_CACHE.insert(path.to_path_buf(), types.clone());
     types
 }
 
@@ -87,10 +102,152 @@ pub fn matches_types(path: &Path, type_filters: &[String]) -> bool {
         return true;
     }
 
-    let file_types = get_file_types(path);
+    let file_types = cached_file_types(path);
     type_filters
         .iter()
         .any(|filter| file_types.contains(filter))
+}
+
+/// The interpreter a shebang line names: its program's base name, or for
+/// `env` the command it runs.
+///
+/// `env` is followed by its own options and `NAME=value` assignments before
+/// the command: `#!/usr/bin/env -S python3 -u`, `#!/usr/bin/env FOO=1 python3`,
+/// and `#! /usr/bin/env\tpython3` all run `python3`. Whitespace between the
+/// shebang and the program, and tabs between arguments, are allowed.
+fn shebang_interpreter(line: &str) -> &str {
+    fn base_name(program: &str) -> &str {
+        // A quoted command line such as `'python3 -u'` runs its first word
+        let program = program.trim_matches(['"', '\'']);
+        let program = program.split_whitespace().next().unwrap_or("");
+        program.rsplit('/').next().unwrap_or(program)
+    }
+
+    let text = line.trim().trim_start_matches("#!");
+    let mut tokens = shebang_words(text);
+    let program = base_name(tokens.next().unwrap_or(""));
+    if program != "env" {
+        return program;
+    }
+    // The text glued to `-S` is the start of the command line env splits.
+    let mut pending = None;
+    loop {
+        let Some(token) = pending.take().or_else(|| tokens.next()) else {
+            return "";
+        };
+        if let Some(command) = split_string_command(token) {
+            // GNU env refuses to run a script whose `-S` string has an escape
+            // it does not know, so the script has no interpreter to type by.
+            if has_invalid_env_escape(text) {
+                return "";
+            }
+            pending = Some(command).filter(|command| !command.is_empty());
+        } else if token.starts_with('-') {
+            // These options take the next token as their argument.
+            if matches!(token, "-u" | "--unset" | "-C" | "--chdir" | "-P") {
+                tokens.next();
+            }
+        } else if !is_env_assignment(token) {
+            return base_name(token);
+        }
+    }
+}
+
+/// Splits `text` at whitespace outside quotes, as env does for `-S`, so that
+/// `FOO="a b"` stays one word. Quotes are left in the words.
+fn shebang_words(text: &str) -> impl Iterator<Item = &str> {
+    let mut rest = text;
+    std::iter::from_fn(move || {
+        rest = rest.trim_start();
+        if rest.is_empty() {
+            return None;
+        }
+        let mut quote = None;
+        let mut escaped = false;
+        let mut end = rest.len();
+        for (i, c) in rest.char_indices() {
+            // A backslash escapes the next character; inside single quotes
+            // only a backslash or a quote
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if c == '\\' {
+                let next = rest[i + 1..].chars().next();
+                if quote != Some('\'') || matches!(next, Some('\\' | '\'')) {
+                    escaped = true;
+                    continue;
+                }
+            }
+            match quote {
+                Some(q) if c == q => quote = None,
+                Some(_) => {}
+                None if c == '"' || c == '\'' => quote = Some(c),
+                None if c.is_whitespace() => {
+                    end = i;
+                    break;
+                }
+                None => {}
+            }
+        }
+        let (word, remainder) = rest.split_at(end);
+        rest = remainder;
+        Some(word)
+    })
+}
+
+/// Whether `text`, split by env's `-S`, has a backslash escape GNU env rejects.
+/// Outside single quotes it knows `\c \f \n \r \t \v \_ \# \$ \" \' \\`; inside
+/// them only `\\` and `\'` are escapes, and other backslashes are literal.
+fn has_invalid_env_escape(text: &str) -> bool {
+    let mut quote = None;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (Some('\''), '\\') => {
+                if matches!(chars.peek(), Some('\\' | '\'')) {
+                    chars.next();
+                }
+            }
+            (_, '\\') => match chars.next() {
+                Some('c' | 'f' | 'n' | 'r' | 't' | 'v' | '_' | '#' | '$' | '"' | '\'' | '\\') => {}
+                _ => return true,
+            },
+            _ => {}
+        }
+    }
+    false
+}
+
+/// If `token` is env's `-S` / `--split-string` option, the start of the command
+/// line that is glued to it (empty when the command is the next token). A
+/// cluster such as `-iS` counts.
+fn split_string_command(token: &str) -> Option<&str> {
+    if let Some(rest) = token.strip_prefix("--split-string") {
+        return match rest.strip_prefix('=') {
+            Some(command) => Some(command),
+            None if rest.is_empty() => Some(""),
+            None => None,
+        };
+    }
+    let flags = token.strip_prefix('-').filter(|f| !f.starts_with('-'))?;
+    let at = flags.find('S')?;
+    // Only flags that take no argument may precede the `S`.
+    flags[..at]
+        .chars()
+        .all(|c| matches!(c, 'i' | 'v' | '0'))
+        .then(|| &flags[at + 1..])
+}
+
+/// Whether `token` is a `NAME=value` assignment that `env` applies.
+fn is_env_assignment(token: &str) -> bool {
+    token.split_once('=').is_some_and(|(name, _)| {
+        !name.is_empty()
+            && !name.starts_with(|c: char| c.is_ascii_digit())
+            && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    })
 }
 
 /// Detect file types by reading shebang line
@@ -107,27 +264,7 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
     let mut types = HashSet::new();
     types.insert("text".to_string());
 
-    let shebang = first_line.trim();
-
-    // Handle /usr/bin/env cases
-    let interpreter = if shebang.contains("/env ") {
-        shebang
-            .split_whitespace()
-            .nth(1)
-            .unwrap_or("")
-            .split('/')
-            .next_back()
-            .unwrap_or("")
-    } else {
-        shebang
-            .trim_start_matches("#!")
-            .split_whitespace()
-            .next()
-            .unwrap_or("")
-            .split('/')
-            .next_back()
-            .unwrap_or("")
-    };
+    let interpreter = shebang_interpreter(&first_line);
 
     match interpreter {
         s if s.starts_with("python") => {
@@ -172,8 +309,10 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
 fn detect_by_content(path: &Path) -> Option<HashSet<String>> {
     let mut types = HashSet::new();
 
-    // Try magic number detection first
-    if let Ok(Some(kind)) = infer::get_from_path(path) {
+    // Try magic number detection first. infer also sniffs a few text formats
+    // (HTML, XML, shebang scripts); those fall through to the null-byte scan.
+    let kind = infer::get_from_path(path).ok().flatten();
+    if let Some(kind) = kind.filter(|k| k.matcher_type() != infer::MatcherType::Text) {
         types.insert("binary".to_string());
 
         // Map infer's MIME types to our type tags
@@ -228,6 +367,11 @@ fn detect_by_content(path: &Path) -> Option<HashSet<String>> {
         types.insert("binary".to_string());
     } else {
         types.insert("text".to_string());
+        // Only the XML prolog is specific enough to tag. HTML sniffing also
+        // matches Svelte, Vue, and other templates that open with a tag.
+        if kind.is_some_and(|k| k.mime_type() == "text/xml") {
+            types.insert("xml".to_string());
+        }
     }
 
     Some(types)
@@ -605,6 +749,70 @@ mod tests {
     }
 
     #[test]
+    fn shebang_interpreter_skips_env_options_and_assignments() {
+        for (line, expected) in [
+            ("#!/bin/sh\n", "sh"),
+            ("#!/usr/bin/python3 -u\n", "python3"),
+            ("#!/usr/bin/env python3\n", "python3"),
+            ("#! /usr/bin/env python3\n", "python3"),
+            ("#!/usr/bin/env\tpython3\n", "python3"),
+            ("#!/usr/bin/env -S python3 -u\n", "python3"),
+            ("#!/usr/bin/env -S\tpython3 -u\n", "python3"),
+            ("#!/usr/bin/env -Spython3 -u\n", "python3"),
+            ("#!/usr/bin/env --split-string=python3 -u\n", "python3"),
+            ("#!/usr/bin/env --split-string python3\n", "python3"),
+            ("#!/usr/bin/env -iS python3\n", "python3"),
+            ("#!/usr/bin/env -S 'python3 -u'\n", "python3"),
+            ("#!/usr/bin/env FOO=bar python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=bar BAZ=1 python3 -u\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a b\" python3\n", "python3"),
+            // An escaped quote does not end a quoted value; an escaped
+            // backslash does not escape the closing quote
+            ("#!/usr/bin/env -S FOO=\"a\\\" b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\\\\" python3\n", "python3"),
+            // Backslashes are literal inside single quotes
+            ("#!/usr/bin/env -S FOO='a\\b' python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a\\\\' python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\$b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=\"a\\'b\" python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO=a\\'b python3\n", "python3"),
+            ("#!/usr/bin/env -S FOO='a\\'b' python3\n", "python3"),
+            // GNU env rejects other escapes, such as a backslash and a space,
+            // so the script cannot start and has no interpreter
+            ("#!/usr/bin/env -S FOO=a\\ b python3\n", ""),
+            ("#!/usr/bin/env -S FOO=\"a\\qb\" python3\n", ""),
+            ("#!/usr/bin/env -S FOO='a b' BAR=\"c  d\" ruby -w\n", "ruby"),
+            ("#!/usr/bin/env -u HOME -i ruby\n", "ruby"),
+            ("#!/usr/bin/env -C /tmp node\n", "node"),
+            ("#!/bin/env bash\n", "bash"),
+            ("#!/usr/bin/env\n", ""),
+            ("#!/usr/bin/env -S\n", ""),
+        ] {
+            assert_eq!(shebang_interpreter(line), expected, "{line:?}");
+        }
+    }
+
+    #[test]
+    fn env_shebang_variants_are_typed_by_their_interpreter() {
+        for (shebang, tag) in [
+            ("#!/usr/bin/env -S python3 -u", "python"),
+            ("#! /usr/bin/env python3", "python"),
+            ("#!/usr/bin/env\tbash", "bash"),
+            ("#!/usr/bin/env FOO=1 ruby", "ruby"),
+            (
+                "#!/usr/bin/env -S node --experimental-strip-types",
+                "javascript",
+            ),
+        ] {
+            let mut file = NamedTempFile::new().unwrap();
+            file.write_all(format!("{shebang}\nbody\n").as_bytes())
+                .unwrap();
+            let types = detect_shebang(file.path()).unwrap();
+            assert!(types.contains(tag), "{shebang:?}: {types:?}");
+        }
+    }
+
+    #[test]
     fn test_dockerfile() {
         let mut file = NamedTempFile::new().unwrap();
         let path = file.path().parent().unwrap().join("Dockerfile");
@@ -710,5 +918,99 @@ mod tests {
         // Should match python type filter even though it's a symlink
         assert!(matches_types(&link_path, &["python".to_string()]));
         assert!(matches_types(&link_path, &["symlink".to_string()]));
+    }
+
+    #[test]
+    fn test_svelte_component_is_text() {
+        // Svelte components start with `<script`, which HTML sniffing matches
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("Component.svelte");
+        std::fs::write(
+            &path,
+            b"<script lang=\"ts\">\n  let name = 'world';\n</script>\n\n<h1>Hello {name}!</h1>\n",
+        )
+        .unwrap();
+
+        let types = get_file_types(&path);
+        assert!(types.contains("text"), "got {types:?}");
+        assert!(!types.contains("binary"), "got {types:?}");
+    }
+
+    #[test]
+    fn test_unknown_extension_with_html_like_content_is_text() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        for (name, content) in [
+            (
+                "script.tmpl",
+                "<script lang=\"ts\">\n  let n = 1;\n</script>\n",
+            ),
+            ("comment.tmpl", "<!-- header partial -->\n<nav></nav>\n"),
+            ("div.tmpl", "<div>\n  {{ content }}\n</div>\n"),
+        ] {
+            let path = temp_dir.path().join(name);
+            std::fs::write(&path, content).unwrap();
+
+            let types = get_file_types(&path);
+            assert!(types.contains("text"), "{name}: got {types:?}");
+            assert!(!types.contains("binary"), "{name}: got {types:?}");
+            assert!(!types.contains("html"), "{name}: got {types:?}");
+        }
+    }
+
+    #[test]
+    fn test_unknown_extension_with_xml_prolog_is_xml() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("App.csproj");
+        std::fs::write(
+            &path,
+            b"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Project Sdk=\"Microsoft.NET.Sdk\" />\n",
+        )
+        .unwrap();
+
+        let types = get_file_types(&path);
+        assert!(types.contains("text"), "got {types:?}");
+        assert!(types.contains("xml"), "got {types:?}");
+        assert!(!types.contains("binary"), "got {types:?}");
+    }
+
+    #[test]
+    fn test_text_signature_with_null_byte_is_binary() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        for (name, content) in [
+            (
+                "script.tmpl",
+                "<script lang=\"ts\">\n\0let n = 1;\n</script>\n",
+            ),
+            (
+                "App.csproj",
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\0<Project />\n",
+            ),
+        ] {
+            let path = temp_dir.path().join(name);
+            std::fs::write(&path, content).unwrap();
+
+            // Ensure the fixture reaches the text-matcher null-byte fallback.
+            let kind = infer::get_from_path(&path).unwrap().unwrap();
+            assert_eq!(kind.matcher_type(), infer::MatcherType::Text, "{name}");
+
+            let types = get_file_types(&path);
+            assert!(types.contains("binary"), "{name}: got {types:?}");
+            for tag in ["text", "html", "xml"] {
+                assert!(!types.contains(tag), "{name}: got {types:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_png_content_without_extension_is_binary() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("image");
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR").unwrap();
+
+        let types = get_file_types(&path);
+        assert!(types.contains("binary"), "got {types:?}");
+        assert!(types.contains("image"), "got {types:?}");
+        assert!(types.contains("png"), "got {types:?}");
+        assert!(!types.contains("text"), "got {types:?}");
     }
 }

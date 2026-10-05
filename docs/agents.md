@@ -18,8 +18,8 @@ Every generator writes only to stdout. Review the result and place or merge it i
 
 1. Inspect the project and request a plan.
 2. Scope execution to changed files. Use `--files0-from` when exact filenames matter and `--cd` to choose the project root.
-3. Inspect command effects and prefer safe execution. `--safe` rejects a run before any step starts if a runnable command is unknown or destructive.
-4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings.
+3. Inspect command effects and prefer safe execution. `--safe` rejects a run before any step starts if a runnable command is unknown or destructive. That includes the hook's `report` command, so declare its effect with a `CommandSpec` (`report = new CommandSpec { command = "node scripts/report-timings.js"; effect = "read" }`). `--safe` checks declared effects only. It is not a sandbox, and hk does not verify that a command behaves as declared.
+4. Consume JSON or JSONL diagnostics and retain raw output when investigating parser warnings. A step with no `diagnostic_format` has no diagnostics, so read its raw `output` field instead, when present (see [diagnostics](/configuration#diagnostics)). A step's `output` in a structured result is capped at 64 KiB and ends with a marker stating the cap; the MCP server fails a run whose structured stream exceeds 16 MiB. A run that fails before any step starts, such as a configuration error, still produces a failed `run_result` with the reason in `failure`. A step that Ctrl-C or a fail-fast abort stopped has the status `cancelled`, not `failed`. A run its user interrupted with Ctrl-C, when no real failure occurred, has the status `cancelled` and no `failure`, and the MCP server reports that run as `cancelled` too. A step that failed before the Ctrl-C keeps the status `failed`, and so does the run.
 5. Review the resulting diff before accepting a fix.
 
 Without MCP, a portable invocation is:
@@ -45,6 +45,17 @@ hk agent mcp --target claude-code
 hk agent mcp --target vscode
 ```
 
+`start_check`, `start_safe_check`, and `start_safe_fix` take an optional `scope` argument that selects the files a run covers. It defaults to `all`, and any other value is rejected.
+
+| `scope`    | Files                                                                                     | hk flag        |
+| ---------- | ----------------------------------------------------------------------------------------- | -------------- |
+| `all`      | Every tracked file, plus untracked files unless stashing is enabled (see below)           | `--all`        |
+| `changed`  | Staged and unstaged files, plus untracked files (see below): all that differs from `HEAD` | `--stash none` |
+| `unstaged` | Unstaged files, plus untracked files (see below), without staged files                    | `--unstaged`   |
+| `staged`   | Only files staged in the index, which is what a pre-commit hook checks                    | `--staged`     |
+
+`changed` turns stashing off for the run, so it always covers staged and unstaged edits even when the project or `HK_STASH` enables stashing. `--stash none` does not override `HK_STASH_UNTRACKED=0`: with that setting hk skips untracked-file discovery, so `changed` and `unstaged` leave untracked files out. `staged` is unaffected, because untracked files are never staged. `all` keeps the project's stash setting, and hk leaves untracked files out of `--all` while stashing is enabled. Use `changed` or `unstaged` to lint only what an agent just edited instead of the whole project, or `staged` to check just what the next commit would contain. Like `changed`, `staged` runs without stashing, so a staged file that also has unstaged edits is checked as it is in the working tree.
+
 Codex, Claude Code, Claude Desktop, and VS Code can use the structured MCP tools. Hosts that implement MCP Apps also receive the hk dashboard; other hosts receive the same structured content and a useful text fallback.
 
 ## Rich dashboard
@@ -65,4 +76,4 @@ The tunnel is a development bridge. hk itself ships no HTTP listener, hosted ser
 
 ## Instructions and hooks
 
-Use `hk agent instructions` for a concise block suitable for `AGENTS.md`, `CLAUDE.md`, or a generic agent prompt. Use `hk agent hooks` for an optional Codex or Claude Code stop hook, or a VS Code task. Hook output is deliberately a snippet rather than an automatic installation: inspect its effect on your workflow before enabling it.
+Use `hk agent instructions` for a concise block suitable for `AGENTS.md`, `CLAUDE.md`, or a generic agent prompt. Use `hk agent hooks` for an optional Codex or Claude Code stop hook, or a VS Code task. The Codex and Claude Code snippets run `hk agent stop-hook`, which reads the Stop hook input from stdin (the first JSON value, waiting at most 5 seconds, so a pipe the agent leaves open cannot stall it), does nothing when `stop_hook_active` is true, and runs `hk run check --safe`. In a project without an `hk.pkl`, or one that defines no `check` hook, it passes the same way a hook from `hk install --global` does, so the hook is safe to add to user-level agent settings such as `~/.claude/settings.json`. It always exits 0; if the check fails or `--safe` refuses to run, it prints only `{"decision":"block","reason":"..."}` so the agent keeps working with a short diagnosis. When the check passes, Claude Code's documented pass is exit 0 with no output, so the Claude Code snippet prints nothing; Codex's documentation is inconsistent about whether empty stdout is accepted, so the Codex snippet passes `--target codex` and prints `{}`, which is valid either way. Both agents document this top-level `decision`/`reason` JSON for Stop hooks, and Codex rejects any other stdout, so hk's own `run_result` JSON is never printed from these hooks. A check that runs longer than `--timeout` seconds (default 100, under Codex's 120-second hook timeout) is stopped, steps included, and reported as a block; the Claude Code snippet passes `--timeout 570` beside a hook `timeout` of 600 seconds, which is Claude Code's default for command hooks. Hook output is deliberately a snippet rather than an automatic installation: inspect its effect on your workflow before enabling it.

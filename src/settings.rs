@@ -410,7 +410,7 @@ impl Settings {
                     }
                     "usize" => {
                         if let Ok(v) = cfg.get_i32(key)
-                            && v > 0
+                            && git_usize_in_range(setting_name, v)
                         {
                             map.insert(setting_name, SettingValue::Usize(v as usize));
                             break;
@@ -495,13 +495,15 @@ impl Settings {
                         (typ, serde_json::Value::Array(arr)) if typ.starts_with("list<string>") => {
                             let strings: IndexSet<String> = arr
                                 .iter()
+                                // Non-string elements, such as top-level `exclude`
+                                // regexes, are not settings; hooks read them from config.
                                 .filter_map(|v| v.as_str())
                                 .map(|s| s.to_string())
                                 .collect();
                             map.insert(setting_name, SettingValue::StringList(strings));
                         }
                         (typ, serde_json::Value::String(s)) if typ.starts_with("list<string>") => {
-                            // Handle StringOrList serialized as a single string
+                            // Handle a list setting serialized as a single string
                             let strings: IndexSet<String> = IndexSet::from([s.clone()]);
                             map.insert(setting_name, SettingValue::StringList(strings));
                         }
@@ -924,5 +926,26 @@ mod tests {
             "unexpected libgit2 error message: {:?}",
             str_err.message()
         );
+    }
+}
+
+/// Settings for which `0` is a real value rather than "unset" when read from
+/// Git config; every other `usize` setting ignores a non-positive Git value.
+const GIT_ZERO_ALLOWED: &[&str] = &["stash_lock_timeout"];
+
+fn git_usize_in_range(setting_name: &str, v: i32) -> bool {
+    v > 0 || (v == 0 && GIT_ZERO_ALLOWED.contains(&setting_name))
+}
+
+#[cfg(test)]
+mod git_zero_tests {
+    use super::git_usize_in_range;
+
+    #[test]
+    fn zero_is_honored_only_for_opted_in_settings() {
+        assert!(git_usize_in_range("stash_lock_timeout", 0));
+        assert!(!git_usize_in_range("stash_backup_count", 0));
+        assert!(git_usize_in_range("stash_backup_count", 3));
+        assert!(!git_usize_in_range("stash_lock_timeout", -1));
     }
 }

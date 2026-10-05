@@ -2,11 +2,13 @@ use indexmap::IndexMap;
 use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
-use eyre::{WrapErr, bail};
+use eyre::{WrapErr, bail, eyre};
 
 pub const V2_MIGRATION_URL: &str = "https://hk.jdx.dev/migration-v2";
 
@@ -34,15 +36,18 @@ impl Config {
         config.load_subprojects()?;
         config.materialize_default_hooks()?;
         config.apply_hkrc()?;
+        config.apply_subproject_skip_steps();
         config.validate()?;
         Ok(config)
     }
 
+    /// Also returns every environment variable the evaluation read, with the
+    /// value it saw.
     #[tracing::instrument(level = "info", name = "config.read", skip_all, fields(path = %path.display()))]
-    fn read(path: &Path, apply_env: bool) -> Result<Self> {
+    fn read(path: &Path, apply_env: bool) -> Result<(Self, EnvReads)> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
-        let mut config: Config = match ext {
-            "pkl" => run_pklr(path)?,
+        let (mut config, env_reads): (Config, _) = match ext {
+            "pkl" => eval_pklr(path)?,
             "toml" | "yaml" | "yml" | "json" => bail!(
                 "{} configuration was removed in hk v2; convert {} to hk.pkl and amend Config.pkl\n\nSee {}",
                 ext.to_uppercase(),
@@ -54,7 +59,7 @@ impl Config {
             ),
         };
         config.init(path, apply_env)?;
-        Ok(config)
+        Ok((config, env_reads))
     }
 
     /// Analyze pkl imports to get all transitive dependencies.
@@ -63,7 +68,7 @@ impl Config {
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
         let mut local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
             .map(|v| v.into_iter().collect())
-            .map_err(|e| eyre::eyre!("{e}"))?;
+            .map_err(|e| pklr_error_report(&e))?;
         // Glob imports expand to whatever matched at analysis time, so the
         // patterns themselves have to be recorded to notice later additions.
         let glob_imports = Self::collect_glob_imports(path, &local_paths);
@@ -80,6 +85,7 @@ impl Config {
             glob_imports,
             glob_matches,
             sources_digest,
+            env_names: BTreeSet::new(),
         })
     }
 
@@ -299,12 +305,15 @@ impl Config {
         if let Some(path) = Self::find_project_config(&paths) {
             let mut config = Self::load_config_cached(path)?;
             config.apply_implicit_root_dir()?;
+            config.project_config_loaded = true;
             return Ok(config);
         }
         if env::HK_FILE.is_none()
             && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
         {
-            return Self::read(&path, true);
+            let mut config = Self::read(&path, true)?.0;
+            config.project_config_loaded = true;
+            return Ok(config);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
@@ -421,6 +430,40 @@ impl Config {
         Self::find_project_config_from(start, &Self::project_config_search_paths()).is_some()
     }
 
+    /// `hk.local.pkl` is picked instead of the shared `hk.pkl`, not merged with
+    /// it, so a local file that does not `amends` the shared file silently drops
+    /// the whole shared configuration. Say so, unless the warning is hidden.
+    fn warn_if_local_config_ignores_shared(path: &Path) {
+        if path.file_name().is_none_or(|n| n != "hk.local.pkl") {
+            return;
+        }
+        let Some(dir) = path.parent() else {
+            return;
+        };
+        let mut candidates = vec![dir.join("hk.pkl"), dir.join(".config").join("hk.pkl")];
+        if dir.file_name().is_some_and(|n| n == ".config")
+            && let Some(parent) = dir.parent()
+        {
+            candidates.push(parent.join("hk.pkl"));
+        }
+        let shared: Vec<PathBuf> = candidates.into_iter().filter(|p| p.is_file()).collect();
+        if shared.is_empty() || amends_chain_reaches(path, &shared) {
+            return;
+        }
+        let hidden = std::env::var("HK_HIDE_WARNINGS")
+            .is_ok_and(|v| v.split(',').any(|t| t.trim() == LOCAL_CONFIG_WARNING_TAG));
+        if hidden {
+            return;
+        }
+        warn!(
+            "{} does not amend {}, so it replaces the shared configuration instead of extending it. \
+            Add `amends \"{}\"` to keep the shared steps, or hide this warning with HK_HIDE_WARNINGS={LOCAL_CONFIG_WARNING_TAG}.",
+            xx::file::display_path(path),
+            xx::file::display_path(&shared[0]),
+            relative_module_path(dir, &shared[0])
+        );
+    }
+
     fn load_config_cached(path: PathBuf) -> Result<Config> {
         Self::load_config_cached_with(path, true)
     }
@@ -436,7 +479,7 @@ impl Config {
         // For pkl files, we need to track all transitive imports for cache invalidation
         let is_pkl = path.extension().is_some_and(|ext| ext == "pkl");
 
-        let (fresh_files, has_untracked_imports): (Vec<PathBuf>, bool) = if is_pkl {
+        let (fresh_files, has_untracked_imports, imports_cache) = if is_pkl {
             // First, get the imports (cached separately, invalidated only by the main config file)
             let imports_cache_path =
                 cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
@@ -454,25 +497,34 @@ impl Config {
             // hk.pkl itself is unchanged.
             if import_analysis.is_stale(&path) {
                 tracing::event!(tracing::Level::INFO, "cache.imports_changed");
-                import_analysis = Self::analyze_imports(&path)?;
+                import_analysis = ImportAnalysis {
+                    env_names: import_analysis.env_names,
+                    ..Self::analyze_imports(&path)?
+                };
                 if let Err(err) = imports_cache_mgr.write(&import_analysis) {
                     warn!("failed to write imports cache file: {err:#}");
                 }
             }
+            Self::warn_if_local_config_ignores_shared(&path);
             let has_untracked_imports = import_analysis.has_untracked_imports
                 || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
 
             // Always include the main config file. pklr's analyze_imports does
             // not include the source file in its output, so without this edits
             // to hk.pkl would not invalidate the cache.
-            let mut files: IndexSet<PathBuf> = import_analysis.local_paths;
+            let mut files: IndexSet<PathBuf> = import_analysis.local_paths.clone();
             files.insert(path.clone());
-            (files.into_iter().collect(), has_untracked_imports)
+            (
+                files.into_iter().collect::<Vec<_>>(),
+                has_untracked_imports,
+                Some((imports_cache_mgr, import_analysis)),
+            )
         } else {
-            (vec![path.clone()], false)
+            (vec![path.clone()], false, None)
         };
 
-        // Build the config cache with all fresh files (imports + main config)
+        // Key the config cache on all fresh files (imports + main config) and
+        // on the env vars the config reads
         let config_cache_path = if has_untracked_imports || !is_root {
             cache_dir.join(hash_key)
         } else {
@@ -480,21 +532,56 @@ impl Config {
         };
         let config_cache_builder = CacheManagerBuilder::new(config_cache_path)
             .with_cache_key(pkl_http_rewrite_cache_key());
-        let config_cache_mgr = if has_untracked_imports {
+        let config_cache_builder = if has_untracked_imports {
             config_cache_builder.with_fresh_files(fresh_files)
         } else {
             config_cache_builder.with_content_fresh_files(fresh_files)
         }
-        .build::<Config>();
+        .hash_fresh_files();
+        let build_config_cache_mgr = |env: &EnvReads| {
+            config_cache_builder
+                .clone()
+                .with_cache_key(env_cache_key(env))
+                .build::<Config>()
+        };
+        // Read the way pklr reads them, and before evaluation: a root config
+        // exports its `env` during `read`, overwriting what the evaluation saw.
+        let mut env_values: EnvReads = imports_cache
+            .iter()
+            .flat_map(|(_, import_analysis)| &import_analysis.env_names)
+            .map(|name| (name.clone(), std::env::var(name).ok()))
+            .collect();
 
         // Load from cache if fresh; otherwise read from disk. In both cases, run init
         // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
-        let mut config = config_cache_mgr
-            .get_or_try_init(|| {
-                Self::read(&path, is_root)
-                    .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))
-            })?
-            .clone();
+        let mut config = match build_config_cache_mgr(&env_values).get() {
+            Some(config) => config,
+            None => {
+                let (config, env_reads) = Self::read(&path, is_root).map_err(|err| {
+                    // A syntax error already names its own file, line and column.
+                    if err.downcast_ref::<PklSyntaxError>().is_some() {
+                        err
+                    } else {
+                        err.wrap_err(format!("Failed to read config file: {}", path.display()))
+                    }
+                })?;
+                // Keyed on every variable the evaluation read, so a later lookup
+                // hits only while all of them keep these values.
+                env_values.extend(env_reads);
+                if let Err(err) = build_config_cache_mgr(&env_values).write(&config) {
+                    warn!("failed to write config cache file: {err:#}");
+                }
+                if let Some((imports_cache_mgr, mut import_analysis)) = imports_cache
+                    && env_values.len() > import_analysis.env_names.len()
+                {
+                    import_analysis.env_names = env_values.into_keys().collect();
+                    if let Err(err) = imports_cache_mgr.write(&import_analysis) {
+                        warn!("failed to write imports cache file: {err:#}");
+                    }
+                }
+                config
+            }
+        };
         config.init(&path, is_root)?;
         Ok(config)
     }
@@ -552,18 +639,26 @@ impl Config {
         }
 
         // Scalar settings: project wins — fall back to hkrc when project has None
+        self.jobs = self.jobs.or(hkrc.jobs);
         self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
         self.stage = self.stage.or(hkrc.stage);
         self.display_skip_reasons = self
             .display_skip_reasons
             .take()
             .or(hkrc.display_skip_reasons);
-        self.hide_warnings = self.hide_warnings.take().or(hkrc.hide_warnings);
+        // List settings that settings.toml marks `merge = "union"` combine the
+        // project and user values instead of letting the project's replace them.
+        union_lists(&mut self.hide_warnings, hkrc.hide_warnings);
         self.warnings = self.warnings.take().or(hkrc.warnings);
-        self.exclude = self.exclude.take().or(hkrc.exclude);
+        // Exclude patterns are unioned, like every other exclude source.
+        match (&mut self.exclude, hkrc.exclude) {
+            (Some(exclude), Some(hkrc_exclude)) => exclude.union(hkrc_exclude),
+            (exclude @ None, hkrc_exclude) => *exclude = hkrc_exclude,
+            (Some(_), None) => {}
+        }
         self.profiles = self.profiles.take().or(hkrc.profiles);
-        self.skip_hooks = self.skip_hooks.take().or(hkrc.skip_hooks);
-        self.skip_steps = self.skip_steps.take().or(hkrc.skip_steps);
+        union_lists(&mut self.skip_hooks, hkrc.skip_hooks);
+        union_lists(&mut self.skip_steps, hkrc.skip_steps);
         self.default_branch = self.default_branch.take().or(hkrc.default_branch);
         self.min_hk_version = self.min_hk_version.take().or(hkrc.min_hk_version);
         self.stash_backup_count = self.stash_backup_count.or(hkrc.stash_backup_count);
@@ -845,6 +940,15 @@ impl Config {
             None => subdir.to_string(),
         };
         let sub_env = std::mem::take(&mut sub.env);
+        let sub_skip_steps = sub.skip_steps.take().unwrap_or_default();
+        let ignored = sub.ignored_subproject_settings();
+        if !ignored.is_empty() {
+            warn!(
+                "subprojects: ignoring top-level {} in {}; only `steps`, `hooks`, `env` and `skip_steps` of a subproject config apply, so set these in the root config",
+                ignored.join(", "),
+                sub.path.display()
+            );
+        }
         for (hook_name, sub_hook) in std::mem::take(&mut sub.hooks) {
             if !sub_hook.enabled {
                 continue;
@@ -914,7 +1018,76 @@ impl Config {
                 root_hook.steps.insert(scoped_name, step_or_group);
             }
         }
+        // The subproject's `skip_steps` name its own steps, which the root
+        // config knows by their scoped names. Execution matches skips against
+        // step names only, and the steps inside a group keep their unscoped
+        // names, so a group (or a step inside one) cannot be skipped by name.
+        for name in sub_skip_steps {
+            let scoped_name = format!("{subdir}:{name}");
+            let mut is_step = false;
+            let mut is_group = false;
+            for step_or_group in self
+                .hooks
+                .values()
+                .filter_map(|hook| hook.steps.get(&scoped_name))
+            {
+                match step_or_group {
+                    crate::hook::StepOrGroup::Step(_) => is_step = true,
+                    crate::hook::StepOrGroup::Group(_) => is_group = true,
+                }
+            }
+            if !is_step {
+                let reason = if is_group {
+                    "names a group, and skipping a group is not supported"
+                } else {
+                    "names no step of that subproject"
+                };
+                warn!(
+                    "subprojects: skip_steps entry '{name}' in {} {reason}, so it is ignored (a step inside a group cannot be skipped from a subproject)",
+                    sub.path.display()
+                );
+                continue;
+            }
+            self.subproject_skip_steps.insert(scoped_name);
+        }
         Ok(())
+    }
+
+    /// Adds the steps subprojects skip to `skip_steps`, after the user config
+    /// has been merged so that it neither hides nor is hidden by them.
+    fn apply_subproject_skip_steps(&mut self) {
+        if self.subproject_skip_steps.is_empty() {
+            return;
+        }
+        let skip_steps = self.skip_steps.get_or_insert_default();
+        for name in std::mem::take(&mut self.subproject_skip_steps) {
+            if !skip_steps.contains(&name) {
+                skip_steps.push(name);
+            }
+        }
+    }
+
+    /// Names of the top-level settings this config sets that have no effect
+    /// when it is loaded as a subproject.
+    fn ignored_subproject_settings(&self) -> Vec<&'static str> {
+        [
+            ("default_branch", self.default_branch.is_some()),
+            ("display_skip_reasons", self.display_skip_reasons.is_some()),
+            ("exclude", self.exclude.is_some()),
+            ("fail_fast", self.fail_fast.is_some()),
+            ("hide_warnings", self.hide_warnings.is_some()),
+            ("jobs", self.jobs.is_some()),
+            ("profiles", self.profiles.is_some()),
+            ("skip_hooks", self.skip_hooks.is_some()),
+            ("stage", self.stage.is_some()),
+            ("stash_backup_count", self.stash_backup_count.is_some()),
+            ("terminal_progress", self.terminal_progress.is_some()),
+            ("walk_ignore", self.walk_ignore.is_some()),
+            ("warnings", self.warnings.is_some()),
+        ]
+        .into_iter()
+        .filter_map(|(name, set)| set.then_some(name))
+        .collect()
     }
 
     fn scope_subproject_step(
@@ -952,7 +1125,7 @@ fn get_http_proxy() -> Option<String> {
 /// The pkl package for this version, staged by `build/embed_pkl_package.rs`.
 /// Empty when the pkl sources were not generated.
 static EMBEDDED_PKL_PACKAGE: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/hk_pkl_package.zip"));
+    include_bytes!(concat!(std::env!("OUT_DIR"), "/hk_pkl_package.zip"));
 
 /// The release archive URL `hk init` writes into `hk.pkl` for this version.
 fn embedded_pkl_package_url() -> String {
@@ -961,6 +1134,14 @@ fn embedded_pkl_package_url() -> String {
 }
 
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    Ok(eval_pklr(path)?.0)
+}
+
+/// Environment variables an evaluation read, with the value it saw; `None`
+/// when unset.
+type EnvReads = BTreeMap<String, Option<String>>;
+
+fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
     let client = build_pklr_http_client()?;
     let http_rewrites = env::HK_PKL_HTTP_REWRITE
         .as_deref()
@@ -977,9 +1158,23 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let json = block_on_pklr(evaluator.eval_to_json(path))?
-        .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
-    serde_json::from_value(json).map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))
+    let outcome =
+        block_on_pklr(evaluator.eval(path))?.map_err(|e| match pklr_syntax_error(&e) {
+            Some(err) => eyre::Report::new(err),
+            None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
+        })?;
+    let value = serde_json::from_value(outcome.json)
+        .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))?;
+    Ok((value, outcome.env_reads))
+}
+
+/// Keeps an unset variable distinct from an empty one. The values only ever
+/// reach the cache file name as part of its hash.
+fn env_cache_key(env: &EnvReads) -> String {
+    env.iter()
+        .map(|(name, value)| format!("env:{name}={value:?}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn pkl_http_rewrite_cache_key() -> String {
@@ -1031,6 +1226,114 @@ fn get_no_proxy() -> Option<String> {
         .or_else(|_| std::env::var("NO_PROXY"))
         .ok()
         .filter(|s| !s.is_empty())
+}
+
+/// A Pkl lex or parse error with the file it is in and where.
+#[derive(Debug, PartialEq, Eq)]
+struct PklSyntaxError {
+    /// `file:line:col`, as the source names itself (an imported file is
+    /// reported under its own name, not the config that imports it).
+    location: String,
+    message: String,
+    /// The offending source line, if the offset falls inside the source.
+    excerpt: Option<(usize, String, String)>,
+}
+
+impl std::fmt::Display for PklSyntaxError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Failed to evaluate Pkl config\n\n{}: {}",
+            self.location, self.message
+        )?;
+        if let Some((line, text, pad)) = &self.excerpt {
+            let gutter = " ".repeat(line.to_string().len());
+            write!(f, "\n {gutter} |\n {line} | {text}\n {gutter} | {}^", pad)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for PklSyntaxError {}
+
+/// 1-based line and column of a byte `offset` into `source`. An offset past the
+/// end, or inside a multi-byte character, is clamped to the nearest position
+/// before it.
+fn line_col(source: &str, offset: usize) -> (usize, usize) {
+    let mut end = offset.min(source.len());
+    while !source.is_char_boundary(end) {
+        end -= 1;
+    }
+    let before = &source[..end];
+    let line = before.matches('\n').count() + 1;
+    let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+    (line, before[line_start..].chars().count() + 1)
+}
+
+/// A source name for display: `./` segments dropped, and relative to the
+/// current directory when the file lives under it.
+fn display_source_name(name: &str) -> String {
+    // A module fetched by URI keeps its name; treating it as a path would
+    // collapse the `//` after the scheme.
+    if name.contains("://") {
+        return name.to_string();
+    }
+    let path: PathBuf = Path::new(name).components().collect();
+    let relative = std::env::current_dir()
+        .ok()
+        .and_then(|cwd| path.strip_prefix(cwd).ok().map(Path::to_path_buf));
+    relative.unwrap_or(path).display().to_string()
+}
+
+fn syntax_error(name: &str, source: &str, offset: usize, message: &str) -> PklSyntaxError {
+    let (line, col) = line_col(source, offset);
+    PklSyntaxError {
+        location: format!("{}:{line}:{col}", display_source_name(name)),
+        message: message.to_string(),
+        excerpt: source.lines().nth(line - 1).map(|text| {
+            // Keep tabs as tabs so the caret lines up whatever width the
+            // terminal gives them.
+            let pad = text
+                .chars()
+                .take(col.saturating_sub(1))
+                .map(|c| if c == '\t' { '\t' } else { ' ' })
+                .collect();
+            (line, text.trim_end().to_string(), pad)
+        }),
+    }
+}
+
+fn pklr_syntax_error(error: &pklr::Error) -> Option<PklSyntaxError> {
+    match error {
+        pklr::Error::Lex { src, span, message } | pklr::Error::Parse { src, span, message } => {
+            Some(syntax_error(
+                src.name(),
+                src.inner(),
+                span.offset(),
+                message,
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn pklr_error_report(error: &pklr::Error) -> eyre::Report {
+    match pklr_syntax_error(error) {
+        Some(err) => eyre::Report::new(err),
+        None => eyre::eyre!("{error}"),
+    }
+}
+
+/// Replaces the `user:password@` part of every URL in `text` with `***@`.
+///
+/// An `HK_PKL_HTTP_REWRITE` target may carry credentials
+/// (`https://user:token@mirror.example/`), and pklr echoes the rewritten URL
+/// in its download errors. The user-info runs through the last `@` before the
+/// path, so a password that itself contains `@` is hidden too.
+fn redact_url_credentials(text: &str) -> String {
+    static USERINFO: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/?#\s]*@").unwrap());
+    USERINFO.replace_all(text, "${1}***@").into_owned()
 }
 
 fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
@@ -1127,6 +1430,71 @@ fn failed_pkl_config_error(path: &Path, stderr: &str) -> eyre::Report {
     )
 }
 
+/// The target of a module's `amends "..."` declaration, if it is a local path.
+fn amends_target(module: &Path) -> Option<PathBuf> {
+    let source = std::fs::read_to_string(module).ok()?;
+    let line = source
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with("amends "))?;
+    let target = line
+        .strip_prefix("amends ")?
+        .trim_start()
+        .strip_prefix('"')?;
+    let target = &target[..target.find('"')?];
+    if let Some(path) = target.strip_prefix("file://") {
+        // `file:///C:/x` carries a leading slash before a Windows drive letter.
+        let bytes = path.as_bytes();
+        let path = if bytes.len() > 2 && bytes[0] == b'/' && bytes[2] == b':' {
+            &path[1..]
+        } else {
+            path
+        };
+        return Some(PathBuf::from(path));
+    }
+    if target.contains("://") {
+        // Other schemes cannot be traced back to a local file.
+        return None;
+    }
+    Some(module.parent()?.join(target))
+}
+
+/// True when following `amends` declarations from `start` (a plain `import` does
+/// not count, since it inherits nothing) reaches one of `shared`.
+fn amends_chain_reaches(start: &Path, shared: &[PathBuf]) -> bool {
+    let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let shared: Vec<PathBuf> = shared.iter().map(|p| canon(p)).collect();
+    let mut current = start.to_path_buf();
+    for _ in 0..16 {
+        let Some(next) = amends_target(&current) else {
+            return false;
+        };
+        if shared.contains(&canon(&next)) {
+            return true;
+        }
+        current = next;
+    }
+    false
+}
+
+/// How a module in `dir` refers to `target`, which sits in `dir`, `dir/.config`
+/// or the parent of `dir`.
+fn relative_module_path(dir: &Path, target: &Path) -> String {
+    let name = target.file_name().map_or_else(
+        || "hk.pkl".to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
+    match target.parent() {
+        Some(p) if p == dir => format!("./{name}"),
+        Some(p) if Some(p) == dir.parent() => format!("../{name}"),
+        Some(p) if p.file_name().is_some_and(|n| n == ".config") => format!("./.config/{name}"),
+        _ => target.display().to_string(),
+    }
+}
+
+/// `HK_HIDE_WARNINGS` tag for the "local config ignores the shared config" warning.
+const LOCAL_CONFIG_WARNING_TAG: &str = "local-config-replaces-shared";
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
@@ -1140,6 +1508,12 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     implicit_default_hooks: IndexSet<String>,
+    /// Scoped names of steps that subprojects' `skip_steps` skip. Kept apart
+    /// from `skip_steps` until the user config is merged, which uses its own
+    /// `skip_steps` only when the project sets none.
+    #[serde(skip)]
+    #[serde(default)]
+    subproject_skip_steps: IndexSet<String>,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
     /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
@@ -1147,14 +1521,20 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     pub path: PathBuf,
+    /// True when a project config file (not just the built-in default or the
+    /// user-level config) was found and loaded.
+    #[serde(skip)]
+    pub project_config_loaded: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Parallel steps; `0` or unset means auto-detect.
+    pub jobs: Option<usize>,
     pub fail_fast: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
     pub warnings: Option<Vec<String>>,
     /// Global file patterns to exclude from all steps
-    pub exclude: Option<StringOrList>,
+    pub exclude: Option<Exclude>,
     pub stage: Option<bool>,
     pub profiles: Option<Vec<String>>,
     pub skip_hooks: Option<Vec<String>>,
@@ -1206,7 +1586,27 @@ impl Config {
         Ok(())
     }
 
+    /// The project config exactly as Pkl evaluated it, before hk drops
+    /// properties it does not know. `None` when there is no project config.
+    pub fn project_config_json() -> Result<Option<serde_json::Value>> {
+        let paths = Self::project_config_search_paths();
+        let Some(path) = Self::find_project_config(&paths) else {
+            return Ok(None);
+        };
+        Ok(Some(eval_pklr::<serde_json::Value>(&path)?.0))
+    }
+
+    /// Warnings about a config that loads but probably does not do what its
+    /// author meant. Run by `hk validate`; never fatal.
+    pub fn lint(&self) -> Vec<String> {
+        crate::lint::lint_hooks(&self.hooks, &self.implicit_default_hooks)
+    }
+
     pub fn validate(&self) -> Result<()> {
+        for pattern in self.exclude.iter().flat_map(|e| &e.regexes) {
+            regex::Regex::new(pattern)
+                .wrap_err_with(|| format!("invalid regex in top-level 'exclude': {pattern}"))?;
+        }
         for (hook_name, hook) in &self.hooks {
             for (step_name, step_or_group) in &hook.steps {
                 match step_or_group {
@@ -1224,12 +1624,92 @@ impl Config {
                     }
                 }
             }
+            validate_dependencies(hook_name, hook)?;
         }
         Ok(())
     }
 }
 
+/// Reject `depends` that can never be satisfied. `depends` only orders steps
+/// that run in the same execution group, so each group is checked on its own;
+/// a hook-wide graph would reject configs that run fine today.
+fn validate_dependencies(hook_name: &str, hook: &crate::hook::Hook) -> Result<()> {
+    let groups = crate::step_group::StepGroup::build_all(hook.steps.values().cloned().collect());
+    for group in groups {
+        for (name, step) in &group.steps {
+            if step.depends.iter().any(|dep| dep == name) {
+                bail!("Step '{name}' in hook '{hook_name}' depends on itself.");
+            }
+        }
+        // Depth-first search; `state` is 1 while a step is on the stack, 2 once done.
+        fn visit<'a>(
+            name: &'a str,
+            group: &'a crate::step_group::StepGroup,
+            state: &mut HashMap<&'a str, u8>,
+            stack: &mut Vec<&'a str>,
+        ) -> Option<Vec<&'a str>> {
+            match state.get(name) {
+                Some(2) => return None,
+                Some(_) => {
+                    let start = stack.iter().position(|n| *n == name).unwrap_or(0);
+                    let mut cycle = stack[start..].to_vec();
+                    cycle.push(name);
+                    return Some(cycle);
+                }
+                None => {}
+            }
+            state.insert(name, 1);
+            stack.push(name);
+            if let Some(step) = group.steps.get(name) {
+                for dep in &step.depends {
+                    if group.steps.contains_key(dep.as_str())
+                        && let Some(cycle) = visit(dep, group, state, stack)
+                    {
+                        return Some(cycle);
+                    }
+                }
+            }
+            stack.pop();
+            state.insert(name, 2);
+            None
+        }
+        let mut state = HashMap::new();
+        for name in group.steps.keys() {
+            if let Some(cycle) = visit(name, &group, &mut state, &mut vec![]) {
+                bail!(
+                    "Steps in hook '{hook_name}' have a circular dependency: {}. \
+                    These steps would wait on each other forever.",
+                    cycle.join(" -> ")
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_patterns(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    let selectors = step
+        .match_any
+        .iter()
+        .flatten()
+        .map(|s| ("match_any glob", s.glob.as_ref()));
+    let patterns = [
+        ("glob", step.glob.as_ref()),
+        ("exclude", step.exclude.as_ref()),
+    ]
+    .into_iter()
+    .chain(selectors);
+    for (field, pattern) in patterns {
+        if let Some(pattern) = pattern {
+            crate::glob::validate_pattern(pattern, step.dir_prefix())
+                .map_err(|e| eyre!("Step '{step_name}' {location} has an invalid {field}: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    validate_patterns(step, step_name, location)?;
     if step.stage.is_some() && step.fix.is_none() {
         bail!(
             "Step '{}' {} has 'stage' attribute but no 'fix' command. \
@@ -1292,22 +1772,103 @@ fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> R
     Ok(())
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum StringOrList {
-    String(String),
-    List(Vec<String>),
+/// Add the user's entries that the project's list does not already have.
+fn union_lists(project: &mut Option<Vec<String>>, user: Option<Vec<String>>) {
+    match (project, user) {
+        (Some(project), Some(user)) => {
+            for item in user {
+                if !project.contains(&item) {
+                    project.push(item);
+                }
+            }
+        }
+        (project @ None, user) => *project = user,
+        (Some(_), None) => {}
+    }
 }
 
-impl IntoIterator for StringOrList {
-    type Item = String;
-    type IntoIter = std::vec::IntoIter<String>;
+/// Top-level `exclude` patterns.
+///
+/// Pkl accepts a glob string, a list of globs, or a `Regex`. Patterns from the
+/// project config and the user config are unioned, so one value can hold both
+/// globs and regexes. It serializes as a list of glob strings followed by
+/// `{"_type": "regex", "pattern": ...}` objects, which it also deserializes.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Exclude {
+    pub globs: Vec<String>,
+    pub regexes: Vec<String>,
+}
 
-    fn into_iter(self) -> Self::IntoIter {
-        match self {
-            StringOrList::String(s) => vec![s].into_iter(),
-            StringOrList::List(list) => list.into_iter(),
+impl Exclude {
+    /// Add the other value's patterns that this one does not already have.
+    fn union(&mut self, other: Exclude) {
+        for glob in other.globs {
+            if !self.globs.contains(&glob) {
+                self.globs.push(glob);
+            }
         }
+        for regex in other.regexes {
+            if !self.regexes.contains(&regex) {
+                self.regexes.push(regex);
+            }
+        }
+    }
+
+    fn add_value<E: serde::de::Error>(&mut self, value: serde_json::Value) -> Result<(), E> {
+        use serde_json::Value;
+        match value {
+            Value::String(glob) => self.globs.push(glob),
+            Value::Object(mut map) if map.get("_type").and_then(Value::as_str) == Some("regex") => {
+                let Some(Value::String(pattern)) = map.remove("pattern") else {
+                    return Err(E::custom("exclude Regex is missing its pattern"));
+                };
+                self.regexes.push(pattern);
+            }
+            _ => {
+                return Err(E::custom(
+                    "exclude must be a string, a list of strings, or a Regex",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'de> Deserialize<'de> for Exclude {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut exclude = Exclude::default();
+        match serde_json::Value::deserialize(deserializer)? {
+            serde_json::Value::Array(values) => {
+                for value in values {
+                    exclude.add_value(value)?;
+                }
+            }
+            value => exclude.add_value(value)?,
+        }
+        Ok(exclude)
+    }
+}
+
+impl Serialize for Exclude {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+        let mut seq = serializer.serialize_seq(Some(self.globs.len() + self.regexes.len()))?;
+        for glob in &self.globs {
+            seq.serialize_element(glob)?;
+        }
+        for pattern in &self.regexes {
+            seq.serialize_element(&crate::step::Pattern::Regex {
+                _type: "regex".to_string(),
+                pattern: pattern.clone(),
+            })?;
+        }
+        seq.end()
     }
 }
 
@@ -1325,6 +1886,10 @@ struct ImportAnalysis {
     /// Digest of every source in the module graph when this analysis ran.
     #[serde(default)]
     sources_digest: String,
+    /// Environment variables that evaluations of this config have read. The
+    /// config cache key includes their values; only names are stored here.
+    #[serde(default)]
+    env_names: BTreeSet<String>,
 }
 
 impl ImportAnalysis {
@@ -1364,6 +1929,269 @@ mod tests {
     use crate::hook::{Hook, StepOrGroup};
     use crate::step::Step;
     use crate::step_group::StepGroup;
+
+    #[test]
+    fn redact_url_credentials_hides_userinfo_only() {
+        assert_eq!(
+            redact_url_credentials(
+                "HTTP fetch failed for http://alice:s3cret@127.0.0.1:1/a.zip: error (https://tok@host/x?y=a@b)"
+            ),
+            "HTTP fetch failed for http://***@127.0.0.1:1/a.zip: error (https://***@host/x?y=a@b)"
+        );
+        assert_eq!(
+            redact_url_credentials("failed for http://alice@corp:s3cret@mirror.example/a.zip"),
+            "failed for http://***@mirror.example/a.zip"
+        );
+        let plain = "failed for https://example.com/a@1.0.zip (user@example.com)";
+        assert_eq!(redact_url_credentials(plain), plain);
+    }
+
+    fn exclude_from(value: serde_json::Value) -> Exclude {
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn exclude_deserializes_string_list_and_regex() {
+        assert_eq!(
+            exclude_from(serde_json::json!("dist")),
+            Exclude {
+                globs: vec!["dist".into()],
+                regexes: vec![],
+            }
+        );
+        assert_eq!(
+            exclude_from(serde_json::json!(["dist", "**/*.map"])),
+            Exclude {
+                globs: vec!["dist".into(), "**/*.map".into()],
+                regexes: vec![],
+            }
+        );
+        assert_eq!(
+            exclude_from(serde_json::json!({"_type": "regex", "pattern": "^vendor/"})),
+            Exclude {
+                globs: vec![],
+                regexes: vec!["^vendor/".into()],
+            }
+        );
+        assert!(serde_json::from_value::<Exclude>(serde_json::json!(1)).is_err());
+        assert!(serde_json::from_value::<Exclude>(serde_json::json!({"_type": "regex"})).is_err());
+    }
+
+    #[test]
+    fn exclude_serialization_round_trips_and_keeps_globs_as_strings() {
+        let exclude = Exclude {
+            globs: vec!["dist".into()],
+            regexes: vec!["^vendor/".into()],
+        };
+        let value = serde_json::to_value(&exclude).unwrap();
+        // Settings read string elements as glob excludes and skip the regex object.
+        assert_eq!(
+            value,
+            serde_json::json!(["dist", {"_type": "regex", "pattern": "^vendor/"}])
+        );
+        assert_eq!(exclude_from(value), exclude);
+    }
+
+    #[test]
+    fn hkrc_exclude_unions_with_project_exclude() {
+        let mut project = Config {
+            exclude: Some(Exclude {
+                globs: vec!["dist".into()],
+                regexes: vec!["^vendor/".into()],
+            }),
+            ..Default::default()
+        };
+        let hkrc = Config {
+            exclude: Some(Exclude {
+                globs: vec!["dist".into(), "build".into()],
+                regexes: vec![r"\.gen\.".into()],
+            }),
+            ..Default::default()
+        };
+        project.merge_from_hkrc(hkrc).unwrap();
+        assert_eq!(
+            project.exclude,
+            Some(Exclude {
+                globs: vec!["dist".into(), "build".into()],
+                regexes: vec!["^vendor/".into(), r"\.gen\.".into()],
+            })
+        );
+
+        let mut project = Config::default();
+        let hkrc = Config {
+            exclude: Some(Exclude {
+                globs: vec![],
+                regexes: vec!["^vendor/".into()],
+            }),
+            ..Default::default()
+        };
+        project.merge_from_hkrc(hkrc).unwrap();
+        assert_eq!(
+            project.exclude.map(|e| e.regexes),
+            Some(vec!["^vendor/".to_string()])
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_exclude_regex() {
+        let config = Config {
+            exclude: Some(Exclude {
+                globs: vec![],
+                regexes: vec!["vendor/(".into()],
+            }),
+            ..Default::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(format!("{err:#}").contains("invalid regex in top-level 'exclude'"));
+    }
+
+    fn step_depending_on(name: &str, depends: &[&str]) -> Step {
+        Step {
+            name: name.to_string(),
+            depends: depends.iter().map(|d| d.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    fn config_with_steps(steps: Vec<Step>) -> Config {
+        let mut hook = hook("check");
+        for step in steps {
+            hook.steps.insert(
+                step.name.clone(),
+                crate::hook::StepOrGroup::Step(Box::new(step)),
+            );
+        }
+        let mut config = Config::default();
+        config.hooks.insert("check".to_string(), hook);
+        config
+    }
+
+    #[test]
+    fn validate_rejects_dependency_cycles_and_self_dependencies() {
+        let cycle = config_with_steps(vec![
+            step_depending_on("a", &["b"]),
+            step_depending_on("b", &["a"]),
+        ]);
+        let err = format!("{:#}", cycle.validate().unwrap_err());
+        assert!(err.contains("a -> b -> a"), "{err}");
+
+        let selfish = config_with_steps(vec![step_depending_on("a", &["a"])]);
+        let err = format!("{:#}", selfish.validate().unwrap_err());
+        assert!(err.contains("depends on itself"), "{err}");
+    }
+
+    #[test]
+    fn validate_scopes_dependency_cycles_to_execution_groups() {
+        let mut later = step_depending_on("b", &["a"]);
+        later.exclusive = true;
+        let config = config_with_steps(vec![step_depending_on("a", &["b"]), later]);
+        config.validate().unwrap();
+    }
+
+    #[test]
+    fn validate_compiles_globs_relative_to_the_steps_dir() {
+        // Globs match paths relative to `dir`, so glob characters in the
+        // directory's name are literal and never make a pattern invalid.
+        let mut bracketed = step("lint");
+        bracketed.dir = Some("foo[".into());
+        bracketed.glob = Some(crate::step::Pattern::Globs(vec!["*".into()]));
+        config_with_steps(vec![bracketed]).validate().unwrap();
+
+        let mut bad_glob = step("lint");
+        bad_glob.dir = Some("foo".into());
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob 'src/[abc'"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_step_patterns() {
+        let mut bad_glob = step("lint");
+        bad_glob.glob = Some(crate::step::Pattern::Globs(vec!["src/[abc".into()]));
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_glob]).validate().unwrap_err()
+        );
+        assert!(
+            err.contains("Step 'lint'") && err.contains("invalid glob"),
+            "{err}"
+        );
+
+        let mut bad_regex = step("lint");
+        bad_regex.exclude = Some(crate::step::Pattern::Regex {
+            _type: "regex".into(),
+            pattern: "a(".into(),
+        });
+        let err = format!(
+            "{:#}",
+            config_with_steps(vec![bad_regex]).validate().unwrap_err()
+        );
+        assert!(err.contains("invalid exclude"), "{err}");
+    }
+
+    #[test]
+    fn line_col_counts_lines_and_characters() {
+        let source = "a = 1\nb = \"é\" +\n";
+        assert_eq!(line_col(source, 0), (1, 1));
+        assert_eq!(line_col(source, 4), (1, 5));
+        // `+` follows the two-byte `é`: column counts characters, not bytes.
+        let plus = source.find('+').unwrap();
+        assert_eq!(line_col(source, plus), (2, 9));
+        // Inside a multi-byte character, or past the end, clamps.
+        assert_eq!(line_col(source, plus - 2), (2, 7));
+        assert_eq!(line_col(source, 999), (3, 1));
+    }
+
+    #[test]
+    fn syntax_errors_report_the_failing_file_with_line_and_column() {
+        let err = syntax_error("steps/./lint.pkl", "a = 1\nglob = = 2\n", 13, "bad token");
+        let file = Path::new("steps").join("lint.pkl").display().to_string();
+        assert_eq!(err.location, format!("{file}:2:8"));
+        let text = err.to_string();
+        assert!(text.contains(&format!("{file}:2:8: bad token")), "{text}");
+        assert!(text.contains(" 2 | glob = = 2"), "{text}");
+        assert!(text.ends_with("|        ^"), "{text}");
+    }
+
+    #[test]
+    fn syntax_errors_keep_uri_names_and_tabs() {
+        let err = syntax_error("https://host/dir/m.pkl", "\tx = =\n", 5, "bad");
+        assert_eq!(err.location, "https://host/dir/m.pkl:1:6");
+        // The caret padding repeats the line's tab instead of one space.
+        assert!(err.to_string().ends_with("| \t    ^"), "{err}");
+    }
+
+    #[test]
+    fn pklr_lex_and_parse_errors_are_located() {
+        let source = "x = 1\ny = @\n";
+        let error = pklr::Error::parse("dir/other.pkl", source, 10, "unexpected".to_string());
+        let located = pklr_syntax_error(&error).unwrap();
+        let file = Path::new("dir").join("other.pkl").display().to_string();
+        assert_eq!(located.location, format!("{file}:2:5"));
+        assert!(pklr_syntax_error(&pklr::Error::Eval("boom".into())).is_none());
+    }
+
+    #[test]
+    fn union_lists_combines_project_and_user_entries() {
+        let list = |items: &[&str]| Some(items.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let mut project = list(&["a", "b"]);
+        union_lists(&mut project, list(&["b", "c"]));
+        assert_eq!(project, list(&["a", "b", "c"]));
+
+        let mut none = None;
+        union_lists(&mut none, list(&["x"]));
+        assert_eq!(none, list(&["x"]));
+
+        let mut kept = list(&["a"]);
+        union_lists(&mut kept, None);
+        assert_eq!(kept, list(&["a"]));
+    }
 
     #[test]
     fn untracked_import_detection_covers_declarations_and_expressions() {
@@ -1616,6 +2444,123 @@ mod tests {
     }
 
     #[test]
+    fn merge_subproject_scopes_skip_steps_to_the_subproject() {
+        let mut root = Config {
+            skip_steps: Some(vec!["root-step".to_string()]),
+            ..Default::default()
+        };
+        let mut sub = Config {
+            skip_steps: Some(vec![
+                "lint".to_string(),
+                "grouped".to_string(),
+                "missing".to_string(),
+            ]),
+            ..Default::default()
+        };
+        let mut check = hook("check");
+        check.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        check
+            .steps
+            .insert("fmt".to_string(), StepOrGroup::Step(Box::new(step("fmt"))));
+        let group = crate::step_group::StepGroup {
+            name: Some("grouped".to_string()),
+            ..Default::default()
+        };
+        check
+            .steps
+            .insert("grouped".to_string(), StepOrGroup::Group(Box::new(group)));
+        sub.hooks.insert("check".to_string(), check);
+
+        root.merge_subproject("web", None, sub).unwrap();
+
+        // Only the subproject's own steps are skipped, by scoped name; `fmt`
+        // still runs, and a group or a name that matches nothing is dropped.
+        // The root's own list is untouched until the user config is merged.
+        assert_eq!(root.skip_steps, Some(vec!["root-step".to_string()]));
+        assert_eq!(
+            root.subproject_skip_steps,
+            IndexSet::from(["web:lint".to_string()])
+        );
+        root.apply_subproject_skip_steps();
+        assert_eq!(
+            root.skip_steps,
+            Some(vec!["root-step".to_string(), "web:lint".to_string()])
+        );
+    }
+
+    #[test]
+    fn merge_subproject_skip_steps_do_not_leak_to_other_subprojects() {
+        let mut root = Config::default();
+        for dir in ["a", "b"] {
+            let mut sub = Config::default();
+            if dir == "a" {
+                sub.skip_steps = Some(vec!["lint".to_string()]);
+            }
+            let mut check = hook("check");
+            check.steps.insert(
+                "lint".to_string(),
+                StepOrGroup::Step(Box::new(step("lint"))),
+            );
+            sub.hooks.insert("check".to_string(), check);
+            root.merge_subproject(dir, None, sub).unwrap();
+        }
+
+        root.apply_subproject_skip_steps();
+        assert_eq!(root.skip_steps, Some(vec!["a:lint".to_string()]));
+    }
+
+    #[test]
+    fn subproject_skip_steps_do_not_displace_the_user_configs() {
+        // The root sets no `skip_steps`, so the user config's apply; a
+        // subproject's skip must add to them, not replace them.
+        let mut root = Config::default();
+        let mut sub = Config {
+            skip_steps: Some(vec!["lint".to_string()]),
+            ..Default::default()
+        };
+        let mut check = hook("check");
+        check.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("check".to_string(), check);
+        root.merge_subproject("web", None, sub).unwrap();
+
+        let user = Config {
+            skip_steps: Some(vec!["user-step".to_string()]),
+            ..Default::default()
+        };
+        root.merge_from_hkrc(user).unwrap();
+        root.apply_subproject_skip_steps();
+
+        assert_eq!(
+            root.skip_steps,
+            Some(vec!["user-step".to_string(), "web:lint".to_string()])
+        );
+    }
+
+    #[test]
+    fn subproject_settings_with_no_effect_are_listed() {
+        let sub = Config {
+            fail_fast: Some(false),
+            exclude: Some(Exclude::default()),
+            jobs: Some(2),
+            skip_steps: Some(vec!["lint".to_string()]),
+            env: IndexMap::from([("FOO".to_string(), "bar".to_string())]),
+            ..Default::default()
+        };
+        // `skip_steps` and `env` are honored, so they are not listed
+        assert_eq!(
+            sub.ignored_subproject_settings(),
+            ["exclude", "fail_fast", "jobs"]
+        );
+        assert!(Config::default().ignored_subproject_settings().is_empty());
+    }
+
+    #[test]
     fn merge_subproject_materializes_top_level_steps() {
         let mut root = Config::default();
         let mut sub = Config::default();
@@ -1655,8 +2600,10 @@ mod tests {
             StepOrGroup::Step(Box::new(step("root"))),
         );
 
-        let mut sub = Config::default();
-        sub.path = PathBuf::from("packages/web/hk.pkl");
+        let mut sub = Config {
+            path: PathBuf::from("packages/web/hk.pkl"),
+            ..Default::default()
+        };
         let mut sub_check = hook("check");
         sub_check.fix = Some(true);
         sub_check.stage = Some(true);
@@ -1936,6 +2883,7 @@ mod tests {
             has_untracked_imports: false,
             glob_imports: globs,
             glob_matches,
+            env_names: BTreeSet::new(),
         }
     }
 
@@ -2004,5 +2952,98 @@ mod tests {
 
         let a = analysis(&root, &[], vec![]);
         assert!(!a.is_stale(&root));
+    }
+
+    #[test]
+    fn eval_pklr_reports_env_values_read_including_misses() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env.pkl");
+        let unset = format!("HK_TEST_UNSET_{}", std::process::id());
+        std::fs::write(
+            &path,
+            format!("path = read(\"env:PATH\")\nmissing = read?(\"env:{unset}\")\n"),
+        )
+        .unwrap();
+
+        let (_, env_reads): (serde_json::Value, _) = eval_pklr(&path).unwrap();
+        assert_eq!(
+            env_reads,
+            BTreeMap::from([
+                (unset, None),
+                ("PATH".to_string(), std::env::var("PATH").ok()),
+            ])
+        );
+    }
+
+    #[test]
+    fn relative_module_path_points_at_the_shared_file() {
+        let dir = Path::new("/repo/.config");
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/hk.pkl")),
+            "../hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(dir, Path::new("/repo/.config/hk.pkl")),
+            "./hk.pkl"
+        );
+        let root = Path::new("/repo");
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/hk.pkl")),
+            "./hk.pkl"
+        );
+        assert_eq!(
+            relative_module_path(root, Path::new("/repo/.config/hk.pkl")),
+            "./.config/hk.pkl"
+        );
+    }
+
+    #[test]
+    fn file_uri_amends_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let local = dir.path().join("hk.local.pkl");
+        std::fs::write(&local, format!("amends \"file://{}\"\n", shared.display())).unwrap();
+        let other = dir.path().join("other.pkl");
+        std::fs::write(&other, "amends \"https://example.com/hk.pkl\"\n").unwrap();
+        let shared = [shared];
+        if cfg!(unix) {
+            assert!(amends_chain_reaches(&local, &shared));
+        }
+        assert!(!amends_chain_reaches(&other, &shared));
+    }
+
+    #[test]
+    fn only_amends_declarations_reach_the_shared_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("hk.pkl");
+        std::fs::write(&shared, "amends \"pkl/Config.pkl\"\n").unwrap();
+        let amending = dir.path().join("a.pkl");
+        std::fs::write(&amending, "amends \"./hk.pkl\"\n").unwrap();
+        let chained = dir.path().join("b.pkl");
+        std::fs::write(&chained, "amends \"./a.pkl\"\n").unwrap();
+        let importing = dir.path().join("c.pkl");
+        std::fs::write(
+            &importing,
+            "amends \"pkl/Config.pkl\"\nimport \"./hk.pkl\" as S\n",
+        )
+        .unwrap();
+        let shared = [shared];
+        assert!(amends_chain_reaches(&amending, &shared));
+        assert!(amends_chain_reaches(&chained, &shared));
+        assert!(!amends_chain_reaches(&importing, &shared));
+    }
+
+    #[test]
+    fn env_cache_key_distinguishes_values_and_unset_from_empty() {
+        let key = |value: Option<&str>| {
+            env_cache_key(&BTreeMap::from([(
+                "HK_TEST_VAR".to_string(),
+                value.map(String::from),
+            )]))
+        };
+        assert_eq!(key(Some("a")), key(Some("a")));
+        assert_ne!(key(Some("a")), key(Some("b")));
+        assert_ne!(key(None), key(Some("")));
     }
 }

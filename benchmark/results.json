@@ -1,0 +1,319 @@
+{
+  "schema": 4,
+  "generated": "2026-09-28T05:03:45+00:00",
+  "passed": true,
+  "problems": [],
+  "commit": "bb2303bf2a138c4d5d27eac9604ade1ff2fc50de",
+  "workflow_run": "https://github.com/jdx/hk/actions/runs/36371715730",
+  "seed": "2524564650191739",
+  "machine": {
+    "runner": "jdx-perf-v1 (8 CPUs)",
+    "os": "Ubuntu 24.04.4 LTS",
+    "kernel": "6.8.0-142-generic",
+    "arch": "x86_64",
+    "cpu": "Intel(R) Core(TM) Ultra 5 325",
+    "cpus": 8,
+    "memory_gb": 15
+  },
+  "versions": {
+    "hk": "2.4.0",
+    "lefthook": "2.1.14",
+    "pre-commit": "4.6.2",
+    "prek": "0.5.3",
+    "tak": "0.0.13",
+    "black": "26.5.1",
+    "ruff": "0.16.8",
+    "prettier": "3.9.9",
+    "eslint": "10.11.0",
+    "mypy": "2.3.1",
+    "tsc": "7.0.2",
+    "shfmt": "3.14.1",
+    "jq": "1.8.2",
+    "yq": "4.53.6",
+    "node": "26.10.0",
+    "python": "3.14.7",
+    "git": "2.43.0"
+  },
+  "workload": {
+    "files": 6159,
+    "dirty_files": 1540,
+    "staged_files": 62,
+    "small_commit_files": 8,
+    "fixers": [
+      "black",
+      "ruff format",
+      "ruff check",
+      "prettier",
+      "eslint",
+      "jq",
+      "yq",
+      "shfmt",
+      "trailing whitespace",
+      "final newline"
+    ],
+    "checkers": [
+      "mypy",
+      "tsc"
+    ]
+  },
+  "subjects": {
+    "hk": {
+      "tool": "hk",
+      "label": "hk",
+      "mode": "parallel, file locks"
+    },
+    "lefthook": {
+      "tool": "lefthook",
+      "label": "lefthook",
+      "mode": "fixers in turn, parallel checks"
+    },
+    "pre-commit": {
+      "tool": "pre-commit",
+      "label": "pre-commit",
+      "mode": "sequential hooks, batched files"
+    },
+    "prek": {
+      "tool": "prek",
+      "label": "prek",
+      "mode": "fixers in turn, parallel checks, batched"
+    }
+  },
+  "scenarios": [
+    {
+      "key": "fix-all",
+      "title": "Fix every file",
+      "summary": "A quarter of the files need two or three fixers each to write them.",
+      "results": {
+        "hk": {
+          "mode": "parallel, file locks",
+          "mean": 10.6776,
+          "median": 8.9583,
+          "stddev": 2.2953,
+          "min": 8.8076,
+          "max": 13.397,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        },
+        "lefthook": {
+          "mode": "fixers in turn, parallel checks",
+          "mean": 20.1596,
+          "median": 20.2437,
+          "stddev": 1.3063,
+          "min": 18.1769,
+          "max": 22.1469,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        },
+        "pre-commit": {
+          "mode": "sequential hooks, batched files",
+          "mean": 13.9956,
+          "median": 14.0126,
+          "stddev": 0.3964,
+          "min": 13.3353,
+          "max": 14.6148,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        },
+        "prek": {
+          "mode": "fixers in turn, parallel checks, batched",
+          "mean": 12.3935,
+          "median": 12.3341,
+          "stddev": 0.3606,
+          "min": 11.9348,
+          "max": 13.0824,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        }
+      }
+    },
+    {
+      "key": "check-all",
+      "title": "Check every file",
+      "summary": "Every file is already clean and nothing writes.",
+      "results": {
+        "hk": {
+          "mode": "parallel, file locks",
+          "mean": 3.2275,
+          "median": 3.2381,
+          "stddev": 0.0804,
+          "min": 3.1071,
+          "max": 3.3697,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        },
+        "lefthook": {
+          "mode": "parallel: true",
+          "mean": 5.1324,
+          "median": 5.1201,
+          "stddev": 0.0974,
+          "min": 5.0176,
+          "max": 5.3024,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        },
+        "pre-commit": {
+          "mode": "sequential hooks, batched files",
+          "mean": 7.8347,
+          "median": 7.3414,
+          "stddev": 1.9426,
+          "min": 6.0023,
+          "max": 11.2043,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        },
+        "prek": {
+          "mode": "shared priority, batched files",
+          "mean": 6.3582,
+          "median": 5.8119,
+          "stddev": 1.9844,
+          "min": 4.5248,
+          "max": 9.7519,
+          "runs": 10,
+          "correct": {
+            "passed": 10,
+            "total": 10
+          }
+        }
+      }
+    },
+    {
+      "key": "fix-staged",
+      "title": "Commit",
+      "summary": "About 60 staged files with defects, fixed by each tool's pre-commit hook.",
+      "results": {
+        "hk": {
+          "mode": "parallel, file locks",
+          "mean": 1.1486,
+          "median": 1.1476,
+          "stddev": 0.0213,
+          "min": 1.1178,
+          "max": 1.183,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        },
+        "lefthook": {
+          "mode": "fixers in turn, parallel checks",
+          "mean": 1.8364,
+          "median": 1.8336,
+          "stddev": 0.0294,
+          "min": 1.7926,
+          "max": 1.9092,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        },
+        "pre-commit": {
+          "mode": "sequential hooks, batched files",
+          "mean": 3.0058,
+          "median": 3.0026,
+          "stddev": 0.0392,
+          "min": 2.9349,
+          "max": 3.0804,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        },
+        "prek": {
+          "mode": "fixers in turn, parallel checks, batched",
+          "mean": 2.2051,
+          "median": 2.2114,
+          "stddev": 0.0327,
+          "min": 2.1545,
+          "max": 2.2567,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        }
+      }
+    },
+    {
+      "key": "fix-small-commit",
+      "title": "Small commit",
+      "summary": "One staged file with defects in each of eight file types.",
+      "results": {
+        "hk": {
+          "mode": "parallel, file locks",
+          "mean": 0.9659,
+          "median": 0.9627,
+          "stddev": 0.0168,
+          "min": 0.9425,
+          "max": 0.989,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        },
+        "lefthook": {
+          "mode": "fixers in turn, parallel checks",
+          "mean": 1.2697,
+          "median": 1.2655,
+          "stddev": 0.017,
+          "min": 1.2465,
+          "max": 1.3013,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        },
+        "pre-commit": {
+          "mode": "sequential hooks, batched files",
+          "mean": 2.0159,
+          "median": 2.0201,
+          "stddev": 0.0193,
+          "min": 1.9829,
+          "max": 2.0434,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        },
+        "prek": {
+          "mode": "fixers in turn, parallel checks, batched",
+          "mean": 1.2802,
+          "median": 1.2832,
+          "stddev": 0.0103,
+          "min": 1.256,
+          "max": 1.2952,
+          "runs": 20,
+          "correct": {
+            "passed": 20,
+            "total": 20
+          }
+        }
+      }
+    }
+  ]
+}

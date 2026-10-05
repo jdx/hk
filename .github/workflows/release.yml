@@ -25,6 +25,9 @@ jobs:
       contents: write
     env:
       HK_REQUIRE_EMBEDDED_PKL: "1"
+      # Links the Linux GNU executable non-PIE (see link_without_pie in
+      # build/mod.rs); ignored for every other target.
+      HK_NO_PIE: "1"
       # mise-action puts mise's shims on PATH, and its cargo shim routes through
       # the [wrappers.cargo] mbx wrapper. Release builds stay on cargo/cross.
       MBX_DISABLE: "1"
@@ -36,12 +39,14 @@ jobs:
             os: macos-latest
             runner: namespace-profile-endev-macos-arm64
             build-tool: cargo
-            optimized: false
+            optimized: true
+            bolt: false
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
-            optimized: false
+            optimized: true
+            bolt: false
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
@@ -52,6 +57,7 @@ jobs:
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
             optimized: true
+            bolt: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
@@ -83,12 +89,24 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
           p12-password: ${{ secrets.CERTIFICATES_P12_PASS }}
-      - name: Install PGO and BOLT build tools
+      # `optimized` rows are PGO-trained by scripts/pgo-bolt.bash, so their
+      # binaries must run on the build host. arm64 Linux cross-builds on an
+      # amd64 runner and Windows has no training pipeline, so those stay on
+      # the plain serious profile. `bolt` adds a post-link layout rewrite,
+      # which only works for glibc Linux: BOLT's instrumentation runtime
+      # crashes against musl and it does not rewrite Mach-O.
+      - name: Install PGO build tools
         if: matrix.optimized
         shell: bash
+        run: rustup component add llvm-tools
+      - name: Install cross
+        if: matrix.optimized && matrix.build-tool == 'cross'
+        shell: bash
+        run: cargo install cross --locked --version 0.2.5
+      - name: Install BOLT
+        if: matrix.optimized && matrix.bolt
+        shell: bash
         run: |
-          rustup component add llvm-tools
-          cargo install cross --locked --version 0.2.5
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends wget gnupg ca-certificates
           sudo install -d -m 0755 /etc/apt/keyrings
@@ -99,14 +117,26 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/llvm-toolchain-18.list
           sudo apt-get update
           sudo apt-get install -y bolt-18
-      - name: Build PGO+BOLT binary
+      - name: Build PGO-optimized binary
         if: matrix.optimized
         shell: bash
         env:
           HK_PGO_BUILD_TOOL: ${{ matrix.build-tool }}
           HK_PGO_TARGET: ${{ matrix.target }}
+          HK_PGO_BOLT: ${{ matrix.bolt && '1' || '0' }}
         run: scripts/pgo-bolt.bash
-      - name: Package PGO+BOLT binary
+      # upload-rust-binary-action signs the binaries it builds; this one is
+      # built outside it, so sign it the same way before it is archived.
+      - name: Codesign PGO-optimized macOS binary
+        if: matrix.optimized && matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          BINARY: target/${{ matrix.target }}/serious-pgo/hk
+        run: |
+          codesign --sign "Developer ID Application: Jeffrey Dickey (4993Y37DX6)" \
+            --options runtime --timestamp --prefix dev.jdx. --force "$BINARY"
+          codesign --verify --strict --verbose=2 "$BINARY"
+      - name: Package PGO-optimized binary
         if: matrix.optimized
         shell: bash
         env:
@@ -143,6 +173,16 @@ jobs:
       # would, but `stapler` only writes into bundles, disk images, and
       # installer packages, and this is a bare Mach-O in an archive. Gatekeeper
       # resolves the ticket online instead.
+      - name: Check the Linux GNU binary is linked non-PIE
+        if: contains(matrix.target, '-linux-gnu')
+        shell: bash
+        env:
+          BINARY: target/${{ matrix.target }}/${{ matrix.optimized && 'serious-pgo' || 'serious' }}/hk
+        run: |
+          if ! readelf -h "$BINARY" | grep -q 'Type:.*EXEC'; then
+            echo "::error::$BINARY is not linked non-PIE; HK_NO_PIE did not reach build.rs"
+            exit 1
+          fi
       - name: Notarize macOS binary
         if: matrix.os == 'macos-latest'
         shell: bash
@@ -150,7 +190,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          BINARIES: target/${{ matrix.target }}/serious/hk
+          BINARIES: target/${{ matrix.target }}/${{ matrix.optimized && 'serious-pgo' || 'serious' }}/hk
         run: |
           set -euo pipefail
 
@@ -258,8 +298,65 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Runs each shipped archive on a native runner, so a binary that builds but
+  # does not start (or was cross-built and never executed, like the aarch64
+  # Linux and Windows rows) blocks the release instead of reaching users.
+  smoke-archives:
+    needs: [build-binaries]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+          - target: aarch64-pc-windows-msvc
+            runner: windows-11-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/smoke-release-archive.sh
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: binary-${{ matrix.target }}
+          path: archive
+      - name: Extract archive
+        if: ${{ !contains(matrix.target, 'windows') }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir extracted
+          tar -xzf "archive/hk-${TARGET}.tar.gz" -C extracted
+      - name: Extract archive
+        if: contains(matrix.target, 'windows')
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: Expand-Archive -Path "archive/hk-$env:TARGET.zip" -DestinationPath extracted
+      - name: Smoke-test the extracted binary
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: scripts/smoke-release-archive.sh extracted "$TARGET"
+
   create-release:
-    needs: [build-binaries, build-pkl]
+    needs: [build-binaries, build-pkl, smoke-archives]
     runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: write
@@ -358,7 +455,7 @@ jobs:
       # than against a key this project would have to hold. The Pkl package
       # is not an artifact anyone installs a binary from, so it stays out.
       # See https://packslip.dev.
-      - uses: jdx/packslip@74c75db7d611b36dd5a157999ec16cf823ccf80c # v1.2.0
+      - uses: jdx/packslip@87479dfc6443253dff69601cace5fc6ea07e6df5 # v1.4.0
         with:
           tag: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
           artifacts: release-assets/hk-*.tar.gz release-assets/hk-*.tar.xz release-assets/hk-*.zip

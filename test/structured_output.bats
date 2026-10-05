@@ -66,9 +66,21 @@ EOF
     run bash -c "hk --format jsonl check --all 2>machine-errors.log"
     assert_failure
     jsonl="$output"
-    run jq -s -r 'map(.event) | join(",")' <<<"$jsonl"
+    # The two steps run concurrently, so their start/complete events may
+    # interleave (started,started,completed,completed or started,completed,
+    # started,completed). Pin the run bookends and that each step starts
+    # before it completes, not the order between the steps.
+    run jq -s -r 'map(.event) | [.[:2], .[-1:]] | flatten | join(",")' <<<"$jsonl"
     assert_success
-    assert_output "run_started,run_planned,step_started,step_started,step_completed,step_completed,run_completed"
+    assert_output "run_started,run_planned,run_completed"
+    run jq -s -r '[.[2:-1][] | .event] | sort | join(",")' <<<"$jsonl"
+    assert_success
+    assert_output "step_completed,step_completed,step_started,step_started"
+    run jq -s -e '
+        [.[] | select(.event | startswith("step_"))]
+        | group_by(.data.name)
+        | all(.[]; map(.event) == ["step_started", "step_completed"])' <<<"$jsonl"
+    assert_success
     run jq -s -e '.[].sequence' <<<"$jsonl"
     assert_success
     run jq -s -e 'last.data.status == "failed" and (last.data.failure | length > 0)' <<<"$jsonl"
@@ -286,4 +298,70 @@ EOF
     run jq -r '[.schema_version, .status, (.failure | length > 0)] | @tsv' <<<"$output"
     assert_success
     assert_output $'1\tfailed\ttrue'
+}
+
+@test "a configuration error still emits a failed run result" {
+    echo 'amends "x' > hk.pkl
+
+    run bash -c "hk --format jsonl check --all 2>machine-errors.log"
+    assert_failure
+    run jq -r '[.event, .data.kind, .data.hook, .data.status, (.data.failure | contains("Failed to load configuration"))] | @tsv' <<<"$output"
+    assert_success
+    assert_output $'run_completed\trun_result\tcheck\tfailed\ttrue'
+
+    run bash -c "hk --format json check --all 2>/dev/null"
+    assert_failure
+    run jq -r '[.kind, .status] | @tsv' <<<"$output"
+    assert_output $'run_result\tfailed'
+}
+
+@test "step output in a structured result is capped with a truncation marker" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["noisy"] {
+                check = "head -c 300000 /dev/zero | tr '\\\\0' 'x' >&2; exit 1"
+                output_summary = "combined"
+            }
+        }
+    }
+}
+EOF
+    touch input.txt
+    git add .
+    git commit -m init
+
+    run bash -c "hk --format json check --all 2>/dev/null"
+    assert_failure
+    run jq -r '.steps[0].output | [length, (contains("output truncated")), (contains("cap 65536 bytes"))] | @tsv' <<<"$output"
+    assert_success
+    [ "${output%%$'\t'*}" -lt 66000 ]
+    [[ "$output" == *$'\ttrue\ttrue' ]]
+}
+
+@test "an invalid HK_STASH still emits a failed json run result" {
+    write_config
+
+    HK_STASH=bogus run bash -c "hk --format json check --all 2>machine-errors.log"
+    assert_failure
+    json="$output"
+    run jq -r '[.kind, .hook, .status, (.failure | contains("invalid HK_STASH value"))] | join(",")' <<<"$json"
+    assert_success
+    assert_output "run_result,check,failed,true"
+}
+
+@test "an invalid HK_STASH still emits a run_completed jsonl event" {
+    write_config
+
+    HK_STASH=bogus run bash -c "hk --format jsonl check --all 2>machine-errors.log"
+    assert_failure
+    jsonl="$output"
+    run jq -s -r 'map(.event) | [.[:1], .[-1:]] | flatten | join(",")' <<<"$jsonl"
+    assert_success
+    assert_output "run_started,run_completed"
+    run jq -s -r '.[-1].data.status' <<<"$jsonl"
+    assert_success
+    assert_output "failed"
 }

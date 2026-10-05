@@ -16,9 +16,17 @@ ruff = new Config.Step {
     command = new Config.Command { argv = List("ruff", "check", "--force-exclude", "{{files}}") }
     effect = "write"
   }
-  // `ruff check --diff` can exit 0 even if non-fixable issues exist, making it an
-  // unreliable signal for whether to run `fix`. We use `check` instead.
-  // check_diff = "ruff check --force-exclude --diff {{ files }}"
+  // `ruff check --diff` only reports what it can fix, and exits 0 when that is
+  // nothing, even if other issues remain. So when there is nothing to fix, the
+  // check runs too: remaining issues fail without a patch, and hk runs the
+  // fixer, which reports them. After a patch applies, `check_after_diff`
+  // reports what it left.
+  check_diff = new Config.CommandSpec {
+    command =
+      "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
+    effect = "write"
+  }
+  check_after_diff = true
   fix = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("ruff", "check", "--force-exclude", "--fix", "{{files}}")
@@ -37,8 +45,11 @@ ruff = new Config.Step {
     ["check bad file"] = testMaker.checkFail(before, 1)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
+    ["diff bad file"] = testMaker.diffPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
     ["check respects config exclude"] = testMaker.withFilename("excluded.py").checkPass(before)
     ["fix respects config exclude"] = testMaker.withFilename("excluded.py").fixPass(before, before)
+    ["diff respects config exclude"] =
+      testMaker.withFilename("excluded.py").diffPass(before, before)
   }
 }

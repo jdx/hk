@@ -6,6 +6,8 @@
 
 - [Getting started](https://hk.jdx.dev/getting_started.html): Set up hk in an existing Git repository, then use the same linters when you commit, work locally, and run CI.
 - [Migrating to hk v2](https://hk.jdx.dev/migration-v2.html): hk v2 removes deprecated configuration entry points and makes shared steps and staging behavior explicit.
+- [Migrating from lefthook](https://hk.jdx.dev/migrate-lefthook.html): hk has no converter for lefthook. (hk migrate pre-commit handles only the pre-commit framework.) You translate lefthook.yml into hk.pkl by hand.
+- [Migrating from husky](https://hk.jdx.dev/migrate-husky.html): husky runs the scripts in .husky/ as Git hooks. lint-staged picks the staged files that match each glob and runs your commands on them, usually from a husky pre-commit script.
 - [Why hk?](https://hk.jdx.dev/why-hk.html): hk is designed for projects that run several linters and formatters over overlapping files. It combines concurrent execution with file-level coordination, so tools can work together without writing to…
 - [Pkl essentials](https://hk.jdx.dev/pkl_introduction.html): hk uses Pkl for typed configuration. Most projects need only a few features: amend the schema, import builtins, define steps, and reuse them across hooks.
 
@@ -33,6 +35,7 @@
 - [agent hooks](https://hk.jdx.dev/cli/agent/hooks.html): Print a hook configuration for an agent or editor
 - [agent instructions](https://hk.jdx.dev/cli/agent/instructions.html): Print project instructions for a coding agent
 - [agent mcp](https://hk.jdx.dev/cli/agent/mcp.html): Print an MCP server configuration
+- [agent stop-hook](https://hk.jdx.dev/cli/agent/stop-hook.html): Run hk run check --safe as an agent Stop hook
 - [builtins](https://hk.jdx.dev/cli/builtins.html): List all available builtin linters
 - [cache clear](https://hk.jdx.dev/cli/cache/clear.html): Clear the cache directory
 - [check](https://hk.jdx.dev/cli/check.html): Run the check hook
@@ -47,7 +50,7 @@
 - [install](https://hk.jdx.dev/cli/install.html): Set up git hooks to run hk.
 - [mcp](https://hk.jdx.dev/cli/mcp.html): Run an MCP server for coding agents over standard input/output
 - [migrate](https://hk.jdx.dev/cli/migrate.html): Migrate from other hook managers to hk
-- [migrate pre-commit](https://hk.jdx.dev/cli/migrate/pre-commit.html): Migrate from pre-commit to hk
+- [migrate pre-commit](https://hk.jdx.dev/cli/migrate/pre-commit.html): Migrate from pre-commit (or prek) to hk
 - [run](https://hk.jdx.dev/cli/run.html): Run a hook
 - [run commit-msg](https://hk.jdx.dev/cli/run/commit-msg.html): Run the commit-msg hook
 - [run post-checkout](https://hk.jdx.dev/cli/run/post-checkout.html): Run the post-checkout hook
@@ -76,17 +79,20 @@
 - [util fix-byte-order-marker](https://hk.jdx.dev/cli/util/fix-byte-order-marker.html): Remove UTF-8 byte order marker (BOM)
 - [util fix-smart-quotes](https://hk.jdx.dev/cli/util/fix-smart-quotes.html): Replace smart quotes with plain ASCII quotes
 - [util forbid-submodules](https://hk.jdx.dev/cli/util/forbid-submodules.html): Check that the repository contains no git submodules
+- [util format-diff](https://hk.jdx.dev/cli/util/format-diff.html): Print a patch of what a formatter would change, for a check_diff command
 - [util mixed-line-ending](https://hk.jdx.dev/cli/util/mixed-line-ending.html): Detect and fix mixed line endings
 - [util no-commit-to-branch](https://hk.jdx.dev/cli/util/no-commit-to-branch.html): Prevent commits to specific branches
 - [util python-check-ast](https://hk.jdx.dev/cli/util/python-check-ast.html): Check Python files for valid syntax
 - [util python-debug-statements](https://hk.jdx.dev/cli/util/python-debug-statements.html): Detect Python debug statements
+- [util sarif-diff](https://hk.jdx.dev/cli/util/sarif-diff.html): Print a patch from the fixes in a tool's SARIF report, for a check_diff command
 - [util trailing-whitespace](https://hk.jdx.dev/cli/util/trailing-whitespace.html): Check for and optionally fix trailing whitespace
 - [validate](https://hk.jdx.dev/cli/validate.html): Validate the config file
 - [version](https://hk.jdx.dev/cli/version.html): Print the version of hk
 
 ## Project
 
-- [Benchmarks](https://hk.jdx.dev/benchmarks.html): These results measure one synthetic workload with overlapping linter file patterns. They illustrate how orchestration affects this setup; they are not a prediction for every repository or a survey of…
+- [Benchmarks](https://hk.jdx.dev/benchmarks.html): This benchmark compares hk, lefthook, pre-commit, and prek on everyday tasks: fixing files, checking a repository, and running pre-commit hooks on a large and a small commit.
 - [About hk](https://hk.jdx.dev/about.html): hk is a Git hook manager and project linting tool built by @jdx. It is written in Rust and released under the MIT license.
-- [Contributing](https://hk.jdx.dev/contributing.html): Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
-- [Sea shanty](https://hk.jdx.dev/shanty.html): A sea shanty celebrating the hk git hook manager
+- [Security model](https://hk.jdx.dev/security.html): hk runs the commands your configuration declares. Treat hk.pkl like a Makefile or a CI workflow: it is code, and running hk in a repository runs that repository's configuration with your privileges.
+- [Contributing](https://hk.jdx.dev/contributing.html): AI replies to Discussions and Issues are restricted, and breaking the rule is an instant ban across all of jdx's projects.
+- [Sea shanty](https://hk.jdx.dev/shanty.html): A sea shanty about the hk git hook manager

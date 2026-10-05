@@ -1,15 +1,26 @@
-use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use crate::Result;
-use eyre::bail;
-use indexmap::IndexMap;
-use serde::Deserialize;
-use shell_quote::Quote;
+use eyre::{WrapErr, bail};
+use indexmap::{IndexMap, IndexSet};
+use serde::{Deserialize, Deserializer};
 
-use super::{HkConfig, HkHook, HkStep};
-
-/// Migrate from pre-commit to hk
+/// Migrate from pre-commit (or prek) to hk
+///
+/// Reads a .pre-commit-config.yaml and writes an hk.pkl that runs the same
+/// hooks at the same git stages:
+///
+/// - Hooks from well-known repositories become hk builtins, for example
+///   `ruff` from astral-sh/ruff-pre-commit becomes `Builtins.ruff`.
+/// - Local `system`, `script`, and `fail` hooks become native hk steps with
+///   the same command and file filters.
+/// - Every other hook keeps running through prek or pre-commit, which reads
+///   the original config. This includes hooks whose `args`,
+///   `additional_dependencies`, or filters a builtin cannot reproduce.
+///   Each of these steps has a comment explaining why it was not converted.
+///
+/// `manual` hooks run only with `hk check` and `hk fix`.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct PreCommit {
@@ -22,6 +33,10 @@ pub struct PreCommit {
     /// Output path for hk.pkl
     #[usage(short, long, default = "hk.pkl")]
     output: PathBuf,
+    /// Tool that runs hooks hk cannot convert.
+    /// Defaults to pre-commit when only pre-commit is on PATH, otherwise prek.
+    #[usage(long, choices("prek", "pre-commit"), verbatim_doc_comment)]
+    runner: Option<String>,
     /// Root path for hk pkl files (e.g. "pkl" for a local checkout, or a package URL prefix).
     /// If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl
     #[usage(long)]
@@ -30,33 +45,32 @@ pub struct PreCommit {
 
 #[derive(Debug, Deserialize)]
 struct PreCommitConfig {
-    repos: Vec<PreCommitRepo>,
-    #[serde(default)]
-    fail_fast: bool,
-    #[serde(default)]
-    default_language_version: HashMap<String, String>,
-    #[serde(default)]
-    default_stages: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PreCommitRepo {
-    repo: String,
-    #[serde(default)]
-    rev: Option<String>,
-    hooks: Vec<PreCommitHook>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PreCommitHook {
-    id: String,
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    entry: Option<String>,
+    repos: Vec<Repo>,
     #[serde(default)]
     files: Option<String>,
     #[serde(default)]
+    exclude: Option<String>,
+    #[serde(default)]
+    default_stages: Vec<String>,
+    #[serde(default)]
+    default_install_hook_types: Vec<String>,
+    #[serde(default)]
+    fail_fast: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct Repo {
+    repo: String,
+    #[serde(default)]
+    hooks: Vec<Hook>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Hook {
+    id: String,
+    entry: Option<String>,
+    language: Option<String>,
+    files: Option<String>,
     exclude: Option<String>,
     #[serde(default)]
     types: Vec<String>,
@@ -64,7 +78,7 @@ struct PreCommitHook {
     types_or: Vec<String>,
     #[serde(default)]
     exclude_types: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "scalar_list")]
     args: Vec<String>,
     #[serde(default)]
     additional_dependencies: Vec<String>,
@@ -72,42 +86,327 @@ struct PreCommitHook {
     stages: Vec<String>,
     #[serde(default)]
     always_run: bool,
-    #[serde(default)]
     pass_filenames: Option<bool>,
-    #[serde(default)]
     language_version: Option<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    require_serial: bool,
-    #[serde(default)]
-    language: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct PreCommitHookDefinition {
-    id: String,
-    #[serde(default)]
-    #[allow(dead_code)]
-    name: Option<String>,
-    #[serde(default)]
-    entry: String,
-    #[serde(default)]
-    language: String,
-    #[serde(default)]
-    files: Option<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    types: Vec<String>,
-    #[serde(default)]
-    pass_filenames: Option<bool>,
+/// Accept `args: [--max-line-length, 100]`, where YAML parses 100 as a number.
+fn scalar_list<'de, D: Deserializer<'de>>(de: D) -> std::result::Result<Vec<String>, D::Error> {
+    let values = Vec::<serde_yaml::Value>::deserialize(de)?;
+    values
+        .into_iter()
+        .map(|v| match v {
+            serde_yaml::Value::String(s) => Ok(s),
+            serde_yaml::Value::Number(n) => Ok(n.to_string()),
+            serde_yaml::Value::Bool(b) => Ok(b.to_string()),
+            other => Err(serde::de::Error::custom(format!(
+                "expected a string argument, got {other:?}"
+            ))),
+        })
+        .collect()
 }
 
-struct VendoredRepo {
-    url: String,
-    name: String,
-    #[allow(dead_code)]
-    vendor_path: PathBuf,
-    hooks: Vec<PreCommitHookDefinition>,
+/// Hooks with an equivalent hk builtin, keyed by `owner/repo` and hook id.
+const BUILTINS: &[(&str, &[(&str, &str)])] = &[
+    (
+        "pre-commit/pre-commit-hooks",
+        &[
+            ("check-added-large-files", "check_added_large_files"),
+            ("check-ast", "python_check_ast"),
+            ("check-byte-order-marker", "byte_order_marker"),
+            ("check-case-conflict", "check_case_conflict"),
+            (
+                "check-executables-have-shebangs",
+                "check_executables_have_shebangs",
+            ),
+            ("check-merge-conflict", "check_merge_conflict"),
+            (
+                "check-shebang-scripts-are-executable",
+                "check_shebang_scripts_are_executable",
+            ),
+            ("check-symlinks", "check_symlinks"),
+            ("debug-statements", "python_debug_statements"),
+            ("destroyed-symlinks", "destroyed_symlinks"),
+            ("detect-private-key", "detect_private_key"),
+            ("end-of-file-fixer", "newlines"),
+            ("fix-byte-order-marker", "byte_order_marker"),
+            ("forbid-submodules", "forbid_submodules"),
+            ("mixed-line-ending", "mixed_line_ending"),
+            ("no-commit-to-branch", "no_commit_to_branch"),
+            ("trailing-whitespace", "trailing_whitespace"),
+        ],
+    ),
+    ("adrienverge/yamllint", &[("yamllint", "yamllint")]),
+    (
+        "antonbabenko/pre-commit-terraform",
+        &[
+            ("terraform_fmt", "terraform"),
+            ("terraform_tflint", "tf_lint"),
+            ("terraform_validate", "terraform_validate"),
+        ],
+    ),
+    (
+        "astral-sh/ruff-pre-commit",
+        &[
+            ("ruff", "ruff"),
+            ("ruff-check", "ruff"),
+            ("ruff-format", "ruff_format"),
+        ],
+    ),
+    ("biomejs/pre-commit", &[("biome-check", "biome")]),
+    (
+        "comppwa/taplo-pre-commit",
+        &[("taplo-format", "taplo_format"), ("taplo-lint", "taplo")],
+    ),
+    (
+        "compilerla/conventional-pre-commit",
+        &[("conventional-pre-commit", "check_conventional_commit")],
+    ),
+    ("crate-ci/typos", &[("typos", "typos")]),
+    (
+        "dnephin/pre-commit-golang",
+        &[
+            ("go-fmt", "go_fmt"),
+            ("go-imports", "go_imports"),
+            ("go-vet", "go_vet"),
+            ("golangci-lint", "golangci_lint"),
+        ],
+    ),
+    (
+        "doublify/pre-commit-rust",
+        &[
+            ("cargo-check", "cargo_check"),
+            ("clippy", "cargo_clippy"),
+            ("fmt", "cargo_fmt"),
+        ],
+    ),
+    (
+        "editorconfig-checker/editorconfig-checker.python",
+        &[("editorconfig-checker", "editorconfig_checker")],
+    ),
+    ("gitleaks/gitleaks", &[("gitleaks", "gitleaks")]),
+    (
+        "golangci/golangci-lint",
+        &[("golangci-lint", "golangci_lint")],
+    ),
+    ("google/yamlfmt", &[("yamlfmt", "yamlfmt")]),
+    (
+        "hadolint/hadolint",
+        &[("hadolint", "hadolint"), ("hadolint-docker", "hadolint")],
+    ),
+    (
+        "igorshubovych/markdownlint-cli",
+        &[("markdownlint", "markdown_lint")],
+    ),
+    (
+        "johnnymorganz/stylua",
+        &[
+            ("stylua", "stylua"),
+            ("stylua-github", "stylua"),
+            ("stylua-system", "stylua"),
+        ],
+    ),
+    (
+        "koalaman/shellcheck-precommit",
+        &[("shellcheck", "shellcheck")],
+    ),
+    ("lycheeverse/lychee", &[("lychee", "lychee")]),
+    ("pre-commit/mirrors-eslint", &[("eslint", "eslint")]),
+    ("pre-commit/mirrors-mypy", &[("mypy", "mypy")]),
+    ("pre-commit/mirrors-prettier", &[("prettier", "prettier")]),
+    ("psf/black", &[("black", "black")]),
+    ("psf/black-pre-commit-mirror", &[("black", "black")]),
+    ("pycqa/flake8", &[("flake8", "flake8")]),
+    ("pycqa/isort", &[("isort", "isort")]),
+    ("rbubley/mirrors-prettier", &[("prettier", "prettier")]),
+    ("rhysd/actionlint", &[("actionlint", "actionlint")]),
+    ("rubocop/rubocop", &[("rubocop", "rubocop")]),
+    ("scop/pre-commit-shfmt", &[("shfmt", "shfmt")]),
+    (
+        "shellcheck-py/shellcheck-py",
+        &[("shellcheck", "shellcheck")],
+    ),
+    (
+        "sqlfluff/sqlfluff",
+        &[
+            ("sqlfluff-fix", "sql_fluff"),
+            ("sqlfluff-lint", "sql_fluff"),
+        ],
+    ),
+    (
+        "tamasfe/taplo",
+        &[("taplo-format", "taplo_format"), ("taplo-lint", "taplo")],
+    ),
+    ("woodruffw/zizmor-pre-commit", &[("zizmor", "zizmor")]),
+    ("zizmorcore/zizmor-pre-commit", &[("zizmor", "zizmor")]),
+];
+
+/// Builtins that define their own `exclude`, which a migrated regex would replace.
+const BUILTINS_WITH_EXCLUDE: &[&str] = &["rubocop", "terraform_validate", "tf_lint"];
+
+/// Args that only enable behavior hk already provides through `hk fix`.
+fn redundant_args(builtin: &str) -> &'static [&'static str] {
+    match builtin {
+        "ruff" => &["--fix", "--exit-non-zero-on-fix"],
+        "eslint" | "markdown_lint" => &["--fix"],
+        "biome" => &["--write"],
+        "mixed_line_ending" => &["--fix=auto"],
+        _ => &[],
+    }
+}
+
+/// Stages declared by upstream hook manifests for hooks that don't run at pre-commit.
+fn manifest_stage(id: &str) -> Option<&'static str> {
+    match id {
+        "commitizen" | "commitlint" | "conventional-pre-commit" | "gitlint" => Some("commit-msg"),
+        "commitizen-branch" => Some("pre-push"),
+        _ => None,
+    }
+}
+
+/// Git hooks hk can run, plus `manual` (check and fix only).
+const STAGES: &[&str] = &[
+    "pre-commit",
+    "pre-push",
+    "commit-msg",
+    "prepare-commit-msg",
+    "post-checkout",
+    "post-commit",
+    "post-merge",
+    "post-rewrite",
+    "pre-rebase",
+    "manual",
+];
+
+/// Git hooks where pre-commit passes changed files to hooks.
+const FILE_STAGES: &[&str] = &["pre-commit", "pre-merge-commit", "pre-push"];
+
+fn normalize_stage(stage: &str) -> &str {
+    match stage {
+        "commit" => "pre-commit",
+        "push" => "pre-push",
+        "merge-commit" => "pre-merge-commit",
+        other => other,
+    }
+}
+
+/// Map a pre-commit (identify) file type tag to an hk file type.
+fn hk_type(tag: &str) -> Option<&'static str> {
+    Some(match tag {
+        "ts" | "typescript" => "typescript",
+        "python" => "python",
+        "pyi" => "pyi",
+        "javascript" => "javascript",
+        "jsx" => "jsx",
+        "tsx" => "tsx",
+        "rust" => "rust",
+        "go" => "go",
+        "ruby" => "ruby",
+        "php" => "php",
+        "java" => "java",
+        "kotlin" => "kotlin",
+        "swift" => "swift",
+        "c" => "c",
+        "c++" => "c++",
+        "lua" => "lua",
+        "shell" => "shell",
+        "bash" => "bash",
+        "zsh" => "zsh",
+        "fish" => "fish",
+        "sh" => "sh",
+        "json" => "json",
+        "yaml" => "yaml",
+        "toml" => "toml",
+        "xml" => "xml",
+        "csv" => "csv",
+        "html" => "html",
+        "markdown" => "markdown",
+        "css" => "css",
+        "scss" => "scss",
+        "sass" => "sass",
+        "less" => "less",
+        "svelte" => "svelte",
+        "vue" => "vue",
+        "astro" => "astro",
+        "dockerfile" => "dockerfile",
+        "makefile" => "makefile",
+        "pkl" => "pkl",
+        "text" => "text",
+        "binary" => "binary",
+        "executable" => "executable",
+        "symlink" => "symlink",
+        "image" => "image",
+        "png" => "png",
+        "jpeg" => "jpeg",
+        "gif" => "gif",
+        "svg" => "svg",
+        "webp" => "webp",
+        "zip" => "zip",
+        "tar" => "tar",
+        "gzip" => "gzip",
+        _ => return None,
+    })
+}
+
+#[derive(Debug)]
+enum Action {
+    Builtin(&'static str),
+    Command {
+        glob: Option<String>,
+        types: Vec<String>,
+        check: String,
+    },
+    /// Run the hook through prek/pre-commit; the string explains why.
+    Delegate(String),
+}
+
+#[derive(Debug, Clone)]
+enum Exclude {
+    /// Only the top-level `exclude`, rendered once as a shared local.
+    Global,
+    Regex(String),
+}
+
+#[derive(Debug)]
+struct Step {
+    hook_id: String,
+    action: Action,
+    exclude: Option<Exclude>,
+}
+
+#[derive(Debug, Default)]
+struct Migration {
+    /// Steps grouped by pre-commit stage, keyed by hk step name.
+    stages: IndexMap<String, IndexMap<String, Step>>,
+    global_exclude: Option<String>,
+    fail_fast: bool,
+    warnings: Vec<String>,
+}
+
+impl Migration {
+    fn count(&self, pred: fn(&Action) -> bool) -> usize {
+        self.stages
+            .values()
+            .flat_map(|steps| steps.values())
+            .filter(|s| pred(&s.action))
+            .count()
+    }
+
+    fn uses_global_exclude(&self) -> bool {
+        self.stages
+            .values()
+            .flat_map(|steps| steps.values())
+            .any(|s| matches!(s.exclude, Some(Exclude::Global)))
+    }
+
+    fn delegated_ids(&self) -> IndexSet<&str> {
+        self.stages
+            .values()
+            .flat_map(|steps| steps.values())
+            .filter(|s| matches!(s.action, Action::Delegate(_)))
+            .map(|s| s.hook_id.as_str())
+            .collect()
+    }
 }
 
 impl PreCommit {
@@ -118,1723 +417,888 @@ impl PreCommit {
                 self.output.display()
             );
         }
-
         if !self.config.exists() {
             bail!("{} does not exist", self.config.display());
         }
 
-        let config_content = xx::file::read_to_string(&self.config)?;
-        let precommit_config: PreCommitConfig = serde_yaml::from_str(&config_content)?;
+        let content = xx::file::read_to_string(&self.config)?;
+        let config: PreCommitConfig = serde_yaml::from_str(&content)
+            .wrap_err_with(|| format!("failed to parse {}", self.config.display()))?;
 
-        // Vendor external repos
-        let vendored_repos = self.vendor_repos(&precommit_config).await?;
+        let runner = self.runner.clone().unwrap_or_else(|| {
+            if xx::file::which("prek").is_none() && xx::file::which("pre-commit").is_some() {
+                "pre-commit".to_string()
+            } else {
+                "prek".to_string()
+            }
+        });
 
-        let (amends_config_pkl, builtins_pkl) = if let Some(ref root) = self.hk_pkl_root {
-            (
-                Some(format!("{}/Config.pkl", root)),
-                Some(format!("{}/Builtins.pkl", root)),
-            )
-        } else {
-            (None, None)
-        };
-
-        let hk_config = self.convert_config(
-            &precommit_config,
-            &vendored_repos,
-            amends_config_pkl,
-            builtins_pkl,
-        )?;
-        let pkl_content = hk_config.to_pkl();
-
-        xx::file::write(&self.output, pkl_content)?;
+        let migration = convert(&config);
+        for warning in &migration.warnings {
+            warn!("{warning}");
+        }
+        let pkl = self.render(&migration, &runner);
+        xx::file::write(&self.output, pkl)?;
 
         info!(
-            "Migrated {} to {}",
+            "Migrated {} to {}: {} builtins, {} commands, {} run through {runner}",
             self.config.display(),
-            self.output.display()
+            self.output.display(),
+            migration.count(|a| matches!(a, Action::Builtin(_))),
+            migration.count(|a| matches!(a, Action::Command { .. })),
+            migration.count(|a| matches!(a, Action::Delegate(_))),
         );
-        info!("Successfully migrated to hk.pkl!");
+        let delegated = migration.delegated_ids();
+        if !delegated.is_empty() {
+            info!(
+                "Keep {} and {runner} installed for: {}",
+                self.config.display(),
+                delegated.into_iter().collect::<Vec<_>>().join(", ")
+            );
+        }
         info!("Next steps:");
-        info!("1. Review the generated hk.pkl file");
-        info!("2. Complete any TODO items (local/unknown hooks, vendored repos)");
-        info!("3. Run 'hk install' to install git hooks");
-        info!("4. Run 'hk check --all' to test your configuration");
-
+        info!("  1. Review {}", self.output.display());
+        info!("  2. Remove pre-commit's git hooks with `{runner} uninstall`");
+        info!("  3. Run `hk install`, then `hk check --all`");
         Ok(())
     }
 
-    fn convert_config(
-        &self,
-        config: &PreCommitConfig,
-        vendored_repos: &HashMap<String, VendoredRepo>,
-        amends_config_pkl: Option<String>,
-        builtins_pkl: Option<String>,
-    ) -> Result<HkConfig> {
-        let mut hk_config = HkConfig::new(amends_config_pkl, builtins_pkl);
-        let mut used_ids = HashSet::new();
+    fn render(&self, migration: &Migration, runner: &str) -> String {
+        let version = env!("CARGO_PKG_VERSION");
+        let root = self.hk_pkl_root.clone().unwrap_or_else(|| {
+            format!("package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#")
+        });
+        let root = root.trim_end_matches('/');
 
-        // Add imports for vendored repos
-        for vendor in vendored_repos.values() {
-            let import_name = Self::repo_url_to_import_name(&vendor.url);
-            let import_path = format!(".hk/vendors/{}/hooks.pkl", vendor.name);
-            hk_config.vendor_imports.push((import_name, import_path));
-        }
+        let mut out = String::new();
+        writeln!(out, "amends \"{root}/Config.pkl\"").unwrap();
+        writeln!(out, "import \"{root}/Builtins.pkl\"").unwrap();
+        writeln!(out).unwrap();
+        writeln!(
+            out,
+            "// Migrated from {} by `hk migrate pre-commit`.",
+            self.config.display()
+        )
+        .unwrap();
 
-        // Add header comments
-        if !vendored_repos.is_empty() {
-            hk_config
-                .header_comments
-                .push("TODO: Vendored repos detected".to_string());
-            hk_config.header_comments.push(
-                "The .hk/vendors directory is a compatibility layer for pre-commit projects."
-                    .to_string(),
-            );
-            hk_config
-                .header_comments
-                .push("For better performance and idiomatic hk usage, consider installing tools with mise:".to_string());
-            hk_config
-                .header_comments
-                .push("  mise use <tool>@<version>".to_string());
-            hk_config.header_comments.push(
-                "Then update your hooks to use the mise-installed tools directly.".to_string(),
-            );
-            hk_config.header_comments.push("".to_string());
-        }
-        if config.fail_fast {
-            hk_config
-                .header_comments
-                .push("Migrated from pre-commit fail_fast setting".to_string());
-            hk_config
-                .header_comments
-                .push("Note: hk uses --fail-fast CLI flag instead of config setting".to_string());
-            hk_config.header_comments.push("".to_string());
-        }
-
-        if !config.default_language_version.is_empty() {
-            hk_config
-                .header_comments
-                .push("pre-commit default_language_version:".to_string());
-
-            // Warn user about language versions
-            warn!("Detected default_language_version in pre-commit config");
-            info!("Language versions detected in .pre-commit-config.yaml:");
-
-            for (lang, version) in &config.default_language_version {
-                hk_config
-                    .header_comments
-                    .push(format!("  {}: {}", lang, version));
-
-                let normalized_version = Self::normalize_language_version(version);
-
-                // Print warning with mise use command
-                info!(
-                    "  {}: {} -> Run: mise use {}@{}",
-                    lang, version, lang, normalized_version
-                );
+        if !migration.delegated_ids().is_empty() {
+            let mut run = format!("{runner} run");
+            if self.config != Path::new(".pre-commit-config.yaml") {
+                write!(
+                    run,
+                    " --config {}",
+                    sh_quote(&self.config.to_string_lossy())
+                )
+                .unwrap();
             }
-
-            hk_config.header_comments.push("".to_string());
-            hk_config
-                .header_comments
-                .push("To set these versions with mise, run:".to_string());
-
-            for (lang, version) in &config.default_language_version {
-                let normalized_version = Self::normalize_language_version(version);
-                hk_config
-                    .header_comments
-                    .push(format!("  mise use {}@{}", lang, normalized_version));
-            }
+            // Spliced into a plain Pkl string below.
+            let run = run.replace('\\', "\\\\").replace('"', "\\\"");
+            writeln!(
+                out,
+                "\n// Steps using precommit() still run through {runner}, which reads {}.",
+                self.config.display()
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "// Replace them with builtins or commands, then delete that file."
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "local function precommit(hook: String, stage: String): Step = new {{"
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "  check = \"{run} --hook-stage \\(stage) \\(hook)\" + (if (stage == \"commit-msg\" || stage == \"prepare-commit-msg\")"
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "    \" --commit-msg-filename {{{{commit_msg_file}}}}\""
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "  else if (stage == \"pre-commit\" || stage == \"pre-push\" || stage == \"manual\")"
+            )
+            .unwrap();
+            writeln!(out, "    \" --files {{{{files}}}}\"").unwrap();
+            writeln!(out, "  else").unwrap();
+            writeln!(out, "    \"\")").unwrap();
+            writeln!(out, "  // pre-commit hooks may modify files in either mode").unwrap();
+            writeln!(out, "  fix = check").unwrap();
+            writeln!(out, "  check_first = false").unwrap();
+            writeln!(out, "  // {runner} applies the hook's own file filters").unwrap();
+            writeln!(out, "  allow_binary = true").unwrap();
+            writeln!(out, "  allow_symlinks = true").unwrap();
+            writeln!(out, "}}").unwrap();
         }
 
-        // Initialize step collections
-        let mut linters = IndexMap::new();
-        let mut local_hooks = IndexMap::new();
-        let mut custom_steps = IndexMap::new();
-        let mut manual_steps = IndexMap::new();
-
-        // Track which stages each hook appears in
-        let mut steps_by_stage: HashMap<String, Vec<(String, String)>> = HashMap::new();
-
-        for repo in &config.repos {
-            let is_local = repo.repo == "local";
-            let is_meta = repo.repo == "meta";
-
-            if is_meta {
-                // Skip meta hooks, they're pre-commit internal
-                continue;
-            }
-
-            for hook in &repo.hooks {
-                let unique_id = Self::make_unique_hook_id(&hook.id, &mut used_ids);
-
-                let hook_stages = if !hook.stages.is_empty() {
-                    hook.stages.clone()
-                } else if !config.default_stages.is_empty() {
-                    config.default_stages.clone()
-                } else {
-                    vec!["pre-commit".to_string()]
-                };
-
-                // Check if this is a manual-only step
-                let is_manual_only = hook_stages.len() == 1 && hook_stages[0] == "manual";
-
-                // Convert the hook to an HkStep
-                let step = if is_local {
-                    self.convert_local_hook(hook, &unique_id, repo)
-                } else if let Some(step) = self.convert_known_hook(hook, &unique_id) {
-                    step
-                } else {
-                    self.convert_unknown_hook(hook, &unique_id, repo, vendored_repos)
-                };
-
-                // Add to appropriate collection
-                let is_vendored = vendored_repos.contains_key(&repo.repo);
-                let collection_name = if is_manual_only {
-                    manual_steps.insert(unique_id.clone(), step);
-                    "manual_steps"
-                } else if is_local {
-                    local_hooks.insert(unique_id.clone(), step);
-                    "local_hooks"
-                } else if self.is_known_hook(&hook.id) || is_vendored {
-                    linters.insert(unique_id.clone(), step);
-                    "linters"
-                } else {
-                    custom_steps.insert(unique_id.clone(), step);
-                    "custom_steps"
-                };
-
-                // Track which stages this hook appears in
-                for stage in &hook_stages {
-                    let hk_stage = Self::map_stage(stage);
-                    steps_by_stage
-                        .entry(hk_stage.to_string())
-                        .or_default()
-                        .push((unique_id.clone(), collection_name.to_string()));
-                }
-            }
+        if !migration.fail_fast {
+            writeln!(
+                out,
+                "\n// Like pre-commit, report every failing step instead of stopping at the first"
+            )
+            .unwrap();
+            writeln!(out, "fail_fast = false").unwrap();
         }
 
-        // Add step collections to config
-        if !linters.is_empty() {
-            hk_config
-                .step_collections
-                .insert("linters".to_string(), linters);
-        }
-        if !local_hooks.is_empty() {
-            hk_config
-                .step_collections
-                .insert("local_hooks".to_string(), local_hooks);
-        }
-        if !custom_steps.is_empty() {
-            hk_config
-                .step_collections
-                .insert("custom_steps".to_string(), custom_steps);
-        }
-        if !manual_steps.is_empty() {
-            hk_config
-                .step_collections
-                .insert("manual_steps".to_string(), manual_steps);
+        if let Some(exclude) = &migration.global_exclude
+            && migration.uses_global_exclude()
+        {
+            writeln!(out, "\n// pre-commit's top-level `exclude`").unwrap();
+            writeln!(out, "local excluded = {}", pkl_regex(exclude)).unwrap();
         }
 
-        // Pre-commit steps are the shared v2 defaults. The implicit check and
-        // fix hooks inherit them, while their explicit definitions below add
-        // any manual or non-pre-commit steps.
-        if let Some(pre_commit_steps) = steps_by_stage.get("pre-commit") {
-            for (id, collection) in pre_commit_steps {
-                hk_config
-                    .step_references
-                    .insert(id.clone(), collection.clone());
-            }
+        let manual = migration.stages.get("manual");
+        if let Some(steps) = manual {
+            writeln!(out, "\nlocal manual_steps = new Mapping<String, Step> {{").unwrap();
+            render_steps(&mut out, steps, "manual", 1);
+            writeln!(out, "}}").unwrap();
         }
 
-        // Generate hooks
-        let has_steps = !hk_config.step_collections.is_empty();
-
-        // Create hooks for each stage (except manual, which goes to check/fix)
-        let mut stages_used = HashSet::new();
-        for stage in steps_by_stage.keys() {
-            // Manual steps are added to check/fix, and pre-commit is implicit
-            // from the shared top-level steps.
-            if stage == "manual" || stage == "pre-commit" {
-                continue;
-            }
-
-            stages_used.insert(stage.clone());
-
-            let mut hook = HkHook {
-                fix: None,
-                stash: None,
-                step_spreads: Vec::new(),
-                direct_steps: IndexMap::new(),
-            };
-
-            if stage == "pre-commit" {
-                hook.fix = Some(true);
-                hook.stash = Some("git".to_string());
-            }
-
-            // Add step spreads for collections that have steps in this stage
-            let collections_in_stage: HashSet<String> = steps_by_stage
-                .get(stage)
-                .map(|steps| steps.iter().map(|(_, col)| col.clone()).collect())
-                .unwrap_or_default();
-
-            // Only include non-manual collections in git hooks
-            for collection in ["linters", "local_hooks", "custom_steps"] {
-                if collections_in_stage.contains(collection) {
-                    hook.step_spreads.push(collection.to_string());
-                }
-            }
-
-            hk_config.hooks.insert(stage.clone(), hook);
+        if let Some(steps) = migration.stages.get("pre-commit") {
+            writeln!(out, "\nsteps {{").unwrap();
+            render_steps(&mut out, steps, "pre-commit", 1);
+            writeln!(out, "}}").unwrap();
         }
 
-        // Always add check and fix hooks if we have any steps
-        if has_steps {
-            // Check hook - includes manual_steps
-            let mut check_hook = HkHook {
-                fix: None,
-                stash: None,
-                step_spreads: Vec::new(),
-                direct_steps: IndexMap::new(),
-            };
-
-            for collection in &["linters", "local_hooks", "custom_steps", "manual_steps"] {
-                if hk_config.step_collections.contains_key(*collection) {
-                    check_hook.step_spreads.push(collection.to_string());
-                }
-            }
-
-            hk_config.hooks.insert("check".to_string(), check_hook);
-
-            // Fix hook - includes manual_steps and custom_steps
-            let mut fix_hook = HkHook {
-                fix: Some(true),
-                stash: None,
-                step_spreads: Vec::new(),
-                direct_steps: IndexMap::new(),
-            };
-
-            for collection in &["linters", "local_hooks", "custom_steps", "manual_steps"] {
-                if hk_config.step_collections.contains_key(*collection) {
-                    fix_hook.step_spreads.push(collection.to_string());
-                }
-            }
-
-            hk_config.hooks.insert("fix".to_string(), fix_hook);
-        }
-
-        Ok(hk_config)
-    }
-
-    fn convert_known_hook(&self, hook: &PreCommitHook, unique_id: &str) -> Option<HkStep> {
-        let builtin_map = self.get_builtin_map();
-
-        if let Some(builtin_name) = builtin_map.get(hook.id.as_str()) {
-            let mut step = HkStep {
-                builtin: Some(format!("Builtins.{}", builtin_name)),
-                comments: Vec::new(),
-                glob: None,
-                exclude: Self::add_default_exclude(hook.exclude.clone()),
-                prefix: None,
-                check: None,
-                fix: None,
-                shell: None,
-                exclusive: hook.require_serial,
-                properties_as_comments: Vec::new(),
-            };
-
-            // Add comments if ID was changed
-            if unique_id != hook.id {
-                step.comments.push(format!("Original ID: {}", hook.id));
-            }
-
-            // Add property comments for things we can't directly map
-            if hook.files.is_some() {
-                if let Some(ref files) = hook.files {
-                    step.properties_as_comments
-                        .push(format!("files pattern from pre-commit: {}", files));
-                }
-                step.properties_as_comments
-                    .push("Note: Convert regex to glob pattern for hk".to_string());
-            }
-
-            if !hook.types.is_empty() {
-                step.properties_as_comments
-                    .push(format!("types (AND): {}", hook.types.join(", ")));
-            }
-
-            if !hook.types_or.is_empty() {
-                step.properties_as_comments
-                    .push(format!("types_or: {}", hook.types_or.join(", ")));
-            }
-
-            if !hook.exclude_types.is_empty() {
-                step.properties_as_comments
-                    .push(format!("exclude_types: {}", hook.exclude_types.join(", ")));
-            }
-
-            if hook.always_run {
-                step.properties_as_comments
-                    .push("always_run: true - runs even without matching files".to_string());
-                step.properties_as_comments.push(
-                    "Note: hk doesn't have direct equivalent, hook will run on all files"
-                        .to_string(),
-                );
-            }
-
-            if hook.pass_filenames == Some(false) {
-                step.properties_as_comments
-                    .push("pass_filenames: false".to_string());
-                step.properties_as_comments
-                    .push("Note: Adjust check/fix commands to not use {{files}}".to_string());
-            }
-
-            if !hook.args.is_empty() {
-                step.properties_as_comments
-                    .push(format!("args from pre-commit: {}", hook.args.join(" ")));
-                step.properties_as_comments
-                    .push("Consider updating check/fix commands with these args".to_string());
-            }
-
-            if !hook.additional_dependencies.is_empty() {
-                step.properties_as_comments.push(format!(
-                    "additional_dependencies: {}",
-                    hook.additional_dependencies.join(", ")
-                ));
-                step.properties_as_comments
-                    .push("Use mise x to install dependencies:".to_string());
-                let tool_name = self.hook_id_to_tool(&hook.id);
-                step.properties_as_comments
-                    .push(format!("prefix = \"mise x {}@latest --\"", tool_name));
-            }
-
-            if let Some(ref lang_ver) = hook.language_version {
-                step.properties_as_comments
-                    .push(format!("language_version: {}", lang_ver));
-                step.properties_as_comments
-                    .push("Configure version in mise.toml".to_string());
-            }
-
-            Some(step)
-        } else {
-            None
-        }
-    }
-
-    fn convert_local_hook(
-        &self,
-        hook: &PreCommitHook,
-        unique_id: &str,
-        _repo: &PreCommitRepo,
-    ) -> HkStep {
-        let mut step = HkStep {
-            builtin: None,
-            comments: Vec::new(),
-            glob: hook.files.clone(),
-            exclude: Self::add_default_exclude(hook.exclude.clone()),
-            prefix: None,
-            check: None,
-            fix: None,
-            shell: None,
-            exclusive: hook.require_serial,
-            properties_as_comments: Vec::new(),
-        };
-
-        // Apply types/types_or filtering
-        // If there's no glob pattern but we have types, create a glob from types
-        // Otherwise, create exclude patterns for non-matching types
-        if !hook.types.is_empty() || !hook.types_or.is_empty() {
-            if step.glob.is_none() {
-                // No files pattern - create a glob from types
-                if let Some(glob_pattern) = Self::types_to_glob_pattern(&hook.types, &hook.types_or)
-                {
-                    step.glob = Some(glob_pattern);
-                }
-            } else {
-                // Has files pattern - add exclude patterns for non-matching types
-                if let Some(types_exclude) =
-                    Self::types_to_exclude_pattern(&hook.types, &hook.types_or, &hook.exclude_types)
-                {
-                    // Combine with existing exclude pattern
-                    if let Some(ref existing_exclude) = step.exclude {
-                        step.exclude = Some(format!("{}|{}", existing_exclude, types_exclude));
-                    } else {
-                        step.exclude = Some(types_exclude);
-                    }
-                }
-            }
-        }
-
-        // Add comments
-        if unique_id != hook.id {
-            step.comments.push(format!("Original ID: {}", hook.id));
-        }
-        if let Some(ref name) = hook.name {
-            step.comments.push(format!("Name: {}", name));
-        }
-
-        // Add comment about type filtering if present
-        if !hook.types.is_empty() {
-            step.properties_as_comments
-                .push(format!("types (AND): {}", hook.types.join(", ")));
-        }
-        if !hook.types_or.is_empty() {
-            step.properties_as_comments
-                .push(format!("types (OR): {}", hook.types_or.join(", ")));
-        }
-
-        // Handle additional_dependencies with mise x
-        if !hook.additional_dependencies.is_empty() {
-            step.prefix = Self::generate_mise_prefix(&hook.additional_dependencies);
-        }
-
-        // Set check command
-        if let Some(ref entry) = hook.entry {
-            let pass_filenames = hook.pass_filenames.unwrap_or(true);
-
-            // Check if this is a pygrep hook - convert to grep command
-            let is_pygrep = hook.language.as_deref() == Some("pygrep");
-
-            // Check if this is a docker_image hook - convert to docker run command
-            let is_docker_image = hook.language.as_deref() == Some("docker_image");
-
-            // Check if this is a Python script that should use uv run
-            // For multi-line entries, check if the first line/word ends with .py
-            let is_python_script = hook.language.as_deref() == Some("python")
-                && (entry.ends_with(".py")
-                    || entry
-                        .split_whitespace()
-                        .next()
-                        .is_some_and(|s| s.ends_with(".py")));
-
-            let cmd = if is_pygrep {
-                // pygrep hooks use the entry as a regex pattern
-                // pre-commit's pygrep is a simple Python regex grep that works on any file
-                // It returns 1 on match (problem found), 0 on no match (success)
-                // We use grep -P for Perl-compatible regex (similar to Python regex)
-                // and invert with ! so that finding a match returns an error
-                let quoted_pattern: String = shell_quote::Bash::quote(entry);
-                if pass_filenames {
-                    format!("! grep -P {} {{{{files}}}}", quoted_pattern)
-                } else {
-                    format!("! grep -P {}", quoted_pattern)
-                }
-            } else if is_docker_image {
-                // docker_image hooks use the entry as: <image_name> <args...>
-                // Example: koalaman/shellcheck:v0.8.0 -x -a
-                // We convert to: docker run --rm -v $(pwd):/src -w /src <image_name> <args...> {{files}}
-                // The image name is the first token, the rest are arguments
-                let parts: Vec<&str> = entry.split_whitespace().collect();
-                let image_name = parts.first().unwrap_or(&"");
-                let docker_args = parts[1..].join(" ");
-
-                if pass_filenames {
-                    if docker_args.is_empty() {
-                        format!(
-                            "docker run --rm -v $(pwd):/src -w /src {} {{{{files}}}}",
-                            image_name
-                        )
-                    } else {
-                        format!(
-                            "docker run --rm -v $(pwd):/src -w /src {} {} {{{{files}}}}",
-                            image_name, docker_args
-                        )
-                    }
-                } else if docker_args.is_empty() {
-                    format!("docker run --rm -v $(pwd):/src -w /src {}", image_name)
-                } else {
-                    format!(
-                        "docker run --rm -v $(pwd):/src -w /src {} {}",
-                        image_name, docker_args
-                    )
-                }
-            } else if is_python_script {
-                // Use uv run for local Python scripts
-                if pass_filenames {
-                    format!("uv run {} {{{{files}}}}", entry)
-                } else {
-                    format!("uv run {}", entry)
-                }
-            } else {
-                // Use entry directly for non-Python scripts
-                if pass_filenames {
-                    format!("{} {{{{files}}}}", entry)
-                } else {
-                    entry.clone()
-                }
-            };
-
-            // Add args to the command if present
-            let final_cmd = if !hook.args.is_empty() {
-                let args_str = hook.args.join(" ");
-                // Insert args between the command and {{files}}
-                if pass_filenames {
-                    cmd.replace(" {{files}}", &format!(" {} {{{{files}}}}", args_str))
-                } else {
-                    format!("{} {}", cmd, args_str)
-                }
-            } else {
-                cmd
-            };
-
-            step.check = Some(final_cmd);
-            if !pass_filenames {
-                step.properties_as_comments
-                    .push("pass_filenames was false in pre-commit".to_string());
-            }
-        } else {
-            step.properties_as_comments
-                .push("TODO: Configure check and/or fix commands from local hook".to_string());
-            step.properties_as_comments
-                .push("check = \"...\"".to_string());
-
-            if !hook.args.is_empty() {
-                step.properties_as_comments
-                    .push(format!("Original args: {}", hook.args.join(" ")));
-            }
-        }
-
-        if hook.always_run {
-            step.properties_as_comments
-                .push("always_run was true in pre-commit".to_string());
-        }
-
-        step
-    }
-
-    fn convert_unknown_hook(
-        &self,
-        hook: &PreCommitHook,
-        unique_id: &str,
-        repo: &PreCommitRepo,
-        vendored_repos: &HashMap<String, VendoredRepo>,
-    ) -> HkStep {
-        // Check if this hook is from a vendored repo
-        if let Some(vendored) = vendored_repos.get(&repo.repo) {
-            // Find the hook definition in the vendored repo
-            if let Some(_hook_def) = vendored.hooks.iter().find(|h| h.id == hook.id) {
-                let import_name = Self::repo_url_to_import_name(&repo.repo);
-                let hook_id_snake = hook.id.replace('-', "_");
-
-                let mut step = HkStep {
-                    builtin: Some(format!("{}.{}", import_name, hook_id_snake)),
-                    comments: Vec::new(),
-                    glob: None,
-                    exclude: Self::add_default_exclude(hook.exclude.clone()),
-                    prefix: None,
-                    check: None,
-                    fix: None,
-                    shell: None,
-                    exclusive: hook.require_serial,
-                    properties_as_comments: Vec::new(),
-                };
-
-                // Add comment if ID was changed
-                if unique_id != hook.id {
-                    step.comments.push(format!("Original ID: {}", hook.id));
-                }
-
-                // Add property comments for things we can't directly map
-                if hook.files.is_some()
-                    && let Some(ref files) = hook.files
-                {
-                    step.properties_as_comments
-                        .push(format!("files pattern from pre-commit: {}", files));
-                }
-
-                if !hook.types.is_empty() {
-                    step.properties_as_comments
-                        .push(format!("types (AND): {}", hook.types.join(", ")));
-                }
-
-                if !hook.args.is_empty() {
-                    step.properties_as_comments
-                        .push(format!("args from pre-commit: {}", hook.args.join(" ")));
-                }
-
-                return step;
-            }
-        }
-
-        // Fallback to unknown hook generation
-        let mut step = HkStep {
-            builtin: None,
-            comments: Vec::new(),
-            glob: None,
-            exclude: Self::add_default_exclude(hook.exclude.clone()),
-            prefix: None,
-            check: None,
-            fix: None,
-            shell: None,
-            exclusive: hook.require_serial,
-            properties_as_comments: Vec::new(),
-        };
-
-        // Add repo info as comment
-        step.comments.push(format!(
-            "Repo: {}{}",
-            repo.repo,
-            repo.rev
-                .as_ref()
-                .map_or(String::new(), |r| format!(" @ {}", r))
-        ));
-
-        if unique_id != hook.id {
-            step.comments.push(format!("Original ID: {}", hook.id));
-        }
-
-        if let Some(ref name) = hook.name {
-            step.comments.push(format!("Name: {}", name));
-        }
-
-        if let Some(ref files) = hook.files {
-            step.properties_as_comments
-                .push(format!("files: {}", files));
-        }
-
-        if !hook.types.is_empty() || !hook.types_or.is_empty() {
-            step.properties_as_comments
-                .push("File type filtering needed".to_string());
-        }
-
-        step.properties_as_comments
-            .push("TODO: Configure check and/or fix commands".to_string());
-        step.properties_as_comments
-            .push("check = \"...\"".to_string());
-        step.properties_as_comments
-            .push("fix = \"...\"".to_string());
-
-        if !hook.args.is_empty() {
-            step.properties_as_comments
-                .push(format!("Original args: {}", hook.args.join(" ")));
-        }
-
-        if !hook.additional_dependencies.is_empty() {
-            step.properties_as_comments.push(format!(
-                "Dependencies: {}",
-                hook.additional_dependencies.join(", ")
-            ));
-        }
-
-        step
-    }
-
-    fn is_known_hook(&self, id: &str) -> bool {
-        self.get_builtin_map().contains_key(id)
-    }
-
-    /// Normalize language version strings for mise
-    /// Example: "python3" -> "3", "3.11" -> "3.11"
-    fn normalize_language_version(version: &str) -> String {
-        // Handle common pre-commit language version formats
-        match version {
-            "python3" => "3".to_string(),
-            "python2" => "2".to_string(),
-            v if v.starts_with("python") => v.strip_prefix("python").unwrap_or(v).to_string(),
-            v => v.to_string(),
-        }
-    }
-
-    /// Generate a mise x prefix from additional_dependencies
-    /// Example: ["ruff==0.13.3"] -> Some("mise x pipx:ruff@0.13.3 --")
-    fn generate_mise_prefix(dependencies: &[String]) -> Option<String> {
-        if dependencies.is_empty() {
-            return None;
-        }
-
-        // For now, handle the first dependency (most common case)
-        // Format: package==version or package>=version, etc.
-        let dep = &dependencies[0];
-
-        // Parse package name and version
-        let (package, version) = if let Some(idx) = dep.find("==") {
-            (&dep[..idx], Some(&dep[idx + 2..]))
-        } else if let Some(idx) = dep.find(">=") {
-            (&dep[..idx], Some(&dep[idx + 2..]))
-        } else if let Some(idx) = dep.find("<=") {
-            (&dep[..idx], Some(&dep[idx + 2..]))
-        } else if let Some(idx) = dep.find('>') {
-            (&dep[..idx], Some(&dep[idx + 1..]))
-        } else if let Some(idx) = dep.find('<') {
-            (&dep[..idx], Some(&dep[idx + 1..]))
-        } else {
-            (dep.as_str(), None)
-        };
-
-        // Build mise x command
-        if let Some(ver) = version {
-            Some(format!("mise x pipx:{}@{} --", package, ver))
-        } else {
-            Some(format!("mise x pipx:{} --", package))
-        }
-    }
-
-    fn map_stage(stage: &str) -> &'static str {
-        match stage {
-            "commit" | "commit-msg" => "commit-msg",
-            "push" | "pre-push" => "pre-push",
-            "prepare-commit-msg" => "prepare-commit-msg",
-            "manual" => "manual",
-            _ => "pre-commit",
-        }
-    }
-
-    /// Convert pre-commit types/types_or to a glob pattern
-    /// This is used when there's no files pattern but we have types
-    fn types_to_glob_pattern(types: &[String], types_or: &[String]) -> Option<String> {
-        let match_types = if !types_or.is_empty() {
-            types_or
-        } else if !types.is_empty() {
-            types
-        } else {
-            return None;
-        };
-
-        // Map types to glob patterns
-        let mut patterns = Vec::new();
-        for type_name in match_types {
-            match type_name.as_str() {
-                "python" => patterns.push("**/*.py"),
-                "pyi" => patterns.push("**/*.pyi"),
-                "yaml" => {
-                    patterns.push("**/*.yaml");
-                    patterns.push("**/*.yml");
-                }
-                "json" => patterns.push("**/*.json"),
-                "toml" => patterns.push("**/*.toml"),
-                "markdown" => {
-                    patterns.push("**/*.md");
-                    patterns.push("**/*.markdown");
-                    patterns.push("**/*.mdown");
-                }
-                "javascript" => patterns.push("**/*.js"),
-                "jsx" => patterns.push("**/*.jsx"),
-                "typescript" => patterns.push("**/*.ts"),
-                "tsx" => patterns.push("**/*.tsx"),
-                "rust" => patterns.push("**/*.rs"),
-                "go" => patterns.push("**/*.go"),
-                "shell" => {
-                    patterns.push("**/*.sh");
-                    patterns.push("**/*.bash");
-                }
-                "text" | "file" => return None, // Match all files, no pattern needed
-                _ => return None,               // Unknown type
-            }
-        }
-
-        if patterns.is_empty() {
-            return None;
-        }
-
-        // For types_or with multiple patterns, use regex alternation
-        if patterns.len() == 1 {
-            Some(patterns[0].to_string())
-        } else {
-            // Convert glob patterns to regex
-            let regex_patterns: Vec<String> = patterns
-                .iter()
-                .map(|p| {
-                    // Convert **/*.ext to regex pattern that matches end of filename
-                    let ext = p.strip_prefix("**/").unwrap_or(p);
-                    let pattern = ext.replace("*.", r".*\.");
-                    format!("{}$", pattern) // Anchor to end of filename
-                })
-                .collect();
-            Some(format!("({})", regex_patterns.join("|")))
-        }
-    }
-
-    /// Convert pre-commit types/types_or to exclude patterns
-    /// This creates a negative pattern to exclude files that don't match the specified types
-    fn types_to_exclude_pattern(
-        types: &[String],
-        types_or: &[String],
-        _exclude_types: &[String],
-    ) -> Option<String> {
-        // Build the list of types to match
-        let mut match_types = Vec::new();
-
-        if !types_or.is_empty() {
-            // types_or: match any of these types
-            match_types.extend(types_or.iter().cloned());
-        } else if !types.is_empty() {
-            // types: must match all of these (we'll use AND logic)
-            match_types.extend(types.iter().cloned());
-        } else {
-            // No type filtering
-            return None;
-        }
-
-        // Map common pre-commit types to file extensions
-        let mut extensions = Vec::new();
-        for type_name in &match_types {
-            match type_name.as_str() {
-                "python" => extensions.push("py"),
-                "pyi" => extensions.push("pyi"),
-                "yaml" => {
-                    extensions.push("yaml");
-                    extensions.push("yml");
-                }
-                "json" => extensions.push("json"),
-                "toml" => extensions.push("toml"),
-                "markdown" => {
-                    extensions.push("md");
-                    extensions.push("markdown");
-                    extensions.push("mdown");
-                }
-                "javascript" => extensions.push("js"),
-                "jsx" => extensions.push("jsx"),
-                "typescript" => extensions.push("ts"),
-                "tsx" => extensions.push("tsx"),
-                "rust" => extensions.push("rs"),
-                "go" => extensions.push("go"),
-                "shell" => {
-                    extensions.push("sh");
-                    extensions.push("bash");
-                }
-                "text" => return None, // text matches everything, no exclude needed
-                _ => {
-                    // Unknown type, can't filter
-                    return None;
-                }
-            }
-        }
-
-        if extensions.is_empty() {
-            return None;
-        }
-
-        // Create a regex pattern that matches files we want to EXCLUDE
-        // Since regex doesn't support lookahead, we'll list common file extensions to EXCLUDE
-        // that are NOT in our allowed list
-
-        // Common file extensions that might be in a repo
-        let all_common_extensions = vec![
-            "py", "pyi", "js", "jsx", "ts", "tsx", "json", "yaml", "yml", "toml", "md", "markdown",
-            "mdown", "txt", "rst", "xml", "html", "css", "scss", "sh", "bash", "zsh", "fish", "c",
-            "cpp", "h", "hpp", "rs", "go", "java", "kt", "rb", "php", "pl", "lua", "r", "sql",
-            "proto", "graphql", "vue", "svelte",
-        ];
-
-        // Filter out extensions that are in our allowed list
-        let excluded_extensions: Vec<&&str> = all_common_extensions
+        let hooks: Vec<_> = migration
+            .stages
             .iter()
-            .filter(|ext| !extensions.contains(&ext.to_string().as_str()))
+            .filter(|(stage, _)| *stage != "pre-commit" && *stage != "manual")
             .collect();
-
-        if excluded_extensions.is_empty() {
-            // If we'd exclude nothing, don't add an exclude pattern
-            return None;
+        if !hooks.is_empty() || manual.is_some() {
+            writeln!(out, "\nhooks {{").unwrap();
+            for (stage, steps) in hooks {
+                writeln!(out, "  [\"{stage}\"] {{").unwrap();
+                writeln!(out, "    steps {{").unwrap();
+                render_steps(&mut out, steps, stage, 3);
+                writeln!(out, "    }}").unwrap();
+                writeln!(out, "  }}").unwrap();
+            }
+            if manual.is_some() {
+                writeln!(out, "  // pre-commit `manual` hooks").unwrap();
+                writeln!(out, "  [\"check\"] {{ steps {{ ...manual_steps }} }}").unwrap();
+                writeln!(out, "  [\"fix\"] {{ steps {{ ...manual_steps }} }}").unwrap();
+            }
+            writeln!(out, "}}").unwrap();
         }
+        out
+    }
+}
 
-        // Build pattern to match files with extensions NOT in our list
-        let mut patterns: Vec<String> = excluded_extensions
+fn render_steps(out: &mut String, steps: &IndexMap<String, Step>, stage: &str, depth: usize) {
+    let pad = "  ".repeat(depth);
+    for (name, step) in steps {
+        let key = format!("{pad}[{}]", pkl_str(name));
+        let exclude = step.exclude.as_ref().map(|e| match e {
+            Exclude::Global => format!("{pad}  exclude = excluded\n"),
+            Exclude::Regex(re) => format!("{pad}  exclude = {}\n", pkl_regex(re)),
+        });
+        match &step.action {
+            Action::Builtin(builtin) => match exclude {
+                None => writeln!(out, "{key} = Builtins.{builtin}").unwrap(),
+                Some(exclude) => {
+                    write!(out, "{key} = (Builtins.{builtin}) {{\n{exclude}{pad}}}\n").unwrap()
+                }
+            },
+            Action::Command { glob, types, check } => {
+                writeln!(out, "{key} {{").unwrap();
+                if let Some(glob) = glob {
+                    writeln!(out, "{pad}  glob = {}", pkl_regex(glob)).unwrap();
+                }
+                if !types.is_empty() {
+                    let types: Vec<_> = types.iter().map(|t| pkl_str(t)).collect();
+                    writeln!(out, "{pad}  types = List({})", types.join(", ")).unwrap();
+                }
+                if let Some(exclude) = exclude {
+                    out.push_str(&exclude);
+                }
+                writeln!(out, "{pad}  check = {}", pkl_str(check)).unwrap();
+                writeln!(out, "{pad}}}").unwrap();
+            }
+            Action::Delegate(reason) => {
+                writeln!(out, "{pad}// {reason}").unwrap();
+                writeln!(
+                    out,
+                    "{key} = precommit({}, {})",
+                    pkl_str(&sh_quote(&step.hook_id)),
+                    pkl_str(stage)
+                )
+                .unwrap();
+            }
+        }
+    }
+}
+
+fn convert(config: &PreCommitConfig) -> Migration {
+    let mut migration = Migration::default();
+    let global_exclude = non_empty(&config.exclude, "^$");
+    migration.global_exclude = global_exclude.map(str::to_string);
+    migration.fail_fast = config.fail_fast;
+    let global_files = non_empty(&config.files, "");
+
+    let installed: IndexSet<&str> = if config.default_install_hook_types.is_empty() {
+        IndexSet::from(["pre-commit"])
+    } else {
+        config
+            .default_install_hook_types
             .iter()
-            .map(|ext| format!(r"\.{}$", ext))
-            .collect();
+            .map(|s| normalize_stage(s))
+            .collect()
+    };
+    let mut unsupported: IndexMap<String, IndexSet<String>> = IndexMap::new();
 
-        // Add common lock/config files that don't have standard extensions
-        // These are typically not source code files
-        let special_files = vec![
-            r"uv\.lock$",
-            r"Cargo\.lock$",
-            r"package-lock\.json$",
-            r"yarn\.lock$",
-            r"pnpm-lock\.yaml$",
-            r"poetry\.lock$",
-            r"Gemfile\.lock$",
-            r"Pipfile\.lock$",
-        ];
-
-        // Only add special files if they would be excluded (not in our allowed extensions)
-        for special in special_files {
-            patterns.push(special.to_string());
+    // Collect steps per stage in config order, then name them.
+    let mut pending: IndexMap<String, Vec<Step>> = IndexMap::new();
+    for repo in &config.repos {
+        if repo.repo == "meta" {
+            continue;
         }
-
-        let exclude_pattern = patterns.join("|");
-
-        Some(exclude_pattern)
-    }
-
-    /// Ensure hook IDs are unique by adding suffixes for duplicates
-    fn make_unique_hook_id(id: &str, existing_ids: &mut HashSet<String>) -> String {
-        if !existing_ids.contains(id) {
-            existing_ids.insert(id.to_string());
-            return id.to_string();
-        }
-
-        // Find a unique suffix
-        let mut counter = 2;
-        loop {
-            let unique_id = format!("{}-{}", id, counter);
-            if !existing_ids.contains(&unique_id) {
-                existing_ids.insert(unique_id.clone());
-                return unique_id;
-            }
-            counter += 1;
-        }
-    }
-
-    /// Add default exclude pattern (.hk/) to an existing exclude pattern
-    fn add_default_exclude(existing_exclude: Option<String>) -> Option<String> {
-        const DEFAULT_EXCLUDE: &str = r"^\.hk/";
-
-        match existing_exclude {
-            Some(existing) if !existing.is_empty() => {
-                Some(format!("{}|{}", existing, DEFAULT_EXCLUDE))
-            }
-            _ => Some(DEFAULT_EXCLUDE.to_string()),
-        }
-    }
-
-    fn hook_id_to_tool(&self, hook_id: &str) -> String {
-        match hook_id {
-            "black" | "flake8" | "isort" | "mypy" | "pylint" => hook_id.to_string(),
-            "ruff" => "ruff".to_string(),
-            "prettier" | "eslint" => hook_id.to_string(),
-            "rustfmt" | "cargo-fmt" => "rust".to_string(),
-            "clippy" => "rust".to_string(),
-            "shellcheck" | "shfmt" => hook_id.to_string(),
-            "rubocop" => "ruby".to_string(),
-            "gofmt" | "goimports" | "golangci-lint" | "go-vet" => "go".to_string(),
-            "yamllint" => "yamllint".to_string(),
-            "hadolint" => "hadolint".to_string(),
-            "terraform-fmt" | "terraform_fmt" | "terraform_validate" => "terraform".to_string(),
-            "tflint" | "terraform_tflint" => "tflint".to_string(),
-            "terraform_docs" => "terraform-docs".to_string(),
-            "terragrunt_fmt" => "terragrunt".to_string(),
-            "stylelint" => "node".to_string(),
-            "markdownlint" => "node".to_string(),
-            "actionlint" => "actionlint".to_string(),
-            _ => hook_id.to_string(),
-        }
-    }
-
-    fn get_builtin_map(&self) -> HashMap<&'static str, &'static str> {
-        let mut map = HashMap::new();
-
-        // Python
-        map.insert("black", "black");
-        map.insert("flake8", "flake8");
-        map.insert("isort", "isort");
-        map.insert("mypy", "mypy");
-        map.insert("pylint", "pylint");
-        map.insert("ruff", "ruff");
-
-        // JavaScript/TypeScript
-        map.insert("prettier", "prettier");
-        map.insert("eslint", "eslint");
-        map.insert("standard", "standard_js");
-
-        // Rust
-        map.insert("rustfmt", "rustfmt");
-        map.insert("cargo-fmt", "cargo_fmt");
-        map.insert("clippy", "cargo_clippy");
-        map.insert("cargo-check", "cargo_check");
-        map.insert("fmt", "rustfmt");
-
-        // Go
-        map.insert("gofmt", "go_fmt");
-        map.insert("goimports", "go_imports");
-        map.insert("golangci-lint", "golangci_lint");
-        map.insert("go-vet", "go_vet");
-
-        // Ruby
-        map.insert("rubocop", "rubocop");
-
-        // Shell
-        map.insert("shellcheck", "shellcheck");
-        map.insert("shfmt", "shfmt");
-
-        // YAML
-        map.insert("yamllint", "yamllint");
-
-        // Docker
-        map.insert("hadolint", "hadolint");
-
-        // Terraform
-        map.insert("terraform-fmt", "terraform");
-        map.insert("terraform_fmt", "terraform");
-        map.insert("terraform_docs", "terraform_docs");
-        map.insert("terraform_validate", "terraform_validate");
-        map.insert("tflint", "tf_lint");
-        map.insert("terraform_tflint", "tf_lint");
-        // Upstream `terragrunt_validate` runs terraform validate through
-        // terragrunt, so it has no counterpart here and is left unmapped.
-        map.insert("terragrunt_fmt", "terragrunt_hcl_fmt");
-
-        // CSS
-        map.insert("stylelint", "stylelint");
-
-        // Markdown
-        map.insert("markdownlint", "markdown_lint");
-
-        // GitHub Actions
-        map.insert("actionlint", "actionlint");
-
-        // pre-commit-hooks utilities
-        map.insert("trailing-whitespace", "trailing_whitespace");
-        map.insert("end-of-file-fixer", "newlines");
-        map.insert("check-yaml", "yamllint");
-        map.insert("check-json", "jq");
-        map.insert("check-toml", "taplo");
-        map.insert("check-merge-conflict", "check_merge_conflict");
-        map.insert("check-case-conflict", "check_case_conflict");
-        map.insert("mixed-line-ending", "mixed_line_ending");
-        map.insert(
-            "check-executables-have-shebangs",
-            "check_executables_have_shebangs",
-        );
-        map.insert(
-            "check-shebang-scripts-are-executable",
-            "check_shebang_scripts_are_executable",
-        );
-        map.insert("check-symlinks", "check_symlinks");
-        map.insert("destroyed-symlinks", "destroyed_symlinks");
-        map.insert("forbid-submodules", "forbid_submodules");
-        map.insert("check-byte-order-marker", "byte_order_marker");
-        map.insert("check-added-large-files", "check_added_large_files");
-        map.insert("check-ast", "python_check_ast");
-        map.insert("debug-statements", "python_debug_statements");
-        map.insert("detect-private-key", "detect_private_key");
-        map.insert("no-commit-to-branch", "no_commit_to_branch");
-        map.insert("fix-byte-order-marker", "byte_order_marker");
-
-        map
-    }
-
-    /// Vendor external repositories referenced in the config
-    async fn vendor_repos(
-        &self,
-        config: &PreCommitConfig,
-    ) -> Result<HashMap<String, VendoredRepo>> {
-        let mut vendored = HashMap::new();
-
-        for repo in &config.repos {
-            // Skip local and meta repos, and repos that don't need vendoring
-            if repo.repo == "local"
-                || repo.repo == "meta"
-                || Self::is_github_precommit_hooks(&repo.repo)
-            {
-                continue;
-            }
-
-            // Check if we need to vendor this repo (if it has unknown hooks)
-            let needs_vendoring = repo.hooks.iter().any(|h| !self.is_known_hook(&h.id));
-
-            if !needs_vendoring {
-                continue;
-            }
-
-            // Create vendor directory structure
-            let vendor_name = Self::repo_url_to_vendor_name(&repo.repo);
-            let vendor_path = PathBuf::from(".hk/vendors").join(&vendor_name);
-
-            // Create the vendor directory
-            std::fs::create_dir_all(&vendor_path)?;
-
-            info!("Vendoring repository: {}", repo.repo);
-
-            // Clone or download the repo
-            if let Err(e) = self
-                .download_repo(&repo.repo, repo.rev.as_deref(), &vendor_path)
-                .await
-            {
-                warn!(
-                    "Failed to vendor {}: {}. Hooks will need manual configuration.",
-                    repo.repo, e
-                );
-                // Clean up partial clone
-                let _ = std::fs::remove_dir_all(&vendor_path);
-                continue;
-            }
-
-            // Remove .git directory to save space
-            let git_dir = vendor_path.join(".git");
-            if git_dir.exists() {
-                let _ = std::fs::remove_dir_all(&git_dir);
-            }
-
-            // Make scripts executable
-            Self::make_scripts_executable(&vendor_path)?;
-
-            // Parse the .pre-commit-hooks.yaml file
-            let hooks_yaml_path = vendor_path.join(".pre-commit-hooks.yaml");
-            let hooks = if hooks_yaml_path.exists() {
-                let yaml_content = xx::file::read_to_string(&hooks_yaml_path)?;
-                serde_yaml::from_str::<Vec<PreCommitHookDefinition>>(&yaml_content)?
-            } else {
-                warn!(
-                    "No .pre-commit-hooks.yaml found in {}, generating basic wrappers",
-                    repo.repo
-                );
-                // Generate basic hook definitions from the config
-                repo.hooks
+        for hook in &repo.hooks {
+            // Stages the hook asks for explicitly always count. Defaults only
+            // apply to installed git hooks, and without `default_stages` only
+            // to those that pass changed files: elsewhere pre-commit gives
+            // file hooks nothing to check.
+            let manifest = manifest_stage(&hook.id).filter(|_| repo.repo != "local");
+            let mut stages: IndexSet<&str> = if !hook.stages.is_empty() {
+                hook.stages.iter().map(|s| normalize_stage(s)).collect()
+            } else if let Some(stage) = manifest {
+                IndexSet::from([stage])
+            } else if !config.default_stages.is_empty() {
+                config
+                    .default_stages
                     .iter()
-                    .map(|h| PreCommitHookDefinition {
-                        id: h.id.clone(),
-                        name: h.name.clone(),
-                        entry: h.entry.clone().unwrap_or_else(|| h.id.clone()),
-                        language: h.language.clone().unwrap_or_else(|| "system".to_string()),
-                        files: h.files.clone(),
-                        types: h.types.clone(),
-                        pass_filenames: h.pass_filenames,
-                    })
+                    .map(|s| normalize_stage(s))
+                    .filter(|s| installed.contains(s))
+                    .collect()
+            } else {
+                installed
+                    .iter()
+                    .copied()
+                    .filter(|s| FILE_STAGES.contains(s))
                     .collect()
             };
+            stages.retain(|stage| {
+                let supported = STAGES.contains(stage);
+                if !supported {
+                    unsupported
+                        .entry(stage.to_string())
+                        .or_default()
+                        .insert(hook.id.clone());
+                }
+                supported
+            });
 
-            // Generate the hooks.pkl file for this vendor
-            self.generate_vendor_pkl(&vendor_path, &hooks, &repo.repo)?;
-
-            vendored.insert(
-                repo.repo.clone(),
-                VendoredRepo {
-                    url: repo.repo.clone(),
-                    name: vendor_name,
-                    vendor_path,
-                    hooks,
-                },
-            );
-        }
-
-        Ok(vendored)
-    }
-
-    /// Check if this is the standard pre-commit hooks repo
-    fn is_github_precommit_hooks(url: &str) -> bool {
-        url.contains("github.com/pre-commit/pre-commit-hooks")
-            || url.contains("github.com/pre-commit/mirrors-")
-            || url.contains("github.com/psf/")
-            || url.contains("github.com/PyCQA/")
-            || url.contains("github.com/asottile/")
-    }
-
-    /// Download a repository to the vendor path
-    async fn download_repo(&self, url: &str, rev: Option<&str>, dest: &Path) -> Result<()> {
-        // Use git clone for GitHub URLs
-        if url.starts_with("https://") || url.starts_with("git@") {
-            let mut cmd = std::process::Command::new("git");
-            cmd.arg("clone");
-            cmd.arg("--depth=1");
-
-            if let Some(rev) = rev {
-                cmd.arg("--branch").arg(rev);
+            let (action, exclude) = convert_hook(repo, hook, global_exclude, global_files);
+            for stage in stages {
+                // Message hooks receive the commit message file, not staged files.
+                let message_hook = matches!(stage, "commit-msg" | "prepare-commit-msg");
+                // At post-* and pre-rebase, pre-commit passes no files, so only
+                // `always_run` hooks run. Remote hooks may set it in their
+                // manifest, so the runner decides for those.
+                let fileless = !message_hook && stage != "manual" && !FILE_STAGES.contains(&stage);
+                if fileless && !hook.always_run && !matches!(action, Action::Delegate(_)) {
+                    continue;
+                }
+                let action = match &action {
+                    Action::Builtin(b) => Action::Builtin(b),
+                    Action::Command { check, .. } if message_hook => Action::Command {
+                        glob: None,
+                        types: vec![],
+                        check: check.replace("{{files}}", "{{commit_msg_file}}"),
+                    },
+                    Action::Command { check, .. } if fileless => Action::Command {
+                        glob: None,
+                        types: vec![],
+                        check: check.replace(" {{files}}", ""),
+                    },
+                    Action::Command { glob, types, check } => Action::Command {
+                        glob: glob.clone(),
+                        types: types.clone(),
+                        check: check.clone(),
+                    },
+                    Action::Delegate(r) => Action::Delegate(r.clone()),
+                };
+                pending.entry(stage.to_string()).or_default().push(Step {
+                    hook_id: hook.id.clone(),
+                    action,
+                    exclude: if message_hook || fileless {
+                        None
+                    } else {
+                        exclude.clone()
+                    },
+                });
             }
-
-            cmd.arg(url).arg(dest);
-
-            let output = cmd.output()?;
-            if !output.status.success() {
-                bail!(
-                    "Failed to clone repository {}: {}",
-                    url,
-                    String::from_utf8_lossy(&output.stderr)
-                );
-            }
-        } else {
-            bail!("Unsupported repository URL format: {}", url);
         }
-
-        Ok(())
     }
 
-    /// Convert a repository URL to a vendor directory name
-    fn repo_url_to_vendor_name(url: &str) -> String {
-        // Extract repo name from URL
-        // e.g., https://github.com/Lucas-C/pre-commit-hooks -> Lucas-C-pre-commit-hooks
-        url.trim_end_matches('/')
-            .split('/')
-            .rev()
-            .take(2)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect::<Vec<_>>()
-            .join("-")
-            .replace('.', "-")
+    for (stage, ids) in unsupported {
+        migration.warnings.push(format!(
+            "hk has no {stage} hook, so these hooks will not run at that stage: {}",
+            ids.into_iter().collect::<Vec<_>>().join(", ")
+        ));
     }
 
-    /// Convert a repository URL to an import name
-    fn repo_url_to_import_name(url: &str) -> String {
-        // Convert to valid Pkl identifier
-        // e.g., https://github.com/Lucas-C/pre-commit-hooks -> Vendors_Lucas_C_pre_commit_hooks
-        let vendor_name = Self::repo_url_to_vendor_name(url).replace(['-', '.'], "_");
-        format!(
-            "Vendors_{}",
-            vendor_name
-                .chars()
-                .filter(|c| c.is_alphanumeric() || *c == '_')
-                .collect::<String>()
-        )
+    for (stage, steps) in pending {
+        // `pre-commit run <id>` runs every hook with that id, so a delegated
+        // id takes over all of its entries in the stage.
+        let mut delegated: IndexMap<String, String> = IndexMap::new();
+        for step in &steps {
+            if let Action::Delegate(reason) = &step.action {
+                delegated
+                    .entry(step.hook_id.clone())
+                    .or_insert_with(|| reason.clone());
+            }
+        }
+        let named = migration.stages.entry(stage).or_default();
+        for mut step in steps {
+            if let Some(reason) = delegated.get(&step.hook_id) {
+                if named.contains_key(&step.hook_id) {
+                    continue;
+                }
+                step.action = Action::Delegate(reason.clone());
+                step.exclude = None;
+                named.insert(step.hook_id.clone(), step);
+                continue;
+            }
+            let mut name = step.hook_id.clone();
+            let mut n = 2;
+            while named.contains_key(&name) {
+                name = format!("{}-{n}", step.hook_id);
+                n += 1;
+            }
+            named.insert(name, step);
+        }
+    }
+    migration
+}
+
+/// Treat a missing value or pre-commit's default as unset.
+fn non_empty<'a>(value: &'a Option<String>, default: &str) -> Option<&'a str> {
+    value
+        .as_deref()
+        .map(str::trim_end)
+        .filter(|v| !v.is_empty() && *v != default)
+}
+
+/// Decide how to run one hook, returning the action and its exclude regex.
+fn convert_hook(
+    repo: &Repo,
+    hook: &Hook,
+    global_exclude: Option<&str>,
+    global_files: Option<&str>,
+) -> (Action, Option<Exclude>) {
+    let delegate = |reason: String| (Action::Delegate(reason), None);
+
+    if global_files.is_some() {
+        return delegate("the top-level `files` filter has no hk equivalent".into());
+    }
+    let hook_exclude = non_empty(&hook.exclude, "^$");
+    let exclude = match (hook_exclude, global_exclude) {
+        (Some(a), Some(b)) => Some(Exclude::Regex(format!("{}|{}", group(a), group(b)))),
+        (Some(a), None) => Some(Exclude::Regex(a.to_string())),
+        (None, Some(_)) => Some(Exclude::Global),
+        (None, None) => None,
+    };
+    let exclude_re = match &exclude {
+        Some(Exclude::Regex(re)) => Some(re.as_str()),
+        Some(Exclude::Global) => global_exclude,
+        None => None,
+    };
+    if let Some(exclude) = exclude_re
+        && regex::Regex::new(exclude).is_err()
+    {
+        return delegate(
+            "its `exclude` regex uses syntax hk's regex engine does not support".into(),
+        );
     }
 
-    /// Generate a hooks.pkl file for a vendored repository
-    fn generate_vendor_pkl(
-        &self,
-        vendor_path: &Path,
-        hooks: &[PreCommitHookDefinition],
-        repo_url: &str,
-    ) -> Result<()> {
-        let version = env!("CARGO_PKG_VERSION");
-        let mut pkl_content = String::new();
-        pkl_content.push_str("// Auto-generated hooks from vendored repository\n");
-        pkl_content.push_str(&format!("// Source: {}\n\n", repo_url));
-
-        // Use package URL for Config.pkl to match the main hk.pkl
-        if let Some(ref root) = self.hk_pkl_root {
-            // Vendor hooks.pkl is at .hk/vendors/<vendor-name>/hooks.pkl
-            // So we need to go up 3 levels (../../..) to reach project root
-            // then apply the hk_pkl_root path
-            let vendor_path = if root.starts_with("../") {
-                // Convert ../pkl to ../../../../pkl (3 more ../ for vendor directory depth)
-                // Remove the leading ../ and add ../../../../
-                let without_prefix = root.strip_prefix("../").unwrap_or(root);
-                format!("../../../../{}", without_prefix)
-            } else {
-                // If absolute or package URL, use as-is
-                root.clone()
-            };
-            pkl_content.push_str(&format!("import \"{}/Config.pkl\"\n\n", vendor_path));
-        } else {
-            pkl_content.push_str(&format!(
-                "import \"package://github.com/jdx/hk/releases/download/v{}/hk@{}#/Config.pkl\"\n\n",
-                version, version
+    if repo.repo == "local" {
+        let language = hook.language.as_deref().unwrap_or("system");
+        if !matches!(
+            language,
+            "system" | "script" | "unsupported" | "unsupported_script" | "fail"
+        ) {
+            return delegate(format!(
+                "pre-commit sets up a {language} environment for this hook"
             ));
         }
-
-        for hook in hooks {
-            let hook_id_snake = hook.id.replace('-', "_");
-            pkl_content.push_str(&format!("{} = new Config.Step {{\n", hook_id_snake));
-
-            // Add glob pattern if specified
-            if let Some(ref files) = hook.files {
-                let escaped_files = Self::escape_for_pkl(files);
-                pkl_content.push_str(&format!("    glob = \"{}\"\n", escaped_files));
-            }
-
-            // Build command path
-            let pass_filenames = hook.pass_filenames.unwrap_or(true);
-
-            // For pygrep hooks, use grep with the pattern
-            let (cmd, needs_prefix) = if hook.language == "pygrep" {
-                // The entry is a regex pattern - use rg (ripgrep) with PCRE2 for advanced regex features
-                let pattern = &hook.entry;
-                let cmd = if pass_filenames {
-                    format!("rg --color=never --pcre2 -n '{}' {{{{files}}}}", pattern)
-                } else {
-                    format!("rg --color=never --pcre2 -n '{}'", pattern)
-                };
-                (cmd, false) // No prefix needed
-            } else if hook.language == "python" {
-                // Check if this is a local Python script (starts with ./ or ../)
-                let entry_path = vendor_path.join(&hook.entry);
-                if entry_path.exists() && hook.entry.ends_with(".py") {
-                    // Use uv run for local Python scripts - it handles both regular scripts and PEP 723
-                    let relative_entry = format!(
-                        ".hk/vendors/{}/{}",
-                        Self::repo_url_to_vendor_name(repo_url),
-                        hook.entry
-                    );
-                    let cmd = if pass_filenames {
-                        format!("uv run {} {{{{files}}}}", relative_entry)
-                    } else {
-                        format!("uv run {}", relative_entry)
-                    };
-                    (cmd, false) // No prefix needed, uv run handles dependencies
-                } else {
-                    // Try to find the Python module based on the entry point
-                    let module_name = Self::find_python_module(vendor_path, &hook.entry);
-                    if let Some(module) = module_name {
-                        let vendor_name = Self::repo_url_to_vendor_name(repo_url);
-                        // Use uv to install dependencies if needed, then run the module
-                        let install_check = format!(
-                            "[ -d .hk/vendors/{}/.venv ] || (cd .hk/vendors/{} && uv venv && uv pip install -e .)",
-                            vendor_name, vendor_name
-                        );
-                        // Use absolute path to python to avoid cd which breaks relative file paths
-                        let python_path = format!(".hk/vendors/{}/.venv/bin/python", vendor_name);
-                        let module_path = if pass_filenames {
-                            format!(
-                                "{} && {} -m {} {{{{files}}}}",
-                                install_check, python_path, module
-                            )
-                        } else {
-                            format!("{} && {} -m {}", install_check, python_path, module)
-                        };
-                        (module_path, false) // No prefix needed, we're calling python directly
-                    } else {
-                        // Fallback to entry name with prefix
-                        let cmd = if pass_filenames {
-                            format!("{} {{{{files}}}}", hook.entry)
-                        } else {
-                            hook.entry.clone()
-                        };
-                        (cmd, true) // Need mise x prefix
-                    }
-                }
-            } else if hook.language == "node" {
-                // For Node.js hooks, try to find the package and use npx
-                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
-                let package_name = Self::find_node_package_name(vendor_path);
-
-                let node_cmd = if let Some(pkg_name) = package_name {
-                    // Check for node_modules and install if needed, then run npx
-                    let install_check = format!(
-                        "[ -d .hk/vendors/{}/node_modules ] || (cd .hk/vendors/{} && npm install --silent --no-audit --no-fund)",
-                        vendor_name, vendor_name
-                    );
-                    if pass_filenames {
-                        format!(
-                            "{} && npx --prefix .hk/vendors/{} {} {{{{files}}}}",
-                            install_check, vendor_name, pkg_name
-                        )
-                    } else {
-                        format!(
-                            "{} && npx --prefix .hk/vendors/{} {}",
-                            install_check, vendor_name, pkg_name
-                        )
-                    }
-                } else {
-                    // Fallback to entry name
-                    if pass_filenames {
-                        format!("{} {{{{files}}}}", hook.entry)
-                    } else {
-                        hook.entry.clone()
-                    }
-                };
-                (node_cmd, false) // No prefix needed, we're calling npx directly
-            } else if hook.language == "golang" {
-                // For Go hooks, install via go install and use the binary from GOPATH/bin
-                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
-                // Create isolated GOPATH in the vendor directory
-                let gopath = format!(".hk/vendors/{}/.gopath", vendor_name);
-                let install_check = format!(
-                    "[ -d {}/bin ] || (export GOPATH=$(pwd)/{} && cd .hk/vendors/{} && go install ./...)",
-                    gopath, gopath, vendor_name
-                );
-                // Use the binary name from entry, which should be in GOPATH/bin
-                let binary_name = hook.entry.split('/').next_back().unwrap_or(&hook.entry);
-                let go_cmd = if pass_filenames {
-                    format!(
-                        "{} && {}/bin/{} {{{{files}}}}",
-                        install_check, gopath, binary_name
-                    )
-                } else {
-                    format!("{} && {}/bin/{}", install_check, gopath, binary_name)
-                };
-                (go_cmd, false) // No prefix needed, we're calling the binary directly
-            } else if hook.language == "ruby" {
-                // For Ruby hooks, build and install the gem
-                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
-                let gem_home = format!(".hk/vendors/{}/.gem-home", vendor_name);
-                let install_check = format!(
-                    "[ -d {}/bin ] || (cd .hk/vendors/{} && gem build *.gemspec && gem install --no-document --install-dir $(pwd)/.gem-home --bindir $(pwd)/.gem-home/bin *.gem)",
-                    gem_home, vendor_name
-                );
-                // Use the entry as the binary name, with GEM_HOME set and bin directory in PATH
-                let ruby_cmd = if pass_filenames {
-                    format!(
-                        "{} && GEM_HOME=$(pwd)/{} GEM_PATH= PATH=$(pwd)/{}/bin:$PATH {}/bin/{} {{{{files}}}}",
-                        install_check, gem_home, gem_home, gem_home, hook.entry
-                    )
-                } else {
-                    format!(
-                        "{} && GEM_HOME=$(pwd)/{} GEM_PATH= PATH=$(pwd)/{}/bin:$PATH {}/bin/{}",
-                        install_check, gem_home, gem_home, gem_home, hook.entry
-                    )
-                };
-                (ruby_cmd, false) // No prefix needed, we're calling the binary directly
-            } else if hook.language == "swift" {
-                // For Swift hooks, build the package and use the binary from .build/release
-                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
-                let build_dir = format!(".hk/vendors/{}/.swift_env/.build/release", vendor_name);
-                let install_check = format!(
-                    "[ -d {} ] || (cd .hk/vendors/{} && swift build -c release --build-path .swift_env/.build)",
-                    build_dir, vendor_name
-                );
-                // Extract the binary name from entry (e.g., "swift-format format --in-place" -> "swift-format")
-                let binary_name = hook.entry.split_whitespace().next().unwrap_or(&hook.entry);
-                // Get any additional arguments from entry
-                let entry_args = hook
-                    .entry
-                    .split_whitespace()
-                    .skip(1)
-                    .collect::<Vec<_>>()
-                    .join(" ");
-                let swift_cmd = if pass_filenames {
-                    if entry_args.is_empty() {
-                        format!(
-                            "{} && {}/{} {{{{files}}}}",
-                            install_check, build_dir, binary_name
-                        )
-                    } else {
-                        format!(
-                            "{} && {}/{} {} {{{{files}}}}",
-                            install_check, build_dir, binary_name, entry_args
-                        )
-                    }
-                } else if entry_args.is_empty() {
-                    format!("{} && {}/{}", install_check, build_dir, binary_name)
-                } else {
-                    format!(
-                        "{} && {}/{} {}",
-                        install_check, build_dir, binary_name, entry_args
-                    )
-                };
-                (swift_cmd, false) // No prefix needed, we're calling the binary directly
-            } else {
-                // For non-Python/Node/Go/Ruby/Swift hooks, use the entry directly
-                let entry_path = vendor_path.join(&hook.entry);
-                let relative_entry = if entry_path.exists() {
-                    format!(
-                        ".hk/vendors/{}/{}",
-                        Self::repo_url_to_vendor_name(repo_url),
-                        hook.entry
-                    )
-                } else {
-                    hook.entry.clone()
-                };
-
-                let cmd = if pass_filenames {
-                    format!("{} {{{{files}}}}", relative_entry)
-                } else {
-                    relative_entry.clone()
-                };
-
-                // Determine if prefix is needed based on language
-                let needs_prefix = matches!(hook.language.as_str(), "node" | "ruby" | "rust");
-                (cmd, needs_prefix)
-            };
-
-            // Add prefix if needed
-            if needs_prefix {
-                match hook.language.as_str() {
-                    "python" => {
-                        pkl_content.push_str("    prefix = \"mise x python@latest --\"\n");
-                    }
-                    "node" => {
-                        pkl_content.push_str("    prefix = \"mise x node@latest --\"\n");
-                    }
-                    _ => {}
-                }
-            }
-
-            // Detect if this is a fixer or checker based on hook name/description
-            let is_fixer = Self::is_fixer_hook(&hook.id, hook.name.as_deref());
-
-            // Escape the command for Pkl string literals
-            let escaped_cmd = Self::escape_for_pkl(&cmd);
-
-            if is_fixer {
-                // Fixers get both check and fix commands
-                pkl_content.push_str(&format!("    check = \"{}\"\n", escaped_cmd));
-                pkl_content.push_str(&format!("    fix = \"{}\"\n", escaped_cmd));
-            } else {
-                // Checkers only get check command
-                pkl_content.push_str(&format!("    check = \"{}\"\n", escaped_cmd));
-            }
-
-            pkl_content.push_str("}\n\n");
+        let Some(entry) = hook.entry.as_deref() else {
+            return delegate("local hook has no `entry`".into());
+        };
+        if !hook.exclude_types.is_empty() {
+            return delegate("`exclude_types` has no hk equivalent".into());
         }
-
-        let pkl_path = vendor_path.join("hooks.pkl");
-        xx::file::write(pkl_path, pkl_content)?;
-
-        Ok(())
-    }
-
-    /// Escape a string for use in Pkl string literals
-    /// Pkl supports these escape sequences: \n \r \t \" \\
-    /// We need to escape backslashes so that regex patterns like \[ become \\[
-    /// Also escape newlines as \n since Pkl strings must be on a single line
-    fn escape_for_pkl(s: &str) -> String {
-        s.replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r")
-            .replace('\t', "\\t")
-    }
-
-    /// Detect if a hook is a fixer (modifies files) or a checker (read-only)
-    /// based on naming conventions
-    fn is_fixer_hook(id: &str, name: Option<&str>) -> bool {
-        // Common patterns indicating a fixer
-        let fixer_patterns = [
-            "remove-",
-            "fix-",
-            "format-",
-            "sort-",
-            "insert-",
-            "add-",
-            "delete-",
-            "replace-",
-            "reorder-",
-            "normalize-",
-            "trim-",
-            "strip-",
-            "clean-",
-            "update-",
-            "transform-",
-        ];
-
-        let checker_patterns = [
-            "forbid-",
-            "check-",
-            "detect-",
-            "validate-",
-            "verify-",
-            "lint-",
-            "scan-",
-            "find-",
-        ];
-
-        // Check ID for patterns
-        for pattern in &fixer_patterns {
-            if id.starts_with(pattern) {
-                return true;
-            }
-        }
-
-        for pattern in &checker_patterns {
-            if id.starts_with(pattern) {
-                return false;
-            }
-        }
-
-        // Check name if available
-        if let Some(name_str) = name {
-            let name_lower = name_str.to_lowercase();
-            if name_lower.contains("remover")
-                || name_lower.contains("fixer")
-                || name_lower.contains("formatter")
-                || name_lower.contains("replace")
-                || name_lower.contains("format ")
-            {
-                return true;
-            }
-
-            if name_lower.contains("checker")
-                || name_lower.contains("validator")
-                || name_lower.contains("linter")
-            {
-                return false;
-            }
-        }
-
-        // Default to checker (safer - doesn't modify files)
-        false
-    }
-
-    /// Make Python scripts and other executable files in the vendor directory executable
-    fn make_scripts_executable(vendor_path: &Path) -> Result<()> {
-        #[cfg(unix)]
+        let mut types = match translate_types(&hook.types, &hook.types_or) {
+            Ok(types) => types,
+            Err(reason) => return delegate(reason),
+        };
+        let mut glob = non_empty(&hook.files, "").map(str::to_string);
+        if let Some(glob) = &glob
+            && regex::Regex::new(glob).is_err()
         {
-            use std::os::unix::fs::PermissionsExt;
-
-            // Find all Python files and shell scripts
-            if let Ok(entries) = std::fs::read_dir(vendor_path) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file()
-                        && let Some(ext) = path.extension()
-                        && (ext == "py" || ext == "sh")
-                    {
-                        // Make executable
-                        if let Ok(metadata) = std::fs::metadata(&path) {
-                            let mut perms = metadata.permissions();
-                            perms.set_mode(perms.mode() | 0o111); // Add execute permission
-                            let _ = std::fs::set_permissions(&path, perms);
-                        }
-                    }
-                }
-            }
-
-            // Also check pre_commit_hooks subdirectory if it exists
-            let hooks_dir = vendor_path.join("pre_commit_hooks");
-            if hooks_dir.exists()
-                && let Ok(entries) = std::fs::read_dir(&hooks_dir)
-            {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file()
-                        && let Some(ext) = path.extension()
-                        && ext == "py"
-                        && let Ok(metadata) = std::fs::metadata(&path)
-                    {
-                        let mut perms = metadata.permissions();
-                        perms.set_mode(perms.mode() | 0o111);
-                        let _ = std::fs::set_permissions(&path, perms);
-                    }
-                }
-            }
+            return delegate(
+                "its `files` regex uses syntax hk's regex engine does not support".into(),
+            );
         }
-
-        #[cfg(not(unix))]
-        {
-            // On Windows, executable permissions are not managed the same way.
-            // Files with .py, .sh extensions are typically executed through their interpreters.
-            let _ = vendor_path; // Suppress unused variable warning
+        let pass_filenames = hook.pass_filenames.unwrap_or(true);
+        if hook.always_run && pass_filenames {
+            // hk skips a step when no files match; pre-commit runs it anyway
+            return delegate("`always_run` with filenames has no hk equivalent".into());
         }
-
-        Ok(())
+        if hook.always_run {
+            glob = None;
+            types.clear();
+        }
+        let check = if language == "fail" {
+            format!(
+                "printf '%s\\n' {} {{{{files}}}} >&2; exit 1",
+                sh_quote(entry.trim())
+            )
+        } else {
+            let mut cmd = entry.trim().to_string();
+            for arg in &hook.args {
+                cmd.push(' ');
+                cmd.push_str(&sh_quote(arg));
+            }
+            if pass_filenames {
+                cmd.push_str(" {{files}}");
+            }
+            cmd
+        };
+        return (Action::Command { glob, types, check }, exclude);
     }
 
-    /// Find the Python module name for a given entry point
-    /// E.g., "forbid_crlf" -> Some("pre_commit_hooks.forbid_crlf")
-    fn find_python_module(vendor_path: &Path, entry: &str) -> Option<String> {
-        // Check if there's a pre_commit_hooks directory with the module
-        let hooks_dir = vendor_path.join("pre_commit_hooks");
-        if hooks_dir.exists() {
-            // Convert entry to potential module name
-            let module_file = format!("{}.py", entry);
-            if hooks_dir.join(&module_file).exists() {
-                return Some(format!("pre_commit_hooks.{}", entry));
-            }
+    let Some(builtin) = find_builtin(&repo.repo, &hook.id) else {
+        return delegate(format!("no hk builtin for {} from {}", hook.id, repo.repo));
+    };
+    let redundant = redundant_args(builtin);
+    let args: Vec<&str> = hook
+        .args
+        .iter()
+        .map(String::as_str)
+        .filter(|a| !redundant.contains(a))
+        .collect();
+    let mut overrides = Vec::new();
+    if !args.is_empty() {
+        overrides.push(format!("args ({})", args.join(" ")));
+    }
+    for (set, field) in [
+        (hook.files.is_some(), "files"),
+        (hook.entry.is_some(), "entry"),
+        (hook.language.is_some(), "language"),
+        (!hook.types.is_empty(), "types"),
+        (!hook.types_or.is_empty(), "types_or"),
+        (!hook.exclude_types.is_empty(), "exclude_types"),
+        (
+            !hook.additional_dependencies.is_empty(),
+            "additional_dependencies",
+        ),
+        (hook.language_version.is_some(), "language_version"),
+        (hook.pass_filenames.is_some(), "pass_filenames"),
+        (hook.always_run, "always_run"),
+    ] {
+        if set {
+            overrides.push(format!("`{field}`"));
         }
+    }
+    if exclude.is_some() && BUILTINS_WITH_EXCLUDE.contains(&builtin) {
+        overrides.push("`exclude`".into());
+    }
+    if !overrides.is_empty() {
+        return delegate(format!(
+            "Builtins.{builtin} does not support this hook's {}",
+            overrides.join(", ")
+        ));
+    }
+    (Action::Builtin(builtin), exclude)
+}
 
-        // Check for other common Python package structures
-        // Look for setup.py to parse entry_points (basic parsing)
-        let setup_py = vendor_path.join("setup.py");
-        if setup_py.exists()
-            && let Ok(content) = std::fs::read_to_string(&setup_py)
-        {
-            // Look for entry_points console_scripts
-            if let Some(start) = content.find("\"console_scripts\"") {
-                let after_start = &content[start..];
-                // Look for the entry pattern
-                let entry_pattern = format!("{} = ", entry);
-                if let Some(entry_pos) = after_start.find(&entry_pattern) {
-                    let after_entry = &after_start[entry_pos + entry_pattern.len()..];
-                    // Extract module:function
-                    if let Some(end_quote) = after_entry.find('"') {
-                        let module_func = &after_entry[..end_quote];
-                        // Split on : to get module name
-                        if let Some(module) = module_func.split(':').next() {
-                            return Some(module.to_string());
-                        }
-                    }
-                }
-            }
+fn find_builtin(repo_url: &str, id: &str) -> Option<&'static str> {
+    let url = repo_url
+        .trim_end_matches('/')
+        .trim_end_matches(".git")
+        .to_lowercase();
+    let mut parts = url.rsplit(['/', ':']);
+    let name = parts.next()?;
+    let owner = parts.next()?;
+    let slug = format!("{owner}/{name}");
+    let (_, hooks) = BUILTINS.iter().find(|(repo, _)| *repo == slug)?;
+    hooks
+        .iter()
+        .find(|(hook, _)| *hook == id)
+        .map(|(_, builtin)| *builtin)
+}
+
+/// Convert pre-commit `types` (all must match) and `types_or` (any must
+/// match) to hk `types`, which match if any type matches.
+fn translate_types(
+    types: &[String],
+    types_or: &[String],
+) -> std::result::Result<Vec<String>, String> {
+    let all: Vec<&str> = types
+        .iter()
+        .map(String::as_str)
+        .filter(|t| *t != "file")
+        .collect();
+    let any: Vec<&str> = if types_or.iter().any(|t| t == "file") {
+        vec![]
+    } else {
+        types_or.iter().map(String::as_str).collect()
+    };
+    let wanted: Vec<&str> = match (all.as_slice(), any.is_empty()) {
+        ([], _) => any,
+        ([t], true) => vec![*t],
+        (["text"], false) => any,
+        ([a, b], true) if *a == "text" || *b == "text" => {
+            vec![if *a == "text" { *b } else { *a }]
         }
+        _ => {
+            return Err(format!(
+                "`types: [{}]` combined with `types_or` has no hk equivalent",
+                types.join(", ")
+            ));
+        }
+    };
+    wanted
+        .into_iter()
+        .map(|t| {
+            hk_type(t)
+                .map(str::to_string)
+                .ok_or_else(|| format!("hk has no `{t}` file type"))
+        })
+        .collect()
+}
 
-        None
+/// Wrap a regex so it can be joined with `|`. Verbose patterns need a
+/// newline so a trailing comment does not swallow the closing paren.
+fn group(re: &str) -> String {
+    if re.contains('\n') {
+        format!("(?:{re}\n)")
+    } else {
+        format!("(?:{re})")
+    }
+}
+
+fn pkl_regex(re: &str) -> String {
+    format!("Regex({})", pkl_str(re))
+}
+
+/// Format a Pkl string literal, using raw (`#"..."#`) delimiters when the
+/// value contains backslashes or quotes so regexes read as written.
+fn pkl_str(value: &str) -> String {
+    let value = value.trim_end_matches('\n');
+    let multiline = value.contains('\n');
+    let pounds = if value.contains('\\') || value.contains('"') {
+        (1..)
+            .map(|n| "#".repeat(n))
+            .find(|p| !value.contains(&format!("\"{p}")) && !value.contains(&format!("\\{p}")))
+            .unwrap()
+    } else {
+        String::new()
+    };
+    if multiline {
+        format!("{pounds}\"\"\"\n{value}\n\"\"\"{pounds}")
+    } else {
+        format!("{pounds}\"{value}\"{pounds}")
+    }
+}
+
+/// Quote a word for sh only when needed.
+fn sh_quote(word: &str) -> String {
+    if !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./=:,+@%".contains(c))
+    {
+        word.to_string()
+    } else {
+        format!("'{}'", word.replace('\'', r"'\''"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn migrate(yaml: &str) -> Migration {
+        convert(&serde_yaml::from_str(yaml).unwrap())
     }
 
-    /// Find the Node.js package name from package.json
-    fn find_node_package_name(vendor_path: &Path) -> Option<String> {
-        let package_json = vendor_path.join("package.json");
-        if package_json.exists()
-            && let Ok(content) = std::fs::read_to_string(&package_json)
-        {
-            // Parse package.json to find the name
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
-                && let Some(name) = json.get("name")
-                && let Some(name_str) = name.as_str()
-            {
-                return Some(name_str.to_string());
-            }
-        }
-        None
+    fn step<'a>(m: &'a Migration, stage: &str, name: &str) -> &'a Step {
+        &m.stages[stage][name]
+    }
+
+    #[test]
+    fn known_hooks_become_builtins() {
+        let m = migrate(
+            r#"
+repos:
+- repo: https://github.com/astral-sh/ruff-pre-commit.git
+  rev: v0.6.0
+  hooks:
+  - id: ruff
+    args: [--fix]
+  - id: ruff-format
+- repo: git@github.com:pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: trailing-whitespace
+    exclude: ^docs/
+"#,
+        );
+        assert!(matches!(
+            step(&m, "pre-commit", "ruff").action,
+            Action::Builtin("ruff")
+        ));
+        assert!(matches!(
+            step(&m, "pre-commit", "ruff-format").action,
+            Action::Builtin("ruff_format")
+        ));
+        let ws = step(&m, "pre-commit", "trailing-whitespace");
+        assert!(matches!(ws.action, Action::Builtin("trailing_whitespace")));
+        assert!(matches!(&ws.exclude, Some(Exclude::Regex(re)) if re == "^docs/"));
+    }
+
+    #[test]
+    fn hook_ids_only_match_their_repo() {
+        let m = migrate(
+            r#"
+repos:
+- repo: https://github.com/example/hooks
+  rev: v1
+  hooks:
+  - id: black
+"#,
+        );
+        assert!(matches!(
+            step(&m, "pre-commit", "black").action,
+            Action::Delegate(_)
+        ));
+    }
+
+    #[test]
+    fn builtin_with_args_is_delegated() {
+        let m = migrate(
+            r#"
+repos:
+- repo: https://github.com/psf/black
+  rev: 24.1.0
+  hooks:
+  - id: black
+    args: [--line-length, 100]
+"#,
+        );
+        let Action::Delegate(reason) = &step(&m, "pre-commit", "black").action else {
+            panic!("expected delegation");
+        };
+        assert!(reason.contains("--line-length 100"), "{reason}");
+    }
+
+    #[test]
+    fn local_system_hook_becomes_command() {
+        let m = migrate(
+            r#"
+exclude: ^vendor/
+repos:
+- repo: local
+  hooks:
+  - id: pytest
+    entry: uv run pytest
+    language: system
+    types: [python]
+    args: ["-k", "not slow"]
+    stages: [pre-push]
+"#,
+        );
+        let s = step(&m, "pre-push", "pytest");
+        let Action::Command { glob, types, check } = &s.action else {
+            panic!("expected command");
+        };
+        assert_eq!(glob, &None);
+        assert_eq!(types, &vec!["python".to_string()]);
+        assert_eq!(check, "uv run pytest -k 'not slow' {{files}}");
+        assert!(matches!(s.exclude, Some(Exclude::Global)));
+    }
+
+    #[test]
+    fn delegated_duplicate_ids_run_once() {
+        let m = migrate(
+            r#"
+repos:
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.0.0
+  hooks:
+  - id: mypy
+  - id: mypy
+    additional_dependencies: [types-requests]
+"#,
+        );
+        let steps = &m.stages["pre-commit"];
+        assert_eq!(steps.len(), 1);
+        assert!(matches!(steps["mypy"].action, Action::Delegate(_)));
+    }
+
+    #[test]
+    fn legacy_stage_names_are_normalized() {
+        let m = migrate(
+            r#"
+repos:
+- repo: local
+  hooks:
+  - id: a
+    entry: a
+    language: system
+    stages: [commit, push, manual]
+"#,
+        );
+        assert!(m.stages.contains_key("pre-commit"));
+        assert!(m.stages.contains_key("pre-push"));
+        assert!(m.stages.contains_key("manual"));
+        assert!(!m.stages.contains_key("commit-msg"));
+    }
+
+    #[test]
+    fn default_stages_skip_message_hooks() {
+        let m = migrate(
+            r#"
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: trailing-whitespace
+"#,
+        );
+        assert!(m.stages["pre-commit"].contains_key("trailing-whitespace"));
+        assert!(m.stages["pre-push"].contains_key("trailing-whitespace"));
+        assert!(!m.stages.contains_key("commit-msg"));
+    }
+
+    #[test]
+    fn post_stages_only_keep_always_run_hooks() {
+        let m = migrate(
+            r#"
+default_install_hook_types: [pre-commit, post-checkout]
+default_stages: [pre-commit, post-checkout]
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: trailing-whitespace
+- repo: local
+  hooks:
+  - id: lint
+    entry: lint
+    language: system
+  - id: sync
+    entry: ./sync.sh
+    language: script
+    files: \.lock$
+    always_run: true
+    pass_filenames: false
+"#,
+        );
+        let post = &m.stages["post-checkout"];
+        assert_eq!(post.keys().collect::<Vec<_>>(), vec!["sync"]);
+        let Action::Command { glob, check, .. } = &post["sync"].action else {
+            panic!("expected command");
+        };
+        assert_eq!(glob, &None);
+        assert_eq!(check, "./sync.sh");
+        assert!(m.stages["pre-commit"].contains_key("lint"));
+    }
+
+    #[test]
+    fn stage_defaults() {
+        let m = migrate(
+            r#"
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [commit-msg]
+repos:
+- repo: local
+  hooks:
+  - id: commitlint
+    entry: lint-msg
+    language: system
+"#,
+        );
+        // explicit default_stages are kept, and hook ids don't imply stages for local hooks
+        assert!(m.stages["commit-msg"].contains_key("commitlint"));
+        assert!(!m.stages.contains_key("pre-commit"));
+
+        let m = migrate(
+            r#"
+repos:
+- repo: local
+  hooks:
+  - id: commitlint
+    entry: lint-files
+    language: system
+"#,
+        );
+        assert!(m.stages["pre-commit"].contains_key("commitlint"));
+        assert!(!m.stages.contains_key("commit-msg"));
+    }
+
+    #[test]
+    fn always_run_with_filenames_is_delegated() {
+        let m = migrate(
+            r#"
+repos:
+- repo: local
+  hooks:
+  - id: a
+    entry: a
+    language: system
+    always_run: true
+  - id: b
+    entry: b
+    language: system
+    files: \.py$
+    always_run: true
+    pass_filenames: false
+"#,
+        );
+        assert!(matches!(
+            step(&m, "pre-commit", "a").action,
+            Action::Delegate(_)
+        ));
+        let Action::Command { glob, check, .. } = &step(&m, "pre-commit", "b").action else {
+            panic!("expected command");
+        };
+        assert_eq!(glob, &None);
+        assert_eq!(check, "b");
+    }
+
+    #[test]
+    fn types_translation() {
+        let s = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            translate_types(&s(&["file", "python"]), &[]),
+            Ok(s(&["python"]))
+        );
+        assert_eq!(
+            translate_types(&s(&["text", "ts"]), &[]),
+            Ok(s(&["typescript"]))
+        );
+        assert_eq!(
+            translate_types(&[], &s(&["yaml", "json"])),
+            Ok(s(&["yaml", "json"]))
+        );
+        assert!(translate_types(&s(&["python", "executable"]), &[]).is_err());
+        assert!(translate_types(&s(&["cobol"]), &[]).is_err());
+    }
+
+    #[test]
+    fn pkl_strings() {
+        assert_eq!(pkl_str("plain"), "\"plain\"");
+        assert_eq!(pkl_str(r"^docs/.*\.md$"), r##"#"^docs/.*\.md$"#"##);
+        assert_eq!(pkl_str("a\"#b\\"), "##\"a\"#b\\\"##");
+        assert_eq!(pkl_str("(?x)\n^a\n"), "\"\"\"\n(?x)\n^a\n\"\"\"");
     }
 }

@@ -1,5 +1,344 @@
 # Changelog
 
+## [2.5.0](https://github.com/jdx/hk/compare/v2.4.0..v2.5.0) - 2026-10-04
+
+### 🚀 Features
+
+- **(builtins)** keep CRLF files CRLF in trailing_whitespace, newlines, and mixed_line_ending by [@jdx](https://github.com/jdx) in [#1621](https://github.com/jdx/hk/pull/1621)
+- **(builtins)** report revive findings as diagnostics by [@jdx](https://github.com/jdx) in [#1626](https://github.com/jdx/hk/pull/1626)
+- **(builtins)** report buf_lint and clang_format findings as diagnostics by [@jdx](https://github.com/jdx) in [#1627](https://github.com/jdx/hk/pull/1627)
+- **(builtins)** report actionlint findings as diagnostics by [@jdx](https://github.com/jdx) in [#1623](https://github.com/jdx/hk/pull/1623)
+- **(builtins)** report flake8 findings as diagnostics by [@jdx](https://github.com/jdx) in [#1624](https://github.com/jdx/hk/pull/1624)
+- **(builtins)** report mypy, mado and six more linters as diagnostics by [@jdx](https://github.com/jdx) in [#1630](https://github.com/jdx/hk/pull/1630)
+- **(config)** read column-less, prefixed and summarized output with the gcc diagnostic format by [@jdx](https://github.com/jdx) in [#1629](https://github.com/jdx/hk/pull/1629)
+- **(init)** detect 47 more tools from their config files by [@jdx](https://github.com/jdx) in [#1576](https://github.com/jdx/hk/pull/1576)
+- **(mcp)** let agents run checks on changed or unstaged files only by [@jdx](https://github.com/jdx) in [#1600](https://github.com/jdx/hk/pull/1600)
+- **(mcp)** let agents run checks on staged files only by [@jdx](https://github.com/jdx) in [#1640](https://github.com/jdx/hk/pull/1640)
+- **(test)** assert normalized diagnostics in step tests by [@jdx](https://github.com/jdx) in [#1622](https://github.com/jdx/hk/pull/1622)
+- **(validate)** warn about misspelled properties, no-op depends, unmatchable globs and loose min_hk_version by [@jdx](https://github.com/jdx) in [#1590](https://github.com/jdx/hk/pull/1590)
+
+### 🐛 Bug Fixes
+
+- **(agent)** make --safe refuse a hook report with unknown or destructive effect by [@jdx](https://github.com/jdx) in [#1573](https://github.com/jdx/hk/pull/1573)
+- **(agent)** make Claude Code and Codex Stop hooks block with a valid decision and exit 0 by [@jdx](https://github.com/jdx) in [#1604](https://github.com/jdx/hk/pull/1604)
+- **(builtins)** check large files and case conflicts in binary files by [@jdx](https://github.com/jdx) in [#1571](https://github.com/jdx/hk/pull/1571)
+- **(check)** fail on unknown --step names instead of passing after running no steps by [@jdx](https://github.com/jdx) in [#1603](https://github.com/jdx/hk/pull/1603)
+- **(ci)** fail test:bats on a mistyped path or when no tests run by [@jdx](https://github.com/jdx) in [#1563](https://github.com/jdx/hk/pull/1563)
+- **(cli)** keep generated output exit codes on closed pipes by [@jdx](https://github.com/jdx) in [#1540](https://github.com/jdx/hk/pull/1540)
+- **(cli)** print failures once, without Rust locations or a bogus fix hint by [@jdx](https://github.com/jdx) in [#1588](https://github.com/jdx/hk/pull/1588)
+- **(config)** union user skip_steps, skip_hooks and hide_warnings with the project's, and warn when hk.local.pkl replaces hk.pkl by [@jdx](https://github.com/jdx) in [#1596](https://github.com/jdx/hk/pull/1596)
+- **(config)** honor top-level jobs, accept documented HK_STASH values, and fix the hk config crash by [@jdx](https://github.com/jdx) in [#1594](https://github.com/jdx/hk/pull/1594)
+- **(config)** honor subproject skip_steps and warn about ignored subproject settings by [@jdx](https://github.com/jdx) in [#1615](https://github.com/jdx/hk/pull/1615)
+- **(docs)** stop sidebar links showing through the logo when it bounces by [@jdx](https://github.com/jdx) in [#1554](https://github.com/jdx/hk/pull/1554)
+- **(git)** skip tracked files with non-UTF-8 names with a warning in --all, --glob, --from-ref and file arguments by [@jdx](https://github.com/jdx) in [#1613](https://github.com/jdx/hk/pull/1613)
+- **(init)** explain why a hook is missing and print next steps after hk init by [@jdx](https://github.com/jdx) in [#1564](https://github.com/jdx/hk/pull/1564)
+- **(install)** correct the --force-local message when a global install exists by [@jdx](https://github.com/jdx) in [#1616](https://github.com/jdx/hk/pull/1616)
+- **(install)** keep hook commands working after hk upgrades and under a minimal PATH by [@jdx](https://github.com/jdx) in [#1597](https://github.com/jdx/hk/pull/1597)
+- **(mcp)** make cancel_run stop the real hk run instead of sticking in cancelling by [@jdx](https://github.com/jdx) in [#1607](https://github.com/jdx/hk/pull/1607)
+- **(mcp)** cap step output in structured results and report pre-run failures by [@jdx](https://github.com/jdx) in [#1605](https://github.com/jdx/hk/pull/1605)
+- **(mcp)** include untracked and binary files in get_diff and surface capture errors by [@jdx](https://github.com/jdx) in [#1601](https://github.com/jdx/hk/pull/1601)
+- **(pkl)** load configs that amend the v1 package schema by [@jdx](https://github.com/jdx) in [#1560](https://github.com/jdx/hk/pull/1560)
+- **(pkl)** hide mirror credentials in failed package download errors by [@jdx](https://github.com/jdx) in [#1620](https://github.com/jdx/hk/pull/1620)
+- **(pkl)** show file, line and column for Pkl syntax errors, including in imported files by [@jdx](https://github.com/jdx) in [#1598](https://github.com/jdx/hk/pull/1598)
+- **(stash)** preserve CRLF when restoring unstaged files by [@jdx](https://github.com/jdx) in [#1535](https://github.com/jdx/hk/pull/1535)
+- **(stash)** restore unstaged text over a staged binary file no step changed by [@jdx](https://github.com/jdx) in [#1580](https://github.com/jdx/hk/pull/1580)
+- **(stash)** stash tracked files whose names start with a colon by [@jdx](https://github.com/jdx) in [#1614](https://github.com/jdx/hk/pull/1614)
+- **(stash)** keep a staged edit when its worktree copy was reverted to HEAD by [@jdx](https://github.com/jdx) in [#1602](https://github.com/jdx/hk/pull/1602)
+- **(stash)** keep a merge or cherry-pick in progress when stashing the worktree by [@jdx](https://github.com/jdx) in [#1609](https://github.com/jdx/hk/pull/1609)
+- **(stash)** restore hk's own stash entry by commit id so concurrent stashes are never touched by [@jdx](https://github.com/jdx) in [#1637](https://github.com/jdx/hk/pull/1637)
+- **(stash)** serialize stash and restore across hk processes and linked worktrees by [@jdx](https://github.com/jdx) in [#1636](https://github.com/jdx/hk/pull/1636)
+- **(stash)** restore stashed changes when hk is terminated and recover them after a crash by [@jdx](https://github.com/jdx) in [#1641](https://github.com/jdx/hk/pull/1641)
+- **(step)** isolate formatter patches from concurrent commands and staging by [@nettlesh](https://github.com/nettlesh) in [#1392](https://github.com/jdx/hk/pull/1392)
+- **(step)** keep interactive steps in hk's process group by [@jdx](https://github.com/jdx) in [#1557](https://github.com/jdx/hk/pull/1557)
+- **(step)** say "command not found" when an argv step's tool is not installed by [@jdx](https://github.com/jdx) in [#1579](https://github.com/jdx/hk/pull/1579)
+- **(step)** add exec_ok for condition shell tests and stop exec panicking by [@jdx](https://github.com/jdx) in [#1610](https://github.com/jdx/hk/pull/1610)
+- **(step)** run steps that depend on a step with no files instead of hanging by [@jdx](https://github.com/jdx) in [#1584](https://github.com/jdx/hk/pull/1584)
+- **(step)** select files in directories whose names contain brackets or braces by [@jdx](https://github.com/jdx) in [#1592](https://github.com/jdx/hk/pull/1592)
+- **(step)** keep percent signs in file names literal under cmd.exe by [@jdx](https://github.com/jdx) in [#1568](https://github.com/jdx/hk/pull/1568)
+- **(step)** end tools left running by a fail-fast cancel on Windows by [@jdx](https://github.com/jdx) in [#1625](https://github.com/jdx/hk/pull/1625)
+- **(step)** exclude a directory's files when a step or group exclude names it by [@jdx](https://github.com/jdx) in [#1606](https://github.com/jdx/hk/pull/1606)
+- **(step)** report diagnostic paths relative to the repository root for steps that run in a subdirectory by [@jdx](https://github.com/jdx) in [#1638](https://github.com/jdx/hk/pull/1638)
+- **(step)** run a custom shell directly on Windows and accept a quoted shell path by [@jdx](https://github.com/jdx) in [#1628](https://github.com/jdx/hk/pull/1628)
+- **(step)** batch Windows cmd shims below the cmd.exe line limit by [@jdx](https://github.com/jdx) in [#1618](https://github.com/jdx/hk/pull/1618)
+- **(step)** type scripts whose env shebang has -S, options or variables by [@jdx](https://github.com/jdx) in [#1611](https://github.com/jdx/hk/pull/1611)
+- **(step)** keep diagnostics from every started job when another job fails by [@jdx](https://github.com/jdx) in [#1642](https://github.com/jdx/hk/pull/1642)
+- **(step)** report steps stopped by Ctrl-C as cancelled instead of failed by [@jdx](https://github.com/jdx) in [#1643](https://github.com/jdx/hk/pull/1643)
+- **(util)** check files whose 8 KiB probe splits a multibyte char and keys in non-UTF-8 files by [@jdx](https://github.com/jdx) in [#1572](https://github.com/jdx/hk/pull/1572)
+- **(util)** accept git-generated merge and revert titles in check-conventional-commit by [@jdx](https://github.com/jdx) in [#1566](https://github.com/jdx/hk/pull/1566)
+- **(util)** check protected branch, exec bits and case conflicts against git's own state by [@jdx](https://github.com/jdx) in [#1577](https://github.com/jdx/hk/pull/1577)
+- **(util)** keep non-UTF-8 files and symlinks intact in fix-smart-quotes by [@jdx](https://github.com/jdx) in [#1570](https://github.com/jdx/hk/pull/1570)
+- **(validate)** reject dependency cycles, self-dependencies and invalid step globs at load time by [@jdx](https://github.com/jdx) in [#1567](https://github.com/jdx/hk/pull/1567)
+
+### 📚 Documentation
+
+- **(builtins)** show file selectors, script commands and options in the catalogue by [@jdx](https://github.com/jdx) in [#1562](https://github.com/jdx/hk/pull/1562)
+- **(config)** explain where diagnostics come from and when a step needs diagnostic_format by [@jdx](https://github.com/jdx) in [#1619](https://github.com/jdx/hk/pull/1619)
+- **(config)** document sharing one configuration across repositories by [@jdx](https://github.com/jdx) in [#1591](https://github.com/jdx/hk/pull/1591)
+- **(settings)** describe pkl rewrite and CA variables for the built-in evaluator by [@jdx](https://github.com/jdx) in [#1617](https://github.com/jdx/hk/pull/1617)
+- refresh competitor benchmark for v2.4.0 by [@jdx](https://github.com/jdx) in [#1536](https://github.com/jdx/hk/pull/1536)
+- replace the sea shanty with Bound for the Main and its music video by [@jdx](https://github.com/jdx) in [#1541](https://github.com/jdx/hk/pull/1541)
+- take the new shanty video down if its poster cannot be published by [@jdx](https://github.com/jdx) in [#1543](https://github.com/jdx/hk/pull/1543)
+- add a sea shanty mode to the landing page by [@jdx](https://github.com/jdx) in [#1544](https://github.com/jdx/hk/pull/1544)
+- keep a link to the sea shanty when scripting is off by [@jdx](https://github.com/jdx) in [#1545](https://github.com/jdx/hk/pull/1545)
+- generate the pirate CLI reference from the English one by [@jdx](https://github.com/jdx) in [#1550](https://github.com/jdx/hk/pull/1550)
+- restrict AI replies on Discussions and Issues and note the instant ban by [@jdx](https://github.com/jdx) in [#1559](https://github.com/jdx/hk/pull/1559)
+- start getting started with a first configuration that needs no linters by [@jdx](https://github.com/jdx) in [#1561](https://github.com/jdx/hk/pull/1561)
+- correct stash, type-checker lock, and patch-apply descriptions by [@jdx](https://github.com/jdx) in [#1578](https://github.com/jdx/hk/pull/1578)
+- add lefthook and husky with lint-staged migration guides by [@jdx](https://github.com/jdx) in [#1589](https://github.com/jdx/hk/pull/1589)
+
+### ⚡ Performance
+
+- **(config)** evaluate only the builtins a config uses, cutting cold load from ~1.4 s to ~0.07 s by [@jdx](https://github.com/jdx) in [#1581](https://github.com/jdx/hk/pull/1581)
+- **(git)** skip the untracked scan for runs that name their files, e.g. hk check FILE by [@jdx](https://github.com/jdx) in [#1587](https://github.com/jdx/hk/pull/1587)
+- **(stash)** restore unstaged files no step changed with one git process by [@jdx](https://github.com/jdx) in [#1612](https://github.com/jdx/hk/pull/1612)
+- **(stash)** stop rescanning the worktree before stashing, saving ~80 ms on large repos by [@jdx](https://github.com/jdx) in [#1595](https://github.com/jdx/hk/pull/1595)
+- **(step)** resolve workspace_indicator once per directory, saving ~120 ms per step in large monorepos by [@jdx](https://github.com/jdx) in [#1599](https://github.com/jdx/hk/pull/1599)
+- **(step)** run read-only check-only steps side by side in fix hooks by [@jdx](https://github.com/jdx) in [#1586](https://github.com/jdx/hk/pull/1586)
+- use mimalloc as the global allocator by [@jdx](https://github.com/jdx) in [#1635](https://github.com/jdx/hk/pull/1635)
+- bump pklr to 4.0.0 (hk validate 14x faster) by [@jdx](https://github.com/jdx) in [#1644](https://github.com/jdx/hk/pull/1644)
+
+### 🧪 Testing
+
+- **(windows)** run every e2e-win case and cover fix, staging and installed hooks by [@jdx](https://github.com/jdx) in [#1574](https://github.com/jdx/hk/pull/1574)
+- fix bats teardown and event-order flakes and surface CI retries by [@jdx](https://github.com/jdx) in [#1583](https://github.com/jdx/hk/pull/1583)
+
+### 🛡️ Security
+
+- **(deps)** update dependency esbuild to ^0.28.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1548](https://github.com/jdx/hk/pull/1548)
+- **(step)** refuse check_diff patches that write inside .git by [@jdx](https://github.com/jdx) in [#1585](https://github.com/jdx/hk/pull/1585)
+- point the landing page at the sea shanty by [@jdx](https://github.com/jdx) in [#1542](https://github.com/jdx/hk/pull/1542)
+- turn sea shanty mode into a pirate edition of the whole docs site by [@jdx](https://github.com/jdx) in [#1549](https://github.com/jdx/hk/pull/1549)
+- document what hk executes, global hook reach, and --safe limits in a security model page by [@jdx](https://github.com/jdx) in [#1575](https://github.com/jdx/hk/pull/1575)
+- bring the sea shanty contributing page up to date with the English page by [@jdx](https://github.com/jdx) in [#1631](https://github.com/jdx/hk/pull/1631)
+
+### 🔍 Other Changes
+
+- **(benchmark)** gate hook stashing and cold config loads in the perf check by [@jdx](https://github.com/jdx) in [#1608](https://github.com/jdx/hk/pull/1608)
+- **(entire)** store checkpoints in a private repository by [@jdx](https://github.com/jdx) in [74bd981](https://github.com/jdx/hk/commit/74bd981576eaacfd3f6b2031c67dad010b9abf2f)
+- **(entire)** commit codex session hooks by [@jdx](https://github.com/jdx) in [71966d2](https://github.com/jdx/hk/commit/71966d24e7c4511202c49c6c83ea91dcf094ab47)
+- **(entire)** commit claude session hooks by [@jdx](https://github.com/jdx) in [2298ebf](https://github.com/jdx/hk/commit/2298ebffd5703052c3cc5217709acbe7a2e271e9)
+- **(entire)** store checkpoints in a private repository by [@jdx](https://github.com/jdx) in [4a4e806](https://github.com/jdx/hk/commit/4a4e806dcce8e70d0dc57eb93a835be77127f6c1)
+- **(entire)** restore lower-cost trail findings by [@jdx](https://github.com/jdx) in [6eed674](https://github.com/jdx/hk/commit/6eed67436665fc957f35fde560fb02e5af94a3da)
+- **(install)** refuse legacy hook installs that overwrite foreign hooks or symlinks by [@jdx](https://github.com/jdx) in [#1593](https://github.com/jdx/hk/pull/1593)
+- **(release)** smoke-run every release archive before the release is created by [@jdx](https://github.com/jdx) in [#1565](https://github.com/jdx/hk/pull/1565)
+- **(security)** check RustSec advisories in CI and document gh release verify by [@jdx](https://github.com/jdx) in [#1569](https://github.com/jdx/hk/pull/1569)
+- unblock the docs deploy and stop re-rendering unchanged videos by [@jdx](https://github.com/jdx) in [#1551](https://github.com/jdx/hk/pull/1551)
+- limit each contributor to one open draft PR by [@jdx](https://github.com/jdx) in [#1555](https://github.com/jdx/hk/pull/1555)
+- lint test code by running clippy with --all-targets by [@jdx](https://github.com/jdx) in [#1582](https://github.com/jdx/hk/pull/1582)
+- combine hosted Bats configurations by [@jdx](https://github.com/jdx) in [#1633](https://github.com/jdx/hk/pull/1633)
+- skip full checks for docs-only pull requests by [@jdx](https://github.com/jdx) in [#1634](https://github.com/jdx/hk/pull/1634)
+- remove redundant package.homepage from Cargo.toml by [@jdx](https://github.com/jdx) in [#1639](https://github.com/jdx/hk/pull/1639)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1537](https://github.com/jdx/hk/pull/1537)
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1539](https://github.com/jdx/hk/pull/1539)
+- update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1546](https://github.com/jdx/hk/pull/1546)
+- update dependency aube to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1547](https://github.com/jdx/hk/pull/1547)
+- update dependency communique to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1553](https://github.com/jdx/hk/pull/1553)
+- update rust crate clx to v3.0.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1552](https://github.com/jdx/hk/pull/1552)
+- update dependency aube to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1556](https://github.com/jdx/hk/pull/1556)
+
+## [2.4.0](https://github.com/jdx/hk/compare/v2.3.1..v2.4.0) - 2026-09-28
+
+### 🚀 Features
+
+- **(builtins)** apply pinact's fixes as a patch with new hk util sarif-diff by [@jdx](https://github.com/jdx) in [#1515](https://github.com/jdx/hk/pull/1515)
+- **(builtins)** give seven formatters a check_diff with new hk util format-diff by [@jdx](https://github.com/jdx) in [#1514](https://github.com/jdx/hk/pull/1514)
+- **(builtins)** add check_diff to ruff, oxfmt, shellharden, and go_lines by [@jdx](https://github.com/jdx) in [#1516](https://github.com/jdx/hk/pull/1516)
+- **(step)** warn when a check_diff patch doesn't apply by [@jdx](https://github.com/jdx) in [#1517](https://github.com/jdx/hk/pull/1517)
+- **(step)** apply check_diff patches in hk instead of running git apply by [@jdx](https://github.com/jdx) in [#1520](https://github.com/jdx/hk/pull/1520)
+- **(test)** add "diff" step tests that require check_diff patches to apply by [@jdx](https://github.com/jdx) in [#1518](https://github.com/jdx/hk/pull/1518)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** run selene and zizmor once in fix mode by [@jdx](https://github.com/jdx) in [#1511](https://github.com/jdx/hk/pull/1511)
+- **(builtins)** let go_lines take an argv prefix by [@jdx](https://github.com/jdx) in [#1523](https://github.com/jdx/hk/pull/1523)
+- **(install)** make concurrent local installs reliable by [@jdx](https://github.com/jdx) in [#1533](https://github.com/jdx/hk/pull/1533)
+- **(step)** apply go mod tidy and isort diffs and keep carriage returns in patches by [@jdx](https://github.com/jdx) in [#1513](https://github.com/jdx/hk/pull/1513)
+- **(step)** stop finished check_diff jobs leaving a spinner on screen by [@jdx](https://github.com/jdx) in [#1530](https://github.com/jdx/hk/pull/1530)
+- **(step)** stage files created by check_diff patches by [@jdx](https://github.com/jdx) in [#1524](https://github.com/jdx/hk/pull/1524)
+
+### 📚 Documentation
+
+- refresh competitor benchmark for v2.3.0 by [@jdx](https://github.com/jdx) in [#1498](https://github.com/jdx/hk/pull/1498)
+- refresh competitor benchmark for v2.3.1 by [@jdx](https://github.com/jdx) in [#1509](https://github.com/jdx/hk/pull/1509)
+- make the docs site favicon transparent and theme-aware by [@jdx](https://github.com/jdx) in [#1510](https://github.com/jdx/hk/pull/1510)
+- show fixers sharing files under read locks in the showreel by [@jdx](https://github.com/jdx) in [#1532](https://github.com/jdx/hk/pull/1532)
+
+### ⚡ Performance
+
+- **(builtins)** apply trailing_whitespace and newlines diffs instead of rerunning them by [@jdx](https://github.com/jdx) in [#1528](https://github.com/jdx/hk/pull/1528)
+- **(fix)** run read-only check_diff steps in parallel with steps that read the same files by [@jdx](https://github.com/jdx) in [#1519](https://github.com/jdx/hk/pull/1519)
+
+### 🧪 Testing
+
+- **(builtins)** test rumdl builtins against rumdl 0.2.77 by [@jdx](https://github.com/jdx) in [#1512](https://github.com/jdx/hk/pull/1512)
+
+### 🔍 Other Changes
+
+- **(benchmark)** stop refresh pushes failing when main changes a workflow by [@jdx](https://github.com/jdx) in [#1508](https://github.com/jdx/hk/pull/1508)
+- **(benchmark)** add unused imports so ruff check has defects to fix by [@jdx](https://github.com/jdx) in [#1529](https://github.com/jdx/hk/pull/1529)
+- allow more time for hosted macOS Bats tests by [@jdx](https://github.com/jdx) in [4eae400](https://github.com/jdx/hk/commit/4eae4006f2705c336e779bf37fa913807cdcad78)
+- cache mise tools across CI jobs by [@jdx](https://github.com/jdx) in [#1526](https://github.com/jdx/hk/pull/1526)
+- restore Bats mise tools on every runner by [@jdx](https://github.com/jdx) in [#1527](https://github.com/jdx/hk/pull/1527)
+
+### 📦️ Dependency Updates
+
+- update jdx/packslip action to v1.4.0 by [@jdx](https://github.com/jdx) in [#1507](https://github.com/jdx/hk/pull/1507)
+- update rust crate ensembler to v1.1.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1497](https://github.com/jdx/hk/pull/1497)
+- update rust crate ensembler to v1.1.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1521](https://github.com/jdx/hk/pull/1521)
+- bump mbx to 1.19.0 by [@jdx](https://github.com/jdx) in [#1525](https://github.com/jdx/hk/pull/1525)
+
+## [2.3.1](https://github.com/jdx/hk/compare/v2.3.0..v2.3.1) - 2026-09-27
+
+### 🐛 Bug Fixes
+
+- **(config)** load amended steps whose tests use a local named like a StepTest property by [@jdx](https://github.com/jdx) in [#1490](https://github.com/jdx/hk/pull/1490)
+- **(stage)** run pre-commit fixers again in repositories with a split index by [@jdx](https://github.com/jdx) in [#1491](https://github.com/jdx/hk/pull/1491)
+- **(stash)** stop losing untracked and unstaged files when a filename is not valid UTF-8 by [@jdx](https://github.com/jdx) in [#1488](https://github.com/jdx/hk/pull/1488)
+- **(stash)** run hooks when the worktree has intent-to-add files by [@jdx](https://github.com/jdx) in [#1492](https://github.com/jdx/hk/pull/1492)
+- **(stash)** hide untracked files from steps when tracked files have unstaged changes by [@jdx](https://github.com/jdx) in [#1501](https://github.com/jdx/hk/pull/1501)
+
+### 📚 Documentation
+
+- refresh competitor benchmark for v2.3.0 by [@jdx](https://github.com/jdx) in [#1480](https://github.com/jdx/hk/pull/1480)
+- make the landing-page example config define the fix hook by [@jdx](https://github.com/jdx) in [#1479](https://github.com/jdx/hk/pull/1479)
+- add a one-minute showreel to the landing page by [@jdx](https://github.com/jdx) in [#1478](https://github.com/jdx/hk/pull/1478)
+
+### ⚡ Performance
+
+- **(builtins)** speed up trailing_whitespace and newlines by fixing files directly and scanning in parallel by [@jdx](https://github.com/jdx) in [#1495](https://github.com/jdx/hk/pull/1495)
+- **(builtins)** check formatted JSON and YAML files without running jq or yq on each one by [@jdx](https://github.com/jdx) in [#1489](https://github.com/jdx/hk/pull/1489)
+- **(hook)** read git status about 10 ms faster when a hook starts by [@jdx](https://github.com/jdx) in [#1484](https://github.com/jdx/hk/pull/1484)
+- **(lock)** stop fixers waiting behind jobs that share none of their files by [@jdx](https://github.com/jdx) in [#1503](https://github.com/jdx/hk/pull/1503)
+- **(release)** start hk about 0.8 ms faster on Linux by linking non-PIE by [@jdx](https://github.com/jdx) in [#1482](https://github.com/jdx/hk/pull/1482)
+- **(stage)** stop hashing the whole git index before each step stages its fixes by [@jdx](https://github.com/jdx) in [#1486](https://github.com/jdx/hk/pull/1486)
+- **(step)** stage fixes from steps that finish together with one git add by [@jdx](https://github.com/jdx) in [#1485](https://github.com/jdx/hk/pull/1485)
+- **(step)** parse check_diff output for large jobs without canonicalizing every file by [@jdx](https://github.com/jdx) in [#1487](https://github.com/jdx/hk/pull/1487)
+- **(step)** start the first linter sooner on large repos by cutting hk's per-file work by [@jdx](https://github.com/jdx) in [#1494](https://github.com/jdx/hk/pull/1494)
+- **(step)** make batched steps share --jobs instead of each starting --jobs processes by [@jdx](https://github.com/jdx) in [#1496](https://github.com/jdx/hk/pull/1496)
+
+### 🧪 Testing
+
+- **(builtins)** give the jq and yq batch test enough jobs for two batches per step by [@jdx](https://github.com/jdx) in [#1500](https://github.com/jdx/hk/pull/1500)
+- **(builtins)** run jq builtin tests against the pinned jq 1.8.1 by [@jdx](https://github.com/jdx) in [#1499](https://github.com/jdx/hk/pull/1499)
+- run backend-independent builtin tests only in the nolibgit2 suite by [@jdx](https://github.com/jdx) in [#1505](https://github.com/jdx/hk/pull/1505)
+
+### 🛡️ Security
+
+- **(config)** start every hk command about 30 ms sooner by reading cache files in one call by [@jdx](https://github.com/jdx) in [#1483](https://github.com/jdx/hk/pull/1483)
+
+### 🔍 Other Changes
+
+- **(benchmark)** add a small-commit scenario and type checkers to the competitor benchmark by [@jdx](https://github.com/jdx) in [#1493](https://github.com/jdx/hk/pull/1493)
+
+### 📦️ Dependency Updates
+
+- require Rust 1.94 to build hk by [@jdx](https://github.com/jdx) in [#1502](https://github.com/jdx/hk/pull/1502)
+- update mbx to 1.18.0 and mr-boxington-action to v1.5.0 by [@jdx](https://github.com/jdx) in [#1504](https://github.com/jdx/hk/pull/1504)
+
+## [2.3.0](https://github.com/jdx/hk/compare/v2.2.0..v2.3.0) - 2026-09-26
+
+### 🚀 Features
+
+- **(config)** add batch_min_files to set the fewest files per batch by [@jdx](https://github.com/jdx) in [#1475](https://github.com/jdx/hk/pull/1475)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** apply jq and yq check_diff patches instead of rerunning the tool by [@jdx](https://github.com/jdx) in [#1468](https://github.com/jdx/hk/pull/1468)
+- **(stash)** skip stashing before the first commit with the git CLI backend by [@jdx](https://github.com/jdx) in [#1469](https://github.com/jdx/hk/pull/1469)
+- **(step)** stop git from crashing with SIGBUS while another step rewrites a file by [@jdx](https://github.com/jdx) in [#1476](https://github.com/jdx/hk/pull/1476)
+
+### 📚 Documentation
+
+- **(benchmarks)** compare only configurations that are safe by design by [@jdx](https://github.com/jdx) in [#1465](https://github.com/jdx/hk/pull/1465)
+- **(benchmarks)** lead with results and simplify the method on the benchmarks page by [@jdx](https://github.com/jdx) in [#1472](https://github.com/jdx/hk/pull/1472)
+- refresh competitor benchmark for v2.2.0 by [@jdx](https://github.com/jdx) in [#1462](https://github.com/jdx/hk/pull/1462)
+
+### ⚡ Performance
+
+- **(release)** PGO-optimize the x86_64 musl and macOS arm64 binaries by [@jdx](https://github.com/jdx) in [#1470](https://github.com/jdx/hk/pull/1470)
+- **(step)** stage each fixer's files as soon as it finishes by [@jdx](https://github.com/jdx) in [#1466](https://github.com/jdx/hk/pull/1466)
+- **(step)** release a job slot while waiting for another step's files by [@jdx](https://github.com/jdx) in [#1473](https://github.com/jdx/hk/pull/1473)
+
+### 🛡️ Security
+
+- **(benchmark)** show each scenario's mode on the benchmarks page by [@jdx](https://github.com/jdx) in [#1467](https://github.com/jdx/hk/pull/1467)
+
+### 🔍 Other Changes
+
+- **(benchmark)** run competitors' whitespace fixers from pre-commit-hooks and isolate black's cache by [@jdx](https://github.com/jdx) in [#1463](https://github.com/jdx/hk/pull/1463)
+- **(benchmark)** measure hk's yq builtin as shipped by [@jdx](https://github.com/jdx) in [#1474](https://github.com/jdx/hk/pull/1474)
+- accept pull request titles whose description starts with an acronym by [@jdx](https://github.com/jdx) in [32f72df](https://github.com/jdx/hk/commit/32f72df4f82bc8e39c76603b24bdb863aba8808c)
+
+### 📦️ Dependency Updates
+
+- update rust crate demand to v2.3.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1477](https://github.com/jdx/hk/pull/1477)
+
+## [2.2.0](https://github.com/jdx/hk/compare/v2.1.0..v2.2.0) - 2026-09-25
+
+### 🚀 Features
+
+- **(builtins)** track `[.]rustfmt.toml` for `cargo-fmt` by [@sanga](https://github.com/sanga) in [#1446](https://github.com/jdx/hk/pull/1446)
+- **(builtins)** add renovate-deps checker by [@zeitlinger](https://github.com/zeitlinger) in [#1448](https://github.com/jdx/hk/pull/1448)
+- **(builtins)** add lychee-extended checker by [@zeitlinger](https://github.com/zeitlinger) in [#1449](https://github.com/jdx/hk/pull/1449)
+- **(check)** add `--junit-xml` report of per-step results by [@sanga](https://github.com/sanga) in [#1432](https://github.com/jdx/hk/pull/1432)
+- **(hook)** expose git hook arguments to condition expressions by [@jdx](https://github.com/jdx) in [#1445](https://github.com/jdx/hk/pull/1445)
+- **(init)** discover nested source files with ignore rules by [@zeitlinger](https://github.com/zeitlinger) in [#1403](https://github.com/jdx/hk/pull/1403)
+- **(migrate)** run unconverted pre-commit hooks through prek or pre-commit by [@jdx](https://github.com/jdx) in [#1459](https://github.com/jdx/hk/pull/1459)
+- **(step)** add svelte, vue, and astro file types by [@nettlesh](https://github.com/nettlesh) in [#1428](https://github.com/jdx/hk/pull/1428)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** fix each file separately in yq builtin by [@jdx](https://github.com/jdx) in [#1452](https://github.com/jdx/hk/pull/1452)
+- **(config)** key config cache on env vars read by pkl by [@christopher-buss](https://github.com/christopher-buss) in [#1450](https://github.com/jdx/hk/pull/1450)
+- **(config)** accept a Regex for the top-level exclude setting by [@jdx](https://github.com/jdx) in [#1460](https://github.com/jdx/hk/pull/1460)
+- **(hook)** stop staging files that another step is still fixing by [@jdx](https://github.com/jdx) in [#1453](https://github.com/jdx/hk/pull/1453)
+- **(init)** preserve existing mise configuration by [@zeitlinger](https://github.com/zeitlinger) in [#1404](https://github.com/jdx/hk/pull/1404)
+- **(init)** detect native biome and eslint configuration by [@zeitlinger](https://github.com/zeitlinger) in [#1402](https://github.com/jdx/hk/pull/1402)
+- **(step)** classify HTML-like templates and XML content as text by [@nettlesh](https://github.com/nettlesh) in [#1427](https://github.com/jdx/hk/pull/1427)
+- exit like SIGPIPE instead of aborting when output's reader closes by [@jdx](https://github.com/jdx) in [#1442](https://github.com/jdx/hk/pull/1442)
+
+### 📚 Documentation
+
+- explain git hooks and parallel checks plainly by [@jdx](https://github.com/jdx) in [#1437](https://github.com/jdx/hk/pull/1437)
+
+### ⚡ Performance
+
+- **(builtins)** keep black's cache and batch jq and yq by [@jdx](https://github.com/jdx) in [#1454](https://github.com/jdx/hk/pull/1454)
+- **(step)** batch at least 4 files per process by [@jdx](https://github.com/jdx) in [#1458](https://github.com/jdx/hk/pull/1458)
+- **(step)** fix directly unless a step opts into check_first by [@jdx](https://github.com/jdx) in [#1461](https://github.com/jdx/hk/pull/1461)
+
+### 🛡️ Security
+
+- remove Entire trail runners by [@jdx](https://github.com/jdx) in [#1443](https://github.com/jdx/hk/pull/1443)
+
+### 🔍 Other Changes
+
+- **(benchmark)** compare hk with lefthook, pre-commit and prek on speed and correct output by [@jdx](https://github.com/jdx) in [#1455](https://github.com/jdx/hk/pull/1455)
+- float jdx tools and aube on latest without a release-age delay by [@jdx](https://github.com/jdx) in [#1444](https://github.com/jdx/hk/pull/1444)
+
+### 📦️ Dependency Updates
+
+- update jdx/packslip action to v1.2.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1420](https://github.com/jdx/hk/pull/1420)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1411](https://github.com/jdx/hk/pull/1411)
+- update namespacelabs/nscloud-cache-action action to v1.7.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1424](https://github.com/jdx/hk/pull/1424)
+- update dependency aube to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1429](https://github.com/jdx/hk/pull/1429)
+- repair hk after lockfile maintenance and update mr-boxington-action to v1.4.0 by [@jdx](https://github.com/jdx) in [#1433](https://github.com/jdx/hk/pull/1433)
+- bump jdx/renovate-config workflows to c736149 by [@jdx](https://github.com/jdx) in [2c3e7e3](https://github.com/jdx/hk/commit/2c3e7e3ab89eb91fb9ec2d7ebf6818558eb9a0ad)
+- bump jdx/renovate-config workflows to aa49efc by [@jdx](https://github.com/jdx) in [e653613](https://github.com/jdx/hk/commit/e65361306cb49846737f620b9864bb870b94b9e9)
+- update rust crate usage-rs to v6.11.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1438](https://github.com/jdx/hk/pull/1438)
+- bump jdx/renovate-config workflows to 5b46432 by [@jdx](https://github.com/jdx) in [07cf695](https://github.com/jdx/hk/commit/07cf6953a761a2addc94b92c5f8307240a1ab9df)
+- pin jdx/renovate-config workflows to v1.0.0 by [@jdx](https://github.com/jdx) in [9352ba3](https://github.com/jdx/hk/commit/9352ba33f0c792397ad34564f658e7721ef0f08f)
+- update communique to 1.4.2 in mise.lock by [@jdx](https://github.com/jdx) in [b76d087](https://github.com/jdx/hk/commit/b76d0876a4553cc7e0492da7b8b01e31b72f211c)
+- update rust crate demand to v2.2.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1457](https://github.com/jdx/hk/pull/1457)
+
+### New Contributors
+
+- @christopher-buss made their first contribution in [#1450](https://github.com/jdx/hk/pull/1450)
+- @sanga made their first contribution in [#1446](https://github.com/jdx/hk/pull/1446)
+
 ## [2.1.0](https://github.com/jdx/hk/compare/v2.0.1..v2.1.0) - 2026-09-23
 
 ### 🚀 Features

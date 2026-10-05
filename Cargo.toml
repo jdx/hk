@@ -3,7 +3,6 @@ build = "build/mod.rs"
 description = "A tool for managing git hooks"
 documentation = "https://hk.jdx.dev"
 edition = "2024"
-homepage = "https://hk.jdx.dev"
 include = [
   "/src/**/*",
   "/Cargo.toml",
@@ -19,8 +18,8 @@ license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
 resolver = "3"
-rust-version = "1.91.0"
-version = "2.1.0"
+rust-version = "1.94.0"
+version = "2.5.0"
 
 [[bin]]
 name = "generate-docs"
@@ -33,6 +32,7 @@ clx                = "3"
 console            = "0.16"
 dashmap            = "6"
 demand             = "2"
+diffy              = "0.5"
 dirs               = "7"
 ensembler          = "1"
 expr-lang          = { version = "2", features = ["serde"] }
@@ -47,8 +47,9 @@ itertools          = "0.15"
 libc               = "0.2"
 log                = "0.4"
 memchr             = "2"
+mimalloc           = "0.1"
 once_cell          = "1"
-pklr               = { version = "3", default-features = false, features = ["async", "package-zip", "miette-diagnostics"] }
+pklr               = { version = "4", default-features = false, features = ["async", "package-zip", "miette-diagnostics"] }
 regex              = "1"
 rmcp               = { version = "3.1.2", features = ["transport-io"] }
 schemars           = "1"
@@ -70,13 +71,21 @@ tokio-util         = "0.7"
 toml               = "1"
 toml_edit          = { version = "0.25", default-features = false, features = ["display", "parse"] }
 tracing            = "0.1"
-tracing-error      = "0.2"
 tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 url                = "2"
 usage-rs           = { version = "6", features = ["diagnostics", "completions"] }
 xx                 = { version = "2", features = ["hash"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi-util = "0.1"
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_System_Console",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Threading",
+] }
 
 [build-dependencies]
 codegen    = "0.3"

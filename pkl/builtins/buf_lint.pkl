@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "Protocol Buffers linter"
+  project_indicators {
+    new { file = "buf.yaml" }
+    new { file = "buf.work.yaml" }
+  }
 }
 buf_lint = new Config.Step {
   glob = "**/*.proto"
@@ -13,6 +17,8 @@ buf_lint = new Config.Step {
     effect = "read"
   }
   workspace_indicator = "buf.yaml"
+  // buf lint prints `path:line:column:message` by default
+  diagnostic_format = "gcc"
   tests {
     local const testMaker = new helpers.TestMaker {
       extra_files = new Mapping<String, String> {
@@ -31,21 +37,34 @@ buf_lint = new Config.Step {
           """
       }
     }
-    ["check bad file"] =
+    local const badProto =
+      """
+      syntax = "proto3";
+
+      package weather;
+
+      enum Condition {
+        SUNNY = 0;
+        RAINY = 1;
+      }
+      """
+    ["check bad file"] = testMaker.withFilename("proto/condition.proto").checkFail(badProto, 100)
+    ["check bad file reports diagnostics"] =
       testMaker
         .withFilename("proto/condition.proto")
-        .checkFail(
-          """
-            syntax = "proto3";
-
-            package weather;
-
-            enum Condition {
-              SUNNY = 0;
-              RAINY = 1;
-            }
-          """,
+        .checkDiagnostics(
+          badProto,
           100,
+          // The test sandbox's workspace is an absolute temp directory, so buf prints
+          // absolute paths here, which the relative path below matches by its tail; a real
+          // run prints paths relative to the workspace.
+          List(new Config.StepTestDiagnostic {
+            path = "proto/condition.proto"
+            line = 6
+            column = 3
+            severity = "error"
+            message = "Enum value name \"SUNNY\" should be prefixed with \"CONDITION_\""
+          }),
         )
     ["check good file"] =
       testMaker

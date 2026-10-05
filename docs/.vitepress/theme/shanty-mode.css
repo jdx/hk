@@ -1,0 +1,1348 @@
+/* Sea shanty mode: the docs as the shanty sings them. shanty-mode.ts puts
+   `shanty-mode` on <html> while the mode is on, next to VitePress's own `dark`,
+   so there are two palettes: a chart room for the light theme and a night
+   watch for the dark one. The tokens are set on <html> because VitePress
+   derives its nav, button and search colours there. The light block excludes
+   `.dark`, so nothing in it can leak into the dark theme. Both blocks are
+   checked for contrast by showreel/test/shanty-mode.test.ts.
+
+   Every rule here needs the mode's class (or, for the ripple at the end, the
+   switch's), so the plain site never matches one. The fonts are declared for
+   every page, but a browser fetches a face only when some text uses it, and
+   only the mode's rules use them. The art is small SVG in shanty/, named once
+   below so that the build inlines each piece once. */
+
+/* Type: IM Fell for headings and labels, cut from the Fell types of the
+   1670s, and Libre Caslon Text for reading, a Caslon of the kind ships' logs
+   and charts were printed in a generation later. See fonts/README.md. The
+   Fell faces come in one weight; declaring them for every weight stops a
+   browser from smearing a false bold over them. */
+@font-face {
+  font-family: "IM Fell English";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/IMFellEnglish-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IM Fell English";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/IMFellEnglish-Italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IM Fell English SC";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/IMFellEnglishSC-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Libre Caslon Text";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/LibreCaslonText.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Libre Caslon Text";
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/LibreCaslonText-Italic.woff2") format("woff2");
+}
+
+:root.shanty-mode {
+  --hk-font-display:
+    "IM Fell English", "Iowan Old Style", "Palatino Linotype", Palatino,
+    Georgia, serif;
+  --hk-font-caps:
+    "IM Fell English SC", "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --hk-font-body:
+    "Libre Caslon Text", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --vp-font-family-base: var(--hk-font-body);
+  --vp-code-copy-copied-text-content: "Plundered!";
+  --hk-art-rope: url("./shanty/rope.svg");
+  --hk-art-wave: url("./shanty/wave.svg");
+  --hk-art-rose: url("./shanty/compass-rose.svg");
+  --hk-art-rhumb: url("./shanty/rhumb-lines.svg");
+  --hk-art-anchor: url("./shanty/anchor.svg");
+  --hk-art-serpent: url("./shanty/serpent.svg");
+  --hk-art-x: url("./shanty/x-mark.svg");
+  --hk-art-torn: url("./shanty/torn.svg");
+  --hk-art-torn-bottom: url("./shanty/torn-bottom.svg");
+  --hk-art-ship: url("./shanty/ship-small.svg");
+  --hk-art-knot: url("./shanty/knot.svg");
+  --hk-art-flag: url("./shanty/jolly-roger.svg");
+  --hk-art-flourish: url("./shanty/flourish.svg");
+  --hk-art-stars: url("./shanty/stars.svg");
+  --hk-art-quill: url("./shanty/quill.svg");
+  --hk-art-parrot: url("./shanty/parrot.svg");
+  --hk-art-log: url("./shanty/log.svg");
+  --hk-art-lighthouse: url("./shanty/lighthouse.svg");
+  --hk-art-chest: url("./shanty/chest.svg");
+  --hk-art-chest-open: url("./shanty/chest-open.svg");
+  --hk-art-bottle: url("./shanty/bottle.svg");
+}
+/* Libre Caslon's italic draws "st" as a swash ligature, which reads as a long
+   s ("ﬆash"); its roman and the Fell faces have none. So wherever the
+   reading face is set in italic, common ligatures are off. */
+:root.shanty-mode :is(em, i, cite, dfn, var, blockquote, address),
+:root.shanty-mode .VPDocFooter :is(.last-updated, .edit-link-button),
+:root.shanty-mode .hk-shanty-notice p,
+:root.shanty-mode .DocSearch-Button-Placeholder,
+:root.shanty-mode .VPLocalSearchBox .search-input,
+:root.shanty-mode .NotFound .quote {
+  font-variant-ligatures: no-common-ligatures;
+}
+
+/* Chart room: parchment, iron-gall ink and brass. The brand stays a teal, a
+   shade deeper, for the links. */
+:root:not(.dark).shanty-mode {
+  --vp-c-bg: #f5eedf;
+  --vp-c-bg-alt: #ebe0c8;
+  --vp-c-bg-soft: #efe6d2;
+  --vp-c-bg-elv: #fbf7ee;
+  --vp-c-text-1: #1f1a14;
+  --vp-c-text-2: #4d4236;
+  --vp-c-text-3: #5e5144;
+  --vp-c-brand-1: #0a5d75;
+  --vp-c-brand-2: #084e63;
+  --vp-c-brand-3: #0a5d75;
+  --vp-c-brand-soft: rgb(10 93 117 / 10%);
+  --vp-c-divider: #d8c9a8;
+  --vp-c-gutter: #d8c9a8;
+  --vp-c-border: #8f8163;
+  --vp-button-brand-text: #fff;
+  --vp-button-brand-hover-text: #fff;
+  --vp-code-block-bg: #fbf7ee;
+  --vp-code-bg: rgb(122 80 16 / 9%);
+  --hk-code-keyword: #8a4b08;
+  --hk-write-bg: rgb(138 75 8 / 10%);
+  --hk-sea-brass: #7a5010;
+  --hk-sea-ink: #1f1a14;
+  --hk-sea-mark: #a32c1c;
+  --hk-sea-rule: rgb(122 80 16 / 30%);
+  --hk-sea-tip: #1f5f41;
+  --hk-sea-tip-bg: rgb(31 95 65 / 8%);
+  --hk-sea-info: #0a5d75;
+  --hk-sea-info-bg: rgb(10 93 117 / 8%);
+  --hk-sea-warning: #7a4a05;
+  --hk-sea-warning-bg: rgb(160 110 20 / 12%);
+  --hk-sea-danger: #9e2a1c;
+  --hk-sea-danger-bg: rgb(158 42 28 / 8%);
+  --hk-sea-post: #e6d5b0;
+  --hk-sea-code-red: #b3283a;
+  --hk-sea-code-comment: #6a737d;
+  --hk-sea-shade: rgb(92 60 20 / 16%);
+  --hk-sea-rope: 0.45;
+  --hk-grain: url("./shanty/grain-light.svg");
+}
+/* Night watch: deep water by lamplight. Brand, keyword and button text stay
+   hk's, as in the music video, so check is still cyan and fix still warm. */
+:root.dark.shanty-mode {
+  --vp-c-bg: #0a1c28;
+  --vp-c-bg-alt: #071520;
+  --vp-c-bg-soft: #10293a;
+  --vp-c-bg-elv: #163449;
+  --vp-c-text-1: #f4eee3;
+  --vp-c-text-2: #c3cfd2;
+  --vp-c-text-3: #9db1b8;
+  --vp-c-divider: #24475c;
+  --vp-c-gutter: #1a3546;
+  --vp-c-border: #5a869e;
+  --vp-code-block-bg: #0d2231;
+  --vp-code-bg: rgb(240 201 135 / 9%);
+  --hk-sea-brass: #f0c987;
+  --hk-sea-ink: #f0c987;
+  --hk-sea-mark: #ff9277;
+  --hk-sea-rule: rgb(240 201 135 / 26%);
+  --hk-sea-tip: #8fdcb2;
+  --hk-sea-tip-bg: rgb(143 220 178 / 9%);
+  --hk-sea-info: #73d5df;
+  --hk-sea-info-bg: rgb(115 213 223 / 9%);
+  --hk-sea-warning: #f0c987;
+  --hk-sea-warning-bg: rgb(240 201 135 / 10%);
+  --hk-sea-danger: #ff9d8a;
+  --hk-sea-danger-bg: rgb(255 157 138 / 9%);
+  --hk-sea-post: #2a2419;
+  --hk-sea-code-red: #f97583;
+  --hk-sea-code-comment: #8f9ba8;
+  --hk-sea-shade: rgb(0 0 0 / 35%);
+  --hk-sea-rope: 0.6;
+  --hk-grain: url("./shanty/grain-dark.svg");
+}
+
+/* The chart. Grain scrolls with the page, as paper would; the compass rose,
+   its rhumb lines and the darkened edges stay put behind everything, on a
+   layer of their own, so scrolling never repaints them. */
+:root.shanty-mode body {
+  background-image: var(--hk-grain);
+  background-size: 180px 180px;
+}
+:root.dark.shanty-mode body {
+  background-image: var(--hk-art-stars), var(--hk-grain);
+  background-size:
+    320px 320px,
+    180px 180px;
+}
+:root.shanty-mode body::before,
+:root.shanty-mode body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+}
+/* The rose sits in the bottom right corner, its centre `--in` from each
+   edge, and its lines run out across the whole chart. The layer is the size
+   of the window; the art is placed in it, hanging past its edges. */
+:root.shanty-mode body::before {
+  --rose: 400px;
+  --in: 96px;
+  --at: right calc(var(--in) - var(--rose) / 2) bottom
+    calc(var(--in) - var(--rose) / 2);
+  --lines-at: right calc(var(--in) - 1400px) bottom calc(var(--in) - 1400px);
+  inset: 0;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.09;
+  -webkit-mask:
+    var(--hk-art-rose) var(--at) / var(--rose) var(--rose) no-repeat,
+    var(--hk-art-rhumb) var(--lines-at) / 2800px 2800px no-repeat;
+  mask:
+    var(--hk-art-rose) var(--at) / var(--rose) var(--rose) no-repeat,
+    var(--hk-art-rhumb) var(--lines-at) / 2800px 2800px no-repeat;
+}
+:root.dark.shanty-mode body::before {
+  opacity: 0.1;
+}
+@media (max-width: 767px) {
+  :root.shanty-mode body::before {
+    --rose: 280px;
+    --in: 40px;
+  }
+}
+/* Edges darkened as an old chart's are, and a lamp's glow at night. */
+:root.shanty-mode body::after {
+  inset: 0;
+  background: radial-gradient(
+    ellipse 90% 80% at 55% 45%,
+    transparent 55%,
+    var(--hk-sea-shade) 100%
+  );
+}
+:root.dark.shanty-mode body::after {
+  background:
+    radial-gradient(
+      ellipse 60% 50% at 50% 0%,
+      rgb(240 201 135 / 6%),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse 90% 80% at 55% 45%,
+      transparent 50%,
+      var(--hk-sea-shade) 100%
+    );
+}
+:root.shanty-mode ::selection {
+  background: rgb(160 110 20 / 24%);
+}
+:root.dark.shanty-mode ::selection {
+  background: rgb(240 201 135 / 24%);
+}
+
+/* The nav bar: brass and parchment, with a rope along its foot. */
+:root.shanty-mode .VPNavBar,
+:root.shanty-mode .VPLocalNav,
+:root.shanty-mode .VPNavScreen {
+  background-image: var(--hk-grain);
+  background-size: 180px 180px;
+}
+@media (min-width: 960px) {
+  /* Beside a sidebar the bar is see-through over it, and VitePress paints
+     only the middle of the rest, leaving the right-hand gutter bare. That
+     showed nothing on the plain site; over the chart's darkened edges it
+     would show a seam, so the parchment runs to the edge here. */
+  :root.shanty-mode .VPNavBar.has-sidebar {
+    background-image: none;
+  }
+  :root.shanty-mode .VPNavBar.has-sidebar .content-body {
+    background-color: transparent;
+  }
+  :root.shanty-mode .VPNavBar.has-sidebar .content::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 0 var(--vp-sidebar-width);
+    z-index: -1;
+    background: var(--vp-nav-bg-color) var(--hk-grain) 0 0 / 180px 180px;
+  }
+}
+@media (min-width: 1440px) {
+  :root.shanty-mode .VPNavBar.has-sidebar .content::before {
+    left: calc(
+      (100vw - var(--vp-layout-max-width)) / 2 + var(--vp-sidebar-width)
+    );
+  }
+}
+:root.shanty-mode .VPNav::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: -5px;
+  left: 0;
+  height: 10px;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.7;
+  pointer-events: none;
+  -webkit-mask: var(--hk-art-rope) left center / 8px 10px repeat-x;
+  mask: var(--hk-art-rope) left center / 8px 10px repeat-x;
+}
+:root.shanty-mode .VPNavBar .divider-line,
+:root.shanty-mode .VPNavBar:not(.has-sidebar):not(.home.top) .divider {
+  background-color: transparent;
+}
+:root.shanty-mode .VPNavBarTitle.has-sidebar .title {
+  border-bottom-color: transparent;
+}
+:root.shanty-mode .VPNavBarTitle .title {
+  font-family: var(--hk-font-display);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+/* The Jolly Roger flies beside the name: the skull is a hole in the flag,
+   so it takes the colour of whatever is behind it. */
+:root.shanty-mode .VPNavBarTitle .title::after {
+  content: "";
+  flex-shrink: 0;
+  width: 30px;
+  height: 23px;
+  margin: -6px 0 0 10px;
+  background-color: var(--hk-sea-ink);
+  -webkit-mask: var(--hk-art-flag) center / contain no-repeat;
+  mask: var(--hk-art-flag) center / contain no-repeat;
+}
+:root.shanty-mode .VPNavBarMenuLink,
+:root.shanty-mode .VPNavBarMenuGroup .button {
+  font-family: var(--hk-font-display);
+  font-size: 17px;
+  font-weight: 400;
+}
+@media (min-width: 768px) {
+  :root.shanty-mode .DocSearch-Button {
+    border-color: var(--hk-sea-rule);
+    border-radius: 4px;
+    background: transparent;
+  }
+}
+:root.shanty-mode .DocSearch-Button .DocSearch-Button-Placeholder {
+  font-style: italic;
+}
+/* Buttons and switches take the links' focus ring (style.css), which
+   VitePress's button rules would swap for the browser's own. It stands 4 px
+   off, on the paper around the control, so it never lies on brass. */
+:root.shanty-mode
+  :is(button, [role="button"], [role="switch"], summary):focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 4px;
+}
+/* The serif names and the flag take more room than the plain bar's, so
+   where the bar is tight the search button keeps its icon and its keys, and
+   the links close up a little. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root.shanty-mode .DocSearch-Button .DocSearch-Button-Placeholder {
+    display: none;
+  }
+  :root.shanty-mode .VPNavBarMenuLink {
+    padding: 0 9px;
+    font-size: 16px;
+  }
+}
+
+/* The sidebar is the ship's log: parchment a shade older, small-capital
+   headings with a line of swell after them, and a graduated edge like the
+   border of a chart. */
+:root.shanty-mode .VPSidebar,
+:root.shanty-mode .VPNavBar.has-sidebar .container > .title {
+  background-image:
+    linear-gradient(var(--hk-sea-rule), var(--hk-sea-rule)),
+    linear-gradient(var(--hk-sea-rule), var(--hk-sea-rule)),
+    repeating-linear-gradient(
+      to bottom,
+      rgb(from var(--hk-sea-ink) r g b / 45%) 0 16px,
+      transparent 16px 32px
+    ),
+    var(--hk-grain);
+  background-position:
+    right 0 top 0,
+    right 5px top 0,
+    right 1px top 0,
+    0 0;
+  background-size:
+    1px 100%,
+    1px 100%,
+    4px 100%,
+    180px 180px;
+  background-repeat: no-repeat, no-repeat, no-repeat, repeat;
+}
+/* Only from 960px does the title stand over the sidebar (and so need its
+   paper); below that it is part of the bar and keeps the bar's own grain. */
+@media (max-width: 959px) {
+  :root.shanty-mode .VPNavBar.has-sidebar .container > .title {
+    background: none;
+  }
+}
+:root.shanty-mode .VPSidebar .curtain {
+  background: transparent;
+}
+:root.shanty-mode .VPSidebar .group + .group {
+  border-top-color: transparent;
+}
+:root.shanty-mode .VPSidebarItem.level-0 > .item > .text {
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-caps);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: none;
+}
+:root.shanty-mode .VPSidebarItem.level-0 > .item::after {
+  content: "";
+  flex: 1 1 24px;
+  align-self: center;
+  height: 12px;
+  margin-left: 10px;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.4;
+  -webkit-mask: var(--hk-art-wave) left center / 24px 6px repeat-x;
+  mask: var(--hk-art-wave) left center / 24px 6px repeat-x;
+}
+:root.shanty-mode .VPSidebarItem .text {
+  font-size: 14.5px;
+}
+/* An entry's English gloss (sidebar.ts marks it up) is a line of its own
+   under the crew's words, small, so the entry wraps where it means to. The
+   caret and the X keep to the first line. */
+:root.shanty-mode .hk-gloss {
+  display: block;
+  color: var(--vp-c-text-3);
+  font-family: var(--hk-font-body);
+  font-size: 13px;
+  font-style: italic;
+  font-variant-ligatures: no-common-ligatures;
+  line-height: 18px;
+}
+:root.shanty-mode .VPSidebarItem .text:has(.hk-gloss) {
+  padding-bottom: 6px;
+}
+:root.shanty-mode .VPSidebarItem .indicator {
+  display: none;
+}
+/* X marks the page you are on. */
+:root.shanty-mode .VPSidebarItem.is-active > .item::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: -21px;
+  width: 14px;
+  height: 14px;
+  background-color: var(--hk-sea-mark);
+  -webkit-mask: var(--hk-art-x) center / contain no-repeat;
+  mask: var(--hk-art-x) center / contain no-repeat;
+}
+:root.shanty-mode .VPSidebarItem.level-1 .items,
+:root.shanty-mode .VPSidebarItem.level-2 .items {
+  border-left: 1px dashed var(--hk-sea-rule);
+}
+
+/* The page. */
+:root.shanty-mode .VPDoc .aside-curtain {
+  background: transparent;
+}
+:root.shanty-mode .vp-doc h1,
+:root.shanty-mode .vp-doc h2,
+:root.shanty-mode .vp-doc h3 {
+  font-family: var(--hk-font-display);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+:root.shanty-mode .VPDoc .vp-doc h1 {
+  font-size: 46px;
+  line-height: 1.1;
+}
+@media (max-width: 640px) {
+  :root.shanty-mode .VPDoc .vp-doc h1 {
+    font-size: 38px;
+  }
+}
+/* A flourish under the title. */
+:root.shanty-mode .VPDoc .vp-doc h1::after {
+  content: "";
+  display: block;
+  width: min(240px, 70%);
+  height: 14px;
+  margin-top: 14px;
+  background-color: var(--hk-sea-brass);
+  -webkit-mask: var(--hk-art-flourish) left center / 100% 100% no-repeat;
+  mask: var(--hk-art-flourish) left center / 100% 100% no-repeat;
+}
+/* A rope above each section instead of a hairline. */
+:root.shanty-mode .VPDoc .vp-doc h2 {
+  padding-top: 30px;
+  border-top: 0;
+  font-size: 32px;
+  line-height: 1.2;
+}
+:root.shanty-mode .VPDoc .vp-doc h2::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 10px;
+  background-color: var(--hk-sea-brass);
+  opacity: var(--hk-sea-rope);
+  -webkit-mask: var(--hk-art-rope) left center / 8px 10px repeat-x;
+  mask: var(--hk-art-rope) left center / 8px 10px repeat-x;
+}
+:root.shanty-mode .VPDoc .vp-doc h2 .header-anchor {
+  top: 30px;
+}
+:root.shanty-mode .VPDoc .vp-doc h3 {
+  font-size: 25px;
+  font-style: italic;
+  line-height: 1.25;
+}
+:root.shanty-mode .VPDoc .vp-doc h4 {
+  font-family: var(--hk-font-caps);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+/* An anchor where the heading's # was. */
+:root.shanty-mode .vp-doc .header-anchor::before {
+  content: "";
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  background-color: var(--hk-sea-brass);
+  -webkit-mask: var(--hk-art-anchor) center / contain no-repeat;
+  mask: var(--hk-art-anchor) center / contain no-repeat;
+}
+
+:root.shanty-mode .VPDoc .vp-doc p,
+:root.shanty-mode .VPDoc .vp-doc li {
+  line-height: 1.75;
+}
+/* The lead paragraph is set a size up, in the full ink. Not in small
+   capitals, nor with a drop cap: many leads begin "hk", which small capitals
+   would turn into "HK" and a drop cap would split. */
+:root.shanty-mode .VPDoc .vp-doc > div > h1 + p {
+  color: var(--vp-c-text-1);
+  font-size: 19px;
+  line-height: 1.7;
+}
+
+/* Links are inked in the brand teal; the line under them swells on hover. */
+:root.shanty-mode .vp-doc a:not(.header-anchor) {
+  text-decoration-color: rgb(from var(--vp-c-brand-1) r g b / 45%);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+:root.shanty-mode .vp-doc a:not(.header-anchor):hover {
+  text-decoration-color: currentColor;
+  text-decoration-style: wavy;
+}
+
+/* A compass point for each item. Only the Markdown's own lists, which carry
+   no class: a component's list (BenchmarkResults.vue's bars) is its own. */
+:root.shanty-mode .VPDoc .vp-doc ul:not([class]) {
+  list-style: none;
+}
+:root.shanty-mode .VPDoc .vp-doc ul:not([class]) > li {
+  position: relative;
+}
+:root.shanty-mode .VPDoc .vp-doc ul:not([class]) > li::before {
+  content: "";
+  position: absolute;
+  top: calc(0.875em - 5px);
+  left: -1.15em;
+  width: 10px;
+  height: 10px;
+  background-color: var(--hk-sea-brass);
+  clip-path: polygon(
+    50% 0,
+    62% 38%,
+    100% 50%,
+    62% 62%,
+    50% 100%,
+    38% 62%,
+    0 50%,
+    38% 38%
+  );
+}
+:root.shanty-mode .VPDoc .vp-doc ul ul:not([class]) > li::before {
+  transform: scale(0.7);
+  opacity: 0.7;
+}
+:root.shanty-mode .VPDoc .vp-doc ol > li::marker {
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-display);
+  font-size: 1.1em;
+}
+
+/* A quotation is a note torn from another log. */
+:root.shanty-mode .VPDoc .vp-doc blockquote {
+  margin: 24px 0;
+  padding: 20px 24px;
+  border-left: 0;
+  background-color: var(--vp-c-bg-soft);
+  background-image: var(--hk-grain);
+  color: var(--vp-c-text-1);
+  font-style: italic;
+  -webkit-mask:
+    var(--hk-art-torn) left top / 40px 8px repeat-x,
+    linear-gradient(#000 0 0) center / 100% calc(100% - 12px) no-repeat,
+    var(--hk-art-torn-bottom) left bottom / 40px 8px repeat-x;
+  mask:
+    var(--hk-art-torn) left top / 40px 8px repeat-x,
+    linear-gradient(#000 0 0) center / 100% calc(100% - 12px) no-repeat,
+    var(--hk-art-torn-bottom) left bottom / 40px 8px repeat-x;
+}
+:root.shanty-mode .VPDoc .vp-doc blockquote > p {
+  font-size: 17px;
+}
+
+/* Tables are cargo manifests: ruled, framed twice, headed in small
+   capitals over a double rule. */
+:root.shanty-mode .VPDoc .vp-doc table {
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--hk-sea-rule);
+  background-color: var(--vp-c-bg);
+  box-shadow:
+    0 0 0 3px var(--vp-c-bg),
+    0 0 0 4px var(--hk-sea-rule);
+}
+:root.shanty-mode .VPDoc .vp-doc tr {
+  background-color: transparent;
+}
+:root.shanty-mode .VPDoc .vp-doc tr:nth-child(2n) {
+  background-color: rgb(from var(--hk-sea-brass) r g b / 5%);
+}
+:root.shanty-mode .VPDoc .vp-doc th,
+:root.shanty-mode .VPDoc .vp-doc td {
+  border-color: var(--hk-sea-rule);
+}
+:root.shanty-mode .VPDoc .vp-doc th {
+  border-bottom: 3px double var(--hk-sea-brass);
+  background-color: rgb(from var(--hk-sea-brass) r g b / 9%);
+  color: var(--vp-c-text-1);
+  font-family: var(--hk-font-caps);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+:root.shanty-mode .VPDoc .vp-doc td {
+  font-size: 15px;
+}
+/* A command in a cell stays whole: the serif's cells are narrower than the
+   plain site's, and would break `--global` at its hyphens. A table too wide
+   for the screen scrolls, as VitePress's tables do. */
+:root.shanty-mode .VPDoc .vp-doc td code {
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  :root.shanty-mode .VPDoc .vp-doc th,
+  :root.shanty-mode .VPDoc .vp-doc td {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  :root.shanty-mode .VPDoc .vp-doc th {
+    font-size: 15px;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* Code is a log entry: a clean card with brass at its corners. On a phone
+   VitePress runs code to the screen's edges; a card keeps the page's margin
+   so its corners show. */
+:root.shanty-mode .vp-doc div[class*="language-"] {
+  border-color: var(--hk-sea-rule);
+  border-radius: 3px;
+}
+@media (max-width: 639px) {
+  :root.shanty-mode .vp-doc div[class*="language-"],
+  :root.shanty-mode .vp-doc .vp-code-group .tabs {
+    margin-right: 0;
+    margin-left: 0;
+  }
+  :root.shanty-mode .vp-doc li div[class*="language-"] {
+    border-radius: 3px;
+  }
+}
+:root.shanty-mode .VPDoc .vp-doc div[class*="language-"]::before,
+:root.shanty-mode .VPDoc .vp-doc .vp-code-group::before,
+:root.shanty-mode .VPDoc .vp-doc :is(.bench-card, .bench-empty)::before {
+  --corner: linear-gradient(var(--hk-sea-brass), var(--hk-sea-brass));
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  background:
+    var(--corner) left top / 14px 2px no-repeat,
+    var(--corner) left top / 2px 14px no-repeat,
+    var(--corner) right top / 14px 2px no-repeat,
+    var(--corner) right top / 2px 14px no-repeat,
+    var(--corner) left bottom / 14px 2px no-repeat,
+    var(--corner) left bottom / 2px 14px no-repeat,
+    var(--corner) right bottom / 14px 2px no-repeat,
+    var(--corner) right bottom / 2px 14px no-repeat;
+  pointer-events: none;
+}
+:root.shanty-mode .VPDoc .vp-doc .vp-code-group {
+  position: relative;
+}
+:root.shanty-mode
+  .VPDoc
+  .vp-doc
+  .vp-code-group
+  div[class*="language-"]::before {
+  content: none;
+}
+:root.shanty-mode .vp-doc div[class*="language-"] > span.lang {
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-caps);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+:root.shanty-mode .vp-doc [class*="language-"] > button.copy {
+  border-color: var(--hk-sea-rule);
+}
+:root.shanty-mode .vp-doc [class*="language-"] > button.copy.copied::before {
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-display);
+  font-size: 15px;
+}
+/* github-light's red and github-dark's grey fall short on these cards. */
+:root.shanty-mode:not(.dark) .vp-code span[style*="--shiki-light:#D73A49" i] {
+  color: var(--hk-sea-code-red);
+}
+:root.dark.shanty-mode .vp-code span[style*="--shiki-dark:#6A737D" i] {
+  color: var(--hk-sea-code-comment);
+}
+:root.shanty-mode .vp-code-group .tabs {
+  border-radius: 3px 3px 0 0;
+}
+:root.shanty-mode .vp-code-group .tabs label {
+  font-size: 15px;
+}
+:root.shanty-mode .vp-code-group input:checked + label::after {
+  background-color: var(--hk-sea-brass);
+}
+/* The speed trials (BenchmarkResults.vue) are log entries too, ruled like a
+   code card, with its brass corners (drawn with the code cards' above).
+   Their times keep the reading face's proportional figures: its tabular ones
+   give the point a digit's width, which spaces "3.24 s" out. Set flush
+   right, the times still line up on their units. */
+:root.shanty-mode .vp-doc :is(.bench-card, .bench-empty) {
+  position: relative;
+  border-color: var(--hk-sea-rule);
+  border-radius: 3px;
+  background-image: var(--hk-grain);
+  background-size: 180px 180px;
+}
+:root.shanty-mode .vp-doc .bench-value {
+  font-size: 15px;
+  font-variant-numeric: proportional-nums;
+}
+
+/* Inline code is stamped on the page. In a heading, where it is often the
+   whole title of a command's page, it is set plain in the heading's ink. */
+:root.shanty-mode .vp-doc :not(pre) > code {
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--hk-sea-rule);
+}
+:root.shanty-mode .vp-doc :is(h1, h2, h3, h4) > code {
+  padding: 0;
+  background-color: transparent;
+  box-shadow: none;
+  color: inherit;
+  font-size: 0.8em;
+  font-style: normal;
+}
+
+/* A rule is a rope with a knot in it. */
+:root.shanty-mode .VPDoc .vp-doc hr {
+  position: relative;
+  height: 20px;
+  margin: 32px 0;
+  border: 0;
+}
+:root.shanty-mode .VPDoc .vp-doc hr::before,
+:root.shanty-mode .VPDoc .vp-doc hr::after {
+  content: "";
+  position: absolute;
+  background-color: var(--hk-sea-brass);
+}
+:root.shanty-mode .VPDoc .vp-doc hr::before {
+  top: 5px;
+  right: 0;
+  left: 0;
+  height: 10px;
+  opacity: var(--hk-sea-rope);
+  -webkit-mask:
+    var(--hk-art-rope) left center / 8px 10px repeat-x,
+    linear-gradient(
+      to right,
+      #000 calc(50% - 30px),
+      transparent 0 calc(50% + 30px),
+      #000 0
+    );
+  -webkit-mask-composite: source-in;
+  mask:
+    var(--hk-art-rope) left center / 8px 10px repeat-x,
+    linear-gradient(
+      to right,
+      #000 calc(50% - 30px),
+      transparent 0 calc(50% + 30px),
+      #000 0
+    );
+  mask-composite: intersect;
+}
+:root.shanty-mode .VPDoc .vp-doc hr::after {
+  top: 0;
+  left: calc(50% - 22px);
+  width: 44px;
+  height: 20px;
+  opacity: 0.8;
+  -webkit-mask: var(--hk-art-knot) center / contain no-repeat;
+  mask: var(--hk-art-knot) center / contain no-repeat;
+}
+
+/* Pictures are pasted into the log with a border round them. */
+:root.shanty-mode .VPDoc .vp-doc img {
+  padding: 6px;
+  border: 1px solid var(--hk-sea-rule);
+  background: var(--vp-c-bg-elv);
+  box-shadow: 0 10px 24px -14px var(--hk-sea-shade);
+}
+
+/* Notes in the margin: each kind has its own mark and its own paper. */
+:root.shanty-mode .vp-doc .custom-block {
+  --hk-block: var(--hk-sea-info);
+  --hk-block-bg: var(--hk-sea-info-bg);
+  position: relative;
+  padding: 16px 18px 10px 60px;
+  border: 1px solid rgb(from var(--hk-block) r g b / 45%);
+  border-radius: 3px;
+  background-color: var(--vp-c-bg);
+  background-image: linear-gradient(var(--hk-block-bg), var(--hk-block-bg));
+  color: var(--vp-c-text-1);
+  font-size: 15px;
+}
+:root.shanty-mode .vp-doc .custom-block::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  width: 28px;
+  height: 28px;
+  background-color: var(--hk-block);
+  -webkit-mask: var(--hk-block-icon) center / contain no-repeat;
+  mask: var(--hk-block-icon) center / contain no-repeat;
+}
+/* On a phone the mark moves up beside the title, so the note keeps its
+   width for reading. */
+@media (max-width: 639px) {
+  :root.shanty-mode .vp-doc .custom-block {
+    padding-left: 18px;
+  }
+  :root.shanty-mode .vp-doc .custom-block::before {
+    top: 13px;
+    left: 16px;
+    width: 24px;
+    height: 24px;
+  }
+  :root.shanty-mode .vp-doc .custom-block .custom-block-title,
+  :root.shanty-mode .vp-doc .custom-block.details summary {
+    padding-left: 34px;
+  }
+}
+:root.shanty-mode .vp-doc .custom-block .custom-block-title,
+:root.shanty-mode .vp-doc .custom-block.details summary {
+  color: var(--hk-block);
+  font-family: var(--hk-font-caps);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+:root.shanty-mode .vp-doc .custom-block a,
+:root.shanty-mode .vp-doc .custom-block :not(pre) > code {
+  color: var(--hk-block);
+}
+:root.shanty-mode .vp-doc .custom-block :not(pre) > code {
+  background-color: rgb(from var(--hk-block) r g b / 10%);
+  box-shadow: inset 0 0 0 1px rgb(from var(--hk-block) r g b / 25%);
+}
+/* A word from the parrot, on a slip with its corner turned down. */
+:root.shanty-mode .vp-doc .custom-block.tip {
+  --hk-block: var(--hk-sea-tip);
+  --hk-block-bg: var(--hk-sea-tip-bg);
+  --hk-block-icon: var(--hk-art-parrot);
+}
+:root.shanty-mode .vp-doc .custom-block.tip::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(
+    225deg,
+    var(--vp-c-bg) 50%,
+    rgb(from var(--hk-block) r g b / 30%) 50%
+  );
+  border-bottom-left-radius: 2px;
+}
+/* From the ship's log, ruled twice down the margin like a ledger. */
+:root.shanty-mode .vp-doc .custom-block.info,
+:root.shanty-mode .vp-doc .custom-block.note {
+  --hk-block-icon: var(--hk-art-log);
+  background-image:
+    linear-gradient(
+      to right,
+      transparent 51px,
+      rgb(from var(--hk-block) r g b / 40%) 51px 52px,
+      transparent 52px 55px,
+      rgb(from var(--hk-block) r g b / 40%) 55px 56px,
+      transparent 56px
+    ),
+    linear-gradient(var(--hk-block-bg), var(--hk-block-bg));
+}
+@media (max-width: 639px) {
+  :root.shanty-mode .vp-doc .custom-block.info,
+  :root.shanty-mode .vp-doc .custom-block.note {
+    background-image:
+      linear-gradient(
+        to right,
+        transparent 5px,
+        rgb(from var(--hk-block) r g b / 40%) 5px 6px,
+        transparent 6px 9px,
+        rgb(from var(--hk-block) r g b / 40%) 9px 10px,
+        transparent 10px
+      ),
+      linear-gradient(var(--hk-block-bg), var(--hk-block-bg));
+  }
+}
+/* Beware, under the lighthouse, with a hazard band like a buoy's. */
+:root.shanty-mode .vp-doc .custom-block.warning,
+:root.shanty-mode .vp-doc .custom-block.important {
+  --hk-block: var(--hk-sea-warning);
+  --hk-block-bg: var(--hk-sea-warning-bg);
+  --hk-block-icon: var(--hk-art-lighthouse);
+  border-left-width: 0;
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      var(--hk-block) 0 6px,
+      transparent 6px 12px
+    ),
+    linear-gradient(var(--hk-block-bg), var(--hk-block-bg));
+  background-position:
+    0 0,
+    0 0;
+  background-size:
+    6px 100%,
+    100% 100%;
+  background-repeat: no-repeat;
+}
+/* Here be dragons: the sea serpent, in a double red frame. */
+:root.shanty-mode .vp-doc .custom-block.danger,
+:root.shanty-mode .vp-doc .custom-block.caution {
+  --hk-block: var(--hk-sea-danger);
+  --hk-block-bg: var(--hk-sea-danger-bg);
+  --hk-block-icon: var(--hk-art-serpent);
+  border: 3px double var(--hk-block);
+}
+/* The sea chest opens when its details do. */
+:root.shanty-mode .vp-doc .custom-block.details {
+  --hk-block: var(--hk-sea-brass);
+  --hk-block-bg: rgb(from var(--hk-sea-brass) r g b / 7%);
+  --hk-block-icon: var(--hk-art-chest);
+}
+:root.shanty-mode .vp-doc .custom-block.details[open] {
+  --hk-block-icon: var(--hk-art-chest-open);
+}
+:root.shanty-mode .vp-doc .custom-block.details summary {
+  list-style: none;
+}
+:root.shanty-mode
+  .vp-doc
+  .custom-block.details
+  summary::-webkit-details-marker {
+  display: none;
+}
+:root.shanty-mode .vp-doc .custom-block.details summary {
+  line-height: 28px;
+}
+:root.shanty-mode .VPBadge {
+  border-radius: 3px;
+  font-family: var(--hk-font-caps);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+/* Yer bearings: the outline is a course, and a ship sails down it to the
+   section you are reading. */
+:root.shanty-mode .VPDocAsideOutline .content {
+  border-left: 1px dashed var(--hk-sea-rule);
+}
+:root.shanty-mode .VPDocAsideOutline .outline-title {
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-caps);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+:root.shanty-mode .VPDocAsideOutline .outline-marker {
+  left: -10px;
+  width: 19px;
+  height: 17px;
+  border-radius: 0;
+  background-color: var(--hk-sea-brass);
+  -webkit-mask: var(--hk-art-ship) center / contain no-repeat;
+  mask: var(--hk-art-ship) center / contain no-repeat;
+}
+/* The crew's headings run long, so an entry wraps rather than being cut
+   short, here and in the small-screen dropdown. VitePress puts the ship 7 px
+   below the top of the entry it is on; 5 px of padding over a 22 px line
+   puts the middle of the first line where the ship's middle is, and keeps a
+   one-line entry at VitePress's 32 px. */
+:root.shanty-mode :is(.VPDocAsideOutline, .VPLocalNavOutlineDropdown) .outline-link {
+  padding-block: 5px;
+  overflow: visible;
+  font-size: 14.5px;
+  line-height: 22px;
+  white-space: normal;
+  text-overflow: clip;
+  text-wrap: pretty;
+}
+
+/* The foot of a page: a quill for the edit link, and signposts astern and
+   ahead. */
+:root.shanty-mode .VPDocFooter .edit-link-icon {
+  --icon: var(--hk-art-quill);
+}
+:root.shanty-mode .VPDocFooter .edit-link-button,
+:root.shanty-mode .VPDocFooter .last-updated {
+  font-style: italic;
+}
+:root.shanty-mode .VPDocFooter .prev-next {
+  position: relative;
+  border-top: 0;
+  padding-top: 32px;
+}
+:root.shanty-mode .VPDocFooter .prev-next::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 10px;
+  background-color: var(--hk-sea-brass);
+  opacity: var(--hk-sea-rope);
+  -webkit-mask: var(--hk-art-rope) left center / 8px 10px repeat-x;
+  mask: var(--hk-art-rope) left center / 8px 10px repeat-x;
+}
+:root.shanty-mode .VPDocFooter .pager-link {
+  --post: polygon(
+    0 0,
+    calc(100% - 20px) 0,
+    100% 50%,
+    calc(100% - 20px) 100%,
+    0 100%
+  );
+  position: relative;
+  isolation: isolate;
+  padding: 12px 36px 14px 20px;
+  border: 0;
+  border-radius: 0;
+}
+:root.shanty-mode .VPDocFooter .pager-link.prev {
+  --post: polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 50%);
+  padding: 12px 20px 14px 36px;
+}
+:root.shanty-mode .VPDocFooter .pager-link::before,
+:root.shanty-mode .VPDocFooter .pager-link::after {
+  content: "";
+  position: absolute;
+  clip-path: var(--post);
+}
+:root.shanty-mode .VPDocFooter .pager-link::before {
+  inset: 0;
+  z-index: -2;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.55;
+  transition: opacity 0.25s;
+}
+:root.shanty-mode .VPDocFooter .pager-link:hover::before {
+  opacity: 1;
+}
+/* The board: planks, with the grain running along them. */
+:root.shanty-mode .VPDocFooter .pager-link::after {
+  inset: 1.5px;
+  z-index: -1;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 5px,
+      rgb(from var(--hk-sea-brass) r g b / 6%) 5px 6px,
+      transparent 6px 11px
+    ),
+    var(--hk-sea-post);
+}
+:root.shanty-mode .VPDocFooter .pager-link .desc {
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-caps);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+:root.shanty-mode .VPDocFooter .pager-link .title {
+  font-family: var(--hk-font-display);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+/* The signposts reuse the sidebar's words, gloss and all. */
+:root.shanty-mode .VPDocFooter .pager-link .hk-gloss {
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+/* Small screens: the bar below the nav, and the menu. */
+:root.shanty-mode .VPLocalNav {
+  border-bottom-color: var(--hk-sea-rule);
+}
+:root.shanty-mode .VPLocalNav .menu-text,
+:root.shanty-mode .VPLocalNavOutlineDropdown button {
+  font-family: var(--hk-font-caps);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+:root.shanty-mode .VPNavScreenMenuLink,
+:root.shanty-mode .VPNavScreenMenuGroup .button-text {
+  border-bottom: 1px dashed var(--hk-sea-rule);
+  font-family: var(--hk-font-display);
+  font-size: 20px;
+  font-weight: 400;
+}
+:root.shanty-mode .VPNavScreenAppearance {
+  border: 1px solid var(--hk-sea-rule);
+  border-radius: 3px;
+  background-color: transparent;
+}
+/* The rose at the foot of the menu. */
+:root.shanty-mode .VPNavScreen .container::after {
+  content: "";
+  display: block;
+  width: 200px;
+  height: 200px;
+  margin: 48px auto 0;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.16;
+  -webkit-mask: var(--hk-art-rose) center / contain no-repeat;
+  mask: var(--hk-art-rose) center / contain no-repeat;
+}
+:root.shanty-mode .VPNavScreenAppearance .text {
+  font-family: var(--hk-font-caps);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+/* Search: a sheet of the chart pulled out on the table. */
+:root.shanty-mode .VPLocalSearchBox .shell {
+  border: 1px solid var(--hk-sea-rule);
+  border-radius: 4px;
+  background-image: var(--hk-grain);
+  box-shadow:
+    0 0 0 4px var(--vp-c-bg),
+    0 0 0 5px var(--hk-sea-rule),
+    0 30px 80px -20px rgb(0 0 0 / 45%);
+}
+:root.shanty-mode .VPLocalSearchBox .search-bar {
+  border-color: var(--hk-sea-rule);
+  border-radius: 3px;
+  background: var(--vp-c-bg-elv);
+}
+:root.shanty-mode .VPLocalSearchBox .search-input {
+  font-family: var(--hk-font-body);
+  font-size: 17px;
+}
+:root.shanty-mode .VPLocalSearchBox .search-input::placeholder {
+  font-style: italic;
+}
+:root.shanty-mode .VPLocalSearchBox .result {
+  border-width: 1px;
+  border-color: var(--hk-sea-rule);
+  border-radius: 3px;
+  background: var(--vp-c-bg-elv);
+}
+:root.shanty-mode .VPLocalSearchBox .result.selected {
+  border-color: var(--hk-sea-brass);
+  box-shadow: inset 3px 0 0 var(--hk-sea-brass);
+}
+:root.shanty-mode .VPLocalSearchBox .title-icon {
+  width: 14px;
+  height: 14px;
+  background-color: var(--hk-sea-brass);
+  font-size: 0;
+  opacity: 1;
+  -webkit-mask: var(--hk-art-anchor) center / contain no-repeat;
+  mask: var(--hk-art-anchor) center / contain no-repeat;
+}
+:root.shanty-mode .VPLocalSearchBox .title.main {
+  font-family: var(--hk-font-display);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+/* Lost at sea: the page that is not on the chart, over a compass swung off
+   its north. The chart's own rose in the corner is gone, so there is one. */
+:root.shanty-mode:has(.NotFound) body::before {
+  --rose: 0px;
+}
+:root.shanty-mode .NotFound {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+:root.shanty-mode .NotFound::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  left: calc(50% - 180px);
+  z-index: -1;
+  width: 360px;
+  height: 360px;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.12;
+  transform: rotate(-17deg);
+  -webkit-mask: var(--hk-art-rose) center / contain no-repeat;
+  mask: var(--hk-art-rose) center / contain no-repeat;
+}
+:root.shanty-mode .NotFound .code {
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-display);
+  font-size: 128px;
+  font-weight: 400;
+  line-height: 1;
+}
+:root.shanty-mode .NotFound .title {
+  padding-top: 20px;
+  font-family: var(--hk-font-caps);
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  line-height: 1.1;
+}
+:root.shanty-mode .NotFound .divider {
+  width: 192px;
+  height: 12px;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.6;
+  -webkit-mask: var(--hk-art-wave) left center / 24px 6px repeat-x;
+  mask: var(--hk-art-wave) left center / 24px 6px repeat-x;
+}
+:root.shanty-mode .NotFound .quote {
+  max-width: 400px;
+  font-size: 18px;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.6;
+}
+:root.shanty-mode .NotFound .link {
+  padding: 6px 22px;
+  border-color: var(--hk-sea-brass);
+  border-radius: 3px;
+  color: var(--vp-c-text-1);
+  font-family: var(--hk-font-caps);
+  font-size: 18px;
+  letter-spacing: 0.06em;
+}
+:root.shanty-mode .NotFound .link:hover {
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+}
+/* Naught here but fog and sea serpents. */
+:root.shanty-mode .NotFound .action::after {
+  content: "";
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 44px auto 0;
+  background-color: var(--hk-sea-brass);
+  opacity: 0.55;
+  -webkit-mask: var(--hk-art-serpent) center / contain no-repeat;
+  mask: var(--hk-art-serpent) center / contain no-repeat;
+}
+
+/* The sponsors and the footer below the waves. */
+:root.shanty-mode .EndevSponsorsTitle {
+  font-family: var(--hk-font-caps);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+:root.shanty-mode .EndevFooter {
+  border-top-color: transparent;
+}
+
+/* In forced colours the art's fills are gone, so the marks that say
+   something come back as system colours, and the lists get bullets. */
+@media (forced-colors: active) {
+  :root.shanty-mode .VPSidebarItem.is-active > .item::before,
+  :root.shanty-mode .VPDocAsideOutline .outline-marker {
+    forced-color-adjust: none;
+    background-color: Highlight;
+  }
+  :root.shanty-mode .VPDoc .vp-doc ul:not([class]) {
+    list-style: disc;
+  }
+  :root.shanty-mode .VPDoc .vp-doc ul:not([class]) > li::before {
+    content: none;
+  }
+  :root.shanty-mode .vp-doc .custom-block.details summary {
+    list-style: revert;
+  }
+  :root.shanty-mode .VPDocFooter .pager-link {
+    border: 1px solid CanvasText;
+  }
+  :root.shanty-mode .VPDoc .vp-doc blockquote {
+    border-left: 4px solid CanvasText;
+  }
+  :root.shanty-mode .VPNav::after {
+    bottom: 0;
+    height: 1px;
+    background-color: CanvasText;
+    opacity: 1;
+    -webkit-mask: none;
+    mask: none;
+  }
+}
+
+/* The switch's ripple: the new page is revealed by a growing circle from the
+   anchor (ShantyChip.vue animates it), not cross-faded. */
+html.shanty-turning::view-transition-old(root),
+html.shanty-turning::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html.shanty-turning::view-transition-new(root) {
+  z-index: 2;
+}

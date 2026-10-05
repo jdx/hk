@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Markdown"
   description = "Markdown linter"
+  project_indicators {
+    new { file = "rumdl.toml" }
+    new { file = ".rumdl.toml" }
+  }
 }
 rumdl = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
@@ -12,6 +16,8 @@ rumdl = new Config.Step {
     command = new Config.Command { argv = List("rumdl", "check", "{{files}}") }
     effect = "read"
   }
+  // Findings are `path:line:column: [MD012] message [*]`; hk ignores the trailing `Issues:` summary
+  diagnostic_format = "gcc"
   check_diff = new Config.CommandSpec {
     command = new Config.Command { argv = List("rumdl", "check", "--diff", "{{files}}") }
     effect = "read"
@@ -24,12 +30,35 @@ rumdl = new Config.Step {
   tests {
     local const testMaker = new helpers.TestMaker { filename = "file.md" }
     ["check bad file"] = testMaker.checkFail("# Hello\n\n\nParagraph\n", 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "# Hello\n\n\nParagraph\n",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "file.md"
+          line = 3
+          column = 1
+          severity = "error"
+          message = "[MD012] Multiple consecutive blank lines between content"
+        }),
+      )
     ["check good file"] = testMaker.checkPass("# Hello\n\nParagraph\n")
     ["fix bad file violations remain"] =
       testMaker.fixFail(
         "Paragraph\n\n\nSecond paragraph\n\n",
         "Paragraph\n\nSecond paragraph\n",
         1,
+      )
+    ["diff bad file violations remain"] =
+      testMaker.diffFail(
+        "Paragraph\n\n\nSecond paragraph\n\n",
+        "Paragraph\n\nSecond paragraph\n",
+        1,
+      )
+    ["diff bad file all violations are fixed"] =
+      testMaker.diffPass(
+        "# Hello\n\n\nParagraph\n",
+        "# Hello\n\nParagraph\n",
       )
     ["fix bad file all violations are fixed"] =
       testMaker.fixPass(

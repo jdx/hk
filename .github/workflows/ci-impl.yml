@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Validate v2 fixtures with Apple Pkl
         run: |
           mise run pkl:gen
@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Install JavaScript dependencies
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -78,13 +78,13 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
           cache-generation: ci-v2
@@ -102,8 +102,8 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
           cache-generation: ci-v2
       - name: Build
@@ -112,7 +112,8 @@ jobs:
         with:
           name: hk-windows-latest
           path: target/debug/hk.exe
-  ci-libgit2:
+  ci-hosted-bats:
+    name: ci-hosted-bats (${{ matrix.os }})
     needs: build
     permissions:
       contents: read
@@ -123,13 +124,26 @@ jobs:
           - os: macos-latest
           - os: ubuntu-latest
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # Keep both configuration-specific retry budgets. On macOS that is two
+    # 15-minute libgit2 attempts, two 10-minute nogit attempts, and setup.
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 60 || 50 }}
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # mise-action saves immediately after its own install, before Bats setup
+      # installs the builtin tool stubs. Restore those tools before mise runs.
+      - name: Restore Bats mise tools
+        id: bats-mise-tools
+        # The cached macOS gem:rubocop install loses its prism dependency on
+        # restore, so keep macOS on the working fresh-install path.
+        if: runner.os == 'Linux'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
@@ -147,34 +161,34 @@ jobs:
       - run: |
           mise run pkl:gen
           mise run test:bats:setup
+      - name: Report Bats tool cache size
+        run: du -sh ~/.local/share/mise/installs
+      # Seed after preinstall so frequent main pushes can reuse these tools even
+      # when a later Bats run is cancelled. Pull requests restore read-only.
+      - name: Save Bats mise tools
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: ${{ steps.bats-mise-tools.outputs.cache-primary-key }}
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
-          timeout_minutes: 10
-          # Two attempts, not three: the job budget covers setup, the build and
-          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
-          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
-          # build, so the retry is here for genuine flakes.
+          # Hosted macOS needs headroom for slow builtin tests. The job limit
+          # allows setup and two full attempts at the selected timeout.
+          timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
-          command: mise run --skip-deps test:bats:libgit2
-      - name: Publish builtin test timings
+          command: scripts/ci_attempt_notice "bats (libgit2)" mise run --skip-deps test:bats:libgit2
+      # Keep this step independent from libgit2 so one configuration's
+      # failure still reports the other configuration before the job fails.
+      - name: mise run test:bats:nogit
         if: always()
-        run: |
-          f=target/test-timings/builtins-all.tsv
-          [ -f "$f" ] || exit 0
-          {
-            echo "### Slowest builtin test cases (libgit2, ${{ matrix.os }})"
-            echo
-            echo "| ms | case |"
-            echo "| ---: | --- |"
-            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always()
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
-          name: test-timings-libgit2-${{ matrix.os }}
-          path: target/test-timings/
-          if-no-files-found: ignore
+          timeout_minutes: 10
+          max_attempts: 2
+          command: scripts/ci_attempt_notice "bats (nogit)" mise run --skip-deps test:bats:nogit
   ci-nolibgit2:
     name: ci-nolibgit2 (${{ matrix.os }})
     needs: build
@@ -189,13 +203,19 @@ jobs:
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 40 || 30 }}
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore Bats mise tools
+        if: runner.os == 'Linux'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
@@ -216,13 +236,11 @@ jobs:
       - name: mise run test:bats:nolibgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
-          timeout_minutes: 10
-          # Two attempts, not three: the job budget covers setup, the build and
-          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
-          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
-          # build, so the retry is here for genuine flakes.
+          # Hosted macOS needs headroom for slow builtin tests. The job limit
+          # allows setup and two full attempts at the selected timeout.
+          timeout_minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
-          command: mise run --skip-deps test:bats:nolibgit2
+          command: scripts/ci_attempt_notice "bats (nolibgit2)" mise run --skip-deps test:bats:nolibgit2
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -239,72 +257,6 @@ jobs:
         if: always()
         with:
           name: test-timings-nolibgit2-${{ matrix.os }}
-          path: target/test-timings/
-          if-no-files-found: ignore
-  ci-nogit:
-    needs: build
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-    # Pinned to github-hosted runners: builtins_tests.bats installs ~50
-    # tools via mise under 16-way parallelism, which surfaces a
-    # mise + namespace-runner incompatibility (many backends report
-    # "does not have an executable named X" on fresh installs, and
-    # asdf:swiftlint binaries SIGILL on namespace's linux image).
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    steps:
-      - run: brew install parallel
-        if: ${{ matrix.os == 'macos-latest' }}
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
-        with:
-          cache: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: hk-${{ matrix.os }}
-          path: target/debug
-      - run: chmod +x target/debug/hk
-      - run: mise x -- aube install
-      # The downloaded artifact is this commit's hk, so the bats task runs with
-      # --skip-deps instead of recompiling it (a cold cargo build here cost
-      # 77-183s per job). Its other dependencies run up front, outside the
-      # retry window: the generated pkl files the tests read, and the builtin
-      # tool-stub preinstall.
-      - run: |
-          mise run pkl:gen
-          mise run test:bats:setup
-      - name: mise run test:bats:nogit
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
-        with:
-          timeout_minutes: 10
-          # Two attempts, not three: the job budget covers setup, the build and
-          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
-          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
-          # build, so the retry is here for genuine flakes.
-          max_attempts: 2
-          command: mise run --skip-deps test:bats:nogit
-      - name: Publish builtin test timings
-        if: always()
-        run: |
-          f=target/test-timings/builtins-all.tsv
-          [ -f "$f" ] || exit 0
-          {
-            echo "### Slowest builtin test cases (nogit, ${{ matrix.os }})"
-            echo
-            echo "| ms | case |"
-            echo "| ---: | --- |"
-            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always()
-        with:
-          name: test-timings-nogit-${{ matrix.os }}
           path: target/test-timings/
           if-no-files-found: ignore
   ci-other:
@@ -327,13 +279,13 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
           cache-generation: ci-v2
@@ -361,13 +313,13 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
           cache-generation: ci-v2
@@ -382,8 +334,8 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
-      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
+          cache_save: false
+      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
           cache-generation: ci-v2
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -397,22 +349,17 @@ jobs:
       - name: Run Pester e2e tests
         run: |
           $env:PKL_PATH = "${{ github.workspace }}/pkl"
-          # Run only basic tests that don't require pkl to avoid hangs
-          ./e2e-win/run.ps1 -TestName "*version*"
-          ./e2e-win/run.ps1 -TestName "*help*"
-          # Regression test for discussion #823 (cmd.exe {{files}} quoting)
-          ./e2e-win/run.ps1 -TestName "*{{files}} template*"
-          # Regression test for discussion #1220 (structured argv npm shims)
-          ./e2e-win/run.ps1 -TestName "*structured argv resolves*"
+          # Runs every Pester case under e2e-win/ (a new case is picked up
+          # automatically; name filters here silently skipped cases before).
+          ./e2e-win/run.ps1
   final:
     permissions: {}
     needs:
       - apple-pkl
       - build
       - build-windows
-      - ci-libgit2
+      - ci-hosted-bats
       - ci-nolibgit2
-      - ci-nogit
       - ci-other
       - ci-windows
       - mcp-ui
@@ -437,16 +384,12 @@ jobs:
             echo "build-windows failed or was skipped"
             exit 1
           fi
-          if [ "${{ needs.ci-libgit2.result }}" != "success" ]; then
-            echo "ci-libgit2 failed or was skipped"
+          if [ "${{ needs.ci-hosted-bats.result }}" != "success" ]; then
+            echo "ci-hosted-bats failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.ci-nolibgit2.result }}" != "success" ]; then
             echo "ci-nolibgit2 failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.ci-nogit.result }}" != "success" ]; then
-            echo "ci-nogit failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.ci-other.result }}" != "success" ]; then

@@ -6,30 +6,38 @@ class PinactUpdateStep extends Config.Step {
   glob = List(".github/workflows/*", "**/action.*")
   types = List("yaml")
   // `verify-comment` verifies pairs of commit SHA and version comments are correct
+  hidden verifyFlag = if (version == "3") "--verify" else "--verify-comment"
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("pinact", "run", "--update", verifyFlag, "--check", "{{files}}")
+    }
+    effect = "read"
+  }
+  // pinact's SARIF report carries fixes, which `hk util sarif-diff` turns into
+  // a patch. A finding without a fix prints no patch, so hk runs the fixer.
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv =
-        if (version == "3")
-          List("pinact", "run", "--update", "--verify", "--check", "{{files}}")
-        else
-          List(
-            "pinact",
-            "run",
-            "--update",
-            "--verify-comment",
-            "--check",
-            "{{files}}",
-          )
+        List(
+          "hk",
+          "util",
+          "sarif-diff",
+          "--",
+          "pinact",
+          "run",
+          "--update",
+          verifyFlag,
+          "--check",
+          "--format",
+          "sarif",
+          "{{files}}",
+        )
     }
     effect = "read"
   }
   fix = new Config.CommandSpec {
     command = new Config.Command {
-      argv =
-        if (version == "3")
-          List("pinact", "run", "--update", "--verify", "{{files}}")
-        else
-          List("pinact", "run", "--update", "--verify-comment", "{{files}}")
+      argv = List("pinact", "run", "--update", verifyFlag, "{{files}}")
     }
     effect = "write"
   }

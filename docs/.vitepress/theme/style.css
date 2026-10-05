@@ -49,6 +49,15 @@
 .VPNavBarTitle .logo {
   height: 30px;
 }
+/* The title sits over the top of the sidebar, which VitePress leaves
+   see-through. When the sidebar rubber-bands past its end, its links slide up
+   into that strip and show through the logo, so the title takes the
+   sidebar's own background to hide them. */
+@media (min-width: 960px) {
+  .VPNavBar.has-sidebar .container > .title {
+    background-color: var(--vp-sidebar-bg-color);
+  }
+}
 .vp-doc h1 {
   font-size: 36px;
   line-height: 1.2;

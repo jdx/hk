@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Render the landing-page showreel to docs/public/showreel-120.mp4 and showreel.mp4 with its poster"
+#MISE dir="docs"
+# The landing page plays this video and offers it as og:video for link
+# previews. Needs ffmpeg on PATH and Playwright's Chromium headless shell
+# (`aube exec playwright-core install chromium-headless-shell` in docs/), or a
+# Chromium-based browser at CHROME_PATH. Builds without it leave the showreel out.
+# Not a render:* task: `mise run render` runs those, and CI fails on the diff.
+
+set -eu
+
+aube install && aube run showreel:video

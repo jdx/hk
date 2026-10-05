@@ -5,10 +5,13 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Lua"
   description = "Lua linter"
+  project_indicators {
+    new { file = "selene.toml" }
+  }
 }
 selene = new Config.Step {
   types = List("lua")
-  check_diff = new Config.CommandSpec {
+  check = new Config.CommandSpec {
     command = new Config.Command { argv = List("selene", "{{files}}") }
     effect = "read"
   }

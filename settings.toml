@@ -60,11 +60,9 @@ default = true
 sources.env = ["HK_CHECK_FIRST"]
 sources.git = ["hk.checkFirst"]
 docs = """
-If enabled, hk will run check commands first, then run fix commands only if the check fails when there are multiple linters with the same file in matching glob patterns.
+Allows steps that set `check_first = true` to run their check command before fixing, when another step writes the same files. The fix runs only if the check fails, so files that already pass aren't rewritten.
 
-The reason for this optimization is to maximize parallelization. We can have multiple check commands running in parallel against the same file without interference, but we can't have 2 fix commands potentially writing to the same file simultaneously.
-
-If disabled, hk will use simpler logic that just runs fix commands in series in this situation.
+Steps don't check first unless they set `check_first = true`, because checking first runs the tool twice whenever files need fixing. A step whose `check` and `fix` are the same command, as in steps migrated from pre-commit, always checks first. Set this to `false` to turn it off for both kinds of step.
 """
 
 [display_skip_reasons]
@@ -99,7 +97,7 @@ Examples:
 - Exclude specific directories: `node_modules,dist`
 - Exclude using glob patterns: `**/*.min.js,**/*.map`
 
-All exclude patterns from different sources are combined.
+All exclude patterns from different sources are combined. The Pkl `exclude` setting also accepts a `Regex`; regexes apply alongside these glob patterns but are not listed by `hk config get exclude`.
 """
 
 [fail_fast]
@@ -141,6 +139,7 @@ Warning tags to suppress. Allows hiding specific warning messages that you don't
 
 Available warning tags:
 - `missing-profiles`: Suppresses warnings about steps being skipped due to missing profiles
+- `local-config-replaces-shared`: Suppresses the warning that `hk.local.pkl` does not amend the shared `hk.pkl`, so it replaces it
 
 Example: `HK_HIDE_WARNINGS=missing-profiles`
 
@@ -175,12 +174,13 @@ type = "string"
 env_only = true
 sources.env = ["HK_PKL_HTTP_REWRITE"]
 docs = """
-A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`.
+URL rewrite rules for the built-in pklr evaluator, in the form
+`http(s)://<FROM>/=http(s)://<TO>/`. Separate several rules with commas; the longest
+matching source prefix wins. Package downloads are rewritten as their
+`https://<host>/<path>/<name>@<version>.zip` URL.
 
-This setting is read directly from the environment variable before pkl is invoked, \
-so it cannot be configured in `hk.pkl`.
-
-(`pkl` expects this in the form `http(s)://<FROM>/=http(s)://<TO>/`)
+This setting is read directly from the environment variable before the configuration \
+is evaluated, so it cannot be configured in `hk.pkl`.
 """
 
 [pkl_ca_certificates]
@@ -188,13 +188,14 @@ type = "path"
 env_only = true
 sources.env = ["HK_PKL_CA_CERTIFICATES"]
 docs = """
-A path to a CA certificates file to provide `pkl`'s `--ca-certificates` flag when invoking `pkl`.
+A path to a PEM bundle of CA certificates that the built-in pklr evaluator trusts, in addition to the system roots,
+when it downloads packages and modules.
 
-This setting is read directly from the environment variable before pkl is invoked, \
-so it cannot be configured in `hk.pkl`.
+This setting is read directly from the environment variable before the configuration \
+is evaluated, so it cannot be configured in `hk.pkl`.
 
-This is useful in corporate environments with SSL-intercepting proxies where pkl
-needs to trust custom CA certificates to download packages.
+This is useful in corporate environments with SSL-intercepting proxies, and for
+package hosts whose certificate comes from a private certificate authority.
 """
 
 [jobs]
@@ -425,7 +426,7 @@ Override the hook's strategy for saving unstaged work.
 - `patch-file`: Currently an alias for the Git stash implementation.
 - `none`: Leave unstaged work in place; fixes may then include unstaged edits in a staged file.
 
-Without an override, use the hook's `stash` value, which defaults to `none`. `hk init` explicitly sets `git` for pre-commit.
+Without an override, use the hook's `stash` value, which defaults to `none`. The `pre-commit` hook that hk builds from top-level `steps` (the setup `hk init` creates) uses `git`.
 """
 
 [stash_untracked]
@@ -453,6 +454,24 @@ backups are retained per repository (oldest are automatically deleted).
 Set to 0 to disable patch backup creation entirely.
 
 Default: 20
+"""
+
+[stash_lock_timeout]
+type = "usize"
+default = 300
+sources.env = ["HK_STASH_LOCK_TIMEOUT"]
+sources.git = ["hk.stashLockTimeout"]
+docs = """
+Seconds to wait for another hk process to finish stashing in the same repository.
+
+While hk holds unstaged changes aside, it keeps a lock in the repository's common
+git directory (`hk-stash.lock`), which linked worktrees share. A second hk process
+that needs to stash waits for the first to restore its changes, printing a message
+while it waits, and fails naming the lock file if the wait passes this limit.
+
+Set to 0 to fail at once instead of waiting.
+
+Default: 300
 """
 
 [state_dir]

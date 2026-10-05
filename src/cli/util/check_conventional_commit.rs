@@ -45,13 +45,37 @@ fn check_conventional_commit(path: &PathBuf, allowed_types: &[String]) -> Result
 }
 
 fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
-    // `git commit --fixup`/`--squash` and `rebase --autosquash` produce commits titled
-    // `fixup! <msg>` / `squash! <msg>` / `amend! <msg>`. These are meant to be squashed
-    // away by `git rebase --autosquash` and never carry a conventional format themselves,
-    // so skip validation for them.
-    if ["fixup! ", "squash! ", "amend! "]
-        .iter()
-        .any(|prefix| title.starts_with(prefix))
+    // Git generates some titles itself. They never follow the conventional format and
+    // are not written by the user, so skip validation for them:
+    //
+    // - `git commit --fixup`/`--squash` and `rebase --autosquash` use `fixup! <msg>`,
+    //   `squash! <msg>` and `amend! <msg>`; they are meant to be squashed away.
+    // - `git merge` uses `Merge branch '<name>'`, `Merge remote-tracking branch '<name>'`,
+    //   `Merge tag '<name>'`, `Merge commit '<sha>'` and, for octopus merges,
+    //   `Merge branches '<a>' and '<b>'`, `Merge tags '<a>' and '<b>'`;
+    //   all of them quote the ref, so the quote is part of the prefix and user-written
+    //   titles such as `Merge branches together` are still validated;
+    //   GitHub merge commits use `Merge pull request #<n> from <ref>`.
+    // - `git revert` uses `Revert "<original title>"`.
+    //
+    // Each prefix includes its trailing separator so lookalikes such as `Merged stuff`,
+    // `Merge: x` or `Reverted` are still validated.
+    if [
+        "fixup! ",
+        "squash! ",
+        "amend! ",
+        "Merge branch '",
+        "Merge branches '",
+        "Merge tag '",
+        "Merge tags '",
+        "Merge commit '",
+        "Merge remote-tracking branch '",
+        "Merge remote-tracking branches '",
+        "Merge pull request ",
+        "Revert \"",
+    ]
+    .iter()
+    .any(|prefix| title.starts_with(prefix))
     {
         return Ok(true);
     }
@@ -80,7 +104,22 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
     };
 
     if !check_commit_type(commit_type, allowed_types) {
-        return Err(eyre::eyre!("Invalid commit type: '{commit_type}'"));
+        let allowed = allowed_types.join(", ");
+        if !title.contains(':') {
+            // No `<type>:` prefix at all, e.g. "wip stuff"; the whole title
+            // was parsed as the type, so say what the format is.
+            let example = if allowed_types.iter().any(|t| t == "fix") {
+                "fix"
+            } else {
+                allowed_types.first().map_or("fix", String::as_str)
+            };
+            return Err(eyre::eyre!(
+                "Invalid commit type: '{commit_type}'. Start the title with a type, as in '<type>(<scope>): <description>' (for example '{example}: handle empty input'). Allowed types: {allowed}"
+            ));
+        }
+        return Err(eyre::eyre!(
+            "Invalid commit type: '{commit_type}'. Allowed types: {allowed}"
+        ));
     }
 
     if let Some(scope) = type_and_scope.next() {
@@ -163,8 +202,23 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Invalid commit type: 'testing'"
+            "Invalid commit type: 'testing'. Allowed types: test"
         );
+    }
+
+    #[test]
+    fn test_title_without_type_prefix_explains_the_format() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"wip stuff").unwrap();
+
+        let message = check_conventional_commit(&path, &["fix".to_string(), "feat".to_string()])
+            .unwrap_err()
+            .to_string();
+        assert!(message.starts_with("Invalid commit type: 'wip stuff'."));
+        assert!(message.contains("<type>(<scope>): <description>"));
+        assert!(message.contains("for example 'fix: handle empty input'"));
+        assert!(message.ends_with("Allowed types: fix, feat"));
     }
 
     #[test]
@@ -268,6 +322,60 @@ mod tests {
 
         let result = check_conventional_commit(&path, &["test".to_string()]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_git_generated_titles_skipped() {
+        for title in [
+            "Merge branch 'main' into feature",
+            "Merge branch 'main' of github.com:jdx/hk",
+            "Merge remote-tracking branch 'origin/main'",
+            "Merge tag 'v1.0.0'",
+            "Merge commit 'abc1234'",
+            "Merge branches 'a' and 'b'",
+            "Merge branches 'a', 'b' and 'c' into main",
+            "Merge tags 'v1' and 'v2' into main",
+            "Merge remote-tracking branches 'origin/a' and 'origin/b'",
+            "Merge commit 'abc1234'; commit 'def5678' into main",
+            "Merge branch 'a', tag 'v1' into main",
+            "Merge pull request #123 from jdx/feature",
+            "Revert \"feat: add thing\"",
+            "Revert \"Revert \"feat: add thing\"\"",
+        ] {
+            let f = NamedTempFile::new().unwrap();
+            fs::write(f.path(), title).unwrap();
+            let result = check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()]);
+            assert!(result.is_ok(), "{title} should be skipped");
+        }
+    }
+
+    #[test]
+    fn test_git_generated_lookalikes_not_skipped() {
+        for title in [
+            "Merged stuff",
+            "Merge stuff",
+            "Merge branches together",
+            "Merge branchesx 'a'",
+            "Merge branch together",
+            "Merge tag together",
+            "Merge commit message",
+            "Merge remote-tracking branch fixes",
+            "Merge tags together",
+            "Merge commits together",
+            "Merge tag",
+            "Merge: something",
+            "Merge pull requests",
+            "merge branch 'main'",
+            "Reverted something",
+            "Revert something",
+            "Revert: something",
+            "revert \"feat: x\"",
+        ] {
+            let f = NamedTempFile::new().unwrap();
+            fs::write(f.path(), title).unwrap();
+            let result = check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()]);
+            assert!(result.is_err(), "{title} should be rejected");
+        }
     }
 
     #[test]

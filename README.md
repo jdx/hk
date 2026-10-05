@@ -2,7 +2,7 @@
 
 **Git hooks and project checks, in parallel.**
 
-hk runs linters and formatters with read/write file locks, so independent work runs concurrently and tools that modify the same files take turns. Use the same steps in Git hooks, from your terminal, and in CI.
+hk runs linters and fixers in parallel. Read/write file locks keep them from colliding when steps touch the same files, so concurrency within a run doesn't cost you correctness. Steps configured with `stomp` skip the locks, and separate hk processes don't share them. Use the same steps in Git hooks, from your terminal, and in CI.
 
 [Get started](https://hk.jdx.dev/getting_started) · [Documentation](https://hk.jdx.dev/) · [Built-in linters](https://hk.jdx.dev/builtins) · [CLI reference](https://hk.jdx.dev/cli/)
 
@@ -28,8 +28,8 @@ You can also install hk with `brew install hk` or `cargo install hk --locked`. T
 This example uses hk’s built-in whitespace utilities, so it needs no additional linter:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
 
 steps {
   ["trailing-whitespace"] = Builtins.trailing_whitespace

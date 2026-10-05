@@ -16,6 +16,15 @@ teardown() {
     assert_output --partial "file.txt"
 }
 
+@test "util end-of-file-fixer - detects missing newline when a multibyte char spans the 8 KiB probe" {
+    head -c 8191 /dev/zero | tr '\0' a > multibyte.txt
+    printf 'é\nlast' >> multibyte.txt
+
+    run hk util end-of-file-fixer multibyte.txt
+    assert_failure
+    assert_output --partial "multibyte.txt"
+}
+
 @test "util end-of-file-fixer - passes file with final newline" {
     printf "has newline\n" > file.txt
 
@@ -85,4 +94,70 @@ teardown() {
     run hk util end-of-file-fixer empty.txt
     assert_success
     refute_output
+}
+
+@test "util end-of-file-fixer - CRLF file with final CRLF passes" {
+    printf "one\r\ntwo\r\n" > file.txt
+
+    run hk util end-of-file-fixer file.txt
+    assert_success
+    refute_output
+}
+
+@test "util end-of-file-fixer - appends CRLF to a CRLF file" {
+    printf "one\r\ntwo" > file.txt
+
+    run hk util end-of-file-fixer --fix file.txt
+    assert_success
+    assert_equal "$(od -An -c file.txt | tr -s ' ')" "$(printf 'one\r\ntwo\r\n' | od -An -c | tr -s ' ')"
+}
+
+@test "util end-of-file-fixer - appends LF to an LF file" {
+    printf "one\ntwo" > file.txt
+
+    run hk util end-of-file-fixer --fix file.txt
+    assert_success
+    assert_equal "$(od -An -c file.txt | tr -s ' ')" "$(printf 'one\ntwo\n' | od -An -c | tr -s ' ')"
+}
+
+@test "util end-of-file-fixer - detects and removes trailing blank CRLF lines" {
+    printf "one\r\ntwo\r\n\r\n\r\n" > file.txt
+
+    run hk util end-of-file-fixer file.txt
+    assert_failure
+    assert_output --partial "file.txt"
+
+    run hk util end-of-file-fixer --fix file.txt
+    assert_success
+    assert_equal "$(od -An -c file.txt | tr -s ' ')" "$(printf 'one\r\ntwo\r\n' | od -An -c | tr -s ' ')"
+
+    run hk util end-of-file-fixer file.txt
+    assert_success
+    refute_output
+}
+
+@test "util end-of-file-fixer - blank lines of the other ending count toward the file's ending" {
+    printf "one\r\ntwo\r\n\n\n\n\n" > crlf.txt
+    printf "one\ntwo\n\r\n\r\n\r\n\r\n" > lf.txt
+
+    run hk util end-of-file-fixer --fix crlf.txt lf.txt
+    assert_success
+
+    # The ending is the most frequent in the whole file, as mixed-line-ending counts it
+    assert_equal "$(od -An -c crlf.txt | tr -s ' ')" "$(printf 'one\r\ntwo\n' | od -An -c | tr -s ' ')"
+    assert_equal "$(od -An -c lf.txt | tr -s ' ')" "$(printf 'one\ntwo\r\n' | od -An -c | tr -s ' ')"
+
+    run hk util end-of-file-fixer crlf.txt lf.txt
+    assert_success
+    refute_output
+}
+
+@test "util end-of-file-fixer - uses the most frequent line ending" {
+    printf "one\ntwo\nthree\r\nfour" > lf.txt
+    printf "one\r\ntwo\r\nthree\nfour" > crlf.txt
+
+    run hk util end-of-file-fixer --fix lf.txt crlf.txt
+    assert_success
+    assert_equal "$(od -An -c lf.txt | tr -s ' ')" "$(printf 'one\ntwo\nthree\r\nfour\n' | od -An -c | tr -s ' ')"
+    assert_equal "$(od -An -c crlf.txt | tr -s ' ')" "$(printf 'one\r\ntwo\r\nthree\nfour\r\n' | od -An -c | tr -s ' ')"
 }

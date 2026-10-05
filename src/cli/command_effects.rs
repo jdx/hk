@@ -81,6 +81,10 @@ pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
 // left unclassified lives next to the decision rather than in a commit message.
 #[cfg(test)]
 pub const UNCLASSIFIED: &[(&str, &str)] = &[
+    (
+        "agent stop-hook",
+        "runs the check steps declared in hk.pkl with --safe",
+    ),
     ("check", "runs check steps declared in hk.pkl"),
     ("fix", "runs fix steps declared in hk.pkl"),
     (
@@ -103,6 +107,14 @@ pub const UNCLASSIFIED: &[(&str, &str)] = &[
     (
         "test",
         "runs step-defined tests, which are arbitrary commands",
+    ),
+    (
+        "util format-diff",
+        "runs the formatter it is given on each file, which can do anything",
+    ),
+    (
+        "util sarif-diff",
+        "runs the tool it is given, which can do anything",
     ),
 ];
 

@@ -20,11 +20,10 @@ use ensembler::CmdLineRunner;
 use eyre::WrapErr;
 use itertools::Itertools;
 use std::path::PathBuf;
-use std::process::Stdio;
 
 use super::command::argv_runner;
 use super::expr_env::eval_condition;
-use super::shell::ShellType;
+use super::shell::{ShellType, split_shell};
 use super::types::{
     CheckFirstCmd, Command, CommandPrefix, Pattern, RenderedCommand, RunType, Step,
 };
@@ -47,6 +46,9 @@ fn truncate_progress_message(s: &str, max_chars: usize) -> String {
     }
     console::truncate_str(s, max_chars, "…").into_owned()
 }
+
+/// Exit status POSIX shells use when the command to run is not found.
+const COMMAND_NOT_FOUND_EXIT_CODE: i32 = 127;
 
 impl Step {
     pub fn commands_for_jobs<'a>(
@@ -121,7 +123,7 @@ impl Step {
     /// 2. Evaluate condition expression (if configured)
     /// 3. Check profile requirements
     /// 4. Filter out deleted files
-    /// 5. Acquire semaphore and start job
+    /// 5. Acquire file locks and a job slot, then start the job
     /// 6. Render command template
     /// 7. Execute command
     /// 8. Handle success/failure
@@ -158,16 +160,14 @@ impl Step {
             return Ok(());
         }
         job.progress = Some(job.build_progress(ctx));
+        // Every command starts with fresh file locks and shared diff access,
+        // including a fallback fixer or the check after applying a diff.
         job.status = StepJobStatus::Pending;
-        let semaphore = if let Some(semaphore) = job.semaphore.take() {
-            semaphore
-        } else {
-            ctx.hook_ctx.semaphore().await
-        };
+        let semaphore = job.semaphore.take();
         job.status_start(ctx, semaphore).await?;
         // Filter out files that no longer exist (e.g., deleted by parallel tasks)
         // Use symlink_metadata to check if the path exists as a file/symlink (even if broken)
-        job.files.retain(|f| f.symlink_metadata().is_ok());
+        crate::par::retain(&mut job.files, |f| f.symlink_metadata().is_ok());
         // Skip this job if all files were deleted
         if job.files.is_empty() && self.has_filters() {
             debug!("{self}: all files deleted before execution");
@@ -224,8 +224,11 @@ impl Step {
         // progress message; this keeps the command shape and one
         // concrete example path visible without unbounded expansion.
         let run_for_display = run_cmd
-            .render(&tctx.for_display(), self.prefix.as_ref())
-            .map(|command| command.display(self.shell_type()))
+            .render(
+                &tctx.for_user(self.shell_type()).for_display(),
+                self.prefix.as_ref(),
+            )
+            .map(|command| command.display_user(self.shell_type()))
             .unwrap_or_else(|_| run_cmd.to_string());
         let rendered_command = run_cmd
             .render(&tctx, self.prefix.as_ref())
@@ -255,7 +258,18 @@ impl Step {
             }
         }
         let mise_env = if rendered_dir.is_some() && *env::HK_MISE {
-            Some(crate::mise_env::mise_env_for_dir(&command_dir).await)
+            // Stop waiting if the run is cancelled (Ctrl-C, fail-fast) so a
+            // stalled `mise env` cannot keep this job, and the run, alive.
+            tokio::select! {
+                env = crate::mise_env::mise_env_for_dir(&command_dir) => Some(env),
+                _ = ctx.hook_ctx.failed.cancelled() => {
+                    // No command ran, so report the same cancellation a command
+                    // killed by the cancel would. Returning Ok here would let
+                    // a user's Ctrl-C finish as success.
+                    trace!("{self}: cancelled while resolving the mise environment");
+                    return Err(eyre::Report::new(ensembler::Error::Cancelled).wrap_err(run));
+                }
+            }
         } else {
             None
         };
@@ -332,13 +346,11 @@ impl Step {
             RenderedCommand::Shell(run) => {
                 let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
                 if let Some(shell) = &self.shell {
-                    let shell = shell.to_string();
-                    let shell = shell.split_whitespace().collect_vec();
-                    let mut cmd = if use_raw_cmd {
-                        CmdLineRunner::new_direct(shell[0])
-                    } else {
-                        CmdLineRunner::new(shell[0])
-                    };
+                    let shell = split_shell(&shell.to_string());
+                    // Start the shell itself. `CmdLineRunner::new` would wrap it in
+                    // `cmd.exe /c` on Windows, which ends a script at its first
+                    // newline and re-parses its quotes.
+                    let mut cmd = CmdLineRunner::new_direct(&shell[0]);
                     for arg in shell[1..].iter() {
                         cmd = cmd.arg(arg);
                     }
@@ -350,7 +362,7 @@ impl Step {
                 } else if use_raw_cmd {
                     CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(run)
                 } else {
-                    CmdLineRunner::new("sh")
+                    CmdLineRunner::new_direct("sh")
                         .arg("-o")
                         .arg("errexit")
                         .arg("-c")
@@ -370,10 +382,10 @@ impl Step {
 
         if self.interactive {
             clx::progress::pause();
-            cmd = cmd
-                .stdin(Stdio::inherit())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit());
+            // Inherits the terminal and stays in hk's process group, so TUIs
+            // (helix, fzf, gimoji) can enter raw mode instead of being stopped by
+            // SIGTTOU/SIGTTIN in a background group.
+            cmd = cmd.interactive(true);
         }
         // Git invokes hooks from the work-tree root, so GIT_DIR alone is
         // sufficient until hk scopes a step to a subdirectory. Make the root
@@ -397,7 +409,10 @@ impl Step {
                 }
             }
         }
-        for (key, value) in rendered_env {
+        let reserve_cmd_percent = cfg!(windows)
+            && matches!(rendered_command, RenderedCommand::Shell(_))
+            && matches!(self.shell_type(), ShellType::Cmd);
+        for (key, value) in super::shell::with_cmd_percent(rendered_env, reserve_cmd_percent) {
             cmd = cmd.env(key, value);
         }
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
@@ -426,8 +441,11 @@ impl Step {
         match exec_result {
             Ok(result) => {
                 if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
-                    ctx.hook_ctx
-                        .append_diagnostic_output(&self.name, &result.combined_output);
+                    ctx.hook_ctx.append_diagnostic_output(
+                        &self.name,
+                        rendered_dir.as_deref(),
+                        &result.combined_output,
+                    );
                 }
                 // For both check_list_files and check_diff: stderr is informational only
                 // Files are read from stdout; stderr may contain warnings, debug info, etc.
@@ -467,8 +485,11 @@ impl Step {
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
                     if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
-                        ctx.hook_ctx
-                            .append_diagnostic_output(&self.name, &e.3.combined_output);
+                        ctx.hook_ctx.append_diagnostic_output(
+                            &self.name,
+                            rendered_dir.as_deref(),
+                            &e.3.combined_output,
+                        );
                     }
                     self.collect_failure_hint(ctx, &e.3.combined_output);
                     if job.check_first && matches!(job.run_type, RunType::Check) {
@@ -489,15 +510,48 @@ impl Step {
                         true, // is a failure
                     );
 
-                    // If we're in check mode and a fix command exists, collect a helpful suggestion
-                    self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    // If we're in check mode and a fix command exists, collect a helpful
+                    // suggestion. Skip it when the check never ran (the shell exits 127
+                    // for a missing tool, with a "not found" message): the files were not found to need fixing.
+                    let tool_missing = e.3.status.code() == Some(COMMAND_NOT_FOUND_EXIT_CODE)
+                        && e.3.combined_output.contains("not found");
+                    if !tool_missing {
+                        self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
+                    }
                 }
                 if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
+                } else if matches!(err, ensembler::Error::Cancelled) {
+                    // Not a failure: the step reports itself cancelled.
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
                 }
-                return Err(err).wrap_err(run);
+                // Show the command as a user could run it, not hk's internal
+                // cmd.exe placeholder.
+                let shown = run_cmd
+                    .render(&tctx.for_user(self.shell_type()), self.prefix.as_ref())
+                    .map(|command| command.display_user(self.shell_type()))
+                    .unwrap_or(run);
+                if let (ensembler::Error::Io(io), RenderedCommand::Argv(argv)) =
+                    (&err, &rendered_command)
+                    && io.kind() == std::io::ErrorKind::NotFound
+                {
+                    // ENOENT from spawning an argv command is either the
+                    // program or the working directory. The shell form prints
+                    // "<tool>: not found" itself; argv has no shell to say so.
+                    if !command_dir.exists() {
+                        eyre::bail!(
+                            "{self}: working directory does not exist: {}",
+                            command_dir.display()
+                        );
+                    }
+                    let program = &argv[0];
+                    return Err(eyre::eyre!(
+                        "{program}: command not found; is it installed and on PATH?"
+                    ))
+                    .wrap_err(shown);
+                }
+                return Err(err).wrap_err(shown);
             }
         }
         ctx.decrement_job_count();
@@ -507,6 +561,51 @@ impl Step {
 }
 
 impl Step {
+    /// Leave out `check_diff` or `check_list_files` when it can't run with the
+    /// step's `prefix` or `shell`, such as a builtin's shell script under an
+    /// argv `prefix`.
+    ///
+    /// Both only make a step faster: without them hk runs `check` and `fix`.
+    /// So an otherwise valid step keeps working rather than failing to load.
+    /// A step with neither `check` nor `fix` keeps them, and fails validation
+    /// below.
+    fn drop_incompatible_optional_commands(&mut self, name: &str) {
+        if self.check.is_none() && self.fix.is_none() {
+            return;
+        }
+        let shell_prefix = matches!(self.prefix, Some(CommandPrefix::Shell(_)));
+        let argv_prefix = matches!(self.prefix, Some(CommandPrefix::Argv(_)));
+        let custom_shell = self.shell.is_some();
+        let incompatible = |command: &Option<Command>| {
+            command.as_ref().is_some_and(|command| {
+                if command.is_argv() {
+                    shell_prefix || custom_shell
+                } else {
+                    argv_prefix
+                }
+            })
+        };
+        let mut dropped = false;
+        if incompatible(&self.check_diff) {
+            debug!(
+                "{name}: `check_diff` can't run with this step's prefix or shell, so hk runs `fix`"
+            );
+            self.check_diff = None;
+            self.check_after_diff = false;
+            dropped = true;
+        }
+        if incompatible(&self.check_list_files) {
+            debug!("{name}: `check_list_files` can't run with this step's prefix or shell");
+            self.check_list_files = None;
+            dropped = true;
+        }
+        // Only a setting this left without its command; one that never had
+        // it is still rejected below.
+        if dropped && self.check_diff.is_none() && self.check_list_files.is_none() {
+            self.check_failed_files = false;
+        }
+    }
+
     /// Initialize the step with its name and validate configuration.
     ///
     /// Must be called after deserialization to set the step name and
@@ -526,6 +625,7 @@ impl Step {
                 name
             );
         }
+        self.drop_incompatible_optional_commands(name);
         if self.check_failed_files
             && (self.check.is_none()
                 || (self.check_diff.is_none() && self.check_list_files.is_none()))
@@ -629,7 +729,7 @@ impl Step {
             .as_ref()
             .map(|s| s.to_string())
             .unwrap_or_default();
-        let shell = shell.split_whitespace().next().unwrap_or_default();
+        let shell = split_shell(&shell).into_iter().next().unwrap_or_default();
         let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
         // Use case-insensitive matching for shell names
         // Include .exe variants for Windows environments (Git Bash, MSYS2, Cygwin)
@@ -701,6 +801,63 @@ mod tests {
     fn truncate_progress_message_at_exact_length_unchanged() {
         let s = "x".repeat(2048);
         assert_eq!(truncate_progress_message(&s, 2048), s);
+    }
+
+    #[test]
+    fn a_shell_check_diff_is_dropped_under_an_argv_prefix() {
+        let argv = |args: &[&str]| {
+            Some(Command::Argv(ArgvCommand {
+                argv: args.iter().map(|a| a.to_string()).collect(),
+            }))
+        };
+        let mut step = Step {
+            check: argv(&["fmt", "--check"]),
+            check_diff: Some(Command::Shell(Script {
+                linux: None,
+                macos: None,
+                windows: None,
+                other: Some("fmt --diff && fmt --check".to_string()),
+            })),
+            check_after_diff: true,
+            fix: argv(&["fmt"]),
+            prefix: Some(CommandPrefix::Argv(vec![
+                "mise".into(),
+                "x".into(),
+                "--".into(),
+            ])),
+            ..Default::default()
+        };
+        step.init("fmt").unwrap();
+        assert!(step.check_diff.is_none());
+        assert!(!step.check_after_diff);
+        assert!(step.check.is_some() && step.fix.is_some());
+    }
+
+    #[test]
+    fn check_failed_files_without_a_file_reporting_command_still_fails() {
+        let mut step = Step {
+            check: Some(Command::Argv(ArgvCommand {
+                argv: vec!["lint".into()],
+            })),
+            check_failed_files: true,
+            ..Default::default()
+        };
+        assert!(step.init("lint").is_err());
+    }
+
+    #[test]
+    fn required_commands_that_cannot_run_with_the_prefix_still_fail() {
+        let mut step = Step {
+            check: Some(Command::Shell(Script {
+                linux: None,
+                macos: None,
+                windows: None,
+                other: Some("fmt --check".to_string()),
+            })),
+            prefix: Some(CommandPrefix::Argv(vec!["mise".into()])),
+            ..Default::default()
+        };
+        assert!(step.init("fmt").is_err());
     }
 
     #[test]

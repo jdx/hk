@@ -137,6 +137,10 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
                 return command_text(value);
             }
 
+            if let Some(script) = script_text(command) {
+                return Some(script);
+            }
+
             command.get("argv").and_then(|argv| {
                 argv.as_array()?
                     .iter()
@@ -152,6 +156,146 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// Render a `Script` command. A script with only `other` set is shown as that
+/// script. Otherwise each platform variant is labelled, and an empty variant is
+/// kept visible as a platform where nothing runs.
+fn script_text(command: &serde_json::Map<String, serde_json::Value>) -> Option<String> {
+    const PLATFORMS: [(&str, &str); 4] = [
+        ("linux", "Linux"),
+        ("macos", "macOS"),
+        ("windows", "Windows"),
+        ("other", "other platforms"),
+    ];
+    let variants: Vec<(&str, &str)> = PLATFORMS
+        .iter()
+        .filter_map(|(key, label)| Some((*label, command.get(*key)?.as_str()?)))
+        .collect();
+    match variants.as_slice() {
+        [] => None,
+        [("other platforms", script)] => {
+            (!script.trim().is_empty()).then(|| script.trim_end().to_string())
+        }
+        _ => Some(
+            variants
+                .iter()
+                .map(|(label, script)| {
+                    if script.trim().is_empty() {
+                        format!("# {label}: nothing runs")
+                    } else {
+                        format!("# {label}:\n{}", script.trim_end())
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
+    }
+}
+
+/// Render a string, Regex or list option as Pkl source, chosen by the JSON
+/// type: a string stays a quoted string, a Regex object becomes
+/// `Regex(#"..."#)`, and a list becomes `List(...)` of those.
+fn pkl_value(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(s) => {
+            Some(serde_json::to_string(s).unwrap_or_else(|_| format!("{s:?}")))
+        }
+        serde_json::Value::Object(map)
+            if map.get("_type").and_then(|v| v.as_str()) == Some("regex") =>
+        {
+            let pattern = map.get("pattern")?.as_str()?;
+            Some(format!("Regex(#\"{pattern}\"#)"))
+        }
+        serde_json::Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().filter_map(pkl_value).collect();
+            (!items.is_empty()).then(|| format!("List({})", items.join(", ")))
+        }
+        _ => None,
+    }
+}
+
+/// Flatten a glob string, a list of globs, or a Regex object
+/// (`{"_type": "regex", "pattern": ...}`, alone or inside a list) into display
+/// strings. Regexes render as `/pattern/` so they read differently from globs.
+fn string_list(value: &serde_json::Value) -> Vec<String> {
+    match value {
+        serde_json::Value::String(s) => vec![s.clone()],
+        serde_json::Value::Array(arr) => arr.iter().flat_map(string_list).collect(),
+        serde_json::Value::Object(map)
+            if map.get("_type").and_then(|v| v.as_str()) == Some("regex") =>
+        {
+            map.get("pattern")
+                .and_then(|v| v.as_str())
+                .map(|pattern| vec![format!("/{pattern}/")])
+                .unwrap_or_default()
+        }
+        _ => vec![],
+    }
+}
+
+fn code_list(items: &[String]) -> String {
+    items
+        .iter()
+        .map(|item| inline_code(item))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Describe one file selector: a `glob`, `types`, or both (which must both match).
+fn selector_doc(selector: &serde_json::Value) -> Option<String> {
+    let glob = selector.get("glob").map(string_list).unwrap_or_default();
+    let types = selector.get("types").map(string_list).unwrap_or_default();
+    match (glob.is_empty(), types.is_empty()) {
+        (true, true) => None,
+        (false, true) => Some(code_list(&glob)),
+        (true, false) => Some(format!("{} files", code_list(&types))),
+        (false, false) => Some(format!(
+            "{} that are {} files",
+            code_list(&glob),
+            code_list(&types)
+        )),
+    }
+}
+
+/// The files a builtin runs on, from `glob`/`types` or `match_any`.
+fn files_doc(step: &serde_json::Value) -> Option<String> {
+    if let Some(selectors) = step.get("match_any").and_then(|v| v.as_array()) {
+        let parts: Vec<String> = selectors.iter().filter_map(selector_doc).collect();
+        if !parts.is_empty() {
+            return Some(parts.join("; or "));
+        }
+    }
+    selector_doc(step)
+}
+
+/// One compact line of the options a builtin sets away from their defaults.
+fn options_doc(step: &serde_json::Value) -> Option<String> {
+    let mut opts = Vec::new();
+    for key in [
+        "batch",
+        "exclusive",
+        "check_after_diff",
+        "allow_binary",
+        "allow_symlinks",
+    ] {
+        if step.get(key).and_then(|v| v.as_bool()) == Some(true) {
+            opts.push(inline_code(&format!("{key} = true")));
+        }
+    }
+    for key in ["workspace_indicator", "dir", "shell"] {
+        if let Some(value) = step.get(key).and_then(|v| v.as_str()) {
+            opts.push(inline_code(&format!("{key} = {value:?}")));
+        }
+    }
+    for key in ["exclude", "stage"] {
+        if let Some(value) = step.get(key)
+            && let Some(pkl) = pkl_value(value)
+        {
+            opts.push(inline_code(&format!("{key} = {pkl}")));
+        }
+    }
+    (!opts.is_empty()).then(|| opts.join(", "))
 }
 
 fn shell_quote(arg: &str) -> String {
@@ -314,21 +458,8 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                 md.push_str(&format!("{}\n\n", info.description));
             }
 
-            // Show glob pattern(s)
-            if let Some(glob) = info.step.get("glob") {
-                let glob_str = match glob {
-                    serde_json::Value::String(s) => format!("`{}`", s),
-                    serde_json::Value::Array(arr) => arr
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| format!("`{}`", s))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    _ => String::new(),
-                };
-                if !glob_str.is_empty() {
-                    md.push_str(&format!("- **Glob:** {}\n", glob_str));
-                }
+            if let Some(files) = files_doc(&info.step) {
+                md.push_str(&format!("- **Files:** {files}\n"));
             }
 
             push_command_doc(&mut md, &info.step, "check", "Check");
@@ -341,6 +472,10 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
             );
             push_command_doc(&mut md, &info.step, "fix", "Fix");
 
+            if let Some(options) = options_doc(&info.step) {
+                md.push_str(&format!("- **Options:** {options}\n"));
+            }
+
             md.push('\n');
         }
     }
@@ -351,101 +486,6 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
     fs::write("docs/gen/builtins.md", md)?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn command_text_unwraps_shell_command_specs() {
-        let command = json!({
-            "command": "cargo fmt --check --manifest-path {{workspace_indicator}}",
-            "effect": "read"
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("cargo fmt --check --manifest-path {{workspace_indicator}}")
-        );
-    }
-
-    #[test]
-    fn command_text_formats_structured_argv() {
-        let command = json!({
-            "command": {
-                "argv": ["prettier", "--check", "{{files}}"]
-            },
-            "effect": "read"
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("prettier --check {{files}}")
-        );
-    }
-
-    #[test]
-    fn command_text_preserves_argv_boundaries() {
-        let command = json!({
-            "argv": ["tool", "--message", "hello world"]
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("tool --message 'hello world'")
-        );
-    }
-
-    #[test]
-    fn command_text_quotes_shell_metacharacters() {
-        let command = json!({
-            "argv": ["tool", "a\"b", "$(printf expanded)", "it's"]
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some(r#"tool 'a"b' '$(printf expanded)' 'it'\''s'"#)
-        );
-    }
-
-    #[test]
-    fn command_text_quotes_brace_expansion() {
-        let command = json!({
-            "argv": ["tool", "{a,b}", "{{files}}", "{{workspace_files}}"]
-        });
-
-        assert_eq!(
-            command_text(&command).as_deref(),
-            Some("tool '{a,b}' {{files}} {{workspace_files}}")
-        );
-    }
-
-    #[test]
-    fn command_docs_use_fences_for_multiline_scripts() {
-        let step = json!({
-            "check": {
-                "command": "first line\nsecond line",
-                "effect": "read"
-            }
-        });
-        let mut md = String::new();
-
-        push_command_doc(&mut md, &step, "check", "Check");
-
-        assert_eq!(
-            md,
-            "- **Check:**\n\n  ```sh\n  first line\n  second line\n  ```\n"
-        );
-    }
-
-    #[test]
-    fn command_text_ignores_missing_commands() {
-        assert_eq!(command_text(&serde_json::Value::Null), None);
-        assert_eq!(command_text(&json!({"effect": "read"})), None);
-    }
-}
-
 fn format_property_doc(name: &str, value: &serde_json::Value, heading_level: &str) -> String {
     let mut doc = format!(
         "{} `{}: {}`\n\n",
@@ -563,4 +603,217 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
     fs::write("docs/gen/pkl-config.md", md)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn string_list_renders_globs_and_regexes() {
+        assert_eq!(string_list(&json!("*.rs")), vec!["*.rs"]);
+        assert_eq!(
+            string_list(&json!({"_type": "regex", "pattern": "\\.rs$"})),
+            vec!["/\\.rs$/"]
+        );
+        assert_eq!(
+            string_list(&json!(["*.md", {"_type": "regex", "pattern": "^docs"}])),
+            vec!["*.md", "/^docs/"]
+        );
+        assert!(string_list(&json!({"pattern": "x"})).is_empty());
+    }
+
+    #[test]
+    fn selector_and_options_keep_regex_patterns() {
+        let step = json!({
+            "glob": {"_type": "regex", "pattern": "\\.rs$"},
+            "exclude": [{"_type": "regex", "pattern": "^gen/"}]
+        });
+        assert_eq!(files_doc(&step).as_deref(), Some("`/\\.rs$/`"));
+        assert!(
+            options_doc(&step)
+                .unwrap()
+                .contains(r##"Regex(#"^gen/"#)"##)
+        );
+    }
+
+    #[test]
+    fn command_text_unwraps_shell_command_specs() {
+        let command = json!({
+            "command": "cargo fmt --check --manifest-path {{workspace_indicator}}",
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("cargo fmt --check --manifest-path {{workspace_indicator}}")
+        );
+    }
+
+    #[test]
+    fn command_text_formats_structured_argv() {
+        let command = json!({
+            "command": {
+                "argv": ["prettier", "--check", "{{files}}"]
+            },
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("prettier --check {{files}}")
+        );
+    }
+
+    #[test]
+    fn command_text_preserves_argv_boundaries() {
+        let command = json!({
+            "argv": ["tool", "--message", "hello world"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("tool --message 'hello world'")
+        );
+    }
+
+    #[test]
+    fn command_text_quotes_shell_metacharacters() {
+        let command = json!({
+            "argv": ["tool", "a\"b", "$(printf expanded)", "it's"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some(r#"tool 'a"b' '$(printf expanded)' 'it'\''s'"#)
+        );
+    }
+
+    #[test]
+    fn command_text_quotes_brace_expansion() {
+        let command = json!({
+            "argv": ["tool", "{a,b}", "{{files}}", "{{workspace_files}}"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("tool '{a,b}' {{files}} {{workspace_files}}")
+        );
+    }
+
+    #[test]
+    fn command_docs_use_fences_for_multiline_scripts() {
+        let step = json!({
+            "check": {
+                "command": "first line\nsecond line",
+                "effect": "read"
+            }
+        });
+        let mut md = String::new();
+
+        push_command_doc(&mut md, &step, "check", "Check");
+
+        assert_eq!(
+            md,
+            "- **Check:**\n\n  ```sh\n  first line\n  second line\n  ```\n"
+        );
+    }
+
+    #[test]
+    fn command_text_unwraps_scripts() {
+        let command = json!({
+            "command": {"other": "set -e\ntool {{ files }}\n"},
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("set -e\ntool {{ files }}")
+        );
+        assert_eq!(
+            command_text(&json!({"windows": "tool.exe"})).as_deref(),
+            Some("# Windows:\ntool.exe")
+        );
+    }
+
+    #[test]
+    fn files_doc_renders_globs_types_and_match_any() {
+        assert_eq!(
+            files_doc(&json!({"glob": ["**/*.py", "**/*.pyi"]})).as_deref(),
+            Some("`**/*.py`, `**/*.pyi`")
+        );
+        assert_eq!(
+            files_doc(&json!({"types": ["python"]})).as_deref(),
+            Some("`python` files")
+        );
+        assert_eq!(
+            files_doc(&json!({"glob": "*.md", "types": ["text"]})).as_deref(),
+            Some("`*.md` that are `text` files")
+        );
+        assert_eq!(
+            files_doc(&json!({"match_any": [{"glob": ["**/*.sh"]}, {"types": ["sh", "bash"]}]}))
+                .as_deref(),
+            Some("`**/*.sh`; or `sh`, `bash` files")
+        );
+        assert_eq!(files_doc(&json!({})), None);
+    }
+
+    #[test]
+    fn options_doc_lists_only_non_defaults() {
+        assert_eq!(options_doc(&json!({"batch": false, "exclude": []})), None);
+        assert_eq!(
+            options_doc(
+                &json!({"batch": true, "workspace_indicator": "go.mod", "stage": ["go.sum"]})
+            )
+            .as_deref(),
+            Some(r#"`batch = true`, `workspace_indicator = "go.mod"`, `stage = List("go.sum")`"#)
+        );
+    }
+
+    #[test]
+    fn options_doc_keeps_strings_quoted_and_lists_as_pkl() {
+        assert_eq!(
+            options_doc(&json!({"exclude": "**/.terraform/**"})).as_deref(),
+            Some(r#"`exclude = "**/.terraform/**"`"#)
+        );
+        assert_eq!(
+            options_doc(&json!({"exclude": ["deps/**/*", "tmp/**/*"]})).as_deref(),
+            Some(r#"`exclude = List("deps/**/*", "tmp/**/*")`"#)
+        );
+    }
+
+    #[test]
+    fn options_doc_renders_regex_excludes_as_pkl() {
+        assert_eq!(
+            options_doc(&json!({"exclude": {"_type": "regex", "pattern": r"\.min\.js$"}}))
+                .as_deref(),
+            Some(r##"`exclude = Regex(#"\.min\.js$"#)`"##)
+        );
+        assert_eq!(
+            options_doc(&json!({"exclude": ["vendor/**", {"_type": "regex", "pattern": "^gen/"}]}))
+                .as_deref(),
+            Some(r##"`exclude = List("vendor/**", Regex(#"^gen/"#))`"##)
+        );
+    }
+
+    #[test]
+    fn command_text_labels_platform_scripts() {
+        let command = json!({"command": {"windows": "", "other": "tool {{ files }}"}});
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("# Windows: nothing runs\n# other platforms:\ntool {{ files }}")
+        );
+        let command = json!({"linux": "a", "macos": "b\n"});
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("# Linux:\na\n# macOS:\nb")
+        );
+    }
+
+    #[test]
+    fn command_text_ignores_missing_commands() {
+        assert_eq!(command_text(&serde_json::Value::Null), None);
+        assert_eq!(command_text(&json!({"effect": "read"})), None);
+    }
 }

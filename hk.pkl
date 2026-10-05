@@ -1,4 +1,4 @@
-// amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+// amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 amends "pkl/Config.pkl"
 
 import "pkl/Builtins.pkl"
@@ -15,7 +15,8 @@ local linters = new Mapping<String, Step | Group> {
   ["cargo-clippy"] = (Builtins.cargo_clippy) {
     profiles = List("slow")
     check = new CommandSpec {
-      command = "cargo clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
+      command =
+        "cargo clippy --manifest-path {{workspace_indicator}} --quiet --all-targets -- -D warnings"
       effect = "write"
     }
   }
@@ -44,7 +45,10 @@ local linters = new Mapping<String, Step | Group> {
   ["taplo"] = (Builtins.taplo) {
     glob = "settings.toml"
   }
-  ["taplo-format"] = Builtins.taplo_format
+  ["taplo-format"] = (Builtins.taplo_format) {
+    // mise writes these per-tool lockfiles; keep them as generated.
+    exclude = "**/.mise/locks/**"
+  }
   ["docs"] = new Step {
     glob = "docs/**"
     check = "mise run docs:build"

@@ -205,6 +205,82 @@
             "hidden_aliases": [],
             "examples": [],
             "headings": []
+          },
+          "stop-hook": {
+            "full_cmd": ["agent", "stop-hook"],
+            "usage": "agent stop-hook [--timeout <SECONDS>] [--target <TARGET>]",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "timeout",
+                "usage": "--timeout <SECONDS>",
+                "help": "Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.",
+                "help_first_line": "Seconds to let the check run before stopping it (default 100). Keep it below the agent's own hook timeout.",
+                "short": [],
+                "long": ["timeout"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "SECONDS",
+                  "usage": "<SECONDS>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "target",
+                "usage": "--target <TARGET>",
+                "help": "Agent running the hook; `codex` prints `{}` when the check passes",
+                "help_first_line": "Agent running the hook; `codex` prints `{}` when the check passes",
+                "short": [],
+                "long": ["target"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TARGET",
+                  "usage": "<TARGET>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["codex", "claude-code"],
+                    "details": [
+                      {
+                        "value": "codex"
+                      },
+                      {
+                        "value": "claude-code"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Run `hk run check --safe` as an agent Stop hook",
+            "help_long": "Run `hk run check --safe` as an agent Stop hook\n\nReads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is true. In a project without an hk config, or one with no `check` hook, it passes like a hook from `hk install --global`, so it is safe in user-level agent settings. Always exits 0. When the check fails or `--safe` refuses to run, prints only `{\"decision\":\"block\",\"reason\":\"...\"}`, the decision both Claude Code and Codex accept. A check still running after `--timeout` seconds is stopped and reported the same way. When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's documentation is inconsistent about empty stdout and `{}` is valid under either reading.",
+            "name": "stop-hook",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
           }
         },
         "args": [],
@@ -1686,6 +1762,17 @@
             "conflicts": ["--global"]
           },
           {
+            "name": "force",
+            "usage": "--force",
+            "help": "With the legacy `.git/hooks/` script shims, replace an existing hook\nthat hk did not write, and replace a symlinked hook with a regular\nfile (the symlink's target is left alone). By default hk refuses to\ninstall if any target is a hook it did not write or a symlink, and\ninstalls nothing.",
+            "help_first_line": "With the legacy `.git/hooks/` script shims, replace an existing hook",
+            "short": [],
+            "long": ["force"],
+            "hide": false,
+            "global": false,
+            "conflicts": ["--global"]
+          },
+          {
             "name": "mise",
             "usage": "--mise",
             "help": "Run hooks through `mise x` so mise-managed tools are available\nwithout activating mise in the shell.",
@@ -1832,6 +1919,26 @@
                 "default": ["hk.pkl"]
               },
               {
+                "name": "runner",
+                "usage": "--runner <RUNNER>",
+                "help": "Tool that runs hooks hk cannot convert.\nDefaults to pre-commit when only pre-commit is on PATH, otherwise prek.",
+                "help_first_line": "Tool that runs hooks hk cannot convert.",
+                "short": [],
+                "long": ["runner"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "RUNNER",
+                  "usage": "<RUNNER>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["prek", "pre-commit"]
+                  }
+                }
+              },
+              {
                 "name": "hk-pkl-root",
                 "usage": "--hk-pkl-root <HK_PKL_ROOT>",
                 "help": "Root path for hk pkl files (e.g. \"pkl\" for a local checkout, or a package URL prefix). If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl",
@@ -1866,7 +1973,8 @@
             "unknown_flags": null,
             "hide": false,
             "args_override_self": true,
-            "help": "Migrate from pre-commit to hk",
+            "help": "Migrate from pre-commit (or prek) to hk",
+            "help_long": "Migrate from pre-commit (or prek) to hk\n\nReads a .pre-commit-config.yaml and writes an hk.pkl that runs the same hooks at the same git stages:\n\n- Hooks from well-known repositories become hk builtins, for example\n  `ruff` from astral-sh/ruff-pre-commit becomes `Builtins.ruff`.\n- Local `system`, `script`, and `fail` hooks become native hk steps with\n  the same command and file filters.\n- Every other hook keeps running through prek or pre-commit, which reads\n  the original config. This includes hooks whose `args`,\n  `additional_dependencies`, or filters a builtin cannot reproduce.\n  Each of these steps has a comment explaining why it was not converted.\n\n`manual` hooks run only with `hk check` and `hk fix`.",
             "name": "pre-commit",
             "aliases": [],
             "hidden_aliases": [],
@@ -7206,7 +7314,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Check that a commit message follows the Conventional Commits format",
-            "help_long": "Check that a commit message follows the Conventional Commits format\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.",
+            "help_long": "Check that a commit message follows the Conventional Commits format\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation, as do titles git generates itself: `Merge branch '`, `Merge branches '`, `Merge tag '`, `Merge tags '`, `Merge commit '`, `Merge remote-tracking branch '`, `Merge remote-tracking branches '`, `Merge pull request `, and `Revert \"`.",
             "name": "check-conventional-commit",
             "aliases": [],
             "hidden_aliases": [],
@@ -7532,6 +7640,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Check for and optionally fix missing final newlines",
+            "help_long": "Check for and optionally fix missing final newlines\n\nA missing final newline is added as the file's most frequent line ending, so a CRLF file gets CRLF. Every line ending in the file counts, as in `mixed-line-ending`, and a tie gives LF. Trailing blank lines, LF or CRLF, are removed. A file that already ends with exactly one newline is left as it is.",
             "name": "end-of-file-fixer",
             "aliases": [],
             "hidden_aliases": [],
@@ -7684,6 +7793,68 @@
             "examples": [],
             "headings": []
           },
+          "format-diff": {
+            "full_cmd": ["util", "format-diff"],
+            "usage": "util format-diff [--no-stdin] <FILES>… <-- COMMAND>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to format",
+                "help_first_line": "Files to format",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              },
+              {
+                "name": "COMMAND",
+                "usage": "<-- COMMAND>…",
+                "help": "The formatter, reading stdin and writing the formatted file to stdout",
+                "help_first_line": "The formatter, reading stdin and writing the formatted file to stdout",
+                "required": true,
+                "double_dash": "Required",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "no-stdin",
+                "usage": "--no-stdin",
+                "help": "Give COMMAND no stdin, for a formatter that reads the file at `{}`",
+                "help_first_line": "Give COMMAND no stdin, for a formatter that reads the file at `{}`",
+                "short": [],
+                "long": ["no-stdin"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Print a patch of what a formatter would change, for a `check_diff` command",
+            "help_long": "Print a patch of what a formatter would change, for a `check_diff` command\n\nRuns COMMAND once for each file, with the file on stdin, and compares what it prints with the file. `{}` in COMMAND is replaced with the file's path, for formatters that take the path of their input as an option. With `--no-stdin`, COMMAND reads the file itself, from the path `{}` gives it. Files are formatted in parallel.\n\nPrints a unified diff for every file that would change and exits 1, or exits 0 when none would. If COMMAND fails for any file, or prints nothing for a file that isn't empty, no patch is printed: its error output is shown and hk runs the step's fixer instead.\n\nExample: `hk util format-diff a.lua b.lua -- stylua --stdin-filepath {} -`",
+            "name": "format-diff",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
+          },
           "mixed-line-ending": {
             "full_cmd": ["util", "mixed-line-ending"],
             "usage": "util mixed-line-ending [-d --diff] [-f --fix] <FILES>…",
@@ -7715,8 +7886,8 @@
               {
                 "name": "fix",
                 "usage": "-f --fix",
-                "help": "Fix mixed line endings by normalizing to LF",
-                "help_first_line": "Fix mixed line endings by normalizing to LF",
+                "help": "Fix mixed line endings by normalizing to the most frequent one (LF on a tie)",
+                "help_first_line": "Fix mixed line endings by normalizing to the most frequent one (LF on a tie)",
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
@@ -7741,6 +7912,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Detect and fix mixed line endings",
+            "help_long": "Detect and fix mixed line endings\n\nFixing normalizes every line to the file's most frequent ending, or LF when LF and CRLF are tied. A lone CR is left alone.",
             "name": "mixed-line-ending",
             "aliases": [],
             "hidden_aliases": [],
@@ -7881,6 +8053,66 @@
             "examples": [],
             "headings": []
           },
+          "sarif-diff": {
+            "full_cmd": ["util", "sarif-diff"],
+            "usage": "util sarif-diff [--findings-exit-code <CODE>] <-- COMMAND>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "COMMAND",
+                "usage": "<-- COMMAND>…",
+                "help": "The tool, printing a SARIF log on stdout",
+                "help_first_line": "The tool, printing a SARIF log on stdout",
+                "required": true,
+                "double_dash": "Required",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "findings-exit-code",
+                "usage": "--findings-exit-code <CODE>",
+                "help": "An exit code COMMAND uses for \"found problems\" rather than for failing (repeatable; default 1)",
+                "help_first_line": "An exit code COMMAND uses for \"found problems\" rather than for failing (repeatable; default 1)",
+                "short": [],
+                "long": ["findings-exit-code"],
+                "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "CODE",
+                  "usage": "<CODE>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command",
+            "help_long": "Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command\n\nRuns COMMAND, reads the SARIF log it prints on stdout, and applies the fixes its results carry to the files they name, printing a unified diff of the changes. Exits 0 when there are no results, and 1 after printing the patch when every result has a fix.\n\nIf any result has no fix, a fix can't be applied, or COMMAND fails, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest. COMMAND fails when it exits with anything but 0 or a findings exit code, which is 1 unless `--findings-exit-code` says otherwise.\n\nExample: `hk util sarif-diff -- pinact run --check --format sarif a.yml`",
+            "name": "sarif-diff",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
+          },
           "trailing-whitespace": {
             "full_cmd": ["util", "trailing-whitespace"],
             "usage": "util trailing-whitespace [-d --diff] [-f --fix] <FILES>…",
@@ -7912,8 +8144,8 @@
               {
                 "name": "fix",
                 "usage": "-f --fix",
-                "help": "Fix trailing whitespace by removing it",
-                "help_first_line": "Fix trailing whitespace by removing it",
+                "help": "Fix trailing whitespace by removing the spaces and tabs",
+                "help_first_line": "Fix trailing whitespace by removing the spaces and tabs",
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
@@ -7938,6 +8170,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Check for and optionally fix trailing whitespace",
+            "help_long": "Check for and optionally fix trailing whitespace\n\nOnly spaces and tabs before a line's terminator count as trailing whitespace. Each line keeps its own terminator, so a CRLF file stays CRLF.",
             "name": "trailing-whitespace",
             "aliases": [],
             "hidden_aliases": [],
@@ -7998,6 +8231,7 @@
         "hide": false,
         "args_override_self": true,
         "help": "Validate the config file",
+        "help_long": "Validate the config file\n\nErrors for configs hk cannot run. Also prints warnings for settings that load but probably do not do what was meant: unknown properties (which release builds silently drop), `depends` that never orders anything, steps without a command, and globs that cannot match.",
         "name": "validate",
         "aliases": [],
         "hidden_aliases": [],
@@ -8255,7 +8489,7 @@
     "sources": {},
     "files": []
   },
-  "version": "2.1.0",
+  "version": "2.5.0",
   "usage": "",
   "complete": {
     "directory": {

@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "Protocol Buffers formatter"
+  project_indicators {
+    new { file = "buf.yaml" }
+    new { file = "buf.work.yaml" }
+  }
 }
 buf_format = new Config.Step {
   glob = "**/*.proto"
@@ -52,6 +56,7 @@ buf_format = new Config.Step {
     ["check bad file"] = testMaker.checkFail(before, 100)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
+    ["diff bad file"] = testMaker.diffPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
   }
 }

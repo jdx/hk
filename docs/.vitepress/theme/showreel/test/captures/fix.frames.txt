@@ -1,0 +1,197 @@
+----- frame 0 -----
+hk 2.3.1 by @jdx – fix  [                                                  ] 0/7
+⠋ files - Fetching git status
+----- frame 1 -----
+hk 2.3.1 by @jdx – fix  [                                                  ] 0/7
+✔ files - Fetching modified files (4 files)
+----- frame 2 -----
+hk 2.3.1 by @jdx – fix  [                                                  ] 0/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude --diff --exit-non-zero-on-fix src/main.py && ruff…
+❯ shfmt
+❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
+----- frame 3 -----
+hk 2.3.1 by @jdx – fix  [                                                  ] 0/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude --diff --exit-non-zero-on-fix src/main.py && ruff…
+❯ shfmt
+❯ shellcheck
+----- frame 4 -----
+hk 2.3.1 by @jdx – fix  [======>                                           ] 1/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude --diff --exit-non-zero-on-fix src/main.py && ruff…
+❯ shfmt
+✔ shellcheck
+----- frame 5 -----
+hk 2.3.1 by @jdx – fix  [=============>                                    ] 2/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude --diff --exit-non-zero-on-fix src/main.py && ruff…
+✔ shfmt
+✔ shellcheck
+----- frame 6 -----
+hk 2.3.1 by @jdx – fix  [=============>                                    ] 2/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+✔ shfmt
+✔ shellcheck
+----- frame 7 -----
+hk 2.3.1 by @jdx – fix  [=============>                                    ] 2/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+✔ shfmt
+✔ shellcheck
+----- frame 8 -----
+hk 2.3.1 by @jdx – fix  [====================>                             ] 3/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+✔ shfmt
+✔ shellcheck
+----- frame 9 -----
+hk 2.3.1 by @jdx – fix  [====================>                             ] 3/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+❯ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 10 -----
+hk 2.3.1 by @jdx – fix  [============================>                     ] 4/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 11 -----
+hk 2.3.1 by @jdx – fix  [============================>                     ] 4/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+ README.md 11ms
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 12 -----
+hk 2.3.1 by @jdx – fix  [============================>                     ] 4/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 13 -----
+hk 2.3.1 by @jdx – fix  [===================================>              ] 5/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ trailing-whitespace
+ ⠋
+❯ newlines
+ ⠋ 4 files –  – hk util end-of-file-fixer --diff README.md …
+----- frame 14 -----
+hk 2.3.1 by @jdx – fix  [===================================>              ] 5/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ trailing-whitespace
+ ⠋ hk util trailing-whitespace --diff README.md scripts/deploy.sh src/app.ts sr…
+❯ newlines
+----- frame 15 -----
+hk 2.3.1 by @jdx – fix  [==========================================>       ] 6/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ trailing-whitespace
+ ⠋ hk util trailing-whitespace --diff README.md scripts/deploy.sh src/app.ts sr…
+✔ newlines
+----- frame 16 -----
+hk 2.3.1 by @jdx – fix  [==========================================>       ] 6/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ trailing-whitespace
+✔ newlines
+----- frame 17 -----
+hk 2.3.1 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 18 -----
+hk 2.3.1 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 19 -----
+hk 2.3.1 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 20 -----
+hk 2.3.1 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 21 -----
+hk 2.3.1 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines

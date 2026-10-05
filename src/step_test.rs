@@ -1,3 +1,4 @@
+use crate::diagnostics::Severity;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -5,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct StepTest {
-    /// One of: "check" or "fix"
+    /// One of: "check", "fix", or "diff"
     #[serde(default)]
     pub run: RunKind,
     /// Files to pass into the template context ({{ files }})
@@ -38,6 +39,9 @@ pub enum RunKind {
     #[default]
     Check,
     Fix,
+    /// Run `check_diff` and apply its output as fix mode does, without falling
+    /// back to `fix` when the patch doesn't apply.
+    Diff,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
@@ -53,4 +57,25 @@ pub struct StepTestExpect {
     /// Map of path -> full expected file contents (exact match)
     #[serde(default)]
     pub files: IndexMap<String, String>,
+    /// Normalized diagnostics the output of a `check` test must contain
+    #[serde(default)]
+    pub diagnostics: Vec<StepTestDiagnostic>,
+}
+
+/// A normalized diagnostic that a `check` test expects the step's `diagnostic_format` to
+/// produce. Fields left unset match anything.
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
+pub struct StepTestDiagnostic {
+    /// File path as the tool printed it, or the path relative to the test sandbox if it printed an absolute one
+    pub path: Option<String>,
+    /// Line where the diagnostic's range starts
+    pub line: Option<u64>,
+    /// Column where the diagnostic's range starts
+    pub column: Option<u64>,
+    pub severity: Option<Severity>,
+    pub rule: Option<String>,
+    /// Substring which must appear in the message
+    pub message: Option<String>,
 }

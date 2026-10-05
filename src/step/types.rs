@@ -205,6 +205,10 @@ pub struct Step {
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub check_diff: Option<Command>,
 
+    /// In fix mode, apply check_diff output instead of running fix (default: true)
+    #[serde(default)]
+    pub apply_check_diff: Option<bool>,
+
     /// Run the regular check after applying check_diff output
     #[serde(default)]
     pub check_after_diff: bool,
@@ -233,13 +237,18 @@ pub struct Step {
     /// Expression that must evaluate to true for step to run
     pub step_condition: Option<String>,
 
-    /// Run check command before fix to identify files needing changes
+    /// Run check command before fix to identify files needing changes. See
+    /// [`Step::check_first`] for the effective value.
     #[serde(default)]
     pub check_first: bool,
 
     /// Split files across multiple parallel jobs
     #[serde(default)]
     pub batch: bool,
+
+    /// Fewest files a `batch` job gets; defaults to 4
+    #[serde(default)]
+    pub batch_min_files: Option<usize>,
 
     /// Allow overwriting files being processed by other steps
     #[serde(default)]
@@ -287,6 +296,9 @@ pub struct Step {
 
     /// Tool name included in normalized diagnostics (defaults to step name).
     pub diagnostic_tool: Option<String>,
+
+    /// Severity for `gcc` findings the tool prints without one (defaults to error).
+    pub diagnostic_severity: Option<crate::diagnostics::Severity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -456,6 +468,14 @@ pub(crate) enum RenderedCommand {
 }
 
 impl Command {
+    /// The command itself, without a [`CommandSpec`]'s declared effect.
+    fn without_effect(&self) -> &Command {
+        match self {
+            Self::Spec(spec) => spec.command.without_effect(),
+            other => other,
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Spec(spec) => spec.command.is_empty(),
@@ -586,6 +606,20 @@ impl RenderedCommand {
                 .join(" "),
         }
     }
+
+    /// Like [`display`](Self::display) for text shown to users: argv quoting
+    /// never exposes hk's internal cmd.exe placeholder. Shell scripts are
+    /// returned verbatim.
+    pub(crate) fn display_user(&self, shell_type: super::ShellType) -> String {
+        match self {
+            Self::Shell(script) => script.clone(),
+            Self::Argv(argv) => argv
+                .iter()
+                .map(|arg| shell_type.quote_display(arg))
+                .collect::<Vec<_>>()
+                .join(" "),
+        }
+    }
 }
 
 impl FromStr for Command {
@@ -649,9 +683,64 @@ impl<'a> CheckFirstCmd<'a> {
     }
 }
 
+impl Step {
+    /// Whether this step runs its check before its fix: when it sets
+    /// `check_first` (and another step writes the same files), and always when
+    /// its `check` and `fix` are the same command.
+    pub fn check_first(&self) -> bool {
+        self.check_first || self.check_is_fix()
+    }
+
+    /// Whether `check` and `fix` are the same command, as `hk migrate
+    /// pre-commit` writes pre-commit fixers. Such a fixer exits 1 after
+    /// fixing, and running it again is what lets it pass, so it always checks
+    /// first, whether or not another step writes the same files.
+    pub fn check_is_fix(&self) -> bool {
+        matches!((&self.check, &self.fix),
+            (Some(check), Some(fix)) if check.without_effect() == fix.without_effect())
+    }
+
+    /// Whether fix mode applies `check_diff` output instead of running `fix`.
+    /// A step without `fix` has no other way to fix files.
+    pub fn applies_check_diff(&self) -> bool {
+        self.check_diff.is_some() && (self.apply_check_diff != Some(false) || self.fix.is_none())
+    }
+
+    /// Whether fix mode can run `check_diff` under read locks and take write
+    /// locks only on the files its patch names, to apply it. That needs a
+    /// command declared read-only (`effect = "read"`); any other command could
+    /// change files while other steps read them.
+    pub fn diffs_under_read_locks(&self) -> bool {
+        self.applies_check_diff()
+            && !self.stomp
+            && matches!(
+                self.check_first_cmd(),
+                Some(CheckFirstCmd::Diff(command)) if command.effect() == Some(CommandEffect::Read)
+            )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_user_keeps_literal_placeholder_text_and_hides_injected_one() {
+        let shell = RenderedCommand::Shell("echo %HK_CMD_PERCENT%".to_string());
+        assert_eq!(
+            shell.display_user(crate::step::ShellType::Bash),
+            "echo %HK_CMD_PERCENT%"
+        );
+        let argv = RenderedCommand::Argv(vec!["type".to_string(), "100%.txt".to_string()]);
+        assert_eq!(
+            argv.display_user(crate::step::ShellType::Cmd),
+            "\"type\" \"100%.txt\""
+        );
+        assert_eq!(
+            argv.display(crate::step::ShellType::Cmd),
+            "\"type\" \"100%HK_CMD_PERCENT%.txt\""
+        );
+    }
 
     #[test]
     fn command_spec_deserializes_shell_script_and_argv_commands() {

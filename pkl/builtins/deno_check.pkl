@@ -4,6 +4,10 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Deno type checker"
+  project_indicators {
+    new { file = "deno.json" }
+    new { file = "deno.jsonc" }
+  }
 }
 deno_check = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")

@@ -4,6 +4,22 @@ description: Set up hk for development, run focused checks, edit generated docum
 
 # Contributing
 
+::: danger AI replies to Discussions and Issues are restricted
+AI replies to Discussions and Issues are restricted, and breaking the rule is **an instant ban across all of jdx's projects**.
+
+You may only use AI to reply to a [Discussion](https://github.com/jdx/hk/discussions) or [Issue](https://github.com/jdx/hk/issues) if you
+created it, you opened a PR that fixes it, or you have already had a contribution, attributed to your GitHub account, merged into the default branch of hk. Everyone else is not allowed to use AI to reply. This is a growing problem.
+
+This includes raw, lightly edited, reviewed, and disclosed model output. Adding an "AI-assisted"
+footer does not make an AI reply acceptable on its own. If you are running an agent, make sure it
+does not post to threads you are not allowed to reply to, and never let it sweep through many
+threads at once.
+:::
+
+Using AI to help write and file your own Discussion or Issue is fine. Review it before posting, and
+disclose that AI contributed. If you are allowed to use AI to reply, review and verify the reply before
+posting it, and disclose that AI contributed.
+
 Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
 
 ## Review expectations
@@ -41,6 +57,8 @@ The build task generates the builtin registry before compiling hk. Development t
 | Lint including Clippy  | `hk check --all --slow`              |
 | Apply formatting fixes | `hk fix --all`                       |
 
+`mise run test:bats` accepts several files or directories (`mise run test:bats test/check.bats test/depends.bats`). It needs `bats`, ripgrep (`rg`) and GNU `parallel` on `PATH`, and it fails when a path does not exist, matches no `test/*.bats` file, or when no test runs.
+
 Run checks appropriate to the change. Integration tests use isolated temporary repositories and exercise Git backends. See the [test-suite guide](https://github.com/jdx/hk/blob/main/test/README.md) for fixtures and cache behavior.
 
 ## Add a builtin
@@ -51,7 +69,7 @@ Run checks appropriate to the change. Integration tests use isolated temporary r
 4. Regenerate and build with `mise run build`.
 5. Run `mise run test:bats test/builtins_tests.bats`, or use `hk test --step <name>` with a configuration that loads the builtin.
 
-Tests should verify meaningful behavior: a clean check, a failing check, and the expected result of a fix when supported. Avoid enabling batching or bypassing locks without confirming the tool’s behavior.
+Tests should verify meaningful behavior: a clean check, a failing check, and the expected result of a fix when supported. A builtin with `check_diff` also needs a diff test (`TestMaker.diffPass` or `diffFail`), which applies the patch `check_diff` prints the way `hk fix` does and fails if hk cannot apply it. Fix tests can't catch that, because they run `fix` directly, and `test/builtins_tests.bats` fails for a tested builtin without one. Avoid enabling batching or bypassing locks without confirming the tool’s behavior.
 
 Files in `test/builtin_tool_stubs/` are mise tool stubs, not mock executables:
 each needs a `tool` and `version` declaration so the test harness can validate

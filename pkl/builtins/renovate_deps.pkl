@@ -1,0 +1,81 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description =
+    "Flint's repository-aware dependency check (requires flint and renovate). See https://github.com/grafana/flint/blob/main/docs/linters/renovate-deps.md"
+}
+renovate_deps = new Config.Step {
+  glob = List("**/*")
+  stage = List(".github/renovate-tracked-deps.json")
+  stdin = "{{ files_list | join(sep='\n') }}"
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("flint", "checker", "renovate-deps", "--files-from", "-")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("flint", "checker", "renovate-deps", "--fix", "--files-from", "-")
+    }
+    effect = "write"
+  }
+  tests {
+    local const stale_snapshot =
+      """
+      {
+        "meta": {},
+        "files": {
+          "package.json": {
+            "npm": [
+              "old-dep"
+            ]
+          }
+        }
+      }
+      """
+    local const fixed_snapshot =
+      """
+      {
+        "meta": {},
+        "files": {
+          "mise.toml": {
+            "mise": [
+              "npm:renovate"
+            ]
+          },
+          "package.json": {
+            "npm": [
+              "express",
+              "lodash"
+            ]
+          }
+        },
+        "actionMeta": {}
+      }
+      """
+    local const maker = new helpers.TestMaker {
+      filename = ".github/renovate-tracked-deps.json"
+      files =
+        List(
+          ".github/renovate-tracked-deps.json",
+          ".github/renovate.json5",
+          "mise.toml",
+          "package.json",
+        )
+      extra_files = new Mapping<String, String> {
+        [".github/renovate.json5"] = "{}\n"
+        ["mise.toml"] = "[tools]\n\"npm:renovate\" = \"44.97.4\"\n"
+        ["package.json"] = "{\"dependencies\":{\"express\":\"^4.18.0\",\"lodash\":\"^4.17.21\"}}\n"
+      }
+      env = new Mapping<String, String> {
+        ["GITHUB_TOKEN"] = "test-token"
+      }
+    }
+    ["check detects stale snapshot"] = maker.checkFail(stale_snapshot, 1)
+    ["fix regenerates snapshot"] = maker.fixPass(stale_snapshot, fixed_snapshot)
+  }
+}

@@ -110,3 +110,105 @@ EOF
     run hk check .
     assert_success
 }
+
+write_directory_exclude_config() {
+    local step_exclude=$1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["list"] {
+                glob = "**/*.txt"
+                $step_exclude
+                check = "echo FILES {{ files }}"
+            }
+        }
+    }
+}
+EOF
+    mkdir -p vendor/deep src/vendor
+    echo a > keep.txt
+    echo b > vendor/a.txt
+    echo c > vendor/deep/b.txt
+    echo d > src/vendor/c.txt
+    echo e > src/main.txt
+    git add .
+}
+
+@test "step exclude naming a directory excludes the files inside it" {
+    write_directory_exclude_config 'exclude = List("vendor")'
+
+    run hk check --all
+    assert_success
+    assert_output --partial "keep.txt"
+    assert_output --partial "src/main.txt"
+    # Only the top-level vendor directory is named; src/vendor is not.
+    assert_output --partial "src/vendor/c.txt"
+    refute_output --partial "vendor/a.txt"
+    refute_output --partial "vendor/deep/b.txt"
+}
+
+@test "step exclude with a trailing slash or a leading **/ excludes the directory" {
+    write_directory_exclude_config 'exclude = List("vendor/")'
+    run hk check --all
+    assert_success
+    assert_output --partial "src/vendor/c.txt"
+    refute_output --partial "vendor/a.txt"
+
+    write_directory_exclude_config 'exclude = List("**/vendor")'
+    run hk check --all
+    assert_success
+    assert_output --partial "keep.txt"
+    refute_output --partial "vendor/a.txt"
+    refute_output --partial "vendor/deep/b.txt"
+    refute_output --partial "src/vendor/c.txt"
+}
+
+@test "group exclude naming a directory excludes the files inside it" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["group"] = new Group {
+                exclude = List("vendor")
+                steps {
+                    ["list"] {
+                        glob = "**/*.txt"
+                        check = "echo FILES {{ files }}"
+                    }
+                }
+            }
+        }
+    }
+}
+EOF
+    mkdir -p vendor/deep
+    echo a > keep.txt
+    echo b > vendor/a.txt
+    echo c > vendor/deep/b.txt
+    git add .
+
+    run hk check --all
+    assert_success
+    assert_output --partial "keep.txt"
+    refute_output --partial "vendor/a.txt"
+    refute_output --partial "vendor/deep/b.txt"
+}
+
+@test "global --exclude with a trailing slash or a leading **/ excludes the directory" {
+    write_directory_exclude_config ''
+
+    run hk check --all --exclude "vendor/"
+    assert_success
+    assert_output --partial "src/vendor/c.txt"
+    refute_output --partial "vendor/a.txt"
+    refute_output --partial "vendor/deep/b.txt"
+
+    run hk check --all --exclude "**/vendor"
+    assert_success
+    assert_output --partial "keep.txt"
+    refute_output --partial "vendor/a.txt"
+    refute_output --partial "src/vendor/c.txt"
+}

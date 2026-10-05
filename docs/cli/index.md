@@ -23,7 +23,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 
 **Usage:** `hk [FLAGS] <SUBCOMMAND>`
 
-**Version:** 2.1.0
+**Version:** 2.5.0
 
 ## Global Flags
 
@@ -55,6 +55,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 - [`hk agent hooks <--target <TARGET>>`](/cli/agent/hooks.md)
 - [`hk agent instructions <--target <TARGET>>`](/cli/agent/instructions.md)
 - [`hk agent mcp <--target <TARGET>>`](/cli/agent/mcp.md)
+- [`hk agent stop-hook [--timeout <SECONDS>] [--target <TARGET>]`](/cli/agent/stop-hook.md)
 - [`hk builtins`](/cli/builtins.md)
 - [`hk cache clear`](/cli/cache/clear.md)
 - [`hk check [FLAGS] [FILES]…`](/cli/check.md)
@@ -98,10 +99,12 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 - [`hk util fix-byte-order-marker <FILES>…`](/cli/util/fix-byte-order-marker.md)
 - [`hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`](/cli/util/fix-smart-quotes.md)
 - [`hk util forbid-submodules [PATHS]…`](/cli/util/forbid-submodules.md)
+- [`hk util format-diff [--no-stdin] <FILES>… <-- COMMAND>…`](/cli/util/format-diff.md)
 - [`hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`](/cli/util/mixed-line-ending.md)
 - [`hk util no-commit-to-branch [--branch <BRANCH>]`](/cli/util/no-commit-to-branch.md)
 - [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)
 - [`hk util python-debug-statements <FILES>…`](/cli/util/python-debug-statements.md)
+- [`hk util sarif-diff [--findings-exit-code <CODE>] <-- COMMAND>…`](/cli/util/sarif-diff.md)
 - [`hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`](/cli/util/trailing-whitespace.md)
 - [`hk validate`](/cli/validate.md)
 - [`hk version`](/cli/version.md)

@@ -25,6 +25,14 @@ trailing_whitespace = new Config.Step {
     ["check bad file"] = testMaker.checkFail("trailing  \n", 1)
     ["check good file"] = testMaker.checkPass("trailing\n")
     ["fix bad file"] = testMaker.fixPass("trailing  \n", "trailing\n")
+    ["diff bad file"] = testMaker.diffPass("trailing  \n", "trailing\n")
     ["fix good file"] = testMaker.fixPass("trailing\n", "trailing\n")
+    ["check good CRLF file"] = testMaker.checkPass("trailing\r\nlines\r\n")
+    ["check bad CRLF file"] = testMaker.checkFail("trailing  \r\nlines\r\n", 1)
+    ["fix bad CRLF file keeps CRLF"] =
+      testMaker.fixPass("trailing  \r\nlines\t\r\n", "trailing\r\nlines\r\n")
+    ["diff bad CRLF file keeps CRLF"] =
+      testMaker.diffPass("trailing  \r\nlines\r\n", "trailing\r\nlines\r\n")
+    ["fix keeps each line's terminator"] = testMaker.fixPass("a  \r\nb \nc", "a\r\nb\nc")
   }
 }

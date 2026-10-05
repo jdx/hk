@@ -25,6 +25,18 @@ fn resolve_batch_file(
     path: Option<&str>,
     pathext: Option<&str>,
 ) -> Option<std::path::PathBuf> {
+    resolve_program(program, cwd, path, pathext).filter(|program| is_batch_file(program))
+}
+
+/// The file `program` resolves to the way `cmd.exe` would find it: the working
+/// directory, then `PATH`, trying each `PATHEXT` extension.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn resolve_program(
+    program: &str,
+    cwd: &Path,
+    path: Option<&str>,
+    pathext: Option<&str>,
+) -> Option<std::path::PathBuf> {
     use std::ffi::OsStr;
     use std::path::{MAIN_SEPARATOR, PathBuf};
 
@@ -62,7 +74,7 @@ fn resolve_batch_file(
                 .map(|dir| dir.join(program_path))
                 .find(|candidate| candidate.is_file())?
         };
-        return is_batch_file(&candidate).then_some(candidate);
+        return Some(candidate);
     }
 
     let extensions = pathext
@@ -81,11 +93,17 @@ fn resolve_batch_file(
         {
             let candidate = PathBuf::from(format!("{}{}", base.display(), extension));
             if candidate.is_file() {
-                return is_batch_file(&candidate).then_some(candidate);
+                return Some(candidate);
             }
         }
     }
     None
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn has_exe_extension(program: &str) -> bool {
+    let program = program.to_ascii_lowercase();
+    program.ends_with(".exe") || program.ends_with(".com")
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -97,9 +115,10 @@ fn is_batch_file(path: &Path) -> bool {
         })
 }
 
-#[cfg_attr(not(windows), allow(dead_code))]
-fn batch_runner(program: &Path, args: &[String]) -> Result<CmdLineRunner> {
-    reject_batch_newlines(program, args)?;
+/// Build the command line `cmd.exe /d /s /c` receives for a batch file: the
+/// program and every argument caret-escaped (twice for npm shims), wrapped in
+/// the outer quotes `/s` strips.
+fn batch_command_line(program: &Path, args: &[String]) -> String {
     let program = program.to_string_lossy().replace('/', "\\");
     let normalized = program.to_ascii_lowercase();
     // npm shims forward `%*` through a second cmd.exe parse, so metacharacters
@@ -110,10 +129,52 @@ fn batch_runner(program: &Path, args: &[String]) -> Result<CmdLineRunner> {
         command.push(' ');
         command.push_str(&escape_cmd_arg(arg, double_escape));
     }
+    format!("\"{command}\"")
+}
+
+/// Length, in UTF-16 units (what cmd.exe's command-line limit counts), of the
+/// command line hk hands to `cmd.exe` when `argv[0]` resolves to a `.cmd` or
+/// `.bat` file. `None` when it runs as a plain executable, whose argv goes to
+/// `CreateProcess` unchanged.
+///
+/// When `argv[0]` is not found at all and `assume_unresolved_shim` is set, it
+/// is sized as the worst case, an npm shim: the runner may find it on a `PATH`
+/// that is only known once the step runs.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) fn batch_command_line_len(
+    argv: &[String],
+    cwd: &Path,
+    path: Option<&str>,
+    pathext: Option<&str>,
+    assume_unresolved_shim: bool,
+) -> Option<usize> {
+    let program = match resolve_program(argv.first()?, cwd, path, pathext) {
+        Some(program) if is_batch_file(&program) => program,
+        Some(_) => return None,
+        // A program named with an executable extension is not a shim.
+        None if assume_unresolved_shim && !has_exe_extension(&argv[0]) => {
+            std::path::PathBuf::from(format!(
+                "{}.cmd",
+                cwd.join("node_modules\\.bin").join(&argv[0]).display()
+            ))
+        }
+        None => return None,
+    };
+    Some(
+        batch_command_line(&program, &argv[1..])
+            .encode_utf16()
+            .count(),
+    )
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn batch_runner(program: &Path, args: &[String]) -> Result<CmdLineRunner> {
+    reject_batch_newlines(program, args)?;
+    let command_line = batch_command_line(program, args);
     Ok(
         CmdLineRunner::new_direct(std::env::var_os("COMSPEC").unwrap_or_else(|| "cmd.exe".into()))
             .args(["/d", "/s", "/c"])
-            .raw_arg(format!("\"{command}\"")),
+            .raw_arg(command_line),
     )
 }
 
@@ -189,19 +250,63 @@ mod tests {
     }
 
     #[test]
+    fn measures_the_cmd_exe_line_of_a_batch_shim() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("node_modules").join(".bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("tool.cmd"), "@echo off\r\n").unwrap();
+        let argv = vec![
+            "tool".to_string(),
+            "a.txt".to_string(),
+            "b c.txt".to_string(),
+        ];
+        let path = bin.to_str().unwrap();
+
+        let len =
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".cmd"), false).unwrap();
+
+        // npm shims get every metacharacter's caret doubled.
+        let line = batch_command_line(&bin.join("tool.cmd"), &argv[1..]);
+        assert_eq!(len, line.encode_utf16().count());
+        assert!(line.contains("^^^\"a.txt^^^\""), "{line}");
+
+        // A plain executable is not wrapped in cmd.exe.
+        std::fs::write(bin.join("plain.exe"), "").unwrap();
+        let argv = vec!["plain".to_string(), "a.txt".to_string()];
+        assert_eq!(
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), true),
+            None
+        );
+
+        // A program found nowhere may still be a shim on the runner's PATH.
+        let argv = vec!["missing".to_string(), "a.txt".to_string()];
+        assert_eq!(
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), false),
+            None
+        );
+        let exe = vec!["missing.exe".to_string(), "a.txt".to_string()];
+        assert_eq!(
+            batch_command_line_len(&exe, dir.path(), Some(path), Some(".exe;.cmd"), true),
+            None
+        );
+        assert!(
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), true).unwrap()
+                > "a.txt".len()
+        );
+    }
+
+    #[test]
     fn rejects_newlines_in_batch_commands() {
         let args = vec!["safe".to_string(), "unsafe\ncommand".to_string()];
         let error = reject_batch_newlines(Path::new("tool.cmd"), &args)
-            .err()
-            .expect("newline should be rejected");
+            .expect_err("newline should be rejected");
         assert_eq!(
             error.to_string(),
             "Windows batch command argument 2 contains a newline"
         );
 
         let error = reject_batch_newlines(Path::new("unsafe\rtool.cmd"), &[])
-            .err()
-            .expect("newline should be rejected");
+            .expect_err("newline should be rejected");
         assert_eq!(
             error.to_string(),
             "Windows batch command path contains a newline"

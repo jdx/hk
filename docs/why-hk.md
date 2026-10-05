@@ -22,19 +22,19 @@ This relies on accurate step definitions. A check must be read-only, and a step 
 
 ## Use each linter’s capabilities
 
-Taking a write lock on every file can serialize otherwise independent work. hk’s [builtins](/builtins) describe more efficient ways to run tools when they support them.
+Fixers on different files run at the same time. A fix holds write locks on its step’s files, so only fixers that share files run one at a time. A step that only has a `check` command declaring `effect = "read"` changes no files, so even under `hk fix` it holds read locks and runs alongside other steps that read the same files; it still waits for a fixer that writes them. A check that does not declare a read effect, such as the builtin type checkers, whose caches may be written, holds write locks. hk’s [builtins](/builtins) describe more efficient ways to run tools when they support them.
 
 ### Diff output
 
-A `check_diff` command emits a patch without editing files. hk can run it with read locks, then apply the patch under write locks. Builtins such as Ruff’s formatter use this approach.
+A `check_diff` command emits a patch without editing files. When fixing, hk runs it and applies the patch itself instead of running `fix`. If the patch doesn’t apply, hk runs `fix` instead, or, for a step without `fix`, the command it runs when checking. When the command declares `effect = "read"`, as most builtins do, hk computes the patch under read locks, so the formatter runs alongside other steps that read the same files. It takes write locks only on the files the patch changes, and only to apply it. If another step changed one of those files in the meantime, hk computes the patch again under write locks. A `check_diff` that doesn’t declare a read effect holds write locks throughout, as any fix does. Builtins such as Ruff’s formatter use this approach.
 
 ### Lists of files needing fixes
 
-A `check_list_files` command reports which files need changes. For example, Prettier’s `--list-different` lets hk narrow the files passed to `--write`.
+A `check_list_files` command reports which files need changes. When the step checks first, as described below, Prettier’s `--list-different` lets hk pass only those files to `--write`.
 
 ### Check before fixing
 
-For other tools, `check_first` can run a read-only check before acquiring write locks for a fix. When checks frequently pass, this avoids unnecessary exclusive access. When nearly every file needs fixing, the extra check may cost more than it saves.
+For other tools, a step can set `check_first = true` to run its check before its fix and skip the fix when the check passes. When files need fixing, the tool runs twice, and in hk's benchmark that cost more than it saved, so it's off by default.
 
 These strategies affect orchestration overhead. Actual speed depends on your linters, file overlap, number of changed files, and available CPU cores. See the [benchmarks](/benchmarks) for a reproducible workload and its limitations.
 
@@ -67,6 +67,6 @@ The tradeoffs are a configuration language to learn and responsibility for provi
 
 You can evaluate hk on a branch before changing your team’s setup. Create a configuration, run `hk check --all --plan`, then compare the checks and fixes with your existing workflow.
 
-For a pre-commit configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Review the generated steps, tool versions, file filters, and any unsupported hooks before installing hk’s Git hooks.
+For a pre-commit or prek configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Known hooks become hk builtins and local shell hooks become hk steps. Everything else keeps running through prek or pre-commit, so you can switch now and convert the rest later.
 
 [Get started](/getting_started) or browse the [configuration examples](/reference/examples/).

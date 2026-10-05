@@ -1,5 +1,7 @@
 use crate::Result;
 
+mod stop_hook;
+
 /// Generate integration snippets for coding agents
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
@@ -31,6 +33,32 @@ enum Command {
         #[usage(long, value_enum)]
         target: McpTarget,
     },
+    /// Run `hk run check --safe` as an agent Stop hook
+    ///
+    /// Reads the agent's Stop hook JSON from stdin and does nothing when `stop_hook_active` is
+    /// true. In a project without an hk config, or one with no `check` hook, it passes like a
+    /// hook from `hk install --global`, so it is safe in user-level agent settings. Always exits
+    /// 0. When the check fails or `--safe` refuses to run, prints only
+    /// `{"decision":"block","reason":"..."}`, the decision both Claude Code and Codex accept.
+    /// A check still running after `--timeout` seconds is stopped and reported the same way.
+    /// When the check passes, prints nothing, or `{}` with `--target codex`, because Codex's
+    /// documentation is inconsistent about empty stdout and `{}` is valid under either reading.
+    StopHook {
+        /// Seconds to let the check run before stopping it (default 100). Keep it below the
+        /// agent's own hook timeout.
+        #[usage(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
+        /// Agent running the hook; `codex` prints `{}` when the check passes
+        #[usage(long, value_enum)]
+        target: Option<StopHookTarget>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
+enum StopHookTarget {
+    Codex,
+    ClaudeCode,
 }
 
 #[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
@@ -59,11 +87,25 @@ enum McpTarget {
 }
 
 impl Agent {
+    /// The stop hook's stdout carries only its decision, so hk's own JSON trace
+    /// records must go to stderr, as they do for structured `run` output.
+    pub(crate) fn is_stop_hook(&self) -> bool {
+        matches!(self.command, Command::StopHook { .. })
+    }
+
     pub async fn run(self) -> Result<()> {
+        if let Command::StopHook { timeout, target } = self.command {
+            return stop_hook::run(
+                timeout.map(std::time::Duration::from_secs),
+                matches!(target, Some(StopHookTarget::Codex)),
+            )
+            .await;
+        }
         let output = match self.command {
             Command::Instructions { target } => instructions(target),
             Command::Hooks { target } => hooks(target),
             Command::Mcp { target } => mcp(target),
+            Command::StopHook { .. } => unreachable!("handled above"),
         };
         print!("{output}");
         Ok(())

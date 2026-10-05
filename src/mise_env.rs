@@ -44,6 +44,7 @@ async fn fetch(dir: &Path) -> Result<IndexMap<String, String>> {
         .args(["env", "--json"])
         .current_dir(dir)
         .stdin(std::process::Stdio::null())
+        .kill_on_drop(true)
         .output()
         .await?;
     if !output.status.success() {

@@ -7,39 +7,40 @@ class PinactStep extends Config.Step {
   glob = List(".github/workflows/*", "**/action.*")
   types = List("yaml")
   // `verify-comment` verifies pairs of commit SHA and version comments are correct
+  hidden verifyFlag = if (version == "3") "--verify" else "--verify-comment"
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("pinact", "run", verifyFlag, "--check", "{{files}}")
+    }
+    effect = "read"
+  }
+  // pinact's report is not a patch, but its SARIF report carries fixes, which
+  // `hk util sarif-diff` turns into one. A finding without a fix, such as a
+  // version comment that doesn't match its SHA, prints no patch, so hk runs
+  // the fixer and reports what it leaves behind.
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv =
-        if (version == "3")
-          List("pinact", "run", "--verify", "--check", "{{files}}")
-        else
-          List("pinact", "run", "--verify-comment", "--check", "{{files}}")
+        List(
+          "hk",
+          "util",
+          "sarif-diff",
+          "--",
+          "pinact",
+          "run",
+          verifyFlag,
+          "--check",
+          "--format",
+          "sarif",
+          "{{files}}",
+        )
     }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = new Config.Command {
-      argv =
-        if (version == "3")
-          List("pinact", "run", "--verify", "{{files}}")
-        else
-          List("pinact", "run", "--verify-comment", "{{files}}")
-    }
+    command = new Config.Command { argv = List("pinact", "run", verifyFlag, "{{files}}") }
     effect = "write"
   }
-  // pinact v3 can fix the SHA while leaving a mismatched version comment.
-  // Re-run its check after a fix so that partial repair still fails.
-  check =
-    if (version == "3")
-      new Config.CommandSpec {
-        command = new Config.Command {
-          argv = List("pinact", "run", "--verify", "--check", "{{files}}")
-        }
-        effect = "read"
-      }
-    else
-      null
-  check_after_diff = version == "3"
   tests =
     if (version == "3")
       new Mapping<String, Config.StepTest> {
@@ -137,6 +138,7 @@ class PinactStep extends Config.Step {
             """,
           )
         ["fix bad file all violations are fixed"] = testMaker.fixPass(bad, good)
+        ["diff bad file"] = testMaker.diffPass(bad, good)
         ["fix good file"] = testMaker.fixPass(good, good)
       }
 }
@@ -144,6 +146,10 @@ class PinactStep extends Config.Step {
 @Builtins.meta {
   category = "Infrastructure"
   description = "Pin GitHub Actions to commit SHA for security"
+  project_indicators {
+    new { file = ".pinact.yaml" }
+    new { file = ".pinact.yml" }
+  }
 }
 // Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
 // instance when it is inserted into Mapping<String, Config.Step>.

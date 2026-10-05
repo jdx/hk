@@ -127,6 +127,10 @@ pub(crate) struct HookOptions {
     /// command templates and condition expressions
     #[usage(skip)]
     pub hook_vars: indexmap::IndexMap<String, serde_json::Value>,
+    /// Regexes from the top-level `exclude` config, matched against
+    /// repo-relative paths. Glob excludes arrive through `Settings::exclude`.
+    #[usage(skip)]
+    pub exclude_regexes: Vec<String>,
 }
 
 impl HookOptions {
@@ -227,6 +231,9 @@ impl HookOptions {
             return Ok(());
         }
         let config = Config::get()?;
+        if let Some(exclude) = &config.exclude {
+            self.exclude_regexes = exclude.regexes.clone();
+        }
         if self.pr {
             let repo = Git::new()?;
             let default_branch = config
@@ -298,10 +305,25 @@ impl HookOptions {
                     return Ok(());
                 }
                 let hook_names: Vec<&str> = config.hooks.keys().map(|s| s.as_str()).collect();
-                let msg = if let Some(suggestion) = xx::suggest::did_you_mean(name, &hook_names) {
-                    format!("Hook '{}' not found. {}", name, suggestion)
+                let msg = if hook_names.is_empty() && !config.project_config_loaded {
+                    format!(
+                        "Hook '{name}' not found: no hk.pkl in this directory or any parent. Run `hk init` to create one."
+                    )
+                } else if hook_names.is_empty() {
+                    format!(
+                        "Hook '{name}' not found: {} defines no steps or hooks. Add steps to it (see https://hk.jdx.dev/configuration) or re-run `hk init --force` to detect linters.",
+                        config.path.display()
+                    )
+                } else if let Some(suggestion) = xx::suggest::did_you_mean(name, &hook_names) {
+                    format!(
+                        "Hook '{name}' not found. {suggestion} Defined hooks: {}",
+                        hook_names.join(", ")
+                    )
                 } else {
-                    format!("Hook '{}' not found", name)
+                    format!(
+                        "Hook '{name}' not found. Defined hooks: {}",
+                        hook_names.join(", ")
+                    )
                 };
                 Err(eyre::eyre!("{}", msg))
             }

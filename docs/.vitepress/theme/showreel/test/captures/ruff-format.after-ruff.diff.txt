@@ -1,0 +1,12 @@
+--- src/main.py
++++ src/main.py
+@@ -1,7 +1,8 @@
+-def main()->None:
+-    print( 'ahoy' )
++def main() -> None:
++    print("ahoy")
++
+
+-def hoist(sail:str)->str:
++def hoist(sail: str) -> str:
+     return f"hoisting {sail}"

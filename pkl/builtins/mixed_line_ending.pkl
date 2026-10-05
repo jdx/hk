@@ -25,7 +25,15 @@ mixed_line_ending = new Config.Step {
     ["check bad file"] = testMaker.checkFail("line1\r\nline2\nline3\r\n", 1)
     ["check good file (LF only)"] = testMaker.checkPass("line1\nline2\nline3\n")
     ["check good file (CRLF only)"] = testMaker.checkPass("line1\r\nline2\r\nline3\r\n")
-    ["fix bad file"] = testMaker.fixPass("line1\r\nline2\nline3\r\n", "line1\nline2\nline3\n")
+    ["fix mostly CRLF file normalizes to CRLF"] =
+      testMaker.fixPass("line1\r\nline2\nline3\r\n", "line1\r\nline2\r\nline3\r\n")
+    ["diff mostly CRLF file normalizes to CRLF"] =
+      testMaker.diffPass("line1\r\nline2\nline3\r\n", "line1\r\nline2\r\nline3\r\n")
+    ["fix mostly LF file normalizes to LF"] =
+      testMaker.fixPass("line1\nline2\r\nline3\n", "line1\nline2\nline3\n")
+    ["diff mostly LF file normalizes to LF"] =
+      testMaker.diffPass("line1\nline2\r\nline3\n", "line1\nline2\nline3\n")
+    ["fix tie normalizes to LF"] = testMaker.fixPass("line1\r\nline2\n", "line1\nline2\n")
     ["fix good file"] = testMaker.fixPass("line1\nline2\nline3\n", "line1\nline2\nline3\n")
   }
 }

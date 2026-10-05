@@ -2,7 +2,8 @@ use crate::{Result, config::Config, env, git_util};
 use eyre::bail;
 use log::{info, warn};
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
+use std::fs::{File, OpenOptions};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Hook events installed by default for `hk install --global` when no project
@@ -48,6 +49,14 @@ pub struct Install {
     #[usage(long, verbatim_doc_comment, conflicts = "--global")]
     legacy: bool,
 
+    /// With the legacy `.git/hooks/` script shims, replace an existing hook
+    /// that hk did not write, and replace a symlinked hook with a regular
+    /// file (the symlink's target is left alone). By default hk refuses to
+    /// install if any target is a hook it did not write or a symlink, and
+    /// installs nothing.
+    #[usage(long, verbatim_doc_comment, conflicts = "--global")]
+    force: bool,
+
     /// Run hooks through `mise x` so mise-managed tools are available
     /// without activating mise in the shell.
     ///
@@ -72,6 +81,7 @@ impl Install {
         }
 
         if !self.force_local && has_global_hk_hooks()? {
+            let _config_lock = lock_local_config()?;
             // The global install is the single source of truth; clean up any
             // stale local install so it doesn't double-fire alongside global.
             let removed = remove_local_shims()? + remove_local_config_entries()?;
@@ -88,6 +98,7 @@ impl Install {
         }
 
         let command = local_hook_command(use_mise);
+        let path_fallback = local_path_fallback(use_mise);
         let use_config_hooks = !self.legacy && git_util::git_at_least(2, 54);
 
         // Load and validate the project config before touching anything, so a
@@ -95,6 +106,17 @@ impl Install {
         let config = Config::get()?;
         let events = hook_events(&config);
 
+        // Legacy shims live in files other tools and people also own. Check
+        // every target before removing or writing anything, so a refusal
+        // leaves the repository exactly as it was.
+        if !use_config_hooks {
+            check_legacy_targets(&events, self.force)?;
+        }
+
+        // Git locks each config write separately. Hold a separate lock across
+        // the entire removal and installation so concurrent hk processes
+        // cannot observe or overwrite each other's partial installs.
+        let _config_lock = lock_local_config()?;
         // Clean up any prior installation so modes don't accumulate.
         let removed = remove_local_shims()? + remove_local_config_entries()?;
 
@@ -103,20 +125,108 @@ impl Install {
                 warn!(
                     "no hooks configured in hk.pkl — removed {removed} previously-installed hk hook(s) and did not install any new ones"
                 );
+            } else if config.hooks.is_empty() {
+                warn!(
+                    "no hooks configured in hk.pkl — nothing to install. Add steps to hk.pkl first (`hk init --force` re-detects linters)"
+                );
             } else {
-                warn!("no hooks configured in hk.pkl — nothing to install");
+                warn!(
+                    "no installable hooks are enabled in hk.pkl — only `check`/`fix` or disabled hooks are defined, so nothing to install. Enable a hook such as `pre-commit` (see https://hk.jdx.dev/configuration)"
+                );
             }
             return Ok(());
         }
 
         if use_config_hooks {
-            let result = install_local_config(&events, &command);
-            warn_if_global_overlap(&events);
+            let result = install_local_config(&events, &command, path_fallback.as_deref());
+            note_global_overlap(&events);
             result
         } else {
-            install_local_shims(&events, &command)
+            // Shims are written as text; a directory name that is not valid
+            // UTF-8 would be altered, so leave the fallback out of them
+            // rather than point it wrong. Config hooks carry the raw bytes.
+            let shim_fallback = path_fallback
+                .as_deref()
+                .filter(|dir| dir.to_str().is_some());
+            install_local_shims(&events, &command, shim_fallback, self.force)
         }
     }
+}
+
+/// The directory legacy hook shims are written to.
+fn legacy_hooks_dir(create: bool) -> Result<PathBuf> {
+    let git_path = git_util::find_git_path()?;
+    let hooks = match git_util::worktree_hooks_path() {
+        Some(path) => path,
+        None => {
+            check_hooks_path_config()?;
+            git_util::resolve_git_hooks_dir(&git_path)?
+        }
+    };
+    // A missing or deleted hooks directory is recreated, as writing the
+    // shim directly used to do.
+    if create {
+        xx::file::mkdirp(&hooks)?;
+    }
+    Ok(hooks)
+}
+
+/// Whether `content` is a hook script written by hk.
+///
+/// Matches the `HK=0` guard that every hk-written shim has. This is more
+/// specific than `hk run` alone, which could appear in an unrelated
+/// user-written hook.
+fn is_hk_shim(content: &str) -> bool {
+    content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run")
+}
+
+/// Why `path` must not be written as a legacy hook shim, if it must not.
+/// Fails if an existing hook cannot be read, rather than guessing who wrote it.
+fn legacy_target_problem(path: &Path) -> Result<Option<String>> {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return Ok(None);
+    };
+    if meta.file_type().is_symlink() {
+        return Ok(Some(format!(
+            "{} is a symlink (writing it would modify the file it points to)",
+            path.display()
+        )));
+    }
+    if !meta.is_file() {
+        return Ok(Some(format!("{} is not a regular file", path.display())));
+    }
+    let bytes = std::fs::read(path)
+        .map_err(|err| eyre::eyre!("could not read existing hook {}: {err}", path.display()))?;
+    if !is_hk_shim(&String::from_utf8_lossy(&bytes)) {
+        return Ok(Some(format!(
+            "{} is a hook that hk did not write",
+            path.display()
+        )));
+    }
+    Ok(None)
+}
+
+/// Refuse a legacy install that would overwrite a hook hk did not write, or
+/// write through a symlink, unless `force` is set. Looks at every target
+/// first and reports all problems at once.
+fn check_legacy_targets(events: &[String], force: bool) -> Result<()> {
+    if force || events.is_empty() {
+        return Ok(());
+    }
+    let hooks = legacy_hooks_dir(false)?;
+    let mut problems = Vec::new();
+    for event in events {
+        if let Some(problem) = legacy_target_problem(&hooks.join(event))? {
+            problems.push(problem);
+        }
+    }
+    if problems.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "refusing to install hooks, nothing was changed:\n  {}\nMove these hooks out of the way, or pass `--force` to replace them.",
+        problems.join("\n  ")
+    );
 }
 
 /// Returns true if any `hook.hk-*.command` entry is set in `~/.gitconfig`.
@@ -154,13 +264,72 @@ fn local_hook_command(use_mise: bool) -> OsString {
     }
 }
 
+/// The directory hook commands append to `PATH` so a bare `hk` still resolves
+/// when Git is launched with a minimal `PATH` (GUI Git clients, IDEs), where
+/// the user's shell `PATH` is not present. It is appended, so an `hk` the
+/// environment already provides keeps priority. `None` with `--mise`, where
+/// mise is the launcher.
+fn local_path_fallback(use_mise: bool) -> Option<PathBuf> {
+    if use_mise {
+        return None;
+    }
+    let exe = std::env::current_exe().ok()?;
+    let hk = stable_hk_path(&exe, std::env::var_os("PATH"));
+    hk.parent().map(Path::to_path_buf)
+}
+
+/// A path to the running hk that survives upgrades.
+///
+/// `current_exe()` is the resolved binary, such as
+/// `~/.local/share/mise/installs/hk/2.3.1/bin/hk` or a Homebrew Cellar path.
+/// That version's directory is deleted when the version is pruned or
+/// upgraded, and every hook then fails with `hk: not found`. Prefer, in order:
+/// the mise shim, which resolves the active version when it runs, if hk is a
+/// mise install; or the `hk` on `PATH` that points at this same binary (a
+/// Homebrew or package-manager symlink). Otherwise use the binary itself.
+fn stable_hk_path(exe: &Path, path_var: Option<OsString>) -> PathBuf {
+    if let Some(shim) = mise_shim_for(exe) {
+        return shim;
+    }
+    let exe_real = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
+    let name = exe.file_name().unwrap_or(OsStr::new("hk"));
+    for dir in path_var.iter().flat_map(std::env::split_paths) {
+        if !dir.is_absolute() {
+            continue;
+        }
+        let candidate = dir.join(name);
+        // The binary's own (versioned) directory on PATH is not a stable
+        // link: only a symlink to it survives the version being removed.
+        let is_link =
+            std::fs::symlink_metadata(&candidate).is_ok_and(|meta| meta.file_type().is_symlink());
+        if is_link && candidate.canonicalize().is_ok_and(|real| real == exe_real) {
+            return candidate;
+        }
+    }
+    exe.to_path_buf()
+}
+
+/// The mise shim for `exe` when it is inside mise's `installs` directory.
+fn mise_shim_for(exe: &Path) -> Option<PathBuf> {
+    let components: Vec<_> = exe.components().collect();
+    // `<data dir>/installs/<tool>/<version>/...`: the tool must be hk. A
+    // custom data dir may itself contain an `installs` component, so look
+    // for the first `installs` that is followed by `hk`.
+    let installs = (0..components.len().saturating_sub(1)).find(|&i| {
+        components[i].as_os_str() == "installs" && components[i + 1].as_os_str() == "hk"
+    })?;
+    let data_dir: PathBuf = components[..installs].iter().collect();
+    let shim = data_dir.join("shims").join(exe.file_name()?);
+    std::fs::symlink_metadata(&shim).ok().map(|_| shim)
+}
+
 fn global_hook_command(use_mise: bool) -> Result<OsString> {
     if use_mise {
         let mise = xx::file::which("mise")
             .ok_or_else(|| eyre::eyre!("could not find mise on PATH for global hook install"))?;
         Ok(mise_hook_command(&mise))
     } else {
-        let hk = std::env::current_exe()?;
+        let hk = stable_hk_path(&std::env::current_exe()?, std::env::var_os("PATH"));
         Ok(hk_hook_command(&hk))
     }
 }
@@ -290,10 +459,12 @@ fn shell_quote_path(path: &Path) -> OsString {
         }
     }
 }
-/// Git aggregates `hook.<name>.command` values across scopes, so a local
-/// install on top of a global one fires hk twice per event. Warn the user
-/// and point them at the `enabled = false` escape hatch.
-fn warn_if_global_overlap(events: &[String]) {
+/// Local and global installs share the hook name `hk-<event>`. Git keeps a
+/// single `command` per hook name and the repo-local value replaces the global
+/// one, so a forced local install does not fire hk twice. It also means
+/// `hook.hk-<event>.enabled = false` would switch off the local hook as well,
+/// so tell the user about the override instead of suggesting that setting.
+fn note_global_overlap(events: &[String]) {
     let mut overlapping: Vec<&str> = Vec::new();
     for event in events {
         let key = format!("hook.hk-{event}.command");
@@ -309,15 +480,34 @@ fn warn_if_global_overlap(events: &[String]) {
     if overlapping.is_empty() {
         return;
     }
-    warn!(
-        "both global (~/.gitconfig) and local hk hooks are active for: {}. Git will run hk twice per event. To run only the local install, disable the global entries in this repo: {}",
-        overlapping.join(", "),
-        overlapping
-            .iter()
-            .map(|e| format!("`git config --local hook.hk-{e}.enabled false`"))
-            .collect::<Vec<_>>()
-            .join(" ; ")
-    );
+    // `enabled = false` in any scope switches the hook name off, and a local
+    // command does not override it.
+    let (disabled, active): (Vec<&str>, Vec<&str>) = overlapping.into_iter().partition(|event| {
+        let key = format!("hook.hk-{event}.enabled");
+        Command::new("git")
+            .args(["config", "--type=bool", "--get", key.as_str()])
+            .output()
+            .is_ok_and(|o| {
+                o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "false"
+            })
+    });
+    if !active.is_empty() {
+        info!(
+            "global hooks (~/.gitconfig) also exist for: {}. In this repo the local hook replaces the global one, so hk runs once per event. `hk uninstall` here would go back to the global hooks, but it removes every local hk hook in this repo, including events with no global hook; `hk install --force-local` adds them back.",
+            active.join(", ")
+        );
+    }
+    if !disabled.is_empty() {
+        warn!(
+            "git runs no hk hook for: {} because `hook.hk-<event>.enabled` is false in your git config. To enable: {}",
+            disabled.join(", "),
+            disabled
+                .iter()
+                .map(|e| format!("`git config --local hook.hk-{e}.enabled true`"))
+                .collect::<Vec<_>>()
+                .join(" ; ")
+        );
+    }
 }
 
 fn install_global(events: &[String], command: &OsStr) -> Result<()> {
@@ -335,33 +525,55 @@ fn install_global(events: &[String], command: &OsStr) -> Result<()> {
     Ok(())
 }
 
-fn install_local_config(events: &[String], command: &OsStr) -> Result<()> {
+fn install_local_config(
+    events: &[String],
+    command: &OsStr,
+    path_fallback: Option<&Path>,
+) -> Result<()> {
+    let command = with_path_fallback(command, path_fallback);
     for event in events {
-        write_config_hook("--local", command, event, false)?;
+        write_config_hook("--local", &command, event, false)?;
         info!("Installed hk hook via git config: hook.hk-{event}.command");
     }
     Ok(())
 }
 
-fn install_local_shims(events: &[String], command: &OsStr) -> Result<()> {
-    let git_path = git_util::find_git_path()?;
-    let hooks = match git_util::worktree_hooks_path() {
-        Some(path) => {
-            xx::file::mkdirp(&path)?;
-            path
-        }
-        None => {
-            check_hooks_path_config()?;
-            git_util::resolve_git_hooks_dir(&git_path)?
-        }
-    };
+fn install_local_shims(
+    events: &[String],
+    command: &OsStr,
+    path_fallback: Option<&Path>,
+    force: bool,
+) -> Result<()> {
+    let hooks = legacy_hooks_dir(true)?;
     for event in events {
         let hook_file = hooks.join(event);
-        xx::file::write(
-            &hook_file,
-            git_hook_content(&command.to_string_lossy(), event),
+        // Another process can change the hook after the up-front check, so
+        // look again right before writing.
+        if !force && let Some(problem) = legacy_target_problem(&hook_file)? {
+            bail!("{problem}; pass `--force` to replace it");
+        }
+        // Write a new file and rename it over the hook. A rename replaces a
+        // symlink (even a dangling one) instead of following it, so the
+        // link's target is never written.
+        // The temp file has a random name and is created exclusively, so a
+        // symlink planted at a guessed name can't redirect the write.
+        let mut temp = tempfile::Builder::new()
+            .prefix(&format!(".{event}.hk-install-"))
+            .tempfile_in(&hooks)?;
+        std::io::Write::write_all(
+            &mut temp,
+            git_hook_content(&command.to_string_lossy(), event, path_fallback).as_bytes(),
         )?;
-        xx::file::make_executable(&hook_file)?;
+        // The temp file starts private (0600); hooks are world-readable and
+        // executable, as when the shim was written directly.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(temp.path(), std::fs::Permissions::from_mode(0o755))?;
+        }
+        #[cfg(not(unix))]
+        xx::file::make_executable(temp.path())?;
+        temp.persist(&hook_file).map_err(|err| err.error)?;
         info!("Installed hk hook: {}", hook_file.display());
     }
     Ok(())
@@ -403,6 +615,78 @@ fn write_config_hook(
 
 fn remove_local_config_entries() -> Result<usize> {
     remove_config_entries("--local")
+}
+
+pub(crate) fn lock_local_config() -> Result<File> {
+    // --git-path resolves the shared config for linked worktrees and also
+    // honors GIT_DIR, unlike constructing a path from the working tree.
+    let output = Command::new("git")
+        .args(["rev-parse", "--git-path", "config"])
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "git rev-parse --git-path config failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    #[cfg(unix)]
+    let config = {
+        use std::os::unix::ffi::OsStringExt;
+        let mut path = output.stdout;
+        while matches!(path.last(), Some(b'\n' | b'\r')) {
+            path.pop();
+        }
+        OsString::from_vec(path)
+    };
+    #[cfg(not(unix))]
+    let config = OsString::from(String::from_utf8(output.stdout)?.trim_end());
+    #[cfg(unix)]
+    let config_mode = {
+        use std::os::unix::fs::PermissionsExt;
+        (std::fs::metadata(Path::new(&config))?.permissions().mode() & 0o666) | 0o200
+    };
+    let mut lock_path = config;
+    lock_path.push(".hk-install.lock");
+    let lock_path = Path::new(&lock_path);
+    let lock = match OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(lock_path)
+    {
+        Ok(lock) => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                // Preserve the config's shared permissions despite the
+                // process umask. Keep owner write access even if the config
+                // itself is read-only: Git can replace such a config, and
+                // subsequent installs still need to open this lock.
+                lock.set_permissions(std::fs::Permissions::from_mode(config_mode))?;
+            }
+            lock
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Another process may see a new file before its creator has
+            // applied shared-repository permissions.
+            let mut attempts = 0;
+            loop {
+                match OpenOptions::new().write(true).open(lock_path) {
+                    Ok(lock) => break lock,
+                    Err(error)
+                        if error.kind() == std::io::ErrorKind::PermissionDenied
+                            && attempts < 10 =>
+                    {
+                        attempts += 1;
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(error) => return Err(error.into()),
+                }
+            }
+        }
+        Err(error) => return Err(error.into()),
+    };
+    lock.lock()?;
+    Ok(lock)
 }
 
 pub(crate) fn remove_config_entries(scope: &str) -> Result<usize> {
@@ -470,7 +754,7 @@ pub(crate) fn remove_local_shims() -> Result<usize> {
         // Match the HK=0 guard that every hk-written shim has. This is more
         // specific than `hk run` alone, which could appear in an unrelated
         // user-written hook.
-        if content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run") {
+        if is_hk_shim(&content) {
             xx::file::remove_file(&p)?;
             info!("removed hook: {}", xx::file::display_path(&p));
             removed += 1;
@@ -500,12 +784,34 @@ where
     Ok(())
 }
 
-fn git_hook_content(hk: &str, hook: &str) -> String {
-    format!(
-        r#"#!/bin/sh
+fn git_hook_content(hk: &str, hook: &str, path_fallback: Option<&Path>) -> String {
+    match path_fallback {
+        // The braces keep the `HK=0` escape hatch on one line.
+        Some(dir) => format!(
+            r#"#!/bin/sh
+test "${{HK:-1}}" = "0" || {{ PATH="$PATH":{}; export PATH; exec {hk} run {hook} --from-hook "$@"; }}
+"#,
+            shell_quote_path(dir).to_string_lossy()
+        ),
+        None => format!(
+            r#"#!/bin/sh
 test "${{HK:-1}}" = "0" || exec {hk} run {hook} --from-hook "$@"
 "#,
-    )
+        ),
+    }
+}
+
+/// `command` run with `dir` appended to `PATH`, for a hook command string
+/// that Git runs through the shell.
+fn with_path_fallback(command: &OsStr, dir: Option<&Path>) -> OsString {
+    let Some(dir) = dir else {
+        return command.to_os_string();
+    };
+    let mut with = OsString::from(r#"PATH="$PATH":"#);
+    with.push(shell_quote_path(dir));
+    with.push(" ");
+    with.push(command);
+    with
 }
 
 fn hook_run_args(event: &str, staged_pre_commit: bool) -> OsString {
@@ -590,6 +896,95 @@ mod tests {
             hk_hook_command(&home.join(".local/bin/hk")).to_string_lossy(),
             "~/.local/bin/hk"
         );
+    }
+
+    #[test]
+    fn stable_hk_path_prefers_the_mise_shim_over_a_versioned_install() {
+        let data = tempfile::tempdir().unwrap();
+        let exe = data.path().join("installs/hk/2.3.1/bin/hk");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        std::fs::create_dir_all(data.path().join("shims")).unwrap();
+        std::fs::write(data.path().join("shims/hk"), "").unwrap();
+        // A PATH entry for the versioned directory, as `mise activate` adds.
+        let path = std::env::join_paths([exe.parent().unwrap()]).unwrap();
+        assert_eq!(
+            stable_hk_path(&exe, Some(path)),
+            data.path().join("shims/hk")
+        );
+    }
+
+    #[test]
+    fn mise_shim_is_found_when_the_data_dir_contains_an_installs_component() {
+        let root = tempfile::tempdir().unwrap();
+        let data = root.path().join("installs/mise-data");
+        let exe = data.join("installs/hk/2.3.1/bin/hk");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        std::fs::create_dir_all(data.join("shims")).unwrap();
+        std::fs::write(data.join("shims/hk"), "").unwrap();
+        assert_eq!(mise_shim_for(&exe), Some(data.join("shims/hk")));
+    }
+
+    #[test]
+    fn stable_hk_path_ignores_other_mise_tools_and_missing_shims() {
+        let data = tempfile::tempdir().unwrap();
+        let other = data.path().join("installs/other/1/bin/hk");
+        let exe = data.path().join("installs/hk/2.3.1/bin/hk");
+        for p in [&other, &exe] {
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, "").unwrap();
+        }
+        // No shim exists yet.
+        assert_eq!(stable_hk_path(&exe, None), exe);
+        std::fs::create_dir_all(data.path().join("shims")).unwrap();
+        std::fs::write(data.path().join("shims/hk"), "").unwrap();
+        assert_eq!(stable_hk_path(&other, None), other);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stable_hk_path_uses_a_path_symlink_to_the_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("Cellar/hk/2.3.1/bin/hk");
+        std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        std::fs::write(&exe, "").unwrap();
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::os::unix::fs::symlink(&exe, bin.join("hk")).unwrap();
+        // The binary's own directory earlier on PATH is not a stable link.
+        let versioned = exe.parent().unwrap().to_path_buf();
+        let path = std::env::join_paths([versioned, bin.clone()]).unwrap();
+        assert_eq!(stable_hk_path(&exe, Some(path)), bin.join("hk"));
+        // A different hk earlier on PATH is not this binary and is skipped.
+        let elsewhere = dir.path().join("elsewhere");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        std::fs::write(elsewhere.join("hk"), "other").unwrap();
+        let path = std::env::join_paths([elsewhere, bin.clone()]).unwrap();
+        assert_eq!(stable_hk_path(&exe, Some(path)), bin.join("hk"));
+        assert_eq!(stable_hk_path(&exe, None), exe);
+    }
+
+    #[test]
+    fn shim_and_config_command_append_the_fallback_dir_to_path() {
+        let dir = Path::new("/opt/hk bin");
+        let shim = git_hook_content("hk", "pre-commit", Some(dir));
+        assert!(shim.contains(r#"test "${HK:-1}" = "0" || { PATH="$PATH":'/opt/hk bin'; export PATH; exec hk run pre-commit --from-hook "$@"; }"#), "{shim}");
+        assert!(is_hk_shim_like(&shim));
+        let plain = git_hook_content("hk", "pre-commit", None);
+        assert!(plain.contains(r#"|| exec hk run pre-commit --from-hook "$@""#));
+        assert_eq!(
+            with_path_fallback(OsStr::new("hk"), Some(dir)),
+            OsString::from(r#"PATH="$PATH":'/opt/hk bin' hk"#)
+        );
+        assert_eq!(
+            with_path_fallback(OsStr::new("mise x -- hk"), None),
+            OsString::from("mise x -- hk")
+        );
+    }
+
+    fn is_hk_shim_like(content: &str) -> bool {
+        content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run")
     }
 
     #[test]

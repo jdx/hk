@@ -13,8 +13,8 @@ Pkl evaluates configuration. hk then runs the commands that configuration define
 Every project configuration should amend hk’s base schema:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
 ```
 
 `amends` supplies the allowed properties and classes, such as `Step`, `Hook`, and `Group`. `import` makes another module available under its name, here `Builtins`.
@@ -151,7 +151,7 @@ This is a local amendment of an existing project configuration. Save it as `hk.l
 its path relative to the importing module.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 
 import* "generated/*.pkl" as generated
 
@@ -171,7 +171,7 @@ add or remove step definitions without editing `hk.pkl`:
 
 ```pkl
 // generated/prettier.pkl
-import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
 
 STEPS: Mapping<String, Config.Step> = new {
   ["prettier"] {
@@ -208,6 +208,8 @@ hk check --plan
 
 Validation evaluates the configuration without executing linter commands. A plan then shows how hk selects steps and files.
 
+Validation fails on configs hk cannot run, such as a dependency cycle between steps or a glob that does not compile. It also prints warnings, without failing, for settings that load but probably do not do what you meant: a misspelled property (release builds otherwise drop it silently), a `depends` entry that names an unknown step, a group, or a step in a later group, a step with no command, and a glob that starts with `./`, `/` or `!` or lists patterns with commas.
+
 If the Pkl CLI is installed, inspect the evaluated module with:
 
 ```sh
@@ -224,7 +226,7 @@ hk includes [pklr](https://github.com/jdx/pklr) and always uses it to evaluate p
 
 The built-in evaluator persists downloaded packages and seeds the cache with the Pkl package matching the running hk version. Use [`HK_PKL_OFFLINE`](/environment_variables#hk-pkl-offline) to require cached or embedded packages without network access.
 
-Release builds cache evaluated configuration; debug builds disable this cache by default. When diagnosing an unexpected result after changing an import or evaluation input, bypass or clear the cache:
+Release builds cache evaluated configuration; debug builds disable this cache by default. The values of environment variables the configuration reads with `read("env:NAME")` or `read?("env:NAME")` are part of the cache key. hk re-evaluates the configuration only when no cache entry exists for the current values; returning a variable to an earlier value reuses that entry. Files read as resources, such as `read("data.txt")`, are not tracked. When diagnosing an unexpected result after changing an import or evaluation input, bypass or clear the cache:
 
 ```sh
 HK_CACHE=0 hk validate

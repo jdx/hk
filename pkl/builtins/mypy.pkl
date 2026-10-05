@@ -15,9 +15,24 @@ mypy = new Config.Step {
     command = new Config.Command { argv = List("mypy", "{{files}}") }
     effect = "write"
   }
+  // Findings are `path:line: error: message  [code]` (no column); hk ignores the `Found N errors` summary
+  diagnostic_format = "gcc"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.py" }
     ["check bad file"] = testMaker.checkFail("x: int = ''", 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "x: int = ''",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.py"
+          line = 1
+          column = 1
+          severity = "error"
+          rule = "assignment"
+          message = "Incompatible types in assignment"
+        }),
+      )
     ["check good file"] = testMaker.checkPass("x: str = ''")
   }
 }

@@ -1,9 +1,15 @@
+use super::text_files::{
+    fix_in_order, for_each_in_order, read_rest_to_string, read_text_probe, regular_file_len,
+};
 use crate::Result;
 use std::fs;
-use std::io::Read;
-use std::path::PathBuf;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
-/// Check for and optionally fix trailing whitespace in files
+/// Check for and optionally fix trailing whitespace
+///
+/// Only spaces and tabs before a line's terminator count as trailing
+/// whitespace. Each line keeps its own terminator, so a CRLF file stays CRLF.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct TrailingWhitespace {
@@ -11,7 +17,7 @@ pub struct TrailingWhitespace {
     #[usage(short, long, conflicts = "--fix")]
     pub diff: bool,
 
-    /// Fix trailing whitespace by removing it
+    /// Fix trailing whitespace by removing the spaces and tabs
     #[usage(short, long)]
     pub fix: bool,
 
@@ -22,30 +28,36 @@ pub struct TrailingWhitespace {
 
 impl TrailingWhitespace {
     pub async fn run(&self) -> Result<()> {
-        let mut found_issues = false;
-
-        for file_path in &self.files {
-            // Skip non-text files
-            if !is_text_file(file_path)? {
-                continue;
-            }
-
-            if self.fix {
-                fix_trailing_whitespace(file_path)?;
-            } else if self.diff {
-                if let Some(diff) = generate_diff(file_path)? {
-                    print!("{}", diff);
-                    found_issues = true;
-                }
-            } else if has_trailing_whitespace(file_path)? {
-                println!("{}", file_path.display());
-                found_issues = true;
-            }
+        if self.fix {
+            // Fix mode always succeeds.
+            return fix_in_order(&self.files, fixed_content);
         }
 
+        let report = |path: &Path| -> Result<Option<String>> {
+            if self.diff {
+                generate_diff(path)
+            } else {
+                Ok(has_trailing_whitespace(path)?.then(|| format!("{}\n", path.display())))
+            }
+        };
+        let mut out = io::BufWriter::new(io::stdout().lock());
+        let mut found_issues = false;
+        let reported = for_each_in_order(
+            &self.files,
+            |path| report(path),
+            |_, report| {
+                if let Some(report) = report? {
+                    out.write_all(report.as_bytes())?;
+                    found_issues = true;
+                }
+                Ok(())
+            },
+        );
+        out.flush()?;
+        reported?;
+
         // In check/diff mode: exit with code 1 if issues found
-        // Fix mode always succeeds
-        if !self.fix && found_issues {
+        if found_issues {
             std::process::exit(1);
         }
 
@@ -53,61 +65,85 @@ impl TrailingWhitespace {
     }
 }
 
-/// Check if a file is a text file
-/// Uses a heuristic: reads the first 8KB and checks if it's valid UTF-8
-fn is_text_file(path: &PathBuf) -> Result<bool> {
-    if !path.exists() || !path.is_file() {
-        return Ok(false);
-    }
-
-    // Check if file is empty
-    let metadata = fs::metadata(path)?;
-    if metadata.len() == 0 {
-        return Ok(true); // Empty files are text
-    }
-
-    // Read first 8KB to detect if it's text
+/// Read a file's content, or `None` for a file that isn't text.
+fn read_text(path: &Path) -> Result<Option<String>> {
+    let Some(len) = regular_file_len(path) else {
+        return Ok(None);
+    };
     let mut file = fs::File::open(path)?;
-    let mut buffer = vec![0; 8192.min(metadata.len() as usize)];
-    file.read_exact(&mut buffer)?;
+    let head = if len == 0 {
+        Vec::new() // Empty files are text
+    } else {
+        match read_text_probe(&mut file, len)? {
+            Some(head) => head,
+            None => return Ok(None),
+        }
+    };
+    read_rest_to_string(&mut file, head).map(Some)
+}
 
-    // Check for null bytes (common in binary files)
-    if buffer.contains(&0) {
-        return Ok(false);
+/// Split `content` into lines as `(body, terminator)`. The terminator is
+/// `"\r\n"` or `"\n"`, or empty for a last line without one. A lone `\r` is
+/// not a terminator (hk doesn't target legacy Mac line endings), so it stays
+/// part of the body.
+fn lines(content: &str) -> impl Iterator<Item = (&str, &str)> {
+    content.split_inclusive('\n').map(|line| {
+        if let Some(body) = line.strip_suffix("\r\n") {
+            (body, "\r\n")
+        } else if let Some(body) = line.strip_suffix('\n') {
+            (body, "\n")
+        } else {
+            (line, "")
+        }
+    })
+}
+
+/// A line without its trailing spaces and tabs, and its terminator. Spaces
+/// and tabs between a stray `\r` and a bare `\n` are trailing whitespace too:
+/// the `\r` is then part of a CRLF terminator, which keeps the fix one pass.
+fn fix_line<'a>(body: &'a str, terminator: &'a str) -> (&'a str, &'a str) {
+    let body = body.trim_end_matches([' ', '\t']);
+    match (terminator, body.strip_suffix('\r')) {
+        ("\n", Some(body)) => (body.trim_end_matches([' ', '\t']), "\r\n"),
+        _ => (body, terminator),
     }
-
-    // Try to validate as UTF-8
-    Ok(std::str::from_utf8(&buffer).is_ok())
 }
 
 /// Check if a file has trailing whitespace
-fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
-    let content = fs::read_to_string(path)?;
-
-    for line in content.split('\n') {
-        // Check for whitespace (including \r) before the newline
-        if line != line.trim_end() {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
+fn has_trailing_whitespace(path: &Path) -> Result<bool> {
+    let Some(content) = read_text(path)? else {
+        return Ok(false);
+    };
+    Ok(lines(&content).any(|(body, terminator)| fix_line(body, terminator) != (body, terminator)))
 }
 
-/// Strip trailing whitespace from each line in the content
+/// Strip spaces and tabs before each line's terminator, keeping the terminator
 fn strip_trailing_whitespace(original: &str) -> String {
-    original
-        .split_inclusive('\n')
-        .map(|line| line.trim_end())
-        .collect::<Vec<_>>()
-        .join("\n")
-        + if original.ends_with('\n') { "\n" } else { "" }
+    let mut fixed = String::with_capacity(original.len());
+    for (body, terminator) in lines(original) {
+        let (body, terminator) = fix_line(body, terminator);
+        fixed.push_str(body);
+        fixed.push_str(terminator);
+    }
+    fixed
+}
+
+/// The file's content without trailing whitespace, or `None` if it has none
+/// or isn't a text file.
+fn fixed_content(path: &Path) -> Result<Option<String>> {
+    let Some(original) = read_text(path)? else {
+        return Ok(None);
+    };
+    let fixed = strip_trailing_whitespace(&original);
+    Ok((original != fixed).then_some(fixed))
 }
 
 /// Generate a unified diff showing trailing whitespace removal
 /// Returns None if no changes needed
-fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
-    let original = fs::read_to_string(path)?;
+fn generate_diff(path: &Path) -> Result<Option<String>> {
+    let Some(original) = read_text(path)? else {
+        return Ok(None);
+    };
     let fixed = strip_trailing_whitespace(&original);
 
     if original == fixed {
@@ -126,16 +162,25 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
 }
 
 /// Fix trailing whitespace in a file, returns true if file was modified
-fn fix_trailing_whitespace(path: &PathBuf) -> Result<bool> {
-    let original = fs::read_to_string(path)?;
-    let fixed = strip_trailing_whitespace(&original);
-
-    if original == fixed {
+#[cfg(test)]
+fn fix_trailing_whitespace(path: &Path) -> Result<bool> {
+    let Some(fixed) = fixed_content(path)? else {
         return Ok(false);
-    }
-
+    };
     fs::write(path, &fixed)?;
     Ok(true)
+}
+
+/// Check if a file is a text file
+#[cfg(test)]
+fn is_text_file(path: &Path) -> Result<bool> {
+    let Some(len) = regular_file_len(path) else {
+        return Ok(false);
+    };
+    if len == 0 {
+        return Ok(true); // Empty files are text
+    }
+    Ok(read_text_probe(&mut fs::File::open(path)?, len)?.is_some())
 }
 
 #[cfg(test)]
@@ -263,9 +308,19 @@ mod tests {
     }
 
     #[test]
-    fn test_has_trailing_whitespace_crlf() {
+    fn test_clean_crlf_has_no_trailing_whitespace() {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(b"hello\r\nworld\r\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(!has_trailing_whitespace(&path).unwrap());
+    }
+
+    #[test]
+    fn test_has_trailing_whitespace_crlf_with_spaces() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"hello  \r\nworld\r\n").unwrap();
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();
@@ -273,21 +328,52 @@ mod tests {
     }
 
     #[test]
-    fn test_fix_trailing_whitespace_crlf() {
+    fn test_fix_trailing_whitespace_crlf_keeps_crlf() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"hello  \r\nworld\t\r\nclean\r\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(fix_trailing_whitespace(&path).unwrap());
+        assert!(!has_trailing_whitespace(&path).unwrap());
+        assert_eq!(fs::read(&path).unwrap(), b"hello\r\nworld\r\nclean\r\n");
+    }
+
+    #[test]
+    fn test_clean_crlf_file_is_not_modified() {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(b"hello\r\nworld\r\n").unwrap();
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();
+        assert!(!fix_trailing_whitespace(&path).unwrap());
+        assert_eq!(fs::read(&path).unwrap(), b"hello\r\nworld\r\n");
+    }
 
-        // Should detect and fix
-        assert!(fix_trailing_whitespace(&path).unwrap());
+    #[test]
+    fn test_fix_keeps_each_lines_terminator() {
+        assert_eq!(
+            strip_trailing_whitespace("a  \r\nb \nc\t\r\n\r\n  \n"),
+            "a\r\nb\nc\r\n\r\n\n"
+        );
+    }
 
-        // Should be clean now
-        assert!(!has_trailing_whitespace(&path).unwrap());
+    #[test]
+    fn test_fix_strips_only_spaces_and_tabs() {
+        // A form feed or a lone carriage return is not trailing whitespace.
+        assert_eq!(strip_trailing_whitespace("a\x0c\nb\r"), "a\x0c\nb\r");
+        assert_eq!(strip_trailing_whitespace("a \rb \n"), "a \rb\n");
+    }
 
-        // Verify \r is stripped
-        let content = fs::read_to_string(&path).unwrap();
-        assert_eq!(content, "hello\nworld\n");
+    #[test]
+    fn test_fix_spaces_around_a_stray_cr_in_one_pass() {
+        let fixed = strip_trailing_whitespace("x   \r \ny\n");
+        assert_eq!(fixed, "x\r\ny\n");
+        assert_eq!(strip_trailing_whitespace(&fixed), fixed);
+    }
+
+    #[test]
+    fn test_fix_crlf_without_final_newline() {
+        assert_eq!(strip_trailing_whitespace("a \r\nb  "), "a\r\nb");
     }
 }

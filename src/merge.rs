@@ -99,6 +99,19 @@ pub fn diff_hunks(base: &str, other: &str, source: HunkSource) -> Vec<Hunk> {
     hunks
 }
 
+/// Whether `fixer` and `worktree` change the same lines of `base`, or insert
+/// lines at the same place, so that [`three_way_merge_hunks`] would drop one
+/// of the changes.
+pub fn hunks_overlap(base: &str, fixer: &str, worktree: &str) -> bool {
+    let fixer_hunks = diff_hunks(base, fixer, HunkSource::Fixer);
+    let work_hunks = diff_hunks(base, worktree, HunkSource::Worktree);
+    fixer_hunks.iter().any(|f| {
+        work_hunks
+            .iter()
+            .any(|w| f.start == w.start || (f.start < w.end && w.start < f.end))
+    })
+}
+
 /// Merge fixer and worktree hunks with preference to Worktree on overlap.
 pub fn three_way_merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&str>) -> String {
     match (fixer, worktree) {
@@ -182,7 +195,17 @@ pub fn three_way_merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&
 
 #[cfg(test)]
 mod tests {
-    use super::{HunkSource, diff_hunks, three_way_merge_hunks};
+    use super::{HunkSource, diff_hunks, hunks_overlap, three_way_merge_hunks};
+
+    #[test]
+    fn overlap_is_detected_only_on_the_same_lines() {
+        let base = "a\nb\nc\n";
+        assert!(!hunks_overlap(base, "A\nb\nc\n", "a\nb\nC\n"));
+        assert!(hunks_overlap(base, "a\nB\nc\n", "a\nb2\nc\n"));
+        // Insertions at the same place
+        assert!(hunks_overlap(base, "a\nx\nb\nc\n", "a\ny\nb\nc\n"));
+        assert!(!hunks_overlap(base, base, "a\nb\nC\n"));
+    }
 
     #[test]
     fn prefer_worktree_when_conflict() {

@@ -16,9 +16,23 @@ mado = new Config.Step {
     command = new Config.Command { argv = List("mado", "check", "{{files}}") }
     effect = "read"
   }
+  // Findings are `path:line:column: MD018 message`; hk ignores the blank line and `Found N errors.` after them
+  diagnostic_format = "gcc"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.md" }
     ["check bad file"] = testMaker.checkFail("#Hello.", 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "#Hello.",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.md"
+          line = 1
+          column = 1
+          severity = "error"
+          message = "MD018 No space after hash on atx style header"
+        }),
+      )
     ["check good file"] = testMaker.checkPass("# Hello\n")
   }
 }

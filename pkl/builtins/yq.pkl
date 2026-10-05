@@ -8,19 +8,88 @@ import "./test/helpers.pkl"
 }
 yq = new Config.Step {
   glob = List("**/*.yaml", "**/*.yml")
+  // yq formats on one core and the fixer runs once per file, so split the
+  // files across jobs.
+  batch = true
+  // Label both sides with the file's path: an unlabeled `diff "$f" -` names
+  // the new side `-`, which `git apply` cannot patch. Diff only output from a
+  // successful run, since diffing a file yq cannot parse against empty output
+  // would patch it to nothing.
+  //
+  // Starting yq for each file costs more than the formatting, so for more
+  // than one file, one yq run writes each document of every file to
+  // "$split/<file>-<document>.yml". That needs yq 4.43.1 or later
+  // (`tostring`); with an older yq, or if any file fails to parse, the run
+  // fails and every file is checked on its own. yq takes the format of every
+  // file from the first one's extension, so only .yaml and .yml files go in.
+  // `-N` leaves out document separators, since yq would start every file but
+  // the first with one. A file with one document whose output matches it is
+  // formatted. The rest go through yq and diff one at a time, including files
+  // that start with a `---` separator.
   check_diff = new Config.CommandSpec {
     command =
       """
       failed=0
+      broken=0
+      trap 'rm -rf "$out" "$patch" "$split"' EXIT
+      trap 'exit 2' HUP INT TERM
+      out=$(mktemp) && patch=$(mktemp) && split=$(mktemp -d) || exit 2
+      set --
       for f in {{ files }}; do
-      yq -P "$f" | diff -u "$f" - || failed=1
+      case $f in
+      *.[yY][aA][mM][lL] | *.[yY][mM][lL]) set -- "$@" "$f" ;;
+      esac
       done
+      fast=0
+      if [ $# -gt 1 ] && YQ_SPLIT="$split/" yq -P -N -s 'strenv(YQ_SPLIT) +
+      (file_index | tostring) + "-" + (document_index | tostring)' "$@" > /dev/null 2>&1; then
+      fast=1
+      fi
+      i=0
+      for f in {{ files }}; do
+      new=
+      case $f in
+      *.[yY][aA][mM][lL] | *.[yY][mM][lL])
+      new="$split/$i-0.yml"
+      i=$((i + 1))
+      ;;
+      esac
+      if [ "$fast" = 1 ] && [ -n "$new" ] && [ -f "$new" ] &&
+      [ ! -e "${new%-0.yml}-1.yml" ] && cmp -s "$f" "$new"; then
+      continue
+      fi
+      if yq -P "$f" > "$out"; then
+      # hk runs this with `set -e`, so take diff's status through `||`.
+      status=0
+      diff -u -L "a/$f" -L "b/$f" "$f" "$out" >> "$patch" || status=$?
+      case $status in
+      0) ;;
+      1) failed=1 ;;
+      *) broken=1 ;;
+      esac
+      else
+      broken=1
+      fi
+      done
+      # When a file failed to parse or diff, print no patch: hk then runs the
+      # fixer on every file, and the fixer reports the error.
+      [ "$broken" = 1 ] && exit 1
+      cat "$patch" || exit 2
       exit $failed
       """
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "yq -iP {{ files }}"
+    // yq -i only rewrites the first file and merges every input into it,
+    // so each file must be fixed separately.
+    command =
+      """
+      failed=0
+      for f in {{ files }}; do
+      yq -iP "$f" || failed=1
+      done
+      exit $failed
+      """
     effect = "write"
   }
   tests {
@@ -28,6 +97,45 @@ yq = new Config.Step {
     ["check bad file"] = testMaker.checkFail("foo:  bar", 1)
     ["check good file"] = testMaker.checkPass("foo: bar\n")
     ["fix bad file"] = testMaker.fixPass("foo:  bar", "foo: bar\n")
+    ["diff bad file"] = testMaker.diffPass("foo:  bar", "foo: bar\n")
     ["fix good file"] = testMaker.fixPass("foo: bar\n", "foo: bar\n")
+    // yq's output for these files holds separators, which the batch run omits.
+    // With a formatted file beside them, the batch run checks the batch, and
+    // must hand these files to yq and diff one at a time.
+    local const batchMaker = new helpers.TestMaker {
+      filename = "test.yaml"
+      extra_files { ["formatted.yaml"] = "a: 1\n" }
+    }
+    ["check file that starts with a separator"] = batchMaker.checkPass("---\nfoo: bar\n")
+    ["check file with several documents"] = batchMaker.checkPass("a: 1\n---\nb: 2\n")
+    ["check unformatted file with several documents"] =
+      batchMaker.checkFail("a: 1\n---\nb:  2\n", 1)
+    ["check file yq cannot parse"] = batchMaker.checkFail("a: [\n", 1)
+    ["check multiple files"] {
+      tmpdir = true
+      write {
+        ["a.yaml"] = "a: 1\n"
+        ["b.yml"] = "b:  2\n"
+        ["c.yaml"] = "c: 3\n"
+      }
+      expect {
+        code = 1
+        stdout = "--- a/b.yml\n+++ b/b.yml\n"
+      }
+    }
+    ["fix multiple files"] {
+      run = "fix"
+      tmpdir = true
+      write {
+        ["a.yaml"] = "a:  1"
+        ["b.yml"] = "b:  2"
+      }
+      expect {
+        files {
+          ["a.yaml"] = "a: 1\n"
+          ["b.yml"] = "b: 2\n"
+        }
+      }
+    }
   }
 }

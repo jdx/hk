@@ -17,13 +17,18 @@ use std::sync::Arc;
 
 use super::{
     ShellType,
-    types::{Command, Step},
+    types::{Command, RenderedCommand, Step},
 };
 
 const CMD_COMMAND_LINE_LIMIT: usize = 8191;
 const CMD_COMMAND_LINE_SAFE_LIMIT: usize = CMD_COMMAND_LINE_LIMIT / 2;
 const WINDOWS_CREATE_PROCESS_LIMIT: usize = 32767;
 const WINDOWS_CREATE_PROCESS_SAFE_LIMIT: usize = WINDOWS_CREATE_PROCESS_LIMIT / 2;
+// `.cmd` and `.bat` shims (npm's, for one) run as `cmd.exe /d /s /c "..."`. cmd.exe
+// rejects a command line over 8191 characters, far below CreateProcess's limit, and
+// then expands `%*` into a line of the shim's own. Leave room for the shim's text.
+const CMD_BATCH_SHIM_HEADROOM: usize = 1024;
+const CMD_BATCH_SAFE_LIMIT: usize = CMD_COMMAND_LINE_LIMIT - CMD_BATCH_SHIM_HEADROOM;
 #[cfg(target_os = "linux")]
 // Linux limits each argv/envp string to 32 pages, independently of ARG_MAX.
 const LINUX_MAX_ARG_STRLEN_PAGES: usize = 32;
@@ -56,6 +61,30 @@ fn shell_command_safe_limit(arg_max: usize, max_arg_strlen: Option<usize>) -> us
 struct RenderedCommandSize {
     aggregate: usize,
     max_argument: Option<usize>,
+    /// Length of the `cmd.exe` command line when a structured argv runs a
+    /// `.cmd` or `.bat` file, which `cmd.exe` limits far below `aggregate`'s.
+    cmd_line: Option<usize>,
+}
+
+impl RenderedCommandSize {
+    /// The size that counts toward the command-line limit, and the limit it
+    /// counts against.
+    fn against(self, safe_limit: usize) -> (usize, usize) {
+        match self.cmd_line {
+            Some(cmd_line) => (cmd_line, safe_limit.min(CMD_BATCH_SAFE_LIMIT)),
+            None => (self.aggregate, safe_limit),
+        }
+    }
+}
+
+/// What a rendered command's size is counted in: cmd.exe's limit for a batch
+/// file counts UTF-16 characters, every other limit counts bytes.
+fn size_unit(size: Option<RenderedCommandSize>) -> &'static str {
+    if size.is_some_and(|size| size.cmd_line.is_some()) {
+        "character"
+    } else {
+        "byte"
+    }
 }
 
 impl Step {
@@ -122,7 +151,47 @@ impl Step {
             .map(|command| RenderedCommandSize {
                 aggregate: command.execution_size(),
                 max_argument: command.max_argument_size(),
+                cmd_line: self.batch_command_line_len(&command, &tctx),
             })
+    }
+
+    /// On Windows, the length of the `cmd.exe` command line a rendered argv
+    /// becomes when it runs a `.cmd` or `.bat` file. A program that is found nowhere
+    /// is sized as an npm shim when mise may supply it at run time.
+    fn batch_command_line_len(
+        &self,
+        command: &RenderedCommand,
+        tctx: &tera::Context,
+    ) -> Option<usize> {
+        let RenderedCommand::Argv(argv) = command else {
+            return None;
+        };
+        if !cfg!(windows) {
+            return None;
+        }
+        let cwd = std::env::current_dir().ok()?;
+        let cwd = match self.render_dir(tctx).ok()?.map(PathBuf::from) {
+            Some(dir) if dir.is_absolute() => dir,
+            Some(dir) => cwd.join(dir),
+            None => cwd,
+        };
+        // Resolve the way the runner does: a step's own PATH and PATHEXT win.
+        let env = |name: &str| {
+            self.env
+                .iter()
+                .rev()
+                .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                .and_then(|(_, value)| tera::render(value, tctx).ok())
+        };
+        super::command::batch_command_line_len(
+            argv,
+            &cwd,
+            env("PATH").as_deref(),
+            env("PATHEXT").as_deref(),
+            // With HK_MISE, a step's `dir` gets the PATH of its mise environment,
+            // which is only resolved when the step runs.
+            *env::HK_MISE && self.dir.is_some(),
+        )
     }
 
     fn validate_direct_argument_size(
@@ -201,9 +270,9 @@ impl Step {
             // Try render-based sizing first; fall back to byte estimation on render failure.
             let rendered_size = self.render_run_command_size(&job, &job.files, base_tctx);
             self.validate_direct_argument_size(run_cmd, rendered_size, platform_max_arg_strlen())?;
-            let full_size = rendered_size
-                .map(|size| size.aggregate)
-                .unwrap_or_else(|| self.estimate_files_string_size(&job.files));
+            let (full_size, safe_limit) = rendered_size
+                .map(|size| size.against(safe_limit))
+                .unwrap_or_else(|| (self.estimate_files_string_size(&job.files), safe_limit));
 
             if full_size <= safe_limit {
                 batched_jobs.push(job);
@@ -211,11 +280,12 @@ impl Step {
             }
 
             debug!(
-                "{}: auto-batching {} files (rendered size: {} bytes, limit: {} bytes)",
+                "{}: auto-batching {} files (rendered size: {} {unit}s, limit: {} {unit}s)",
                 self.name,
                 job.files.len(),
                 full_size,
-                safe_limit
+                safe_limit,
+                unit = size_unit(rendered_size)
             );
 
             // Size every chunk independently: later paths may be much longer
@@ -223,13 +293,17 @@ impl Step {
             let mut offset = 0;
             while offset < job.files.len() {
                 let remaining = &job.files[offset..];
-                let single_size = self
-                    .render_run_command_size(&job, &remaining[..1], base_tctx)
-                    .map(|size| size.aggregate)
-                    .unwrap_or_else(|| self.estimate_files_string_size(&remaining[..1]));
+                let single = self.render_run_command_size(&job, &remaining[..1], base_tctx);
+                // cmd.exe counts characters, everything else bytes.
+                let unit = size_unit(single);
+                let (single_size, safe_limit) = single
+                    .map(|size| size.against(safe_limit))
+                    .unwrap_or_else(|| {
+                        (self.estimate_files_string_size(&remaining[..1]), safe_limit)
+                    });
                 if single_size > safe_limit {
                     bail!(
-                        "{}: rendered command for {} is {} bytes, exceeding the {}-byte command-line limit",
+                        "{}: rendered command for {} is {} {unit}s, exceeding the {}-{unit} command-line limit",
                         self.name,
                         remaining[0].display(),
                         single_size,
@@ -242,10 +316,15 @@ impl Step {
                 let mut high = remaining.len();
                 while low < high {
                     let mid = (low + high).div_ceil(2);
-                    let test_size = self
+                    let (test_size, safe_limit) = self
                         .render_run_command_size(&job, &remaining[..mid], base_tctx)
-                        .map(|size| size.aggregate)
-                        .unwrap_or_else(|| self.estimate_files_string_size(&remaining[..mid]));
+                        .map(|size| size.against(safe_limit))
+                        .unwrap_or_else(|| {
+                            (
+                                self.estimate_files_string_size(&remaining[..mid]),
+                                safe_limit,
+                            )
+                        });
                     if test_size <= safe_limit {
                         low = mid;
                     } else {
@@ -270,6 +349,23 @@ impl Step {
         }
 
         Ok(batched_jobs)
+    }
+}
+
+impl Step {
+    /// Check if this step has any file filters configured.
+    ///
+    /// Used to determine if an empty file list means "no matching files"
+    /// versus "run on all files".
+    pub(crate) fn has_filters(&self) -> bool {
+        self.glob.is_some()
+            || self.match_any.is_some()
+            || self.dir_prefix().is_some()
+            || self
+                .exclude
+                .as_ref()
+                .is_some_and(|pattern| !pattern.is_empty())
+            || self.types.is_some()
     }
 }
 
@@ -309,6 +405,41 @@ mod tests {
     }
 
     #[test]
+    fn batch_shim_counts_the_cmd_exe_line_against_its_own_limit() {
+        let plain = RenderedCommandSize {
+            aggregate: 9000,
+            max_argument: None,
+            cmd_line: None,
+        };
+        assert_eq!(plain.against(16383), (9000, 16383));
+
+        // The argv fits CreateProcess comfortably, but the caret-escaped
+        // cmd.exe line is longer than cmd.exe accepts.
+        let shim = RenderedCommandSize {
+            aggregate: 3100,
+            max_argument: None,
+            cmd_line: Some(8200),
+        };
+        let (size, limit) = shim.against(WINDOWS_CREATE_PROCESS_SAFE_LIMIT);
+        assert_eq!(size, 8200);
+        assert_eq!(limit, CMD_BATCH_SAFE_LIMIT);
+        assert!(size > limit);
+        // An explicit smaller limit still wins.
+        assert_eq!(shim.against(40), (8200, 40));
+    }
+
+    #[test]
+    fn sizes_a_batch_shim_in_characters() {
+        let shim = RenderedCommandSize {
+            aggregate: 10,
+            max_argument: None,
+            cmd_line: Some(20),
+        };
+        assert_eq!(size_unit(Some(shim)), "character");
+        assert_eq!(size_unit(None), "byte");
+    }
+
+    #[test]
     fn structured_argv_rejects_oversized_individual_argument() {
         let command = Command::Argv(super::super::types::ArgvCommand {
             argv: vec!["tool".to_string(), "x".repeat(100)],
@@ -320,6 +451,7 @@ mod tests {
         let size = RenderedCommandSize {
             aggregate: 105,
             max_argument: Some(101),
+            cmd_line: None,
         };
 
         let err = step
@@ -483,22 +615,5 @@ mod tests {
 
         assert!(err.to_string().contains("file.txt"));
         assert!(err.to_string().contains("100-byte command-line limit"));
-    }
-}
-
-impl Step {
-    /// Check if this step has any file filters configured.
-    ///
-    /// Used to determine if an empty file list means "no matching files"
-    /// versus "run on all files".
-    pub(crate) fn has_filters(&self) -> bool {
-        self.glob.is_some()
-            || self.match_any.is_some()
-            || self.dir_prefix().is_some()
-            || self
-                .exclude
-                .as_ref()
-                .is_some_and(|pattern| !pattern.is_empty())
-            || self.types.is_some()
     }
 }

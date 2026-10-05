@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
-# Generates a synthetic project for benchmarking hk vs other hook managers.
-# The generated project has many files across multiple languages to demonstrate
-# hk's parallel execution advantage.
+# Generates the synthetic project the competitor benchmark runs against.
+#
+# The result is a git repository with two commits, tagged:
+#   clean  every file already satisfies every fixer in the workload
+#   dirty  a quarter of the files have formatting defects (HEAD)
+# Fixing `dirty` must reproduce `clean` exactly; see lib/reference-fix.sh.
 #
 # Usage: benchmark/generate-project.sh <output-dir>
 set -euo pipefail
 
+LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/lib" && pwd)"
 DIR="${1:?Usage: generate-project.sh <output-dir>}"
+rm -rf "$DIR"
 mkdir -p "$DIR"
 cd "$DIR"
 
-# Initialize git repo if needed
-if [ ! -d .git ]; then
-    git init -q
-    git commit --allow-empty -m "initial" -q
-fi
+# Keep the user's git configuration (hooks, signing, fsmonitor) out of the
+# fixture. run.sh sets the same variables for the measured commands.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+git init -q -b main
+git config user.name benchmark
+git config user.email benchmark@example.invalid
+git config commit.gpgsign false
 
 NUM_JS=${NUM_JS:-500}
 NUM_PY=${NUM_PY:-4000}
@@ -71,10 +78,8 @@ export function calculateTotal_${i}(items) {
 }
 
 export class DataManager_${i} {
-  constructor() {
-    this.items = [...ITEMS]
-    this.cache = new Map()
-  }
+  items = [...ITEMS]
+  cache = new Map()
 
   getItem(id) {
     if (this.cache.has(id)) {
@@ -378,12 +383,39 @@ SHEOF
     chmod +x "scripts/task_${i}.sh"
 done
 
+# The modules import "react"; tsconfig.json maps it to this stub so the
+# TypeScript files type-check without node_modules.
+mkdir -p src/vendor
+cat > src/vendor/react.ts << 'REACTEOF'
+export function useState(value) {
+  return [value, () => {}]
+}
+
+export function useEffect() {}
+REACTEOF
+
 # --- Config files for linters ---
+cat > tsconfig.json << 'TSCONFIGEOF'
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "paths": { "react": ["./src/vendor/react.ts"] },
+    "strict": false,
+    "target": "es2022"
+  },
+  "include": ["src"]
+}
+TSCONFIGEOF
+
 cat > eslint.config.js << 'ESLINTEOF'
 export default [
   {
+    files: ["**/*.js", "**/*.ts"],
     rules: {
-      "no-unused-vars": "warn",
+      "prefer-const": "error",
+      "no-var": "error",
     },
   },
 ]
@@ -397,9 +429,53 @@ cat > .prettierrc << 'PRETTIEREOF'
 }
 PRETTIEREOF
 
-# Stage all files
+# Tool caches stay untracked so resetting between samples keeps them warm, the
+# way they are on a developer's machine.
+cat > .gitignore << 'GIEOF'
+.ruff_cache/
+GIEOF
+
 git add -A
 git commit -q -m "generated benchmark project"
 
-TOTAL=$(find . -type f -not -path './.git/*' | wc -l)
-echo "Done! Generated $TOTAL files."
+echo "Normalizing with the reference fixer..."
+"$LIB/reference-fix.sh"
+git add -A
+git commit -q --allow-empty -m "clean"
+"$LIB/reference-fix.sh"
+if [ -n "$(git status --porcelain)" ]; then
+    echo "error: the reference fixer did not reach a fixed point" >&2
+    git status --short | head >&2
+    exit 1
+fi
+git tag clean
+
+echo "Injecting defects..."
+"$LIB/inject-defects.sh"
+git add -A
+git commit -q -m "dirty"
+git tag dirty
+DIRTY=$(git diff --name-only clean dirty | wc -l | tr -d ' ')
+
+# The correctness check is only meaningful if the defects are all fixable.
+"$LIB/reference-fix.sh"
+if [ "$(git add -A && git write-tree)" != "$(git rev-parse 'clean^{tree}')" ]; then
+    echo "error: fixing the dirty commit does not reproduce the clean one" >&2
+    git diff --cached --stat clean | tail -5 >&2
+    exit 1
+fi
+git reset -q --hard dirty
+
+# The type checkers change no files, so a failure would show only in a
+# subject's exit code. Both commits must pass them.
+for rev in clean dirty; do
+    git checkout -q "$rev"
+    if ! mypy --cache-dir /dev/null lib >/dev/null || ! tsc -p tsconfig.json; then
+        echo "error: the $rev commit does not pass mypy and tsc" >&2
+        exit 1
+    fi
+done
+git checkout -q main
+
+TOTAL=$(git ls-files | wc -l | tr -d ' ')
+echo "Done! Generated $TOTAL files, $DIRTY with defects."

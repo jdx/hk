@@ -1,0 +1,955 @@
+/* Sea shanty mode on the landing page: docs/pirate/index.md renders
+   HomePage.vue with the crew's words, and this file draws it as a sea chart
+   (see shanty-mode.css for the site-wide theme). The rules reach into
+   HomePage.vue, HomeShowreel.vue and ShantyChip.vue, and ShantyVideo.vue
+   shares the porthole, and beat their scoped rules on specificity; the classes starting `hk-sea-` exist only in the
+   pirate page's markup. Every colour comes from the mode's palette, so both
+   themes follow it: the chart room by day, the night watch by lamplight.
+   showreel/test/shanty-home.test.ts checks the text these tokens carry. */
+
+/* Mixed from the palette, so they follow it. The lane chips are opaque: the
+   rope behind them would otherwise show through their words. */
+:root.shanty-mode {
+  --hk-home-rule: color-mix(in srgb, var(--hk-sea-brass) 45%, transparent);
+  --hk-home-check-bg: color-mix(in srgb, var(--vp-c-brand-1) 12%, var(--vp-c-bg-elv));
+  --hk-home-fix-bg: color-mix(in srgb, var(--hk-code-keyword) 12%, var(--vp-c-bg-elv));
+  --hk-home-rope: color-mix(in srgb, var(--hk-sea-brass) 34%, var(--vp-c-bg-elv));
+  --hk-home-rope-2: color-mix(in srgb, var(--hk-sea-brass) 14%, var(--vp-c-bg-elv));
+  --hk-home-sea: color-mix(in srgb, var(--vp-c-brand-1) 70%, transparent);
+}
+/* By day the chart's edges are foxed with age; the porthole is polished
+   brass. */
+:root:not(.dark).shanty-mode {
+  --hk-home-glow: color-mix(in srgb, var(--hk-sea-brass) 10%, transparent);
+  --hk-home-bezel: #b98a3e;
+  --hk-home-bezel-light: #e2c07e;
+  --hk-home-bezel-dark: #6f4a12;
+}
+/* By night a lamp lights the chart from the left; the porthole's brass
+   catches it. */
+:root.dark.shanty-mode {
+  --hk-home-glow: color-mix(in srgb, var(--hk-sea-brass) 11%, transparent);
+  --hk-home-bezel: #9c7434;
+  --hk-home-bezel-light: #d9b46e;
+  --hk-home-bezel-dark: #4a3109;
+}
+
+/* Type: the display serif for headings and the song's lines, the body face
+   for reading. The Fell comes in one weight, so it is set at 400 wherever it
+   is used, and untracked, as the docs set it: the landing page's tight sans
+   tracking is too tight for a serif. */
+:root.shanty-mode .hk-home :is(h1, h2),
+:root.shanty-mode .hk-sea-kicker,
+:root.shanty-mode .hk-sea-voyage li > strong,
+:root.shanty-mode .hk-sea-call,
+:root.shanty-mode .hk-sea-chorus,
+:root.shanty-mode .hk-sea-outro-last,
+:root.shanty-mode .hk-home .hk-preview-label,
+:root.shanty-mode .hk-home .hk-coordination > .hk-eyebrow,
+:root.shanty-mode .hk-doc-links strong {
+  font-family: var(--hk-font-display);
+}
+:root.shanty-mode .hk-home :is(h1, h2),
+:root.shanty-mode .hk-sea-voyage li > strong,
+:root.shanty-mode .hk-doc-links strong {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+:root.shanty-mode .hk-home :is(h1, h2) {
+  text-wrap: balance;
+}
+/* Set once and inherited, so the display rules above win wherever they
+   apply; code keeps VitePress's mono. */
+:root.shanty-mode .hk-home {
+  font-family: var(--hk-font-body, var(--vp-font-family-base));
+}
+/* The kickers are lines of the song, in brass over the heading they lead
+   into. The rule outranks the sections' own rules for their paragraphs,
+   which would set the workflow's in grey (HomePage.vue's `.hk-workflow p`). */
+:root.shanty-mode .hk-home p.hk-sea-kicker {
+  margin: 0 0 6px;
+  color: var(--hk-sea-brass);
+  font-size: 17px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ---- The hero: an unrolled chart ----------------------------------------
+
+   The chart's border is a neatline, as printed charts have: an outer rule, a
+   band of alternating degree marks, and an inner rule. The band is a
+   checkerboard masked to a ring, so the marks alternate along every side. */
+:root.shanty-mode .hk-hero.hk-sea-chart {
+  position: relative;
+  isolation: isolate;
+  margin-top: 40px;
+  padding: 64px 56px 60px;
+  border: 1px solid var(--hk-sea-brass);
+  background: radial-gradient(ellipse 85% 75% at 45% 45%, transparent 55%, var(--hk-home-glow));
+}
+:root.dark.shanty-mode .hk-hero.hk-sea-chart {
+  background: radial-gradient(ellipse 60% 70% at 18% 32%, var(--hk-home-glow), transparent 70%);
+}
+.hk-sea-chart::before,
+.hk-sea-chart::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+.hk-sea-chart::before {
+  inset: 11px;
+  border: 1px solid var(--hk-sea-brass);
+}
+.hk-sea-chart::after {
+  inset: 3px;
+  padding: 6px;
+  border: 1px solid var(--hk-sea-brass);
+  background: repeating-conic-gradient(var(--hk-sea-brass) 0 25%, transparent 0 50%) 0 0 / 64px 64px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+/* Rhumb lines and the rose, under everything, clipped to the neatline. A
+   faint graticule squares the chart. */
+.hk-sea-chart-art {
+  position: absolute;
+  inset: 12px;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, color-mix(in srgb, var(--hk-sea-brass) 9%, transparent) 1px, transparent 1px) -1px 0 / 20% 100%,
+    linear-gradient(to bottom, color-mix(in srgb, var(--hk-sea-brass) 9%, transparent) 1px, transparent 1px) 0 -1px / 100% 25%;
+}
+/* The rose rises over the charts' card, its middle on the card's top edge. It is
+   placed from the grid's own sums: in the art's box (12 px inside the padding
+   box), the card column's middle is 44 px of padding, the first column's
+   1.08/2.08 share and the 64 px gap, plus half the card column, of the
+   width left after the padding and the gap (the art's width less 152 px).
+   That comes to 75.96% of the art's width less 7.5 px. The card starts
+   120 px down (see .hk-preview below), 52 px into the art. */
+.hk-sea-rose {
+  position: absolute;
+  top: calc(172px - var(--rose) / 2);
+  left: calc(75.96% - 7.5px - var(--rose) / 2);
+  --rose: 220px;
+  width: var(--rose);
+  height: var(--rose);
+  overflow: visible;
+  color: var(--hk-sea-brass);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+.hk-sea-rose * {
+  vector-effect: non-scaling-stroke;
+}
+.hk-sea-rhumbs {
+  opacity: 0.3;
+}
+.hk-sea-rose-face {
+  fill: var(--vp-c-bg);
+  stroke: none;
+  opacity: 0.7;
+}
+.hk-sea-rose-ticks {
+  stroke-width: 5;
+  stroke-dasharray: 0.9 7.17;
+  opacity: 0.8;
+}
+.hk-sea-rose-dark {
+  fill: currentColor;
+}
+.hk-sea-rose-light {
+  fill: var(--vp-c-bg);
+}
+
+/* The chart's title, boxed in double rules as a cartouche is. */
+.hk-sea-cartouche {
+  display: inline-block;
+  margin: 0 0 18px;
+  padding: 7px 2px 6px;
+  border-block: 3px double var(--hk-sea-brass);
+  color: var(--hk-sea-brass);
+  font-family: var(--hk-font-display);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+:root.shanty-mode .hk-hero h1 {
+  font-size: clamp(48px, 5.8vw, 82px);
+  line-height: 0.98;
+}
+:root.shanty-mode .hk-hero h1 em {
+  color: var(--hk-sea-brass);
+}
+:root.shanty-mode .hk-hero .hk-intro {
+  max-width: 470px;
+  text-wrap: pretty;
+}
+:root.shanty-mode .hk-home .hk-button {
+  border-color: var(--hk-home-rule);
+  border-radius: 3px;
+}
+:root.shanty-mode .hk-home .hk-button:not(.hk-button-primary) {
+  background: var(--vp-c-bg-elv);
+}
+:root.shanty-mode .hk-home .hk-button:hover {
+  border-color: var(--vp-c-brand-1);
+}
+/* A brass plaque with the install command stamped on it. */
+:root.shanty-mode .hk-install {
+  border-color: var(--hk-sea-brass);
+  border-radius: 3px;
+  background: var(--vp-c-bg-elv);
+  box-shadow:
+    inset 0 0 0 3px var(--vp-c-bg-elv),
+    inset 0 0 0 4px var(--hk-home-rule);
+}
+
+/* ---- hk.pkl, as the ship's charts ---------------------------------------
+
+   A signed document rather than a window: square corners, a double rule
+   around it, and brass corner pieces. */
+:root.shanty-mode .hk-sea-chart .hk-preview {
+  position: relative;
+  align-self: start;
+  margin-top: 120px;
+  border-color: var(--hk-sea-brass);
+  border-radius: 2px;
+  background: var(--vp-c-bg-elv);
+  box-shadow:
+    0 0 0 5px var(--vp-c-bg),
+    0 0 0 6px var(--hk-home-rule),
+    0 28px 60px -24px rgb(0 0 0 / 30%);
+}
+:root.shanty-mode .hk-sea-chart .hk-preview::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  pointer-events: none;
+  --c: var(--hk-sea-brass);
+  background:
+    linear-gradient(var(--c), var(--c)) left top / 20px 2px,
+    linear-gradient(var(--c), var(--c)) left top / 2px 20px,
+    linear-gradient(var(--c), var(--c)) right top / 20px 2px,
+    linear-gradient(var(--c), var(--c)) right top / 2px 20px,
+    linear-gradient(var(--c), var(--c)) left bottom / 20px 2px,
+    linear-gradient(var(--c), var(--c)) left bottom / 2px 20px,
+    linear-gradient(var(--c), var(--c)) right bottom / 20px 2px,
+    linear-gradient(var(--c), var(--c)) right bottom / 2px 20px;
+  background-repeat: no-repeat;
+}
+:root.shanty-mode .hk-sea-chart .hk-preview-header {
+  align-items: baseline;
+  border-bottom: 3px double var(--hk-home-rule);
+}
+:root.shanty-mode .hk-sea-chart .hk-preview-label {
+  color: var(--hk-sea-brass);
+  font-size: 15px;
+  font-style: italic;
+}
+:root.shanty-mode .hk-sea-chart .hk-coordination,
+:root.shanty-mode .hk-sea-chart .hk-preview-link {
+  border-top-color: var(--hk-home-rule);
+}
+:root.shanty-mode .hk-sea-chart .hk-coordination > .hk-eyebrow {
+  color: var(--hk-sea-brass);
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Each lane is a rope, laid right-handed; the check and the fix ride it. */
+:root.shanty-mode .hk-sea-chart .hk-lane > div {
+  padding: 2px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(-60deg, var(--hk-home-rope) 0 3px, var(--hk-home-rope-2) 3px 6px);
+}
+:root.shanty-mode .hk-sea-chart :is(.hk-lane-check, .hk-lane-fix) {
+  border-radius: 999px;
+}
+:root.shanty-mode .hk-sea-chart .hk-lane-check {
+  background: var(--hk-home-check-bg);
+}
+:root.shanty-mode .hk-sea-chart .hk-lane-fix {
+  background: var(--hk-home-fix-bg);
+}
+
+/* ---- The voyage ---------------------------------------------------------
+
+   Five stops on a dashed course, as a chart plots one; the last is the
+   destination and is filled in. */
+.hk-sea-voyage {
+  padding: 64px 0 72px;
+}
+.hk-sea-voyage > div {
+  margin-bottom: 36px;
+}
+.hk-sea-voyage h2 {
+  margin-bottom: 8px;
+  font-size: 34px;
+  line-height: 1.15;
+}
+.hk-sea-voyage > div > p {
+  max-width: 520px;
+  color: var(--vp-c-text-2);
+  font-size: 16px;
+  line-height: 1.65;
+}
+.hk-sea-voyage ol {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hk-sea-voyage ol::before {
+  content: "";
+  position: absolute;
+  top: 27px;
+  right: calc(20% - 28px);
+  left: 28px;
+  border-top: 2px dashed var(--hk-sea-brass);
+}
+.hk-sea-voyage li {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.hk-sea-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--hk-sea-brass);
+  border-radius: 50%;
+  background: var(--vp-c-bg);
+  box-shadow: 0 0 0 6px var(--vp-c-bg);
+  color: var(--hk-sea-brass);
+}
+.hk-sea-voyage li:last-child .hk-sea-mark {
+  background: var(--hk-sea-brass);
+  color: var(--vp-c-bg);
+}
+.hk-sea-icon {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hk-sea-voyage li > strong {
+  color: var(--vp-c-text-1);
+  font-size: 19px;
+  line-height: 1.3;
+}
+.hk-sea-voyage li > strong code {
+  color: var(--vp-c-brand-1);
+  font-size: 16px;
+}
+.hk-sea-voyage li > p {
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* ---- The music video, in a porthole, and the song to sing along to ------ */
+:root.shanty-mode .hk-sea-reel {
+  display: grid;
+  gap: 40px;
+  padding: 0 0 72px;
+}
+:root.shanty-mode .hk-sea-reel.has-reel {
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  align-items: center;
+}
+/* A ship's window: a brass bezel lit from the top left, bolted all the way
+   round. The glass is the video itself, which keeps its whole frame: the
+   poster and captions have words in them. The shanty's own page frames its
+   player (ShantyVideo.vue) the same way, and the song alone, where a build
+   has no video, plays in a brass rail. */
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage, .hk-shanty > audio) {
+  background: linear-gradient(145deg, var(--hk-home-bezel-light), var(--hk-home-bezel) 42%, var(--hk-home-bezel-dark));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 35%),
+    inset 0 -2px 3px rgb(0 0 0 / 25%),
+    0 24px 50px -24px rgb(0 0 0 / 45%);
+}
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage) {
+  --bezel: 16px;
+  padding: var(--bezel);
+  border-radius: calc(var(--bezel) * 1.9);
+}
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  /* One bolt per 44 px tile, spaced evenly along each side of the bezel, so
+     no side ends on a half bolt. */
+  --r: radial-gradient(circle, var(--hk-home-bezel-light) 1.5px, var(--hk-home-bezel-dark) 2px 3px, transparent 3.5px);
+  background:
+    var(--r) left top / 44px var(--bezel) space no-repeat,
+    var(--r) left bottom / 44px var(--bezel) space no-repeat,
+    var(--r) left top / var(--bezel) 44px no-repeat space,
+    var(--r) right top / var(--bezel) 44px no-repeat space;
+}
+:root.shanty-mode :is(.hk-sea-reel, .hk-shanty-stage) video,
+:root.dark.shanty-mode :is(.hk-sea-reel, .hk-shanty-stage) video {
+  border-color: rgb(0 0 0 / 45%);
+  border-radius: var(--bezel);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 18%);
+}
+:root.shanty-mode :is(.hk-sea-reel .hk-showreel-play, .hk-shanty-play) {
+  inset: var(--bezel);
+  border-radius: var(--bezel);
+}
+/* The player's focus ring would fall on the brass, where it barely shows, so
+   it goes round the whole window instead, on the page. */
+@supports selector(:has(*)) {
+  :root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage):has(:focus-visible) {
+    outline: 2px solid var(--vp-c-brand-1);
+    outline-offset: 4px;
+  }
+  :root.shanty-mode :is(.hk-sea-reel, .hk-shanty-stage) :is(video, .hk-showreel-play, .hk-shanty-play):focus-visible {
+    outline: none;
+  }
+}
+/* The rail: the player's own panel is set in the chart's paper, inside a
+   band of brass. The panel's parts are Chromium's and WebKit's, each in a
+   rule of its own so other browsers keep the rest; they keep their own
+   controls, in the brass. */
+:root.shanty-mode .hk-shanty > audio {
+  box-sizing: border-box;
+  height: 58px;
+  padding: 6px;
+  border-radius: 29px;
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-enclosure {
+  border-radius: 23px;
+  background-color: var(--vp-c-bg-elv);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-panel {
+  background-color: transparent;
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-current-time-display {
+  color: var(--vp-c-text-1);
+}
+:root.shanty-mode .hk-shanty > audio::-webkit-media-controls-time-remaining-display {
+  color: var(--vp-c-text-1);
+}
+:root.shanty-mode :is(.hk-sea-reel, .hk-shanty) figcaption {
+  margin-top: 16px;
+  font-family: var(--hk-font-display);
+  font-size: 16px;
+  font-style: italic;
+  text-align: center;
+}
+:root.shanty-mode .hk-shanty figcaption {
+  color: var(--vp-c-text-2);
+  line-height: 1.5;
+}
+:root.shanty-mode .vp-doc .hk-shanty figcaption a {
+  font-weight: 400;
+}
+
+/* A song sheet: a stave ruled across its head, and the chorus in the
+   display serif with the crew's answers in brass. */
+.hk-sea-singalong {
+  position: relative;
+  padding: 50px 28px 26px;
+  border: 1px solid var(--hk-sea-brass);
+  border-radius: 2px;
+  background: var(--vp-c-bg-soft);
+  box-shadow:
+    inset 0 0 0 4px var(--vp-c-bg-soft),
+    inset 0 0 0 5px var(--hk-home-rule);
+}
+/* The stave: five lines at half strength, and a bar of notes on them. */
+.hk-sea-singalong::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  left: 18px;
+  height: 26px;
+  background: var(--hk-sea-brass);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='26' viewBox='0 0 96 26'%3E%3Cpath d='M0 6.5h96M0 10.5h96M0 14.5h96M0 18.5h96M0 22.5h96' stroke='%23000' opacity='.5'/%3E%3Cg transform='rotate(-20 16 16.5)'%3E%3Cellipse cx='16' cy='16.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cg transform='rotate(-20 40 12.5)'%3E%3Cellipse cx='40' cy='12.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cg transform='rotate(-20 64 18.5)'%3E%3Cellipse cx='64' cy='18.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cg transform='rotate(-20 80 14.5)'%3E%3Cellipse cx='80' cy='14.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cpath d='M18.8 15.8V4M42.8 11.8V1M66.8 17.8V5M82.8 13.8V2' stroke='%23000' stroke-width='1.2'/%3E%3Cpath d='M66.2 5.5 83.4 2.5' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E") 0 0 / 96px 26px repeat-x;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='26' viewBox='0 0 96 26'%3E%3Cpath d='M0 6.5h96M0 10.5h96M0 14.5h96M0 18.5h96M0 22.5h96' stroke='%23000' opacity='.5'/%3E%3Cg transform='rotate(-20 16 16.5)'%3E%3Cellipse cx='16' cy='16.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cg transform='rotate(-20 40 12.5)'%3E%3Cellipse cx='40' cy='12.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cg transform='rotate(-20 64 18.5)'%3E%3Cellipse cx='64' cy='18.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cg transform='rotate(-20 80 14.5)'%3E%3Cellipse cx='80' cy='14.5' rx='3' ry='2.1'/%3E%3C/g%3E%3Cpath d='M18.8 15.8V4M42.8 11.8V1M66.8 17.8V5M82.8 13.8V2' stroke='%23000' stroke-width='1.2'/%3E%3Cpath d='M66.2 5.5 83.4 2.5' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E") 0 0 / 96px 26px repeat-x;
+}
+.hk-sea-singalong h2 {
+  margin-bottom: 8px;
+  font-size: 30px;
+  line-height: 1.15;
+}
+.hk-sea-singalong > p:not(.hk-sea-kicker) {
+  color: var(--vp-c-text-2);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.hk-sea-chorus {
+  margin: 20px 0;
+  padding: 2px 0 2px 18px;
+  border-left: 3px double var(--hk-sea-brass);
+}
+/* A line too long for the sheet carries on indented, as verse is set. The
+   Fell has no bold, so the chorus's strong lines are marked by colour: the
+   full ink, where the sheet's other words are grey, and the crew's answers
+   brass italics. */
+.hk-sea-chorus span {
+  display: block;
+  padding-left: 1em;
+  color: var(--vp-c-text-2);
+  font-size: 19px;
+  line-height: 1.5;
+  text-indent: -1em;
+}
+.hk-sea-chorus strong {
+  color: var(--vp-c-text-1);
+  font-weight: 400;
+}
+.hk-sea-chorus em {
+  color: var(--hk-sea-brass);
+  font-style: italic;
+  white-space: nowrap;
+}
+.hk-sea-singalong-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+}
+.hk-sea-singalong-links a {
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+.hk-sea-singalong-links a:hover,
+.hk-sea-reel figcaption a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* A sheet with the width to itself, without a video or under one, sets the
+   chorus beside the words about the song. Beside a video (1100 px and wider)
+   and on a phone, it is one column. */
+:root.shanty-mode .hk-sea-reel .hk-sea-singalong {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  column-gap: 48px;
+  align-content: start;
+}
+:root.shanty-mode .hk-sea-reel .hk-sea-singalong > * {
+  grid-column: 1;
+}
+:root.shanty-mode .hk-sea-reel .hk-sea-chorus {
+  grid-column: 2;
+  grid-row: 1 / span 4;
+  align-self: center;
+  margin: 0;
+}
+@media (min-width: 1100px) {
+  :root.shanty-mode .hk-sea-reel.has-reel .hk-sea-singalong {
+    display: block;
+  }
+  :root.shanty-mode .hk-sea-reel.has-reel .hk-sea-chorus {
+    margin: 20px 0;
+  }
+  :root.shanty-mode .hk-sea-reel.has-reel .hk-sea-chorus span {
+    font-size: 18px;
+  }
+}
+
+/* ---- The swell between sections -----------------------------------------
+
+   Two lines of swell where the plain page has hairlines, brass riding over
+   sea green. Each tile starts and ends at mid-height, so it repeats without
+   a seam. */
+:root.shanty-mode :is(.hk-principles, .hk-workflow, .hk-doc-links, .hk-sea-outro) {
+  position: relative;
+  border-top-color: transparent;
+}
+:root.shanty-mode :is(.hk-principles, .hk-workflow, .hk-doc-links, .hk-sea-outro)::before,
+:root.shanty-mode :is(.hk-principles, .hk-workflow, .hk-doc-links, .hk-sea-outro)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 10px;
+  pointer-events: none;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='10' viewBox='0 0 32 10'%3E%3Cpath d='M0 5Q8 0 16 5T32 5' fill='none' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") 0 0 / 32px 10px repeat-x;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='10' viewBox='0 0 32 10'%3E%3Cpath d='M0 5Q8 0 16 5T32 5' fill='none' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") 0 0 / 32px 10px repeat-x;
+}
+:root.shanty-mode :is(.hk-principles, .hk-workflow, .hk-doc-links, .hk-sea-outro)::before {
+  top: -9px;
+  background: var(--hk-sea-brass);
+  opacity: 0.7;
+}
+:root.shanty-mode :is(.hk-principles, .hk-workflow, .hk-doc-links, .hk-sea-outro)::after {
+  top: -2px;
+  background: var(--hk-home-sea);
+  opacity: 0.55;
+  -webkit-mask-position: 6px 0;
+  mask-position: 6px 0;
+}
+
+/* ---- The three principles, each with its picture ------------------------ */
+:root.shanty-mode .hk-principles {
+  padding-top: 56px;
+}
+:root.shanty-mode .hk-principles article {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.hk-sea-art,
+.hk-sea-ship {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--hk-sea-brass);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hk-sea-art {
+  max-width: 240px;
+  margin: 0 0 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hk-home-rule);
+}
+.hk-sea-art-fill {
+  fill: var(--vp-c-bg);
+}
+.hk-sea-art-soft {
+  fill: var(--vp-c-bg-soft);
+}
+.hk-sea-art-sea {
+  stroke: var(--hk-home-sea);
+}
+.hk-sea-art-blade {
+  stroke-width: 4;
+}
+.hk-sea-art-glow {
+  fill: var(--hk-sea-brass);
+  stroke: none;
+  opacity: 0.18;
+}
+:root.shanty-mode .hk-principles h2 {
+  margin-top: 12px;
+  font-size: 24px;
+  line-height: 1.2;
+}
+:root.shanty-mode .hk-principles a {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+/* ---- One set of charts: the bridge's call and response ------------------
+
+   Each row sings the call, and the command answers it underneath. */
+:root.shanty-mode .hk-workflow h2 {
+  margin-top: 0;
+  font-size: 36px;
+  line-height: 1.15;
+}
+:root.shanty-mode .hk-commands > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "call call"
+    "command answer";
+  align-items: baseline;
+  gap: 8px 14px;
+  padding: 16px 0;
+  border-bottom-color: var(--hk-home-rule);
+}
+:root.shanty-mode .hk-commands dt {
+  grid-area: command;
+}
+:root.shanty-mode .hk-commands dt code {
+  padding: 2px 8px;
+  border: 1px solid var(--hk-home-rule);
+  border-radius: 3px;
+  background: var(--vp-c-bg-soft);
+}
+/* The browser's own 40 px indent on `dd` would push the answers off the
+   commands. */
+:root.shanty-mode .hk-commands dd {
+  grid-area: answer;
+  margin: 0;
+}
+:root.shanty-mode .hk-commands dd.hk-sea-call {
+  grid-area: call;
+  color: var(--vp-c-text-1);
+  font-size: 21px;
+  font-style: italic;
+  line-height: 1.3;
+}
+
+/* ---- Charts and tables: the reference pages ------------------------------ */
+:root.shanty-mode .hk-doc-links {
+  padding-top: 56px;
+}
+:root.shanty-mode .hk-doc-links h2 {
+  font-size: 30px;
+}
+:root.shanty-mode .hk-doc-links a {
+  border-color: var(--hk-home-rule);
+  border-radius: 2px;
+  background: var(--vp-c-bg-soft);
+}
+:root.shanty-mode .hk-doc-links a:hover {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-bg-elv);
+}
+:root.shanty-mode .hk-doc-links strong {
+  font-size: 19px;
+}
+
+/* ---- The outro: the song ends on the install command --------------------- */
+.hk-sea-outro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 72px;
+  padding-top: 64px;
+  text-align: center;
+}
+.hk-sea-outro h2 {
+  font-size: clamp(30px, 4vw, 42px);
+  line-height: 1.15;
+}
+.hk-sea-outro-words code {
+  display: inline-block;
+  margin: 8px 0 4px;
+  padding: 12px 28px;
+  border: 1px solid var(--hk-sea-brass);
+  border-radius: 3px;
+  background: var(--vp-c-bg-elv);
+  box-shadow:
+    inset 0 0 0 3px var(--vp-c-bg-elv),
+    inset 0 0 0 4px var(--hk-home-rule);
+  color: var(--vp-c-brand-1);
+  font-size: clamp(24px, 4vw, 36px);
+  line-height: 1.3;
+}
+.hk-sea-outro-last {
+  color: var(--hk-sea-brass);
+  font-size: 22px;
+  font-style: italic;
+  line-height: 1.4;
+}
+.hk-sea-outro .hk-button {
+  margin-top: 10px;
+}
+.hk-sea-ship {
+  max-width: 220px;
+  margin-top: 28px;
+}
+.hk-sea-ship .hk-sea-art-fill {
+  fill: var(--vp-c-bg-elv);
+}
+
+/* ---- Narrower screens ---------------------------------------------------- */
+/* Five stops will not share a narrower row, so the course runs down the page
+   beside its heading, and the video takes the width over the song sheet. */
+@media (max-width: 1099px) {
+  .hk-sea-voyage {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    align-items: start;
+    gap: 24px 48px;
+  }
+  .hk-sea-voyage > div {
+    margin: 0;
+  }
+  .hk-sea-voyage ol {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 22px;
+  }
+  /* Each stop draws the course down to the next, so it ends at the last
+     stop however long that stop's words run. */
+  .hk-sea-voyage ol::before {
+    display: none;
+  }
+  .hk-sea-voyage li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 28px;
+    bottom: -50px;
+    left: 27px;
+    border-left: 2px dashed var(--hk-sea-brass);
+  }
+  .hk-sea-voyage li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    column-gap: 18px;
+    row-gap: 4px;
+  }
+  .hk-sea-mark {
+    z-index: 1;
+    grid-row: 1 / span 2;
+    margin: 0;
+  }
+  .hk-sea-voyage li > strong {
+    padding-top: 6px;
+  }
+  :root.shanty-mode .hk-sea-reel.has-reel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 959px) {
+  :root.shanty-mode .hk-hero.hk-sea-chart {
+    padding: 48px 32px 44px;
+  }
+  /* The same sums with 32 px of padding and a 32 px gap: the card column's
+     middle is 75.96% of the art's width less 2.7 px, and the card starts
+     100 px down, 36 px into the art. */
+  .hk-sea-rose {
+    --rose: 180px;
+    top: calc(136px - var(--rose) / 2);
+    left: calc(75.96% - 2.7px - var(--rose) / 2);
+  }
+  :root.shanty-mode .hk-sea-chart .hk-preview {
+    margin-top: 100px;
+  }
+  :root.shanty-mode .hk-sea-reel .hk-sea-singalong {
+    column-gap: 32px;
+  }
+  :root.shanty-mode .hk-workflow h2 {
+    font-size: 32px;
+  }
+}
+/* One column: the neatline keeps only its top and bottom, run to the screen's
+   edges as a strip of chart, and the course runs down the page. */
+@media (max-width: 719px) {
+  :root.shanty-mode .hk-hero.hk-sea-chart {
+    margin: 16px -24px 0;
+    padding: 40px 24px 36px;
+    border-inline: 0;
+  }
+  .hk-sea-chart::before {
+    inset: 11px 0;
+    border-inline: 0;
+  }
+  .hk-sea-chart::after {
+    inset: 3px 0;
+    padding-inline: 0;
+    border-inline: 0;
+  }
+  .hk-sea-chart-art {
+    inset: 12px 0;
+  }
+  /* With the card under the words, a quarter of the rose sits in the chart's
+     top right corner, its middle on the corner, and its rhumbs cross the
+     whole strip. Sized with the screen, it stays clear of the chip's end. */
+  .hk-sea-rose {
+    --rose: clamp(120px, 40vw, 190px);
+    top: calc(var(--rose) / -2);
+    left: calc(100% - var(--rose) / 2);
+  }
+  :root.shanty-mode .hk-sea-chart .hk-preview {
+    margin-top: 0;
+  }
+  :root.shanty-mode .hk-hero h1 {
+    font-size: clamp(44px, 12vw, 64px);
+  }
+  .hk-sea-voyage {
+    display: block;
+    padding: 48px 0 56px;
+  }
+  .hk-sea-voyage > div {
+    margin-bottom: 28px;
+  }
+  .hk-sea-voyage h2,
+  :root.shanty-mode .hk-workflow h2 {
+    font-size: 28px;
+  }
+  :root.shanty-mode .hk-sea-reel {
+    padding-bottom: 56px;
+  }
+  :root.shanty-mode :is(.hk-sea-reel .hk-showreel-stage, .hk-shanty-stage) {
+    --bezel: 10px;
+  }
+  :root.shanty-mode .hk-sea-reel .hk-sea-singalong {
+    display: block;
+  }
+  :root.shanty-mode .hk-sea-reel .hk-sea-chorus {
+    margin: 20px 0;
+  }
+  .hk-sea-singalong {
+    padding: 42px 20px 22px;
+  }
+  .hk-sea-chorus span {
+    font-size: 17px;
+  }
+  :root.shanty-mode .hk-principles {
+    padding-top: 44px;
+  }
+  :root.shanty-mode .hk-commands > div {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "call"
+      "command"
+      "answer";
+    row-gap: 6px;
+  }
+  :root.shanty-mode .hk-commands dt {
+    justify-self: start;
+  }
+  :root.shanty-mode .hk-commands dd.hk-sea-call {
+    font-size: 19px;
+  }
+  .hk-sea-outro {
+    margin-top: 56px;
+    padding-top: 48px;
+  }
+  .hk-sea-outro-words code {
+    padding: 10px 20px;
+  }
+}
+
+/* In forced colours the palette gives way to the system's, gradients and
+   masks are dropped, and the chart's degree band would vanish: plain rules
+   stand in for the neatline, and the pictures keep their outlines. */
+@media (forced-colors: active) {
+  .hk-sea-chart::after,
+  .hk-sea-chart-art,
+  .hk-sea-singalong::before {
+    display: none;
+  }
+  .hk-sea-art,
+  .hk-sea-ship,
+  .hk-sea-icon,
+  .hk-sea-mark {
+    color: CanvasText;
+  }
+  .hk-sea-voyage li:last-child .hk-sea-mark {
+    background: Canvas;
+    color: CanvasText;
+  }
+}

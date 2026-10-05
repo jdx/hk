@@ -24,6 +24,7 @@ byte_order_marker = new Config.Step {
     ["passes without BOM"] = testMaker.checkPass("Hello, world!")
     ["passes empty file"] = testMaker.checkPass("")
     ["fix file with BOM"] = testMaker.fixPass("\u{FEFF}Hello, world!", "Hello, world!")
+    ["diff file with BOM"] = testMaker.diffPass("\u{FEFF}Hello, world!", "Hello, world!")
     ["fix file without BOM"] = testMaker.fixPass("Hello, world!", "Hello, world!")
     ["fix empty file"] = testMaker.fixPass("", "")
   }

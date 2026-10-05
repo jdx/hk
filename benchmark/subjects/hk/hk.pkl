@@ -1,0 +1,30 @@
+// hk's side of the comparison: the builtins, as a user would write it.
+// setup.sh replaces @PKL@ with this checkout's pkl/ directory, or with a
+// release's package URI when measuring that release (HK_PKL).
+amends "@PKL@/Config.pkl"
+
+import "@PKL@/Builtins.pkl"
+
+// Top-level steps create the check, fix and pre-commit hooks.
+steps {
+  ["black"] = Builtins.black
+  ["ruff-format"] = Builtins.ruff_format
+  ["ruff"] = Builtins.ruff
+  ["prettier"] = (Builtins.prettier) {
+    glob = List("**/*.js", "**/*.ts", "**/*.css", "**/*.md")
+  }
+  ["eslint"] = Builtins.eslint
+  ["jq"] = Builtins.jq
+  ["yq"] = Builtins.yq
+  ["shfmt"] = Builtins.shfmt
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+  // Type checkers change no files. In fix runs hk still takes write locks on
+  // every file a step's glob matches, because the builtins declare that mypy
+  // and tsc write caches, so they never read a file a fixer is writing.
+  ["mypy"] = Builtins.mypy
+  ["tsc"] = (Builtins.tsc) {
+    // tsc also reads tsconfig.json, which the jq fixer can rewrite.
+    glob = List("**/*.ts", "**/*.tsx", "tsconfig.json")
+  }
+}

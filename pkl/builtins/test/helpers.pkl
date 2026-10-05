@@ -13,6 +13,9 @@ class TestMaker {
   /// Extra files to include in the sandbox, useful for config files.
   extra_files: Mapping<String, String> = new Mapping {}
 
+  /// Extra environment variables for the test.
+  env: Mapping<String, String> = new Mapping {}
+
   /// (Copied to the test)
   before: String?
 
@@ -26,6 +29,7 @@ class TestMaker {
     run = runType
     files = outer.files
     before = outer.before
+    env = outer.env
     tmpdir = true
     write = new Mapping<String, String> {
       [filename] = contentBefore
@@ -46,6 +50,18 @@ class TestMaker {
   function checkFail(contents: String, code: Int): Config.StepTest =
     makeTest("check", contents, contents, code)
 
+  /// Make a "check" test (where `check` should exit nonzero) that also expects the step's
+  /// `diagnostic_format` to parse its output into diagnostics matching each of `found`
+  function checkDiagnostics(
+    contents: String,
+    code: Int,
+    found: List<Config.StepTestDiagnostic>,
+  ): Config.StepTest = (makeTest("check", contents, contents, code)) {
+    expect {
+      diagnostics { ...found }
+    }
+  }
+
   /// Make a "fix" test (where `fix` should exit zero)
   function fixPass(contentsBefore: String, contentsAfter: String): Config.StepTest =
     makeTest("fix", contentsBefore, contentsAfter, 0)
@@ -53,6 +69,14 @@ class TestMaker {
   /// Make a "fix" test (where `fix` should exit nonzero)
   function fixFail(contentsBefore: String, contentsAfter: String, code: Int): Config.StepTest =
     makeTest("fix", contentsBefore, contentsAfter, code)
+
+  /// Make a "diff" test: `check_diff`'s patch must apply and produce `contentsAfter`
+  function diffPass(contentsBefore: String, contentsAfter: String): Config.StepTest =
+    makeTest("diff", contentsBefore, contentsAfter, 0)
+
+  /// Make a "diff" test for a partial fixer, where `check` still fails after the patch applies
+  function diffFail(contentsBefore: String, contentsAfter: String, code: Int): Config.StepTest =
+    makeTest("diff", contentsBefore, contentsAfter, code)
 
   /// Make a TestMaker (same as this one) but using the provided filename
   function withFilename(newFilename: String): TestMaker = (this) {
