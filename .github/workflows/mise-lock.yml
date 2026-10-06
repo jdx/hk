@@ -21,7 +21,7 @@ jobs:
       # shared workflow gates itself on the sender being renovate[bot], so our
       # own fix-up push cannot re-enter it.
       contents: write # commit mise.lock and the regenerated render output
-    uses: jdx/renovate-config/.github/workflows/mise-lock.yml@b326076309f570c2967d29a99742838c9ac0f383 # v1.0.1
+    uses: jdx/renovate-config/.github/workflows/mise-lock.yml@d0f85cba63adc5a26194009e76eebcf5bc1ee823 # v1.0.2
     with:
       # ci-other runs `mise run render` and fails the branch if it produces a
       # diff, and render:usage formats docs/cli with the mise-managed prettier.
