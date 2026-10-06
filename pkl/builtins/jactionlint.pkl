@@ -5,9 +5,6 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "GitHub Actions workflow linter (jdx/jactionlint, a maintained actionlint fork)"
-  project_indicators {
-    new { file = ".github/workflows" }
-  }
 }
 const jactionlint = new Config.Step {
   glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
