@@ -36,6 +36,7 @@ local linters = new Mapping<String, Step | Group> {
     dir = "docs"
     prefix = List("aube", "run")
   }
+  ["jactionlint"] = Builtins.jactionlint
   ["newlines"] = Builtins.newlines
   ["trailing-whitespace"] = Builtins.trailing_whitespace
   ["prettier"] = (Builtins.prettier) {
