@@ -7,7 +7,7 @@
 [tools]
 "github:jdx/tak" = "v0.0.13"
 jq               = "1.8.2"
-lefthook         = "2.1.14"
+lefthook         = "2.1.15"
 node             = "26.10.0"
 "npm:eslint"     = "10.11.0"
 "npm:prettier"   = "3.9.9"
