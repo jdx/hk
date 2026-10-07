@@ -49,7 +49,7 @@ log                = "0.4"
 memchr             = "2"
 mimalloc           = "0.1"
 once_cell          = "1"
-pklr               = { version = "5", default-features = false, features = ["async", "package-zip", "miette-diagnostics"] }
+pklr               = { version = "5", default-features = false, features = ["reqwest", "package-zip", "miette-diagnostics"] }
 regex              = "1"
 rmcp               = { version = "3.1.2", features = ["transport-io"] }
 schemars           = "1"
