@@ -8,9 +8,6 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "warn"
 
 [sources]
-# pklr v5 is temporarily pinned to an immutable upstream candidate commit until
-# its crates.io release is available.
-allow-git        = ["https://github.com/jdx/pklr.git"]
 allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
 unknown-git      = "deny"
 unknown-registry = "deny"

@@ -35,7 +35,7 @@ EOF
     run hk fix
     assert_failure
     assert_output --partial "Failed to load config"
-    assert_output --partial "Invalid property definition"
+    assert_output --partial "Keyword \`this\` is not allowed here."
 }
 
 @test "hk run fails on invalid config" {
@@ -112,5 +112,5 @@ EOF
     # Should show the specific syntax error
     run hk check
     assert_failure
-    assert_output --partial "unexpected token in expression"
+    assert_output --partial "Unexpected end of file."
 }
