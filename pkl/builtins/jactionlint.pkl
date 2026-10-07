@@ -1,0 +1,62 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "GitHub Actions workflow linter (jdx/jactionlint, a maintained actionlint fork)"
+}
+const jactionlint = new Config.Step {
+  glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+  batch = true
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("jactionlint", "{{files}}") }
+    effect = "read"
+  }
+  // jactionlint prints `path:line:column: message [rule]` by default
+  diagnostic_format = "gcc"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = ".github/workflows/test.yml"
+      before = "git init"
+    }
+    local const badWorkflow =
+      """
+      on:
+        push:
+          branch: main
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          steps:
+            - run: echo "Pass"
+      """
+    ["check bad file"] = testMaker.checkFail(badWorkflow, 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        badWorkflow,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = ".github/workflows/test.yml"
+          line = 3
+          column = 5
+          severity = "error"
+          rule = "syntax-check"
+          message = "unexpected key \"branch\""
+        }),
+      )
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+          on:
+            push:
+              branches: main
+          jobs:
+            test:
+              runs-on: ubuntu-latest
+              steps:
+                - run: echo "Pass"
+        """,
+      )
+  }
+}
