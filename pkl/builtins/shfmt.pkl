@@ -44,13 +44,13 @@ shfmt = new Config.Step {
       foo() {
         (( $bar ))
       }
-      """
+      """ + "\n"
     local const after =
       """
       foo() {
       	(($bar))
       }
-      """
+      """ + "\n"
     ["check bad file"] = testMaker.checkFail(before, 1)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
