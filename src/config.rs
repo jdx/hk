@@ -1190,9 +1190,14 @@ fn run_pklr_blocking<T>(operation: impl FnOnce() -> pklr::Result<T>) -> pklr::Re
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
             tokio::task::block_in_place(operation)
         }
-        // `block_in_place` panics on Tokio's current-thread runtime. There is
-        // no worker to yield there, so run directly rather than panicking.
-        Ok(_) | Err(_) => operation(),
+        // `block_in_place` panics on Tokio's current-thread runtime. Running
+        // the evaluator inline can instead deadlock an HTTP import whose
+        // response is driven by another task on that runtime, so reject this
+        // unsupported embedding rather than blocking indefinitely.
+        Ok(_) => Err(pklr::Error::Unsupported(
+            "Pkl configuration evaluation requires a multi-thread Tokio runtime".to_string(),
+        )),
+        Err(_) => operation(),
     }
 }
 
@@ -2983,9 +2988,31 @@ mod tests {
         assert_eq!(run_pklr_blocking(|| Ok::<_, pklr::Error>(42)).unwrap(), 42);
     }
 
-    #[tokio::test]
-    async fn synchronous_pklr_work_supports_current_thread_runtime() {
-        assert_eq!(run_pklr_blocking(|| Ok::<_, pklr::Error>(42)).unwrap(), 42);
+    #[tokio::test(flavor = "current_thread")]
+    async fn current_thread_runtime_rejects_http_pkl_evaluation_without_blocking_server() {
+        use tokio::io::AsyncWriteExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mut server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nvalue = 1\n")
+                .await
+                .unwrap();
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hk.pkl");
+        std::fs::write(&path, format!("amends \"http://{addr}/Config.pkl\"\n")).unwrap();
+
+        let error = eval_pklr::<serde_json::Value>(&path).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("requires a multi-thread Tokio runtime"));
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(100), &mut server)
+            .await
+            .is_err());
+        server.abort();
     }
 
     #[test]

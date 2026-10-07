@@ -8,6 +8,10 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "warn"
 
 [sources]
+# The pklr 5.1.0 release candidate is pinned by immutable commit until its
+# crates.io release is available. Remove this allowance when the migration
+# returns to a published `version = "5"` dependency.
+allow-git        = ["https://github.com/jdx/pklr.git"]
 allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
 unknown-git      = "deny"
 unknown-registry = "deny"
