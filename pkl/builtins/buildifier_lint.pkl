@@ -46,7 +46,7 @@ buildifier_lint = new Config.Step {
           name = "foo",
           srcs = ["Foo.cc"],
       )
-      """
+      """ + "\n"
     local const after =
       """
       load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -55,7 +55,7 @@ buildifier_lint = new Config.Step {
           name = "foo",
           srcs = ["Foo.cc"],
       )
-      """
+      """ + "\n"
     ["check bad file"] = testMaker.checkFail(before, 4)
     ["check bad file reports diagnostics"] =
       testMaker.checkDiagnostics(

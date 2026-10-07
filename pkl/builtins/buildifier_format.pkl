@@ -49,7 +49,7 @@ buildifier_format = new Config.Step {
       cc_library(    name="foo",
         srcs=["Foo.cc"],)
 
-      """
+      """ + "\n"
     local const after =
       """
       load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -58,7 +58,7 @@ buildifier_format = new Config.Step {
           name = "foo",
           srcs = ["Foo.cc"],
       )
-      """
+      """ + "\n"
     ["check bad file"] = testMaker.checkFail(before, 4)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
