@@ -92,7 +92,7 @@ EOF
     assert_failure
     assert_output --partial "Failed to evaluate Pkl config"
     assert_output --partial "hk.pkl:5:"
-    assert_output --partial "unexpected token in expression"
+    assert_output --partial 'Unexpected token `=`.'
     assert_output --partial 'steps { ["a"] { glob = = "*.rs" } }'
     # The config path appears once, in the located message.
     [ "$(grep -o 'hk.pkl' <<<"$output" | wc -l)" -eq 1 ]

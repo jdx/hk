@@ -251,7 +251,7 @@ hooks {
     ["check"] {
         steps {
             ["eslint"] {
-                check_diff = "printf '%b' '[{\\042filePath\\042:\\042input.js\\042,\\042messages\\042:[{\\042ruleId\\042:\\042demo\\042,\\042severity\\042:2,\\042message\\042:\\042fix me\\042,\\042line\\042:1,\\042column\\042:1}]}]'; exit 1"
+                check_diff = #"printf '%b' '[{\\042filePath\\042:\\042input.js\\042,\\042messages\\042:[{\\042ruleId\\042:\\042demo\\042,\\042severity\\042:2,\\042message\\042:\\042fix me\\042,\\042line\\042:1,\\042column\\042:1}]}]'; exit 1"#
                 fix = "echo fixer chatter"
                 output_summary = "combined"
                 diagnostic_format = "eslint-json"

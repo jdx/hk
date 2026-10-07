@@ -17,9 +17,12 @@ Describe 'check' {
             git config user.email "test@test.com"
             git config user.name "Test"
 
-            # Create a simple hk.pkl with an echo step
+            # Create a simple hk.pkl with an echo step. A raw Windows path
+            # inside a Pkl quoted string treats backslashes as escapes.
+            $pklPath = (Resolve-Path $env:PKL_PATH).Path -replace '\\', '/'
+            $pklUri = "file:///$pklPath/Config.pkl"
             $config = @"
-amends "$env:PKL_PATH/Config.pkl"
+amends "$pklUri"
 
 hooks {
     ["check"] {

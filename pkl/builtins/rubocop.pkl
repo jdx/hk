@@ -107,23 +107,23 @@ rubocop = new Config.Step {
       # frozen_string_literal: true
 
       pp "Hello World"
-      """
+      """ + "\n"
     local const good =
       """
       # frozen_string_literal: true
 
       pp 'Hello World'
-      """
+      """ + "\n"
     ["check bad file"] = testMaker.checkFail(bad, 1)
     ["check good file"] = testMaker.checkPass(good)
     ["fix bad file violations remain"] =
       testMaker.fixFail(
         """
         pp "Hello World"
-        """,
+        """ + "\n",
         """
         pp 'Hello World'
-        """,
+        """ + "\n",
         1,
       )
     ["fix bad file"] = testMaker.fixPass(bad, good)

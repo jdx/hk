@@ -3,7 +3,6 @@ use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -66,7 +65,7 @@ impl Config {
     /// Returns local file paths that the config depends on and whether the
     /// module graph contains imports whose bytes hk cannot hash.
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
-        let mut local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
+        let mut local_paths: IndexSet<PathBuf> = run_pklr_blocking(|| pklr::analyze_imports(path))
             .map(|v| v.into_iter().collect())
             .map_err(|e| pklr_error_report(&e))?;
         // Glob imports expand to whatever matched at analysis time, so the
@@ -1147,7 +1146,7 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         .as_deref()
         .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
         .unwrap_or_default();
-    let mut evaluator = pklr::AsyncEvaluatorBuilder::new()
+    let mut evaluator = pklr::EvaluatorBuilder::new()
         .http_client(client)
         .http_rewrites(http_rewrites)
         .package_cache_dir(env::HK_PKL_CACHE_DIR.clone())
@@ -1159,7 +1158,7 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
     let outcome =
-        block_on_pklr(evaluator.eval(path))?.map_err(|e| match pklr_syntax_error(&e) {
+        run_pklr_blocking(|| evaluator.eval(path)).map_err(|e| match pklr_syntax_error(&e) {
             Some(err) => eyre::Report::new(err),
             None => handle_pklr_eval_error(&redact_url_credentials(&e.to_string()), path),
         })?;
@@ -1184,12 +1183,23 @@ fn pkl_http_rewrite_cache_key() -> String {
     }
 }
 
-fn block_on_pklr<T>(future: impl Future<Output = pklr::Result<T>>) -> Result<pklr::Result<T>> {
+/// Runs synchronous pklr work without pinning a Tokio worker when configuration
+/// evaluation is reached from an async command handler. The hk CLI uses a
+/// multi-thread runtime; current-thread embeddings receive a configuration
+/// error rather than risking an indefinitely blocked HTTP import.
+fn run_pklr_blocking<T>(operation: impl FnOnce() -> pklr::Result<T>) -> pklr::Result<T> {
     match tokio::runtime::Handle::try_current() {
-        Ok(handle) => Ok(tokio::task::block_in_place(|| handle.block_on(future))),
-        Err(_) => tokio::runtime::Runtime::new()
-            .map(|runtime| runtime.block_on(future))
-            .map_err(Into::into),
+        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+            tokio::task::block_in_place(operation)
+        }
+        // `block_in_place` panics on Tokio's current-thread runtime. Running
+        // the evaluator inline can instead deadlock an HTTP import whose
+        // response is driven by another task on that runtime, so reject this
+        // unsupported embedding rather than blocking indefinitely.
+        Ok(_) => Err(pklr::Error::Unsupported(
+            "Pkl configuration evaluation requires a multi-thread Tokio runtime".to_string(),
+        )),
+        Err(_) => operation(),
     }
 }
 
@@ -2973,6 +2983,42 @@ mod tests {
                 ("PATH".to_string(), std::env::var("PATH").ok()),
             ])
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn synchronous_pklr_work_yields_the_tokio_worker() {
+        assert_eq!(run_pklr_blocking(|| Ok::<_, pklr::Error>(42)).unwrap(), 42);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn current_thread_runtime_rejects_http_pkl_evaluation_without_blocking_server() {
+        use tokio::io::AsyncWriteExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let mut server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nvalue = 1\n")
+                .await
+                .unwrap();
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hk.pkl");
+        std::fs::write(&path, format!("amends \"http://{addr}/Config.pkl\"\n")).unwrap();
+
+        let error = eval_pklr::<serde_json::Value>(&path).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("requires a multi-thread Tokio runtime")
+        );
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(100), &mut server)
+                .await
+                .is_err()
+        );
+        server.abort();
     }
 
     #[test]

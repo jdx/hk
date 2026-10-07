@@ -64,7 +64,7 @@ yamlfmt = new Config.Step {
           """
           formatter:
             type: basic
-          """
+          """ + "\n"
       }
     }
     ["check bad file"] = testMaker.checkFail("-  a\n", 1)

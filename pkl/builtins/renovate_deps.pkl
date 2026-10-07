@@ -56,7 +56,7 @@ renovate_deps = new Config.Step {
         },
         "actionMeta": {}
       }
-      """
+      """ + "\n"
     local const maker = new helpers.TestMaker {
       filename = ".github/renovate-tracked-deps.json"
       files =

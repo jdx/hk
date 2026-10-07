@@ -45,14 +45,14 @@ buf_format = new Config.Step {
       syntax = "proto3";
       import "google/protobuf/timestamp.proto";
       package test.v1;
-      """
+      """ + "\n"
     local const after =
       """
       syntax = "proto3";
       package test.v1;
 
       import "google/protobuf/timestamp.proto";
-      """
+      """ + "\n"
     ["check bad file"] = testMaker.checkFail(before, 100)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)

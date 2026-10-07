@@ -8,7 +8,6 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "warn"
 
 [sources]
-allow-git        = []
 allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
 unknown-git      = "deny"
 unknown-registry = "deny"

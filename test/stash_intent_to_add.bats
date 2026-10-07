@@ -354,7 +354,7 @@ hooks {
         glob = "*.sh"
         check = "true"
         check_list_files = "true"
-        fix = "for f in {{files}}; do echo '# fixed' >> \\\$f; done"
+        fix = #"for f in {{files}}; do echo '# fixed' >> \$f; done"#
       }
     }
   }

@@ -270,7 +270,7 @@ EOF
 
     run hk validate
     assert_failure
-    assert_output --partial "invalid regex in top-level 'exclude'"
+    assert_output --partial "Opening parenthesis without closing parenthesis"
 }
 
 @test "top-level exclude - applies to absolute file arguments" {

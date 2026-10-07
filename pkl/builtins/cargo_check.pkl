@@ -42,12 +42,7 @@ cargo_check = new Config.Step {
           missing_function();
         }
       """
-    local const fixBefore =
-      """
-        use std::{fmt};
-
-        pub fn main() {}
-      """
+    local const fixBefore = "use std::{fmt};\n\npub fn main() {}\n"
     local const after = "\npub fn main() {}\n"
     ["check bad file"] = testMaker.checkFail(checkBefore, 101)
     ["check good file"] = testMaker.checkPass(after)
