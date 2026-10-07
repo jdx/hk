@@ -1184,7 +1184,9 @@ fn pkl_http_rewrite_cache_key() -> String {
 }
 
 /// Runs synchronous pklr work without pinning a Tokio worker when configuration
-/// evaluation is reached from an async command handler.
+/// evaluation is reached from an async command handler. The hk CLI uses a
+/// multi-thread runtime; current-thread embeddings receive a configuration
+/// error rather than risking an indefinitely blocked HTTP import.
 fn run_pklr_blocking<T>(operation: impl FnOnce() -> pklr::Result<T>) -> pklr::Result<T> {
     match tokio::runtime::Handle::try_current() {
         Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
@@ -3006,12 +3008,16 @@ mod tests {
         std::fs::write(&path, format!("amends \"http://{addr}/Config.pkl\"\n")).unwrap();
 
         let error = eval_pklr::<serde_json::Value>(&path).unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("requires a multi-thread Tokio runtime"));
-        assert!(tokio::time::timeout(std::time::Duration::from_millis(100), &mut server)
-            .await
-            .is_err());
+        assert!(
+            error
+                .to_string()
+                .contains("requires a multi-thread Tokio runtime")
+        );
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(100), &mut server)
+                .await
+                .is_err()
+        );
         server.abort();
     }
 
