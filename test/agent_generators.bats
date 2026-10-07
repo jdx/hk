@@ -93,6 +93,35 @@ EOF
     assert_output "{}"
 }
 
+@test "agent stop-hook passes silently in a project without hk.pkl" {
+    rm -f hk.pkl
+    run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook --target claude-code"
+    assert_success
+    assert_output ""
+    run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook --target codex"
+    assert_success
+    assert_output "{}"
+}
+
+@test "agent stop-hook passes silently when hk.pkl defines no check hook" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["probe"] { check = "exit 1" }
+        }
+    }
+}
+EOF
+    run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook --target claude-code"
+    assert_success
+    assert_output ""
+    run bash -c "echo '{\"stop_hook_active\":false}' | hk agent stop-hook --target codex"
+    assert_success
+    assert_output "{}"
+}
+
 @test "agent stop-hook blocks with only a decision when the check fails" {
     write_stop_hook_config "echo probe-failed; exit 1"
     run bash -c "echo '{}' | hk agent stop-hook 2>/dev/null"

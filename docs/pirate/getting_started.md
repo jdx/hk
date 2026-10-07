@@ -67,8 +67,8 @@ This complete example needs no extra tools. The `trailing_whitespace` and `newli
 Replace the whole of the `hk.pkl` that `hk init` drew up with this example. If `hk init` spotted linters, its steps need those tools aboard on `PATH`; the example below does not.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.4.0/hk@2.4.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
 
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace

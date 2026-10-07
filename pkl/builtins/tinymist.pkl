@@ -1,0 +1,54 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Typst"
+  description = "Typst linter (requires tinymist 0.14.20 or newer)"
+  project_indicators {
+    new { glob = "*.typ"; recursive = true }
+  }
+}
+tinymist = new Config.Step {
+  glob = "**/*.typ"
+  batch = true
+  shell = "sh -c"
+  // `tinymist lint` accepts one input file. Check every selected file and
+  // preserve a failure even when a later file passes.
+  check = new Config.CommandSpec {
+    command =
+      """
+      code=0
+      for f in {{ files }}; do
+        tinymist lint "$f" || code=$?
+      done
+      exit "$code"
+      """
+    effect = "read"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.typ" }
+    local const bad = "#let x = unknown\n"
+    local const good = "#let x = 1 + 2\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["check lint warning"] = (
+      testMaker.checkFail("#set text(font: \"Definitely Not A Real Font\")\nHello\n", 1)
+    ) {
+      expect { stderr = "unknown font family: definitely not a real font" }
+    }
+    ["check file with spaces"] = testMaker.withFilename("a b/test file.typ").checkPass(good)
+    ["check multiple files preserves failure"] = (testMaker.checkFail(bad, 1)) {
+      files = List("test.typ", "other.typ")
+      write { ["other.typ"] = good }
+    }
+    ["check multiple good files"] = (testMaker.checkPass(good)) {
+      write { ["other.typ"] = good }
+    }
+    ["check continues after failure"] = (testMaker.checkFail(bad, 1)) {
+      files = List("test.typ", "other.typ")
+      write { ["other.typ"] = "#let x = another_unknown\n" }
+      expect { stderr = "unknown variable: another_unknown" }
+    }
+  }
+}

@@ -583,7 +583,7 @@ pub async fn run(timeout: Option<Duration>, codex: bool) -> crate::Result<()> {
             let mut command = tokio::process::Command::new(exe);
             // Trace records would end up in the output this hook parses.
             command
-                .args(["run", "check", "--safe", "--format", "json"])
+                .args(["run", "check", "--safe", "--from-hook", "--format", "json"])
                 .env_remove("HK_TRACE");
             run_check(command, timeout).await
         }
