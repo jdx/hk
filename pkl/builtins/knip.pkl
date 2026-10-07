@@ -34,7 +34,7 @@ class KnipStep extends Config.Step {
               "zod": "^3.22.0"
             }
           }
-          """
+          """ + "\n"
         local const good =
           """
           {
@@ -42,7 +42,7 @@ class KnipStep extends Config.Step {
               "zod": "^3.22.0"
             }
           }
-          """
+          """ + "\n"
         local const testMaker = new helpers.TestMaker {
           filename = "package.json"
           extra_files = new Mapping<String, String> {
@@ -64,7 +64,7 @@ class KnipStep extends Config.Step {
                 return {} as Response;
               }
 
-              """
+              """ + "\n"
           }
         }
         ["check bad file"] = testMaker.checkFail(bad, 1)
