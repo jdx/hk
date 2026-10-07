@@ -17,9 +17,14 @@ Describe 'check' {
             git config user.email "test@test.com"
             git config user.name "Test"
 
+            # Use a file URI: raw Windows backslashes inside a Pkl quoted
+            # string are escapes, not a path.
+            $pklPath = (Resolve-Path $env:PKL_PATH).Path -replace '\\', '/'
+            $pklUri = "file:///$pklPath/Config.pkl"
+
             # Create a simple hk.pkl with an echo step
             $config = @"
-amends "$env:PKL_PATH/Config.pkl"
+amends "$pklUri"
 
 hooks {
     ["check"] {
@@ -39,9 +44,6 @@ hooks {
             git commit -m "initial" | Out-Null
 
             $output = hk check 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                $output | Write-Host
-            }
             $LASTEXITCODE | Should -Be 0
         } finally {
             Set-Location $script:originalPath
