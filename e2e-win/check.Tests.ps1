@@ -39,6 +39,9 @@ hooks {
             git commit -m "initial" | Out-Null
 
             $output = hk check 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $output | Write-Host
+            }
             $LASTEXITCODE | Should -Be 0
         } finally {
             Set-Location $script:originalPath
