@@ -115,8 +115,8 @@ hooks {
 EOF
     run hk validate
     assert_failure
-    assert_output --partial "Step 'lint' in hook 'check'"
-    assert_output --partial "invalid exclude"
+    assert_output --partial "Syntax error in regex"
+    assert_output --partial "Opening parenthesis without closing parenthesis"
     assert_output --partial "vendor/("
 }
 
