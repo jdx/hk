@@ -35,7 +35,7 @@ EOF
     run hk fix
     assert_failure
     assert_output --partial "Failed to load config"
-    assert_output --partial "expected identifier"
+    assert_output --partial "Invalid property definition"
 }
 
 @test "hk run fails on invalid config" {
