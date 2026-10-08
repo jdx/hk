@@ -1,0 +1,52 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Python"
+  description = "Odoo module linter (pylint-odoo and OCA translation checks)"
+  project_indicators {
+    new { glob = "__manifest__.py"; recursive = true }
+  }
+}
+odoo_lint = new Config.Step {
+  glob = List("**/*.py", "**/*.po", "**/*.pot")
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("odl", "check", "{{files}}") }
+    effect = "read"
+  }
+  // `odl check --diff` only shows what it can fix, and exits 0 when that is
+  // nothing, even if other findings remain. So when there is nothing to fix,
+  // the check runs too, and `check_after_diff` reports what a patch left.
+  check_diff = new Config.CommandSpec {
+    command = "odl check --diff {{ files }} && odl check {{ files }}"
+    effect = "read"
+  }
+  check_after_diff = true
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("odl", "check", "--fix", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "__manifest__.py"
+      extra_files = new Mapping<String, String> {
+        ["README.rst"] = "Demo\n"
+      }
+    }
+    local const head =
+      "{\n    \"name\": \"Demo\",\n    \"author\": \"Odoo Community Association (OCA)\",\n"
+    // `installable` defaults to True: the key is superfluous and removed.
+    local const before = head + "    \"license\": \"AGPL-3\",\n    \"installable\": True,\n}\n"
+    local const after = head + "    \"license\": \"AGPL-3\",\n}\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+    ["diff bad file"] = testMaker.diffPass(before, after)
+    // A missing `license` cannot be fixed: the patch applies, the check fails.
+    local const unlicensed = head + "    \"installable\": True,\n}\n"
+    ["diff file with unfixable findings"] = testMaker.diffFail(unlicensed, head + "}\n", 1)
+    ["fix file with unfixable findings"] = testMaker.fixFail(unlicensed, head + "}\n", 1)
+  }
+}

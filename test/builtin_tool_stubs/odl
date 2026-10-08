@@ -1,0 +1,5 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.1.0a3"
+tool = "pipx:odoo-linter"
+bin = "odl"
