@@ -557,3 +557,16 @@ jobs:
             TAG_NAME="${GITHUB_REF_NAME}"
           fi
           gh release edit "$TAG_NAME" --draft=false
+
+  comment-release-fixes:
+    needs: publish-release
+    if: ${{ !cancelled() && needs.publish-release.result == 'success' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+      discussions: write
+    uses: jdx/workflows/.github/workflows/comment-release-fixes.yml@652dd92c36927734924fcfe25d7a6bae33c06efc
+    with:
+      tag: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
+      marker_prefix: hk-fixed-in
