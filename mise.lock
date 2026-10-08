@@ -381,44 +381,60 @@ url_api = "https://api.github.com/repos/jdx/jactionlint/releases/assets/61133861
 provenance = "github-attestations"
 
 [[tools.java]]
-version = "21.0.2"
+version = "21.0.12+101.0.LTS"
 backend = "core:java"
 specifiers = ["21"]
 
 [tools.java.options]
-shorthand_vendor = "openjdk"
+shorthand_vendor = "temurin"
 
 [tools.java."platforms.linux-arm64"]
-checksum = "sha256:08db1392a48d4eb5ea5315cf8f18b89dbaf36cda663ba882cf03c704c9257ec2"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-aarch64_bin.tar.gz"
+checksum = "sha256:23e37e026f12f3e706f18938ff611db3032d075b09d0879a25d06718c773e223"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.12.1_1.tar.gz"
+
+[tools.java."platforms.linux-arm64-musl"]
+checksum = "sha256:8242627927adc90ac2561d0812dd39890ebc21ef09b550bc2e8b93640b8af4f8"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_alpine-linux_hotspot_21.0.12.1_1.tar.gz"
 
 [tools.java."platforms.linux-x64"]
-checksum = "sha256:a2def047a73941e01a73739f92755f86b895811afb1f91243db214cff5bdac3f"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-x64_bin.tar.gz"
+checksum = "sha256:ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz"
 
 [tools.java."platforms.linux-x64-baseline"]
-checksum = "sha256:a2def047a73941e01a73739f92755f86b895811afb1f91243db214cff5bdac3f"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-x64_bin.tar.gz"
+checksum = "sha256:ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz"
+
+[tools.java."platforms.linux-x64-musl"]
+checksum = "sha256:bd8824214e42b33333c7f55a039ea078ad6ea6be20d7c5b011c801fb2bdb44f0"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_alpine-linux_hotspot_21.0.12.1_1.tar.gz"
+
+[tools.java."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:bd8824214e42b33333c7f55a039ea078ad6ea6be20d7c5b011c801fb2bdb44f0"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_alpine-linux_hotspot_21.0.12.1_1.tar.gz"
 
 [tools.java."platforms.macos-arm64"]
-checksum = "sha256:b3d588e16ec1e0ef9805d8a696591bd518a5cea62567da8f53b5ce32d11d22e4"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_macos-aarch64_bin.tar.gz"
+checksum = "sha256:3623232f33a9c3baadf304480b2535f9a3cba8a58d42ecbb438ba267315d9998"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.12.1_1.tar.gz"
 
 [tools.java."platforms.macos-x64"]
-checksum = "sha256:8fd09e15dc406387a0aba70bf5d99692874e999bf9cd9208b452b5d76ac922d3"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_macos-x64_bin.tar.gz"
+checksum = "sha256:44db0f08196daf19a47f90d13388b0c943b67663cb537f998fe29e836fa842ce"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_mac_hotspot_21.0.12.1_1.tar.gz"
 
 [tools.java."platforms.macos-x64-baseline"]
-checksum = "sha256:8fd09e15dc406387a0aba70bf5d99692874e999bf9cd9208b452b5d76ac922d3"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_macos-x64_bin.tar.gz"
+checksum = "sha256:44db0f08196daf19a47f90d13388b0c943b67663cb537f998fe29e836fa842ce"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_mac_hotspot_21.0.12.1_1.tar.gz"
+
+[tools.java."platforms.windows-arm64"]
+checksum = "sha256:ccf2e51f527d542a70ba5794a600d3aac04b4e967950e227834c7566cb1bec7b"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_windows_hotspot_21.0.12.1_1.zip"
 
 [tools.java."platforms.windows-x64"]
-checksum = "sha256:b6c17e747ae78cdd6de4d7532b3164b277daee97c007d3eaa2b39cca99882664"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_windows-x64_bin.zip"
+checksum = "sha256:f9d6e191ab098c0d416e7d588a24420a8621cd2f4720dab2459b8b7b2d2d8b4e"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip"
 
 [tools.java."platforms.windows-x64-baseline"]
-checksum = "sha256:b6c17e747ae78cdd6de4d7532b3164b277daee97c007d3eaa2b39cca99882664"
-url = "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_windows-x64_bin.zip"
+checksum = "sha256:f9d6e191ab098c0d416e7d588a24420a8621cd2f4720dab2459b8b7b2d2d8b4e"
+url = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip"
 
 [[tools.mr-boxington]]
 version = "1.22.0"
