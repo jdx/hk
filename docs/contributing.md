@@ -71,6 +71,16 @@ Run checks appropriate to the change. Integration tests use isolated temporary r
 
 Tests should verify meaningful behavior: a clean check, a failing check, and the expected result of a fix when supported. A builtin with `check_diff` also needs a diff test (`TestMaker.diffPass` or `diffFail`), which applies the patch `check_diff` prints the way `hk fix` does and fails if hk cannot apply it. Fix tests can't catch that, because they run `fix` directly, and `test/builtins_tests.bats` fails for a tested builtin without one. Avoid enabling batching or bypassing locks without confirming the tool’s behavior.
 
+Files in `test/builtin_tool_stubs/` are mise tool stubs, not mock executables:
+each needs a `tool` and `version` declaration so the test harness can validate
+and provision it. The Bats setup task attempts to install every declared stub
+before tests run; if installation fails, it warns and continues, so tests may run
+without those stubs. Putting a fake executable earlier on `PATH` changes what the
+test executes, but does not avoid the installation attempt. When a builtin test
+needs deterministic tool output, put a fake executable in a separate test-only directory and prepend
+that directory to `PATH` before `test/builtin_tool_stubs/`. Keep the mise stub in
+place so the builtin still declares its real tool requirement.
+
 ## Edit documentation
 
 The website uses VitePress. Run these from the repository root:
