@@ -2,19 +2,53 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+/// Lints GitHub Actions workflows, composite actions, and Dependabot configuration.
+///
+/// Requires jactionlint v2, which reports rule IDs and fixes in SARIF (`-format sarif`) and
+/// has `-fix`. `check_diff` turns the fixes in that log into a patch. If any finding has no
+/// fix, it prints no patch, so hk runs `jactionlint -fix` and reports what remains.
+///
+/// jactionlint runs the rules of its `default` profile. To also run the opt-in policy rules of
+/// the `strict` profile (such as `unpinned-uses`), set `profile: strict` in
+/// `.github/jactionlint.yaml`; it applies to hk, CI, and editors alike. jactionlint has no
+/// `-profile` flag. To choose the profile only in hk.pkl, put it in a separate config file and
+/// pass that file to all three commands with `-config-file`:
+///
+/// ```pkl
+/// ["jactionlint"] = (Builtins.jactionlint) {
+///   check { command { argv = List("jactionlint", "-config-file", ".strict.yaml", "-format", "sarif", "{{files}}") } }
+///   check_diff { command { argv = List("hk", "util", "sarif-diff", "--", "jactionlint", "-config-file", ".strict.yaml", "-format", "sarif", "{{files}}") } }
+///   fix { command { argv = List("jactionlint", "-config-file", ".strict.yaml", "-fix", "{{files}}") } }
+/// }
+/// ```
 @Builtins.meta {
   category = "Infrastructure"
   description = "GitHub Actions workflow linter (jdx/jactionlint, a maintained actionlint fork)"
 }
 const jactionlint = new Config.Step {
-  glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+  glob =
+    List(
+      ".github/workflows/*.y*ml",
+      ".github/actions/**/action.y*ml",
+      ".github/dependabot.y*ml",
+    )
   batch = true
+  // `-format sarif` carries stable rule IDs, levels, regions and fixes
+  diagnostic_format = "sarif"
   check = new Config.CommandSpec {
-    command = new Config.Command { argv = List("jactionlint", "{{files}}") }
+    command = new Config.Command { argv = List("jactionlint", "-format", "sarif", "{{files}}") }
     effect = "read"
   }
-  // jactionlint prints `path:line:column: message [rule]` by default
-  diagnostic_format = "gcc"
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("hk", "util", "sarif-diff", "--", "jactionlint", "-format", "sarif", "{{files}}")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("jactionlint", "-fix", "{{files}}") }
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = ".github/workflows/test.yml"
@@ -30,33 +64,26 @@ const jactionlint = new Config.Step {
           runs-on: ubuntu-latest
           steps:
             - run: echo "Pass"
+
+      """
+    local const goodWorkflow =
+      """
+      on:
+        push:
+          branches: main
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          steps:
+            - run: echo "Pass"
+
       """
     ["check bad file"] = testMaker.checkFail(badWorkflow, 1)
-    ["check bad file reports diagnostics"] =
-      testMaker.checkDiagnostics(
-        badWorkflow,
-        1,
-        List(new Config.StepTestDiagnostic {
-          path = ".github/workflows/test.yml"
-          line = 3
-          column = 5
-          severity = "error"
-          rule = "syntax-check"
-          message = "unexpected key \"branch\""
-        }),
-      )
-    ["check good file"] =
-      testMaker.checkPass(
-        """
-          on:
-            push:
-              branches: main
-          jobs:
-            test:
-              runs-on: ubuntu-latest
-              steps:
-                - run: echo "Pass"
-        """,
-      )
+    // No diagnostics test: `expect.diagnostics` can't model a batched step with a
+    // single-document format like sarif. The check output is parsed in the e2e run instead.
+    ["check good file"] = testMaker.checkPass(goodWorkflow)
+    // The patch comes from the fix in jactionlint's SARIF log, not from rerunning `-fix`.
+    ["diff bad file"] = testMaker.diffPass(badWorkflow, goodWorkflow)
+    ["fix bad file"] = testMaker.fixPass(badWorkflow, goodWorkflow)
   }
 }
