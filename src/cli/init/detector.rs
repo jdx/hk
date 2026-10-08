@@ -390,6 +390,15 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_odoo_modules_at_any_depth() {
+        for manifest in ["__manifest__.py", "addons/acme_sale/__manifest__.py"] {
+            let names = detected_names(&[(manifest, "{'name': 'Sale'}\n")]);
+            assert!(names.contains(&"odoo_lint"), "{manifest}: {names:?}");
+        }
+        assert!(!detected_names(&[("setup.py", "")]).contains(&"odoo_lint"));
+    }
+
+    #[test]
     fn test_dotnet_manifests_are_root_only_for_all_extensions() {
         for extension in ["csproj", "vbproj", "sln", "slnx"] {
             let root = tempfile::tempdir().unwrap();

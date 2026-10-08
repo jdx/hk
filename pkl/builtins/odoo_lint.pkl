@@ -6,7 +6,7 @@ import "./test/helpers.pkl"
   category = "Python"
   description = "Odoo module linter (pylint-odoo and OCA translation checks)"
   project_indicators {
-    new { glob = "__manifest__.py"; recursive = true }
+    new { glob = "**/__manifest__.py" }
   }
 }
 odoo_lint = new Config.Step {
