@@ -20,5 +20,5 @@ jobs:
       {
         tag: "${{ inputs.tag || github.event.release.tag_name }}",
         marker_prefix: hk-fixed-in,
-        dry_run: "${{ inputs.dry_run || false }}",
+        dry_run: ${{ inputs.dry_run || false }},
       }
