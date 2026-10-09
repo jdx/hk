@@ -1632,6 +1632,7 @@ impl Hook {
         let failed_steps = hook_ctx.failed_steps.lock().unwrap().clone();
         let cancelled_steps = hook_ctx.cancelled_steps.lock().unwrap().clone();
         let only_failed = settings.quiet || (in_text_mode && !force_summary);
+        let mut printed_summary = false;
         if !machine_output
             && !settings.silent
             && (!only_failed || !failed_steps.is_empty() || !cancelled_steps.is_empty())
@@ -1676,7 +1677,15 @@ impl Hook {
                 };
                 eprintln!("\n{}", style::ebold(format!("{} {}:", step_name, label)));
                 eprintln!("{}", trimmed);
+                printed_summary = true;
             }
+        }
+
+        // Step output (e.g. stderr from a passing test run) can look like a
+        // failure, so end with an explicit success line when the run passed.
+        if printed_summary && result.is_ok() && failed_steps.is_empty() && cancelled_steps.is_empty()
+        {
+            eprintln!("\n{}", style::egreen(format!("✔ {} passed", self.name)));
         }
 
         if !machine_output && !settings.silent && hook_ctx.saw_git_index_lock_contention() {
