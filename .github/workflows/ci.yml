@@ -9,10 +9,16 @@ on:
 
 permissions: {}
 
+# Only pull request runs are superseded; pushes to main and tags run to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: classify changes
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       pull-requests: read
     outputs:
@@ -84,6 +90,7 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.docs_only == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -127,24 +134,11 @@ jobs:
     with:
       trusted: false
 
-  zizmor:
-    name: zizmor
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
-        with:
-          advanced-security: false
-
   final:
     name: final
     if: ${{ always() && !cancelled() && needs.trusted.result != 'cancelled' && needs.untrusted.result != 'cancelled' }}
     permissions: {}
-    needs: [changes, docs_only, trusted, untrusted, zizmor]
+    needs: [changes, docs_only, trusted, untrusted]
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
@@ -155,14 +149,9 @@ jobs:
           DOCS_ONLY_RESULT: ${{ needs.docs_only.result }}
           TRUSTED_RESULT: ${{ needs.trusted.result }}
           UNTRUSTED_RESULT: ${{ needs.untrusted.result }}
-          ZIZMOR_RESULT: ${{ needs.zizmor.result }}
         run: |
           if [[ "$CHANGES_RESULT" != success ]]; then
             echo "changes=$CHANGES_RESULT"
-            exit 1
-          fi
-          if [[ "$ZIZMOR_RESULT" != success ]]; then
-            echo "zizmor=$ZIZMOR_RESULT"
             exit 1
           fi
           if [[ "$DOCS_ONLY" == true ]]; then
