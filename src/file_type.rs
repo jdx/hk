@@ -293,6 +293,10 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
     let tags: &[&str] = match interpreter_family(interpreter) {
         "python" => &["python"],
         "node" => &["javascript", "node"],
+        // The shebang names the runtime, not the language: these run both
+        // JavaScript and TypeScript, so they get no `javascript`/`typescript` tag
+        "deno" => &["deno"],
+        "bun" => &["bun"],
         "ruby" => &["ruby"],
         "lua" => &["lua"],
         "perl" => &["perl"],
@@ -815,6 +819,10 @@ mod tests {
             ("#!/usr/bin/env perl5", "perl"),
             ("#!/usr/bin/env php8.2", "php"),
             ("#!/usr/bin/env nodejs", "node"),
+            ("#!/usr/bin/env deno", "deno"),
+            ("#!/usr/bin/env -S deno run --allow-net", "deno"),
+            ("#!/usr/bin/env bun", "bun"),
+            ("#!/usr/bin/env -S bun --hot", "bun"),
             (
                 "#!/usr/bin/env -S node --experimental-strip-types",
                 "javascript",
@@ -825,6 +833,18 @@ mod tests {
                 .unwrap();
             let types = detect_shebang(file.path()).unwrap();
             assert!(types.contains(tag), "{shebang:?}: {types:?}");
+        }
+    }
+
+    #[test]
+    fn deno_and_bun_shebangs_have_no_language_tag() {
+        for shebang in ["#!/usr/bin/env deno", "#!/usr/bin/env bun"] {
+            let mut file = NamedTempFile::new().unwrap();
+            file.write_all(format!("{shebang}\nbody\n").as_bytes())
+                .unwrap();
+            let types = detect_shebang(file.path()).unwrap();
+            assert!(!types.contains("javascript"), "{shebang:?}: {types:?}");
+            assert!(!types.contains("typescript"), "{shebang:?}: {types:?}");
         }
     }
 
