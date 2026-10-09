@@ -29,6 +29,7 @@ EOF
     assert_output --partial "s stderr:"
     refute_output --partial "s stdout:"
     assert_output --partial "ERR"
+    assert_output --partial "✔ check passed"
 }
 
 @test "output_summary stdout prints only stdout" {

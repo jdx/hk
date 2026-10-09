@@ -1681,13 +1681,6 @@ impl Hook {
             }
         }
 
-        // Step output (e.g. stderr from a passing test run) can look like a
-        // failure, so end with an explicit success line when the run passed.
-        if printed_summary && result.is_ok() && failed_steps.is_empty() && cancelled_steps.is_empty()
-        {
-            eprintln!("\n{}", style::egreen(format!("✔ {} passed", self.name)));
-        }
-
         if !machine_output && !settings.silent && hook_ctx.saw_git_index_lock_contention() {
             eprintln!(
                 "\n{}",
@@ -1831,6 +1824,16 @@ impl Hook {
             }
             return Err(emit_err);
         }
+        // Step output (e.g. stderr from a passing test run) can look like a
+        // failure, so end with an explicit success line when the run passed.
+        if printed_summary
+            && result.is_ok()
+            && failed_steps.is_empty()
+            && cancelled_steps.is_empty()
+        {
+            eprintln!("\n{}", style::egreen(format!("✔ {} passed", self.name)));
+        }
+
         // main would print this same error again on exit. Only mark it when
         // the returned error is the one logged above (not an emit failure).
         if error_logged {
