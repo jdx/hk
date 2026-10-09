@@ -104,6 +104,40 @@ EOF
     refute_output --partial "ruby-script"
 }
 
+@test "types: matches lua and versioned interpreters by shebang" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["lua"] {
+        types = List("lua")
+        check = "echo LUA {{ files }}"
+      }
+    }
+  }
+}
+EOF
+    git init
+    git add -A
+    git commit -m "init"
+
+    printf '#!/usr/bin/env lua\nprint(1)\n' > plain-lua
+    printf '#!/usr/bin/env lua5.4\nprint(1)\n' > versioned-lua
+    printf '#!/usr/bin/env luajit\nprint(1)\n' > jit-lua
+    printf '#!/usr/bin/env python3\nprint(1)\n' > py-script
+    chmod +x plain-lua versioned-lua jit-lua py-script
+    git add plain-lua versioned-lua jit-lua py-script
+
+    run hk check
+    assert_success
+    assert_output --partial "plain-lua"
+    assert_output --partial "versioned-lua"
+    assert_output --partial "jit-lua"
+    refute_output --partial "py-script"
+}
+
 @test "types: matches shell scripts by shebang" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

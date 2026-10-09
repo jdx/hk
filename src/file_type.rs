@@ -250,6 +250,19 @@ fn is_env_assignment(token: &str) -> bool {
     })
 }
 
+/// Reduces an interpreter name to its language: version suffixes are dropped
+/// (`python3.11`, `lua5.4`, `perl5`) and alternative implementations map to
+/// their language (`pypy3`, `luajit`, `nodejs`).
+fn interpreter_family(interpreter: &str) -> &str {
+    let base = interpreter.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
+    match base {
+        "pypy" => "python",
+        "nodejs" => "node",
+        "luajit" => "lua",
+        _ => base,
+    }
+}
+
 /// Detect file types by reading shebang line
 fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
     let file = File::open(path).ok()?;
@@ -266,41 +279,20 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
 
     let interpreter = shebang_interpreter(&first_line);
 
-    match interpreter {
-        s if s.starts_with("python") => {
-            types.insert("python".to_string());
-        }
-        s if s.starts_with("node") || s == "nodejs" => {
-            types.insert("javascript".to_string());
-            types.insert("node".to_string());
-        }
-        s if s.starts_with("ruby") => {
-            types.insert("ruby".to_string());
-        }
-        "sh" | "dash" => {
-            types.insert("shell".to_string());
-            types.insert("sh".to_string());
-        }
-        "bash" => {
-            types.insert("shell".to_string());
-            types.insert("bash".to_string());
-        }
-        "zsh" => {
-            types.insert("shell".to_string());
-            types.insert("zsh".to_string());
-        }
-        "fish" => {
-            types.insert("shell".to_string());
-            types.insert("fish".to_string());
-        }
-        "perl" => {
-            types.insert("perl".to_string());
-        }
-        "php" => {
-            types.insert("php".to_string());
-        }
-        _ => {}
-    }
+    let tags: &[&str] = match interpreter_family(interpreter) {
+        "python" => &["python"],
+        "node" => &["javascript", "node"],
+        "ruby" => &["ruby"],
+        "lua" => &["lua"],
+        "perl" => &["perl"],
+        "php" => &["php"],
+        "sh" | "dash" => &["shell", "sh"],
+        "bash" => &["shell", "bash"],
+        "zsh" => &["shell", "zsh"],
+        "fish" => &["shell", "fish"],
+        _ => &[],
+    };
+    types.extend(tags.iter().map(|tag| tag.to_string()));
 
     Some(types)
 }
@@ -799,6 +791,15 @@ mod tests {
             ("#! /usr/bin/env python3", "python"),
             ("#!/usr/bin/env\tbash", "bash"),
             ("#!/usr/bin/env FOO=1 ruby", "ruby"),
+            ("#!/usr/bin/env lua", "lua"),
+            ("#!/usr/bin/env lua5.4", "lua"),
+            ("#!/usr/bin/env luajit", "lua"),
+            ("#!/usr/bin/env pypy3", "python"),
+            ("#!/usr/bin/python3.11", "python"),
+            ("#!/usr/bin/env ruby3.2", "ruby"),
+            ("#!/usr/bin/env perl5", "perl"),
+            ("#!/usr/bin/env php8.2", "php"),
+            ("#!/usr/bin/env nodejs", "node"),
             (
                 "#!/usr/bin/env -S node --experimental-strip-types",
                 "javascript",
