@@ -75,7 +75,7 @@ tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 url                = "2"
-usage-rs           = { version = "6", features = ["diagnostics", "completions"] }
+usage-rs           = { version = "7", features = ["diagnostics", "completions"] }
 xx                 = { version = "2", features = ["hash"] }
 
 [target.'cfg(windows)'.dependencies]
