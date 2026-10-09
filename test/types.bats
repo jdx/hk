@@ -138,6 +138,44 @@ EOF
     refute_output --partial "py-script"
 }
 
+@test "types: matches deno and bun scripts by runtime, not language" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["runtimes"] {
+        types = List("deno", "bun")
+        check = "echo RUNTIME {{ files }}"
+      }
+      ["js"] {
+        types = List("javascript")
+        check = "echo JS {{ files }}"
+      }
+    }
+  }
+}
+EOF
+    git init
+    git add -A
+    git commit -m "init"
+
+    printf '#!/usr/bin/env -S deno run --allow-net\nconsole.log(1)\n' > deno-script
+    printf '#!/usr/bin/env bun\nconsole.log(1)\n' > bun-script
+    printf '#!/usr/bin/env node\nconsole.log(1)\n' > node-script
+    chmod +x deno-script bun-script node-script
+    git add deno-script bun-script node-script
+
+    run hk check
+    assert_success
+    assert_output --partial "RUNTIME bun-script deno-script"
+    assert_output --partial "JS node-script"
+    refute_output --partial "RUNTIME bun-script deno-script node-script"
+    refute_output --partial "JS deno-script"
+    refute_output --partial "JS bun-script"
+}
+
 @test "types: matches shell scripts by shebang" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
