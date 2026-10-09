@@ -264,8 +264,12 @@ fn interpreter_family(interpreter: &str) -> &str {
     let base = versioned.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
     match base {
         "pypy" => "python",
-        "nodejs" => "node",
         "luajit" => "lua",
+        // Names that began with these were always typed by prefix (`pythonw`,
+        // `nodejs`, `ruby-head`)
+        b if b.starts_with("python") => "python",
+        b if b.starts_with("node") => "node",
+        b if b.starts_with("ruby") => "ruby",
         _ => base,
     }
 }
@@ -804,6 +808,7 @@ mod tests {
             ("#!/usr/bin/env pypy3", "python"),
             ("#!/usr/bin/python3.11", "python"),
             ("#!/usr/bin/env python3.13t", "python"),
+            ("#!/usr/bin/env pythonw", "python"),
             ("#!/usr/bin/env python3.13td", "python"),
             ("#!/usr/bin/python3.7m", "python"),
             ("#!/usr/bin/env ruby3.2", "ruby"),
