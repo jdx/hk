@@ -252,9 +252,14 @@ fn is_env_assignment(token: &str) -> bool {
 
 /// Reduces an interpreter name to its language: version suffixes are dropped
 /// (`python3.11`, `lua5.4`, `perl5`) and alternative implementations map to
-/// their language (`pypy3`, `luajit`, `nodejs`).
+/// their language (`pypy3`, `luajit`, `nodejs`). A `t` after the version marks
+/// a free-threaded Python build (`python3.13t`).
 fn interpreter_family(interpreter: &str) -> &str {
-    let base = interpreter.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
+    let versioned = match interpreter.strip_suffix('t') {
+        Some(rest) if rest.ends_with(|c: char| c.is_ascii_digit()) => rest,
+        _ => interpreter,
+    };
+    let base = versioned.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
     match base {
         "pypy" => "python",
         "nodejs" => "node",
@@ -796,6 +801,7 @@ mod tests {
             ("#!/usr/bin/env luajit", "lua"),
             ("#!/usr/bin/env pypy3", "python"),
             ("#!/usr/bin/python3.11", "python"),
+            ("#!/usr/bin/env python3.13t", "python"),
             ("#!/usr/bin/env ruby3.2", "ruby"),
             ("#!/usr/bin/env perl5", "perl"),
             ("#!/usr/bin/env php8.2", "php"),
