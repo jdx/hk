@@ -9,8 +9,12 @@ on:
       - main
       - release-plz
 
+# A running release is never cancelled. No `queue: max`: release-plz acts on the
+# SHA it checked out, so the default (one pending run, replaced by the newest
+# push) avoids queued runs acting on stale main SHAs.
 concurrency:
   group: release-plz
+  cancel-in-progress: false
 
 env:
   DRY_RUN: 0
@@ -19,7 +23,7 @@ jobs:
   release-plz:
     if: github.repository == 'jdx/hk'
     runs-on: namespace-profile-endev-linux-amd64
-    timeout-minutes: 60
+    timeout-minutes: 120
     permissions:
       contents: write
       pull-requests: write
