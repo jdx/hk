@@ -14,8 +14,8 @@ Pkl evaluates the charts. Then hk runs the commands those charts set down.
 Every ship's configuration should amend hk's base schema, the base chart every set of charts is drawn over:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.pkl"
 ```
 
 `amends` supplies the properties and classes ye're allowed, such as `Step`, `Hook`, and `Group`. `import` brings another module aboard under its own name, here `Builtins`.
@@ -154,7 +154,7 @@ This is a local amendment of an existing project configuration: yer own marks on
 its path relative to the module doing the importing.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
 
 import* "generated/*.pkl" as generated
 
@@ -174,7 +174,7 @@ add or remove step definitions, signing hands on and off, without editing `hk.pk
 
 ```pkl
 // generated/prettier.pkl
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
 
 STEPS: Mapping<String, Config.Step> = new {
   ["prettier"] {
