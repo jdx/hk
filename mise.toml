@@ -9,7 +9,7 @@ cargo-msrv    = "latest"
 cargo-release = "latest"
 communique    = { version = "latest", minimum_release_age = "0s" }
 git-cliff     = "latest"
-jactionlint   = "2.1.0"
+jactionlint   = "latest"
 mr-boxington  = { version = "latest", minimum_release_age = "0s" }
 node          = "latest"
 pkl           = "latest"
