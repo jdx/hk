@@ -9,8 +9,7 @@ on:
   push:
     branches: ["renovate/**"]
 
-permissions:
-  contents: write
+permissions: {}
 
 # The called workflow has its own group of the shape <workflow>-<ref>; sharing that
 # name with the caller would cancel it, so this group is named differently.
@@ -20,6 +19,8 @@ concurrency:
 
 jobs:
   aube-lock:
+    permissions:
+      contents: write
     uses: jdx/renovate-config/.github/workflows/aube-lock.yml@d0f85cba63adc5a26194009e76eebcf5bc1ee823 # v1.0.2
     with:
       post_update_task: renovate:post-update
