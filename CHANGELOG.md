@@ -1,5 +1,54 @@
 # Changelog
 
+## [2.6.0](https://github.com/jdx/hk/compare/v2.5.0..v2.6.0) - 2026-10-10
+
+### 🚀 Features
+
+- **(builtins)** add Typst formatting and linting by [@jdx](https://github.com/jdx) in [#1646](https://github.com/jdx/hk/pull/1646)
+- **(builtins)** add jactionlint builtin and lint this repo's workflows with it by [@jdx](https://github.com/jdx) in [#1663](https://github.com/jdx/hk/pull/1663)
+- **(run)** print a success line after passing runs that show step output by [@jdx](https://github.com/jdx) in [#1678](https://github.com/jdx/hk/pull/1678)
+- **(step)** type deno and bun scripts by shebang by [@jdx](https://github.com/jdx) in [#1680](https://github.com/jdx/hk/pull/1680)
+
+### 🐛 Bug Fixes
+
+- **(agent)** let the stop hook pass in projects without hk.pkl by [@jdx](https://github.com/jdx) in [#1649](https://github.com/jdx/hk/pull/1649)
+- **(builtins)** use ryl check to avoid the bare ryl deprecation warning by [@jdx](https://github.com/jdx) in [#1655](https://github.com/jdx/hk/pull/1655)
+
+### 📚 Documentation
+
+- refresh competitor benchmark for v2.5.0 by [@jdx](https://github.com/jdx) in [#1656](https://github.com/jdx/hk/pull/1656)
+- clarify builtin stubs and generated-file staging by [@zeitlinger](https://github.com/zeitlinger) in [#1652](https://github.com/jdx/hk/pull/1652)
+
+### 🛡️ Security
+
+- **(ci)** switch to jactionlint v2 and drop zizmor by [@jdx](https://github.com/jdx) in [#1682](https://github.com/jdx/hk/pull/1682)
+- **(step)** detect lua and versioned interpreters by shebang by [@jdx](https://github.com/jdx) in [#1676](https://github.com/jdx/hk/pull/1676)
+- require zizmor in final and fix import-codesign-certs version comment by [@jdx](https://github.com/jdx) in [#1679](https://github.com/jdx/hk/pull/1679)
+
+### 🔍 Other Changes
+
+- **(ci)** update pr-closer to v1.3.0 by [@jdx](https://github.com/jdx) in [521a44f](https://github.com/jdx/hk/commit/521a44ffae94bcf20075a68cb6b570b56f381def)
+- **(pkl)** migrate to pklr v5 evaluator APIs by [@jdx](https://github.com/jdx) in [#1650](https://github.com/jdx/hk/pull/1650)
+- update pr-closer policy by [@jdx](https://github.com/jdx) in [b0aaadf](https://github.com/jdx/hk/commit/b0aaadf9ba90c3358af80612f86f62f025aab94e)
+- fix zizmor ref-version-mismatch for artifact actions by [@jdx](https://github.com/jdx) in [#1672](https://github.com/jdx/hk/pull/1672)
+- add shared release fix notifications by [@jdx](https://github.com/jdx) in [#1673](https://github.com/jdx/hk/pull/1673)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1651](https://github.com/jdx/hk/pull/1651)
+- update anthropics/claude-code-action action to v1.0.236 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1657](https://github.com/jdx/hk/pull/1657)
+- update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1658](https://github.com/jdx/hk/pull/1658)
+- update jdx/mise-action action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1659](https://github.com/jdx/hk/pull/1659)
+- update jdx/renovate-config action to v1.0.2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1660](https://github.com/jdx/hk/pull/1660)
+- update rust crate usage-rs to v6.12.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1661](https://github.com/jdx/hk/pull/1661)
+- update dependency lefthook to v2.1.15 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1662](https://github.com/jdx/hk/pull/1662)
+- update dependency uv to v0.12.21 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1665](https://github.com/jdx/hk/pull/1665)
+- update anthropics/claude-code-action action to v1.0.237 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1664](https://github.com/jdx/hk/pull/1664)
+- update rust crate clx to v3.0.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1666](https://github.com/jdx/hk/pull/1666)
+- update rust crate demand to v2.4.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1668](https://github.com/jdx/hk/pull/1668)
+- update rust crate pklr to v5.1.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1670](https://github.com/jdx/hk/pull/1670)
+- update rust crate usage-rs to v7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1674](https://github.com/jdx/hk/pull/1674)
+
 ## [2.5.0](https://github.com/jdx/hk/compare/v2.4.0..v2.5.0) - 2026-10-04
 
 ### 🚀 Features
