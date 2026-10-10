@@ -1,0 +1,19 @@
+self-hosted-runner:
+  labels:
+    - jdx-perf-v1
+    - bamboo-perf
+    - namespace-profile-endev-linux-amd64
+    - namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+    - namespace-profile-endev-linux-arm64;overrides.cache-tag=cache
+    - namespace-profile-endev-macos-arm64
+    - namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
+
+# Durable ignores. Each one is a deliberate choice, not a finding to fix.
+ignores:
+  - rule: missing-permissions
+    file: .github/workflows/docs-impl.yml
+    reason: >-
+      Called with different permissions by docs.yml (the trusted caller grants
+      pages and id-token, the untrusted one only contents: read). A job that
+      requests more than its caller grants is rejected, so the called jobs
+      cannot declare their own.

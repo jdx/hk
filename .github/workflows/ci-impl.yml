@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The caller grants contents: read; jobs that need more declare it themselves.
+permissions:
+  contents: read
+
 env:
   MISE_EXPERIMENTAL: true
   MISE_HTTP_TIMEOUT: 120
@@ -304,6 +308,9 @@ jobs:
           fi
       - name: mise run lint
         run: mise run lint
+        env:
+          JACTIONLINT_ONLINE: 1
+          GITHUB_TOKEN: ${{ github.token }}
   msrv:
     runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64;overrides.cache-tag=cache' }}
     timeout-minutes: 10

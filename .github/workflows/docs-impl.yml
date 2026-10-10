@@ -21,6 +21,9 @@ jobs:
   build:
     if: github.repository == 'jdx/hk'
     runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
+    # The showreel and shanty renders each allow 30 minutes on a cache miss, plus
+    # setup and the site build. Observed: ~20 minutes with a warm cache.
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -165,6 +168,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     needs: build
     runs-on: namespace-profile-endev-linux-amd64
+    timeout-minutes: 30
     name: Deploy
     steps:
       - name: Deploy to GitHub Pages
