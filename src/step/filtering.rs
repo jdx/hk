@@ -153,8 +153,11 @@ impl Step {
             let enabled_profiles = settings.enabled_profiles();
             let disabled_profiles_set = settings.disabled_profiles();
             if self.profile_operator == Some(ProfileOperator::Or) {
-                if !enabled.is_empty() && enabled.is_disjoint(&enabled_profiles) {
-                    if enabled.is_subset(&disabled_profiles_set) {
+                let active = |p: &&String| {
+                    enabled_profiles.contains(*p) && !disabled_profiles_set.contains(*p)
+                };
+                if !enabled.is_empty() && !enabled.iter().any(|p| active(&p)) {
+                    if enabled.iter().any(|p| disabled_profiles_set.contains(p)) {
                         return Some(SkipReason::ProfileExplicitlyDisabled);
                     }
                     return Some(SkipReason::ProfileNotEnabled(enabled.into_iter().collect()));

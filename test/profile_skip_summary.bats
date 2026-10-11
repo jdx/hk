@@ -153,3 +153,35 @@ EOF2
     assert_output --partial "EITHER_RAN"
     assert_output --partial "BOTH_RAN"
 }
+
+@test "profile_operator or: negative profiles still skip the step" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["mixed"] {
+                profiles = List("ci", "!slow")
+                profile_operator = "or"
+                check = "echo MIXED_RAN"
+            }
+            ["only-ci"] {
+                profiles = List("ci")
+                profile_operator = "or"
+                check = "echo ONLYCI_RAN"
+            }
+        }
+    }
+}
+EOF2
+    touch test.txt
+    run hk check --profile ci
+    assert_success
+    assert_output --partial "MIXED_RAN"
+    run hk check --profile ci --profile slow
+    assert_success
+    refute_output --partial "MIXED_RAN"
+    run hk check --profile ci --profile '!ci'
+    assert_success
+    refute_output --partial "ONLYCI_RAN"
+}
