@@ -160,7 +160,11 @@ impl Step {
                     if enabled.is_subset(&disabled_profiles_set) {
                         return Some(SkipReason::ProfileExplicitlyDisabled);
                     }
-                    return Some(SkipReason::ProfileNotEnabled(enabled.into_iter().collect()));
+                    let candidates = enabled
+                        .into_iter()
+                        .filter(|p| !disabled_profiles_set.contains(p))
+                        .collect();
+                    return Some(SkipReason::ProfileNotEnabled(candidates));
                 }
             } else {
                 let missing_profiles = enabled.difference(&enabled_profiles).collect::<Vec<_>>();
