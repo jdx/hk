@@ -60,8 +60,8 @@ pub(crate) use types::ArgvCommand;
 pub(crate) use types::Command;
 pub(crate) use types::RenderedCommand;
 pub use types::{
-    CommandEffect, CommandPrefix, DiagnosticFormat, FileSelector, OutputSummary, Pattern, RunType,
-    Script, Step,
+    CommandEffect, CommandPrefix, DiagnosticFormat, FileSelector, OutputSummary, Pattern,
+    ProfileOperator, RunType, Script, Step,
 };
 
 pub(crate) use filtering::cache_symlink_check;

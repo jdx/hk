@@ -120,3 +120,36 @@ EOF
     assert_output --partial "TEST"
     refute_output --partial "skipped due to missing profiles"
 }
+
+@test "profile_operator or: runs when any positive profile is enabled" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["either"] {
+                profiles = List("ci", "slow")
+                profile_operator = "or"
+                check = "echo EITHER_RAN"
+            }
+            ["both"] {
+                profiles = List("ci", "slow")
+                check = "echo BOTH_RAN"
+            }
+        }
+    }
+}
+EOF2
+    touch test.txt
+    run hk check
+    assert_success
+    refute_output --partial "EITHER_RAN"
+    run hk check --profile ci
+    assert_success
+    assert_output --partial "EITHER_RAN"
+    refute_output --partial "BOTH_RAN"
+    run hk check --profile ci --profile slow
+    assert_success
+    assert_output --partial "EITHER_RAN"
+    assert_output --partial "BOTH_RAN"
+}

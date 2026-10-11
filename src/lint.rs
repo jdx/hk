@@ -66,6 +66,7 @@ const STEP_KEYS: &[&str] = &[
     "description",
     "name",
     "profiles",
+    "profile_operator",
     "glob",
     "types",
     "match_any",

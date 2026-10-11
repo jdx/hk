@@ -765,6 +765,20 @@ open class Step {
   /// ```
   profiles: List<String>?
 
+  /// How the positive entries in `profiles` combine. `"and"` (the default) requires all of
+  /// them to be enabled; `"or"` runs the step when any one of them is enabled. Negative
+  /// profiles such as `"!slow"` skip the step when enabled in either mode.
+  ///
+  /// ```pkl
+  /// local linters = new Mapping {
+  ///     ["prettier"] = (Builtins.prettier) {
+  ///         profiles = List("ci", "slow")
+  ///         profile_operator = "or"
+  ///     }
+  /// }
+  /// ```
+  profile_operator: ("and" | "or")?
+
   /// A list of steps that must finish before this step can run.
   ///
   /// ```pkl

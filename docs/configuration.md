@@ -387,7 +387,7 @@ hk check --profile slow
 HK_PROFILE=slow hk check
 ```
 
-A step requires **all** of its positive profile names to be enabled. `profiles = List("ci", "slow")` requires both `ci` and `slow`. A negative profile such as `"!slow"` prevents that step from running when `slow` is enabled. Quote `!slow` when passing it through a shell.
+A step requires **all** of its positive profile names to be enabled by default. `profiles = List("ci", "slow")` requires both `ci` and `slow`. Set `profile_operator = "or"` to run the step when **any** of its positive profiles is enabled. A negative profile such as `"!slow"` prevents that step from running when `slow` is enabled. Quote `!slow` when passing it through a shell.
 
 Set active profiles at the top level, via CLI flags, Git config, or `HK_PROFILE`. A hook’s `env` block configures child commands; it is not the place to select hk’s profiles.
 

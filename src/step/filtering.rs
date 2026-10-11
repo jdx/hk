@@ -19,7 +19,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use super::{FileSelector, Pattern, Step};
+use super::{FileSelector, Pattern, ProfileOperator, Step};
 
 /// Check if a file is binary by reading the first 8KB and looking for null bytes.
 ///
@@ -151,18 +151,27 @@ impl Step {
         let settings = Settings::get();
         if let Some(enabled) = self.enabled_profiles() {
             let enabled_profiles = settings.enabled_profiles();
-            let missing_profiles = enabled.difference(&enabled_profiles).collect::<Vec<_>>();
-            if !missing_profiles.is_empty() {
-                let profiles = missing_profiles
-                    .into_iter()
-                    .map(|s| s.to_string())
-                    .collect();
-                return Some(SkipReason::ProfileNotEnabled(profiles));
-            }
             let disabled_profiles_set = settings.disabled_profiles();
-            let disabled_profiles = disabled_profiles_set.intersection(&enabled).collect_vec();
-            if !disabled_profiles.is_empty() {
-                return Some(SkipReason::ProfileExplicitlyDisabled);
+            if self.profile_operator == Some(ProfileOperator::Or) {
+                if !enabled.is_empty() && enabled.is_disjoint(&enabled_profiles) {
+                    if enabled.is_subset(&disabled_profiles_set) {
+                        return Some(SkipReason::ProfileExplicitlyDisabled);
+                    }
+                    return Some(SkipReason::ProfileNotEnabled(enabled.into_iter().collect()));
+                }
+            } else {
+                let missing_profiles = enabled.difference(&enabled_profiles).collect::<Vec<_>>();
+                if !missing_profiles.is_empty() {
+                    let profiles = missing_profiles
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect();
+                    return Some(SkipReason::ProfileNotEnabled(profiles));
+                }
+                let disabled_profiles = disabled_profiles_set.intersection(&enabled).collect_vec();
+                if !disabled_profiles.is_empty() {
+                    return Some(SkipReason::ProfileExplicitlyDisabled);
+                }
             }
         }
         if let Some(disabled) = self.disabled_profiles() {
