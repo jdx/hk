@@ -157,7 +157,7 @@ impl Step {
                     enabled_profiles.contains(*p) && !disabled_profiles_set.contains(*p)
                 };
                 if !enabled.is_empty() && !enabled.iter().any(|p| active(&p)) {
-                    if enabled.iter().any(|p| disabled_profiles_set.contains(p)) {
+                    if enabled.is_subset(&disabled_profiles_set) {
                         return Some(SkipReason::ProfileExplicitlyDisabled);
                     }
                     return Some(SkipReason::ProfileNotEnabled(enabled.into_iter().collect()));
