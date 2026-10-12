@@ -4,8 +4,10 @@ import "./test/helpers.pkl"
 
 /// Lints GitHub Actions workflows, composite actions, and Dependabot configuration.
 ///
-/// Requires jactionlint v2, which reports rule IDs and fixes in SARIF (`--format sarif`) and
-/// has `--fix`. `check_diff` turns the fixes in that log into a patch. If any finding has no
+/// Requires jactionlint v2. `check` prints findings in jactionlint's gcc format, which hk parses
+/// into diagnostics (path, line, column, rule). The fixes come from a second run: `check_diff`
+/// asks jactionlint for its findings as SARIF (`--format sarif`), which carries the edit of every
+/// mechanical fix, and `hk util sarif-diff` turns those edits into a patch. If any finding has no
 /// fix, it prints no patch, so hk runs `jactionlint --fix` and reports what remains.
 ///
 /// jactionlint runs the rules of its `default` profile. To also run the noisier opinionated
@@ -15,7 +17,7 @@ import "./test/helpers.pkl"
 ///
 /// ```pkl
 /// ["jactionlint"] = (Builtins.jactionlint) {
-///   check { command { argv = List("jactionlint", "--profile", "pedantic", "--format", "sarif", "{{files}}") } }
+///   check { command { argv = List("jactionlint", "--profile", "pedantic", "--format", "gcc", "{{files}}") } }
 ///   check_diff { command { argv = List("hk", "util", "sarif-diff", "--", "jactionlint", "--profile", "pedantic", "--format", "sarif", "{{files}}") } }
 ///   fix { command { argv = List("jactionlint", "--profile", "pedantic", "--fix", "{{files}}") } }
 /// }
@@ -32,10 +34,10 @@ const jactionlint = new Config.Step {
       ".github/dependabot.y*ml",
     )
   batch = true
-  // `--format sarif` carries stable rule IDs, levels, regions and fixes
-  diagnostic_format = "sarif"
+  // `path:line:column: severity: message [rule]`
+  diagnostic_format = "gcc"
   check = new Config.CommandSpec {
-    command = new Config.Command { argv = List("jactionlint", "--format", "sarif", "{{files}}") }
+    command = new Config.Command { argv = List("jactionlint", "--format", "gcc", "{{files}}") }
     effect = "read"
   }
   check_diff = new Config.CommandSpec {
@@ -127,8 +129,19 @@ const jactionlint = new Config.Step {
 
       """
     ["check bad file"] = testMaker.checkFail(badWorkflow, 1)
-    // No diagnostics test: `expect.diagnostics` can't model a batched step with a
-    // single-document format like sarif. The check output is parsed in the e2e run instead.
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        badWorkflow,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = ".github/workflows/test.yml"
+          line = 3
+          column = 5
+          severity = "error"
+          rule = "workflow-syntax"
+          message = "unexpected key \"branch\""
+        }),
+      )
     ["check good file"] = testMaker.checkPass(goodWorkflow)
     // The patch comes from the fix in jactionlint's SARIF log, not from rerunning `--fix`.
     ["diff fixable file"] = testMaker.diffPass(fixableWorkflow, fixedWorkflow)
