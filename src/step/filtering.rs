@@ -410,6 +410,17 @@ impl<'a> WorkspaceFinder<'a> {
     }
 }
 
+/// Profile names passed to `profile('name')` in an expression, in order.
+fn profile_names(condition: &str) -> IndexSet<String> {
+    static RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r#"\bprofile\(\s*(?:'([^']*)'|"([^"]*)")\s*\)"#).unwrap()
+    });
+    RE.captures_iter(condition)
+        .filter_map(|c| c.get(1).or_else(|| c.get(2)))
+        .map(|m| m.as_str().to_string())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -500,15 +511,4 @@ mod tests {
 
         assert_eq!(step.filter_files(&files).unwrap(), files);
     }
-}
-
-/// Profile names passed to `profile('name')` in an expression, in order.
-fn profile_names(condition: &str) -> IndexSet<String> {
-    static RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-        regex::Regex::new(r#"\bprofile\(\s*(?:'([^']*)'|"([^"]*)")\s*\)"#).unwrap()
-    });
-    RE.captures_iter(condition)
-        .filter_map(|c| c.get(1).or_else(|| c.get(2)))
-        .map(|m| m.as_str().to_string())
-        .collect()
 }
