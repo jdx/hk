@@ -387,7 +387,15 @@ hk check --profile slow
 HK_PROFILE=slow hk check
 ```
 
-A step requires **all** of its positive profile names to be enabled by default. `profiles = List("ci", "slow")` requires both `ci` and `slow`. Set `profile_operator = "or"` to run the step when **any** of its positive profiles is enabled. A negative profile such as `"!slow"` prevents that step from running when `slow` is enabled. Quote `!slow` when passing it through a shell.
+A step requires **all** of its positive profile names to be enabled by default. `profiles = List("ci", "slow")` requires both `ci` and `slow`. A negative profile such as `"!slow"` prevents that step from running when `slow` is enabled. Quote `!slow` when passing it through a shell.
+
+For other combinations, such as "any of", use `profile_condition`. It is an [expression](#conditions-and-git-status) where `profile('name')` is true when that profile is enabled and not explicitly disabled. It applies in addition to `profiles`.
+
+```pkl
+["prettier"] = (Builtins.prettier) {
+  profile_condition = "profile('ci') or profile('slow')"
+}
+```
 
 Set active profiles at the top level, via CLI flags, Git config, or `HK_PROFILE`. A hook’s `env` block configures child commands; it is not the place to select hk’s profiles.
 

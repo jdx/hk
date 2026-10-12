@@ -158,8 +158,8 @@ pub struct Step {
     /// Profiles that enable/disable this step (prefix with `!` to disable)
     pub profiles: Option<Vec<String>>,
 
-    /// How positive `profiles` combine: `and` (default) requires all, `or` requires any
-    pub profile_operator: Option<ProfileOperator>,
+    /// Expression over profiles, e.g. `profile('ci') or profile('slow')`
+    pub profile_condition: Option<String>,
 
     /// File matching pattern (globs or regex)
     #[serde(default)]
@@ -321,18 +321,6 @@ impl fmt::Display for Step {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
-}
-
-/// How a step's positive `profiles` combine to enable it.
-///
-/// * `And` - every positive profile must be enabled (default)
-/// * `Or` - at least one positive profile must be enabled
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ProfileOperator {
-    #[default]
-    And,
-    Or,
 }
 
 /// The mode in which a step runs.

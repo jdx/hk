@@ -121,20 +121,19 @@ EOF
     refute_output --partial "skipped due to missing profiles"
 }
 
-@test "profile_operator or: runs when any positive profile is enabled" {
+@test "profile_condition: supports or, and, and not" {
     cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["either"] {
-                profiles = List("ci", "slow")
-                profile_operator = "or"
+                profile_condition = "profile('ci') or profile('slow')"
                 check = "echo EITHER_RAN"
             }
-            ["both"] {
-                profiles = List("ci", "slow")
-                check = "echo BOTH_RAN"
+            ["mixed"] {
+                profile_condition = "profile('ci') and not profile('slow')"
+                check = "echo MIXED_RAN"
             }
         }
     }
@@ -144,44 +143,42 @@ EOF2
     run hk check
     assert_success
     refute_output --partial "EITHER_RAN"
+    refute_output --partial "MIXED_RAN"
     run hk check --profile ci
     assert_success
     assert_output --partial "EITHER_RAN"
-    refute_output --partial "BOTH_RAN"
+    assert_output --partial "MIXED_RAN"
+    run hk check --profile slow
+    assert_success
+    assert_output --partial "EITHER_RAN"
+    refute_output --partial "MIXED_RAN"
     run hk check --profile ci --profile slow
     assert_success
     assert_output --partial "EITHER_RAN"
-    assert_output --partial "BOTH_RAN"
+    refute_output --partial "MIXED_RAN"
 }
 
-@test "profile_operator or: negative profiles still skip the step" {
+@test "profile_condition: explicit disable wins and hints skip reason" {
     cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["check"] {
         steps {
-            ["mixed"] {
-                profiles = List("ci", "!slow")
-                profile_operator = "or"
-                check = "echo MIXED_RAN"
-            }
-            ["only-ci"] {
-                profiles = List("ci")
-                profile_operator = "or"
-                check = "echo ONLYCI_RAN"
+            ["either"] {
+                profile_condition = "profile('ci') or profile('slow')"
+                check = "echo EITHER_RAN"
             }
         }
     }
 }
 EOF2
     touch test.txt
-    run hk check --profile ci
-    assert_success
-    assert_output --partial "MIXED_RAN"
-    run hk check --profile ci --profile slow
-    assert_success
-    refute_output --partial "MIXED_RAN"
     run hk check --profile ci --profile '!ci'
     assert_success
-    refute_output --partial "ONLYCI_RAN"
+    refute_output --partial "EITHER_RAN"
+    run hk check --profile '!slow'
+    assert_success
+    refute_output --partial "EITHER_RAN"
+    assert_output --partial "profile not enabled (ci)"
 }

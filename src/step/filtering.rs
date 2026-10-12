@@ -19,7 +19,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use super::{FileSelector, Pattern, ProfileOperator, Step};
+use super::{FileSelector, Pattern, Step, eval_condition};
 
 /// Check if a file is binary by reading the first 8KB and looking for null bytes.
 ///
@@ -151,34 +151,18 @@ impl Step {
         let settings = Settings::get();
         if let Some(enabled) = self.enabled_profiles() {
             let enabled_profiles = settings.enabled_profiles();
+            let missing_profiles = enabled.difference(&enabled_profiles).collect::<Vec<_>>();
+            if !missing_profiles.is_empty() {
+                let profiles = missing_profiles
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                return Some(SkipReason::ProfileNotEnabled(profiles));
+            }
             let disabled_profiles_set = settings.disabled_profiles();
-            if self.profile_operator == Some(ProfileOperator::Or) {
-                let active = |p: &&String| {
-                    enabled_profiles.contains(*p) && !disabled_profiles_set.contains(*p)
-                };
-                if !enabled.is_empty() && !enabled.iter().any(|p| active(&p)) {
-                    if enabled.is_subset(&disabled_profiles_set) {
-                        return Some(SkipReason::ProfileExplicitlyDisabled);
-                    }
-                    let candidates = enabled
-                        .into_iter()
-                        .filter(|p| !disabled_profiles_set.contains(p))
-                        .collect();
-                    return Some(SkipReason::ProfileNotEnabled(candidates));
-                }
-            } else {
-                let missing_profiles = enabled.difference(&enabled_profiles).collect::<Vec<_>>();
-                if !missing_profiles.is_empty() {
-                    let profiles = missing_profiles
-                        .into_iter()
-                        .map(|s| s.to_string())
-                        .collect();
-                    return Some(SkipReason::ProfileNotEnabled(profiles));
-                }
-                let disabled_profiles = disabled_profiles_set.intersection(&enabled).collect_vec();
-                if !disabled_profiles.is_empty() {
-                    return Some(SkipReason::ProfileExplicitlyDisabled);
-                }
+            let disabled_profiles = disabled_profiles_set.intersection(&enabled).collect_vec();
+            if !disabled_profiles.is_empty() {
+                return Some(SkipReason::ProfileExplicitlyDisabled);
             }
         }
         if let Some(disabled) = self.disabled_profiles() {
@@ -188,7 +172,33 @@ impl Step {
                 return Some(SkipReason::ProfileExplicitlyDisabled);
             }
         }
+        if let Some(condition) = &self.profile_condition {
+            match eval_condition(condition, &super::EXPR_CTX) {
+                Ok(expr::Value::Bool(true)) => {}
+                Ok(_) => return Some(self.profile_condition_skip_reason(condition)),
+                Err(err) => {
+                    warn!("{self}: invalid profile_condition `{condition}`: {err}");
+                    return Some(self.profile_condition_skip_reason(condition));
+                }
+            }
+        }
         None
+    }
+
+    /// Explain a false `profile_condition` using the profiles it names.
+    fn profile_condition_skip_reason(&self, condition: &str) -> SkipReason {
+        let settings = Settings::get();
+        let disabled = settings.disabled_profiles();
+        let named = profile_names(condition);
+        if !named.is_empty() && named.iter().all(|p| disabled.contains(p)) {
+            return SkipReason::ProfileExplicitlyDisabled;
+        }
+        SkipReason::ProfileNotEnabled(
+            named
+                .into_iter()
+                .filter(|p| !disabled.contains(p))
+                .collect(),
+        )
     }
 
     /// Filter a list of files based on the step's configuration.
@@ -490,4 +500,15 @@ mod tests {
 
         assert_eq!(step.filter_files(&files).unwrap(), files);
     }
+}
+
+/// Profile names passed to `profile('name')` in an expression, in order.
+fn profile_names(condition: &str) -> IndexSet<String> {
+    static RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r#"\bprofile\(\s*(?:'([^']*)'|"([^"]*)")\s*\)"#).unwrap()
+    });
+    RE.captures_iter(condition)
+        .filter_map(|c| c.get(1).or_else(|| c.get(2)))
+        .map(|m| m.as_str().to_string())
+        .collect()
 }
