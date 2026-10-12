@@ -53,26 +53,75 @@ const jactionlint = new Config.Step {
       filename = ".github/workflows/test.yml"
       before = "git init"
     }
-    local const badWorkflow =
-      """
-      on:
-        push:
-          branch: main
-      jobs:
-        test:
-          runs-on: ubuntu-latest
-          steps:
-            - run: echo "Pass"
-
-      """
+    // Clean under jactionlint's default profile, which also wants a timeout, a concurrency group and
+    // explicit permissions
     local const goodWorkflow =
       """
       on:
         push:
           branches: main
+      concurrency:
+        group: ${{ github.workflow }}-${{ github.ref }}
+        cancel-in-progress: true
+      permissions: {}
       jobs:
         test:
           runs-on: ubuntu-latest
+          timeout-minutes: 5
+          steps:
+            - run: echo "Pass"
+
+      """
+    // A mistake with no fix: `branch` should be `branches`
+    local const badWorkflow =
+      """
+      on:
+        push:
+          branch: main
+      concurrency:
+        group: ${{ github.workflow }}-${{ github.ref }}
+        cancel-in-progress: true
+      permissions: {}
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          timeout-minutes: 5
+          steps:
+            - run: echo "Pass"
+
+      """
+    // Its only finding is `missing-permissions`, which has a safe fix
+    local const fixableWorkflow =
+      """
+      on:
+        push:
+          branches: main
+      concurrency:
+        group: ${{ github.workflow }}-${{ github.ref }}
+        cancel-in-progress: true
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          timeout-minutes: 5
+          steps:
+            - run: echo "Pass"
+
+      """
+    local const fixedWorkflow =
+      """
+      on:
+        push:
+          branches: main
+
+      permissions:
+        contents: read
+      concurrency:
+        group: ${{ github.workflow }}-${{ github.ref }}
+        cancel-in-progress: true
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          timeout-minutes: 5
           steps:
             - run: echo "Pass"
 
@@ -82,7 +131,7 @@ const jactionlint = new Config.Step {
     // single-document format like sarif. The check output is parsed in the e2e run instead.
     ["check good file"] = testMaker.checkPass(goodWorkflow)
     // The patch comes from the fix in jactionlint's SARIF log, not from rerunning `--fix`.
-    ["diff bad file"] = testMaker.diffPass(badWorkflow, goodWorkflow)
-    ["fix bad file"] = testMaker.fixPass(badWorkflow, goodWorkflow)
+    ["diff fixable file"] = testMaker.diffPass(fixableWorkflow, fixedWorkflow)
+    ["fix fixable file"] = testMaker.fixPass(fixableWorkflow, fixedWorkflow)
   }
 }

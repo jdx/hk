@@ -36,13 +36,7 @@ local linters = new Mapping<String, Step | Group> {
     dir = "docs"
     prefix = List("aube", "run")
   }
-  ["jactionlint"] = (Builtins.jactionlint) {
-    glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
-    fix = new CommandSpec {
-      command = "jactionlint --fix {{ files }}"
-      effect = "write"
-    }
-  }
+  ["jactionlint"] = Builtins.jactionlint
   ["newlines"] = Builtins.newlines
   ["trailing-whitespace"] = Builtins.trailing_whitespace
   ["prettier"] = (Builtins.prettier) {
