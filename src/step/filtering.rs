@@ -175,7 +175,14 @@ impl Step {
         if let Some(condition) = &self.profile_condition {
             match eval_condition(condition, &super::EXPR_CTX) {
                 Ok(expr::Value::Bool(true)) => {}
-                Ok(_) => return Some(self.profile_condition_skip_reason(condition)),
+                Ok(value) => {
+                    if !matches!(value, expr::Value::Bool(false)) {
+                        warn!(
+                            "{self}: profile_condition `{condition}` must evaluate to a boolean, got {value:?}"
+                        );
+                    }
+                    return Some(self.profile_condition_skip_reason(condition));
+                }
                 Err(err) => {
                     warn!("{self}: invalid profile_condition `{condition}`: {err}");
                     return Some(self.profile_condition_skip_reason(condition));
@@ -194,12 +201,15 @@ impl Step {
         if !named.is_empty() && named.iter().all(|p| disabled.contains(p)) {
             return SkipReason::ProfileExplicitlyDisabled;
         }
-        SkipReason::ProfileNotEnabled(
-            named
-                .into_iter()
-                .filter(|p| !disabled.contains(p) && !enabled.contains(p))
-                .collect(),
-        )
+        let candidates: Vec<String> = named
+            .into_iter()
+            .filter(|p| !disabled.contains(p) && !enabled.contains(p))
+            .collect();
+        if candidates.is_empty() {
+            // Nothing the user could enable would help, so don't emit a missing-profile hint.
+            return SkipReason::ProfileExplicitlyDisabled;
+        }
+        SkipReason::ProfileNotEnabled(candidates)
     }
 
     /// Filter a list of files based on the step's configuration.

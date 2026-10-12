@@ -204,4 +204,5 @@ EOF2
     refute_output --partial "GATED_RAN"
     refute_output --partial "profile not enabled (ci, slow)"
     refute_output --partial "profile not enabled (slow)"
+    refute_output --partial "skipped due to missing profiles"
 }
