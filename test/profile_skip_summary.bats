@@ -182,3 +182,26 @@ EOF2
     refute_output --partial "EITHER_RAN"
     assert_output --partial "profile not enabled (ci)"
 }
+
+@test "profile_condition: hints omit profiles that are already enabled" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
+hooks {
+    ["check"] {
+        steps {
+            ["gated"] {
+                profile_condition = "profile('ci') and not profile('slow')"
+                check = "echo GATED_RAN"
+            }
+        }
+    }
+}
+EOF2
+    touch test.txt
+    run hk check --profile ci --profile slow
+    assert_success
+    refute_output --partial "GATED_RAN"
+    refute_output --partial "profile not enabled (ci, slow)"
+    refute_output --partial "profile not enabled (slow)"
+}

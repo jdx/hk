@@ -189,6 +189,7 @@ impl Step {
     fn profile_condition_skip_reason(&self, condition: &str) -> SkipReason {
         let settings = Settings::get();
         let disabled = settings.disabled_profiles();
+        let enabled = settings.enabled_profiles();
         let named = profile_names(condition);
         if !named.is_empty() && named.iter().all(|p| disabled.contains(p)) {
             return SkipReason::ProfileExplicitlyDisabled;
@@ -196,7 +197,7 @@ impl Step {
         SkipReason::ProfileNotEnabled(
             named
                 .into_iter()
-                .filter(|p| !disabled.contains(p))
+                .filter(|p| !disabled.contains(p) && !enabled.contains(p))
                 .collect(),
         )
     }
