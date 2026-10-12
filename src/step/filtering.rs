@@ -202,12 +202,17 @@ impl Step {
             return SkipReason::ProfileExplicitlyDisabled;
         }
         let candidates: Vec<String> = named
-            .into_iter()
-            .filter(|p| !disabled.contains(p) && !enabled.contains(p))
+            .iter()
+            .filter(|p| !disabled.contains(*p) && !enabled.contains(*p))
+            .cloned()
             .collect();
         if candidates.is_empty() {
             // Nothing the user could enable would help, so don't emit a missing-profile hint.
-            return SkipReason::ProfileExplicitlyDisabled;
+            return if named.iter().any(|p| disabled.contains(p)) {
+                SkipReason::ProfileExplicitlyDisabled
+            } else {
+                SkipReason::ConditionFalse
+            };
         }
         SkipReason::ProfileNotEnabled(candidates)
     }

@@ -187,6 +187,7 @@ EOF2
     cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 warnings = List("missing-profiles")
+display_skip_reasons = List("condition-false")
 hooks {
     ["check"] {
         steps {
@@ -205,4 +206,5 @@ EOF2
     refute_output --partial "profile not enabled (ci, slow)"
     refute_output --partial "profile not enabled (slow)"
     refute_output --partial "skipped due to missing profiles"
+    assert_output --partial "skipped: condition is false"
 }
