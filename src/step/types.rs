@@ -158,6 +158,9 @@ pub struct Step {
     /// Profiles that enable/disable this step (prefix with `!` to disable)
     pub profiles: Option<Vec<String>>,
 
+    /// Expression over profiles, e.g. `profile('ci') or profile('slow')`
+    pub profile_condition: Option<String>,
+
     /// File matching pattern (globs or regex)
     #[serde(default)]
     pub glob: Option<Pattern>,

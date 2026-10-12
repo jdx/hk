@@ -19,7 +19,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use super::{FileSelector, Pattern, Step};
+use super::{FileSelector, Pattern, Step, eval_condition};
 
 /// Check if a file is binary by reading the first 8KB and looking for null bytes.
 ///
@@ -172,7 +172,49 @@ impl Step {
                 return Some(SkipReason::ProfileExplicitlyDisabled);
             }
         }
+        if let Some(condition) = &self.profile_condition {
+            match eval_condition(condition, &super::EXPR_CTX) {
+                Ok(expr::Value::Bool(true)) => {}
+                Ok(value) => {
+                    if !matches!(value, expr::Value::Bool(false)) {
+                        warn!(
+                            "{self}: profile_condition `{condition}` must evaluate to a boolean, got {value:?}"
+                        );
+                    }
+                    return Some(self.profile_condition_skip_reason(condition));
+                }
+                Err(err) => {
+                    warn!("{self}: invalid profile_condition `{condition}`: {err}");
+                    return Some(self.profile_condition_skip_reason(condition));
+                }
+            }
+        }
         None
+    }
+
+    /// Explain a false `profile_condition` using the profiles it names.
+    fn profile_condition_skip_reason(&self, condition: &str) -> SkipReason {
+        let settings = Settings::get();
+        let disabled = settings.disabled_profiles();
+        let enabled = settings.enabled_profiles();
+        let named = profile_names(condition);
+        if !named.is_empty() && named.iter().all(|p| disabled.contains(p)) {
+            return SkipReason::ProfileExplicitlyDisabled;
+        }
+        let candidates: Vec<String> = named
+            .iter()
+            .filter(|p| !disabled.contains(*p) && !enabled.contains(*p))
+            .cloned()
+            .collect();
+        if candidates.is_empty() {
+            // Nothing the user could enable would help, so don't emit a missing-profile hint.
+            return if named.iter().any(|p| disabled.contains(p)) {
+                SkipReason::ProfileExplicitlyDisabled
+            } else {
+                SkipReason::ConditionFalse
+            };
+        }
+        SkipReason::ProfileNotEnabled(candidates)
     }
 
     /// Filter a list of files based on the step's configuration.
@@ -382,6 +424,17 @@ impl<'a> WorkspaceFinder<'a> {
         }
         found
     }
+}
+
+/// Profile names passed to `profile('name')` in an expression, in order.
+fn profile_names(condition: &str) -> IndexSet<String> {
+    static RE: LazyLock<regex::Regex> = LazyLock::new(|| {
+        regex::Regex::new(r#"\bprofile\(\s*(?:'([^']*)'|"([^"]*)")\s*\)"#).unwrap()
+    });
+    RE.captures_iter(condition)
+        .filter_map(|c| c.get(1).or_else(|| c.get(2)))
+        .map(|m| m.as_str().to_string())
+        .collect()
 }
 
 #[cfg(test)]

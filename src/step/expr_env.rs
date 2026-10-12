@@ -18,6 +18,8 @@ pub static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::defa
 ///   error.
 /// - `exec_ok(command)` - Execute a shell command and return whether it exited
 ///   with status 0. Use it in conditions: `exec_ok('test -f check.js')`.
+/// - `profile(name)` - Return whether a profile is enabled and not explicitly
+///   disabled. Use it in `profile_condition`: `profile('ci') or profile('slow')`.
 /// - `env(name)` - Return an environment variable, or an empty string when unset
 pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::new();
@@ -43,6 +45,21 @@ pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
         let script = shell_script_arg("exec_ok", &c.args)?;
         let output = run_shell(script, Stdio::null())?;
         Ok(expr::Value::Bool(output.status.success()))
+    });
+
+    env.add_function("profile", |c| {
+        let name = match c.args.as_slice() {
+            [arg] => arg.as_string(),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            expr::Error::ExprError("profile() expects exactly one string argument".to_string())
+        })?;
+        let settings = crate::settings::Settings::get();
+        Ok(expr::Value::Bool(
+            settings.enabled_profiles().contains(name)
+                && !settings.disabled_profiles().contains(name),
+        ))
     });
 
     env.add_function("env", |c| {
