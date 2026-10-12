@@ -24,7 +24,7 @@ New aboard, sailor? Get under way with [getting started](/getting_started), a se
 
 **How to hail it:** `hk [FLAGS] <SUBCOMMAND>`
 
-**Version:** 2.5.0
+**Version:** 2.6.0
 
 ## Flags flown on every call {#global-flags}
 

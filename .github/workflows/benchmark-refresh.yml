@@ -194,6 +194,7 @@ jobs:
           MEASURED: ${{ needs.check.outputs.measured }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          set -o pipefail
           # Stage first: the first refresh adds results.json rather than
           # modifying it, and an untracked file is invisible to `git diff`.
           git add benchmark/results.json

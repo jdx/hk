@@ -14,6 +14,12 @@ on:
 
 permissions: {}
 
+# The called workflow has its own group of the shape <workflow>-<ref>; sharing that
+# name with the caller would cancel it, so this group is named differently.
+concurrency:
+  group: ${{ github.workflow }}-caller-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   mise-lock:
     permissions:

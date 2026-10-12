@@ -14,8 +14,8 @@ For a first setup, use [getting started](/getting_started). For complete configu
 A configuration amends hk’s [Pkl schema](/pkl_introduction). For a shared set of linters, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -387,7 +387,15 @@ hk check --profile slow
 HK_PROFILE=slow hk check
 ```
 
-A step requires **all** of its positive profile names to be enabled. `profiles = List("ci", "slow")` requires both `ci` and `slow`. A negative profile such as `"!slow"` prevents that step from running when `slow` is enabled. Quote `!slow` when passing it through a shell.
+A step requires **all** of its positive profile names to be enabled by default. `profiles = List("ci", "slow")` requires both `ci` and `slow`. A negative profile such as `"!slow"` prevents that step from running when `slow` is enabled. Quote `!slow` when passing it through a shell.
+
+For other combinations, such as "any of", use `profile_condition`. It is an [expression](#conditions-and-git-status) where `profile('name')` is true when that profile is enabled and not explicitly disabled. It applies in addition to `profiles`.
+
+```pkl
+["prettier"] = (Builtins.prettier) {
+  profile_condition = "profile('ci') or profile('slow')"
+}
+```
 
 Set active profiles at the top level, via CLI flags, Git config, or `HK_PROFILE`. A hook’s `env` block configures child commands; it is not the place to select hk’s profiles.
 
@@ -497,8 +505,8 @@ package {
 ```
 
 ```pkl [hk.pkl]
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.pkl"
 
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace
@@ -596,7 +604,7 @@ Higher layers override lower ones for scalar settings. List settings such as `ex
 Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
 
 jobs = 4
 fail_fast = false

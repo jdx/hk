@@ -13,8 +13,8 @@ Builtins be the standing crew who come with the ship: reusable Pkl step definiti
 ## Muster a builtin {#use-a-builtin}
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.5.0/hk@2.5.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.pkl"
 
 hooks {
   ["check"] {

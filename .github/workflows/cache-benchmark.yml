@@ -44,7 +44,9 @@ jobs:
         shell: bash
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       - name: Restore Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
+        # save-if restricts writes to main pushes
+        # jactionlint ignore=cache-poisoning
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: cache-benchmark-linux-v1
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -140,7 +142,9 @@ jobs:
         shell: bash
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       - name: Restore Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
+        # save-if restricts writes to main pushes
+        # jactionlint ignore=cache-poisoning
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: cache-benchmark-macos-v1
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -236,7 +240,9 @@ jobs:
         shell: pwsh
         run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       - name: Restore Cargo cache
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
+        # save-if restricts writes to main pushes
+        # jactionlint ignore=cache-poisoning
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: cache-benchmark-windows-v1
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
