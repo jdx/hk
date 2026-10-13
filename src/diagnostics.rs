@@ -119,6 +119,34 @@ pub fn parse_segments<'a>(
     merged
 }
 
+/// Render diagnostics as `path:line:col: severity: message [rule]` lines for terminal output.
+pub fn render_text(diagnostics: &[Diagnostic]) -> String {
+    let mut out = String::new();
+    for d in diagnostics {
+        if let Some(path) = &d.path {
+            out.push_str(path);
+            if let Some(range) = &d.range {
+                out.push_str(&format!(":{}:{}", range.start.line, range.start.column));
+            }
+            out.push_str(": ");
+        }
+        let severity = match d.severity {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            Severity::Note => "note",
+            Severity::Help => "help",
+        };
+        out.push_str(severity);
+        out.push_str(": ");
+        out.push_str(&d.message);
+        if let Some(rule) = &d.rule {
+            out.push_str(&format!(" [{rule}]"));
+        }
+        out.push('\n');
+    }
+    out
+}
+
 /// Make diagnostic paths relative to the repository root.
 ///
 /// `dir` is the directory, relative to the repository root, the tool ran in.
@@ -619,6 +647,16 @@ pub fn write_sarif(path: &Path, diagnostics: &[Diagnostic]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn render_text_formats_sarif_findings() {
+        let sarif = r#"{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"t"}},"results":[{"ruleId":"missing-timeout","level":"error","message":{"text":"no timeout"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"a.yml"},"region":{"startLine":3,"startColumn":2}}}]}]}]}"#;
+        let parsed = super::parse(super::DiagnosticFormat::Sarif, "s", "t", sarif);
+        assert_eq!(
+            super::render_text(&parsed.diagnostics),
+            "a.yml:3:2: error: no timeout [missing-timeout]\n"
+        );
+    }
+
     use super::*;
 
     #[test]

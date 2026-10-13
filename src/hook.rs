@@ -1658,6 +1658,44 @@ impl Hook {
                     })
                     .or_insert_with(|| (mode, diagnostic_output.clone()));
             }
+            // A JSON diagnostic format prints as an unreadable document, so show the
+            // parsed findings instead when any parsed.
+            let diagnostic_segments = hook_ctx.diagnostic_segments_by_step.lock().unwrap();
+            for (step_name, (_, output)) in outputs.iter_mut() {
+                if !failed_steps.contains(step_name) {
+                    continue;
+                }
+                let Some(step) = hook_ctx
+                    .groups
+                    .iter()
+                    .find_map(|group| group.steps.get(step_name))
+                else {
+                    continue;
+                };
+                let Some(format) = step.diagnostic_format else {
+                    continue;
+                };
+                if matches!(format, crate::step::DiagnosticFormat::Gcc) {
+                    continue;
+                }
+                let Some(segments) = diagnostic_segments.get(step_name) else {
+                    continue;
+                };
+                let tool = step.diagnostic_tool.as_deref().unwrap_or(step_name);
+                let parsed = crate::diagnostics::parse_segments(
+                    format,
+                    step_name,
+                    tool,
+                    segments
+                        .iter()
+                        .map(|segment| (segment.dir.as_deref(), segment.output.as_str())),
+                    step.diagnostic_severity.clone(),
+                );
+                if !parsed.diagnostics.is_empty() {
+                    *output = crate::diagnostics::render_text(&parsed.diagnostics);
+                }
+            }
+            drop(diagnostic_segments);
             for (step_name, (mode, output)) in outputs.into_iter() {
                 if only_failed
                     && !failed_steps.contains(&step_name)
