@@ -162,7 +162,7 @@ jobs:
         shell: pwsh
         run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       # Restore-only: the cache benchmark's main-branch pushes seed this entry.
-      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
+      - uses: jdx/mr-boxington-action@d0825fbaf3cc36ca2609aa38e71046265a1f1e37 # v1.7.1
         with:
           version: ${{ inputs.mbx_ref == '' && '1.19.0' || '' }}
           cache-generation: ci-v2
