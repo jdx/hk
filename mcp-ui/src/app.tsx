@@ -314,7 +314,7 @@ export function Dashboard({
         </div>
       </header>
 
-      {alert && <aside role="alert">{alert}</aside>}
+      {alert && <div role="alert">{alert}</div>}
 
       {!isTerminal ? (
         <>

@@ -190,7 +190,7 @@ h3 {
   font-size: 18px;
 }
 
-aside[role="alert"] {
+div[role="alert"] {
   margin: 12px 20px 0;
   padding: 10px 12px;
   border: 1px solid #684c24;
