@@ -1675,7 +1675,13 @@ impl Hook {
                 let Some(format) = step.diagnostic_format else {
                     continue;
                 };
-                if matches!(format, crate::step::DiagnosticFormat::Gcc) {
+                // Only single-document formats: the whole output is the JSON, so nothing
+                // else is lost. cargo-json interleaves other text, and gcc is readable.
+                if !matches!(
+                    format,
+                    crate::step::DiagnosticFormat::Sarif
+                        | crate::step::DiagnosticFormat::EslintJson
+                ) {
                     continue;
                 }
                 let Some(segments) = diagnostic_segments.get(step_name) else {

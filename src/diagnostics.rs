@@ -138,7 +138,7 @@ pub fn render_text(diagnostics: &[Diagnostic]) -> String {
         };
         out.push_str(severity);
         out.push_str(": ");
-        out.push_str(&d.message);
+        out.push_str(&d.message.split_whitespace().collect::<Vec<_>>().join(" "));
         if let Some(rule) = &d.rule {
             out.push_str(&format!(" [{rule}]"));
         }
@@ -647,6 +647,16 @@ pub fn write_sarif(path: &Path, diagnostics: &[Diagnostic]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn render_text_keeps_multiline_message_on_one_line() {
+        let sarif = r#"{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"t"}},"results":[{"ruleId":"r","level":"warning","message":{"text":"first\nsecond"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"a.yml"}}}]}]}]}"#;
+        let parsed = super::parse(super::DiagnosticFormat::Sarif, "s", "t", sarif);
+        assert_eq!(
+            super::render_text(&parsed.diagnostics),
+            "a.yml: warning: first second [r]\n"
+        );
+    }
+
     #[test]
     fn render_text_formats_sarif_findings() {
         let sarif = r#"{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"t"}},"results":[{"ruleId":"missing-timeout","level":"error","message":{"text":"no timeout"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"a.yml"},"region":{"startLine":3,"startColumn":2}}}]}]}]}"#;
