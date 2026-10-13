@@ -1689,8 +1689,17 @@ impl Hook {
                 let tool = step.diagnostic_tool.as_deref().unwrap_or(step_name);
                 // Replace each parsed document in place, leaving any other command
                 // output (a fixer's error, a batch that did not parse) untouched.
+                // Identical documents from different directories (e.g. workspaces) are
+                // rendered together so each directory's paths are rebased separately;
+                // every copy in the output is replaced by that combined rendering.
+                let mut by_raw: IndexMap<&str, Vec<&DiagnosticSegment>> = IndexMap::new();
                 for segment in segments {
-                    let raw = segment.output.trim();
+                    by_raw
+                        .entry(segment.output.trim())
+                        .or_default()
+                        .push(segment);
+                }
+                for (raw, group) in by_raw {
                     if raw.is_empty() || !output.contains(raw) {
                         continue;
                     }
@@ -1698,7 +1707,9 @@ impl Hook {
                         format,
                         step_name,
                         tool,
-                        [(segment.dir.as_deref(), segment.output.as_str())],
+                        group
+                            .iter()
+                            .map(|segment| (segment.dir.as_deref(), segment.output.as_str())),
                         step.diagnostic_severity.clone(),
                     );
                     if !parsed.diagnostics.is_empty() {
