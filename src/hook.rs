@@ -1691,7 +1691,7 @@ impl Hook {
                 // output (a fixer's error, a batch that did not parse) untouched.
                 // Identical documents from different directories (e.g. workspaces) are
                 // rendered together so each directory's paths are rebased separately;
-                // every copy in the output is replaced by that combined rendering.
+                // the first copy in the output becomes that combined rendering and the rest are dropped.
                 let mut by_raw: IndexMap<&str, Vec<&DiagnosticSegment>> = IndexMap::new();
                 for segment in segments {
                     by_raw
@@ -1714,7 +1714,10 @@ impl Hook {
                     );
                     if !parsed.diagnostics.is_empty() {
                         let rendered = crate::diagnostics::render_text(&parsed.diagnostics);
-                        *output = output.replace(raw, rendered.trim_end());
+                        // Render the combined list once; drop the other copies.
+                        *output = output
+                            .replacen(raw, rendered.trim_end(), 1)
+                            .replace(raw, "");
                     }
                 }
             }
