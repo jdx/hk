@@ -1703,7 +1703,7 @@ impl Hook {
                     );
                     if !parsed.diagnostics.is_empty() {
                         let rendered = crate::diagnostics::render_text(&parsed.diagnostics);
-                        *output = output.replacen(raw, rendered.trim_end(), 1);
+                        *output = output.replace(raw, rendered.trim_end());
                     }
                 }
             }
