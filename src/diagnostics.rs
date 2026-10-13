@@ -119,12 +119,25 @@ pub fn parse_segments<'a>(
     merged
 }
 
+/// Escape control characters so tool-provided text cannot drive the terminal.
+fn sanitize(text: &str) -> String {
+    text.chars()
+        .flat_map(|c| {
+            if c.is_control() {
+                c.escape_default().collect::<Vec<_>>()
+            } else {
+                vec![c]
+            }
+        })
+        .collect()
+}
+
 /// Render diagnostics as `path:line:col: severity: message [rule]` lines for terminal output.
 pub fn render_text(diagnostics: &[Diagnostic]) -> String {
     let mut out = String::new();
     for d in diagnostics {
         if let Some(path) = &d.path {
-            out.push_str(path);
+            out.push_str(&sanitize(path));
             if let Some(range) = &d.range {
                 out.push_str(&format!(":{}:{}", range.start.line, range.start.column));
             }
@@ -138,9 +151,11 @@ pub fn render_text(diagnostics: &[Diagnostic]) -> String {
         };
         out.push_str(severity);
         out.push_str(": ");
-        out.push_str(&d.message.split_whitespace().collect::<Vec<_>>().join(" "));
+        out.push_str(&sanitize(
+            &d.message.split_whitespace().collect::<Vec<_>>().join(" "),
+        ));
         if let Some(rule) = &d.rule {
-            out.push_str(&format!(" [{rule}]"));
+            out.push_str(&format!(" [{}]", sanitize(rule)));
         }
         out.push('\n');
     }
@@ -654,6 +669,16 @@ mod tests {
         assert_eq!(
             super::render_text(&parsed.diagnostics),
             "a.yml: warning: first second [r]\n"
+        );
+    }
+
+    #[test]
+    fn render_text_escapes_terminal_controls() {
+        let sarif = r#"{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"t"}},"results":[{"ruleId":"r","level":"error","message":{"text":"\u001b[2Jhi"},"locations":[{"physicalLocation":{"artifactLocation":{"uri":"a.yml"}}}]}]}]}"#;
+        let parsed = super::parse(super::DiagnosticFormat::Sarif, "s", "t", sarif);
+        assert_eq!(
+            super::render_text(&parsed.diagnostics),
+            "a.yml: error: \\u{1b}[2Jhi [r]\n"
         );
     }
 

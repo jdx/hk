@@ -1672,33 +1672,39 @@ impl Hook {
                 else {
                     continue;
                 };
-                let Some(format) = step.diagnostic_format else {
-                    continue;
-                };
                 // Only single-document formats: the whole output is the JSON, so nothing
                 // else is lost. cargo-json interleaves other text, and gcc is readable.
-                if !matches!(
-                    format,
-                    crate::step::DiagnosticFormat::Sarif
-                        | crate::step::DiagnosticFormat::EslintJson
-                ) {
+                let Some(format) = step.diagnostic_format.filter(|format| {
+                    matches!(
+                        format,
+                        crate::step::DiagnosticFormat::Sarif
+                            | crate::step::DiagnosticFormat::EslintJson
+                    )
+                }) else {
                     continue;
-                }
+                };
                 let Some(segments) = diagnostic_segments.get(step_name) else {
                     continue;
                 };
                 let tool = step.diagnostic_tool.as_deref().unwrap_or(step_name);
-                let parsed = crate::diagnostics::parse_segments(
-                    format,
-                    step_name,
-                    tool,
-                    segments
-                        .iter()
-                        .map(|segment| (segment.dir.as_deref(), segment.output.as_str())),
-                    step.diagnostic_severity.clone(),
-                );
-                if !parsed.diagnostics.is_empty() {
-                    *output = crate::diagnostics::render_text(&parsed.diagnostics);
+                // Replace each parsed document in place, leaving any other command
+                // output (a fixer's error, a batch that did not parse) untouched.
+                for segment in segments {
+                    let raw = segment.output.trim();
+                    if raw.is_empty() || !output.contains(raw) {
+                        continue;
+                    }
+                    let parsed = crate::diagnostics::parse_segments(
+                        format,
+                        step_name,
+                        tool,
+                        [(segment.dir.as_deref(), segment.output.as_str())],
+                        step.diagnostic_severity.clone(),
+                    );
+                    if !parsed.diagnostics.is_empty() {
+                        let rendered = crate::diagnostics::render_text(&parsed.diagnostics);
+                        *output = output.replacen(raw, rendered.trim_end(), 1);
+                    }
                 }
             }
             drop(diagnostic_segments);
