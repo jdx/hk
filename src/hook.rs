@@ -1715,9 +1715,7 @@ impl Hook {
                     if !parsed.diagnostics.is_empty() {
                         let rendered = crate::diagnostics::render_text(&parsed.diagnostics);
                         // Render the combined list once; drop the other copies.
-                        *output = output
-                            .replacen(raw, rendered.trim_end(), 1)
-                            .replace(raw, "");
+                        *output = output.replacen(raw, &rendered, 1).replace(raw, "");
                     }
                 }
             }
