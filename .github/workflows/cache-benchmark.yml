@@ -79,7 +79,7 @@ jobs:
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
+      - uses: jdx/mr-boxington-action@d0825fbaf3cc36ca2609aa38e71046265a1f1e37 # v1.7.1
         with:
           version: 1.19.0
           cache-generation: ci-v2
@@ -177,7 +177,7 @@ jobs:
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
+      - uses: jdx/mr-boxington-action@d0825fbaf3cc36ca2609aa38e71046265a1f1e37 # v1.7.1
         with:
           version: 1.19.0
           cache-generation: ci-v2
@@ -276,7 +276,7 @@ jobs:
         run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
+      - uses: jdx/mr-boxington-action@d0825fbaf3cc36ca2609aa38e71046265a1f1e37 # v1.7.1
         with:
           version: 1.19.0
           cache-generation: ci-v2
