@@ -233,3 +233,37 @@ EOF
     assert_output --partial \
         "check_failed_files = true\` requires \`check\` and at least one of \`check_diff\` or \`check_list_files"
 }
+
+@test "validate --json prints a JSON document with warnings" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["noop"] { glob = "*.rs" }
+    }
+  }
+}
+EOF2
+    run --separate-stderr hk validate --json
+    assert_success
+    echo "$output" | jq -e '.valid == true and (.warnings | length) == 1'
+}
+
+@test "validate --strict fails on warnings" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["noop"] { glob = "*.rs" }
+    }
+  }
+}
+EOF2
+    run hk validate
+    assert_success
+    run hk validate --strict
+    assert_failure
+    assert_output --partial "--strict is set"
+}
