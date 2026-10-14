@@ -106,7 +106,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 - [`hk util python-debug-statements <FILES>…`](/cli/util/python-debug-statements.md)
 - [`hk util sarif-diff [--findings-exit-code <CODE>] <-- COMMAND>…`](/cli/util/sarif-diff.md)
 - [`hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`](/cli/util/trailing-whitespace.md)
-- [`hk validate`](/cli/validate.md)
+- [`hk validate [--json] [--deny-warnings]`](/cli/validate.md)
 - [`hk version`](/cli/version.md)
 
 <!-- hk documentation examples -->

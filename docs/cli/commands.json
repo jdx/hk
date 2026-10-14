@@ -8208,10 +8208,30 @@
       },
       "validate": {
         "full_cmd": ["validate"],
-        "usage": "validate",
+        "usage": "validate [--json] [--deny-warnings]",
         "subcommands": {},
         "args": [],
         "flags": [
+          {
+            "name": "json",
+            "usage": "--json",
+            "help": "Print the result as a JSON document on stdout",
+            "help_first_line": "Print the result as a JSON document on stdout",
+            "short": [],
+            "long": ["json"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "deny-warnings",
+            "usage": "--deny-warnings",
+            "help": "Exit with a non-zero status when the config has warnings",
+            "help_first_line": "Exit with a non-zero status when the config has warnings",
+            "short": [],
+            "long": ["deny-warnings"],
+            "hide": false,
+            "global": false
+          },
           {
             "name": "help",
             "usage": "-h --help",

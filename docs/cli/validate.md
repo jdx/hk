@@ -7,7 +7,7 @@ description: "Evaluate the selected configuration without running its linter com
 
 # `hk validate`
 
-- **Usage:** `hk validate`
+- **Usage:** `hk validate [--json] [--deny-warnings]`
 - **Effect:** read-only
 
 Validate the config file
@@ -16,6 +16,8 @@ Errors for configs hk cannot run. Also prints warnings for settings that load bu
 
 ## Flags
 
+- **`--json`** — Print the result as a JSON document on stdout
+- **`--deny-warnings`** — Exit with a non-zero status when the config has warnings
 - **`-h --help`** — Print help
 
 <!-- hk documentation examples -->

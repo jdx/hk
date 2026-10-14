@@ -233,3 +233,69 @@ EOF
     assert_output --partial \
         "check_failed_files = true\` requires \`check\` and at least one of \`check_diff\` or \`check_list_files"
 }
+
+@test "validate --json prints a JSON document with warnings" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["noop"] { glob = "*.rs" }
+    }
+  }
+}
+EOF2
+    run --separate-stderr hk validate --json
+    assert_success
+    [[ -z "$stderr" ]]
+    echo "$output" | jq -e '.valid == true and (.warnings | length) == 1'
+}
+
+@test "validate --json --deny-warnings fails but still prints the JSON document" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["noop"] { glob = "*.rs" }
+    }
+  }
+}
+EOF2
+    run --separate-stderr hk validate --json --deny-warnings
+    assert_failure
+    echo "$output" | jq -e '.warnings | length == 1'
+}
+
+@test "validate --deny-warnings succeeds on a clean config" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["ok"] { check = "true" }
+    }
+  }
+}
+EOF2
+    run hk validate --deny-warnings
+    assert_success
+}
+
+@test "validate --deny-warnings fails on warnings" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["noop"] { glob = "*.rs" }
+    }
+  }
+}
+EOF2
+    run hk validate
+    assert_success
+    run hk validate --deny-warnings
+    assert_failure
+    assert_output --partial "--deny-warnings is set"
+}
