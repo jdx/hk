@@ -1658,6 +1658,68 @@ impl Hook {
                     })
                     .or_insert_with(|| (mode, diagnostic_output.clone()));
             }
+            // A JSON diagnostic format prints as an unreadable document, so show the
+            // parsed findings instead when any parsed.
+            let diagnostic_segments = hook_ctx.diagnostic_segments_by_step.lock().unwrap();
+            for (step_name, (_, output)) in outputs.iter_mut() {
+                if !failed_steps.contains(step_name) {
+                    continue;
+                }
+                let Some(step) = hook_ctx
+                    .groups
+                    .iter()
+                    .find_map(|group| group.steps.get(step_name))
+                else {
+                    continue;
+                };
+                // Only single-document formats: the whole output is the JSON, so nothing
+                // else is lost. cargo-json interleaves other text, and gcc is readable.
+                let Some(format) = step.diagnostic_format.filter(|format| {
+                    matches!(
+                        format,
+                        crate::step::DiagnosticFormat::Sarif
+                            | crate::step::DiagnosticFormat::EslintJson
+                    )
+                }) else {
+                    continue;
+                };
+                let Some(segments) = diagnostic_segments.get(step_name) else {
+                    continue;
+                };
+                let tool = step.diagnostic_tool.as_deref().unwrap_or(step_name);
+                // Replace each parsed document in place, leaving any other command
+                // output (a fixer's error, a batch that did not parse) untouched.
+                // Identical documents from different directories (e.g. workspaces) are
+                // rendered together so each directory's paths are rebased separately;
+                // the first copy in the output becomes that combined rendering and the rest are dropped.
+                let mut by_raw: IndexMap<&str, Vec<&DiagnosticSegment>> = IndexMap::new();
+                for segment in segments {
+                    by_raw
+                        .entry(segment.output.trim())
+                        .or_default()
+                        .push(segment);
+                }
+                for (raw, group) in by_raw {
+                    if raw.is_empty() || !output.contains(raw) {
+                        continue;
+                    }
+                    let parsed = crate::diagnostics::parse_segments(
+                        format,
+                        step_name,
+                        tool,
+                        group
+                            .iter()
+                            .map(|segment| (segment.dir.as_deref(), segment.output.as_str())),
+                        step.diagnostic_severity.clone(),
+                    );
+                    if !parsed.diagnostics.is_empty() {
+                        let rendered = crate::diagnostics::render_text(&parsed.diagnostics);
+                        // Render the combined list once; drop the other copies.
+                        *output = output.replacen(raw, &rendered, 1).replace(raw, "");
+                    }
+                }
+            }
+            drop(diagnostic_segments);
             for (step_name, (mode, output)) in outputs.into_iter() {
                 if only_failed
                     && !failed_steps.contains(&step_name)
