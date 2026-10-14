@@ -1,7 +1,7 @@
 ---
 title: "hk validate"
 description: "Read the chosen charts through without sending a lookout aloft: evaluate the selected configuration without running its linter commands."
-sourceHash: 9f52f098ff36
+sourceHash: 91d1f97c7377
 pirateUntranslated: 2
 ---
 
@@ -9,7 +9,7 @@ pirateUntranslated: 2
 
 # `hk validate`
 
-- **How to hail it:** `hk validate [--json] [--strict]`
+- **How to hail it:** `hk validate [--json] [--deny-warnings]`
 - **Effect:** read-only (looks, never touches)
 
 Validate the config file: make sure the ship's charts are true.
@@ -19,7 +19,7 @@ Fails on charts hk cannot sail. Also hollers warnings for settings that load but
 ## Flags to fly {#flags}
 
 - **`--json`** — Print the result as a JSON document on stdout
-- **`--strict`** — Exit with a non-zero status when the config has warnings
+- **`--deny-warnings`** — Exit with a non-zero status when the config has warnings
 - **`-h --help`** — Print help, for when ye've lost yer bearings
 
 <!-- hk documentation examples -->

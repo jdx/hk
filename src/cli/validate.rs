@@ -16,7 +16,7 @@ pub struct Validate {
     pub(crate) json: bool,
     /// Exit with a non-zero status when the config has warnings
     #[usage(long)]
-    strict: bool,
+    deny_warnings: bool,
 }
 
 impl Validate {
@@ -48,7 +48,7 @@ impl Validate {
                 "warnings": messages,
             });
             println!("{}", serde_json::to_string_pretty(&out)?);
-            return self.check_strict(messages.len());
+            return self.check_deny_warnings(messages.len());
         }
         let warnings = messages.len();
         if warnings == 0 {
@@ -56,7 +56,7 @@ impl Validate {
         } else {
             info!("{path} is valid, with {warnings} warning(s)");
         }
-        self.check_strict(warnings)
+        self.check_deny_warnings(warnings)
     }
 
     /// Log a warning right away so a later error does not hide it. JSON mode
@@ -68,9 +68,9 @@ impl Validate {
         messages.push(warning);
     }
 
-    fn check_strict(&self, warnings: usize) -> Result<()> {
-        if self.strict && warnings > 0 {
-            bail!("config has {warnings} warning(s) and --strict is set");
+    fn check_deny_warnings(&self, warnings: usize) -> Result<()> {
+        if self.deny_warnings && warnings > 0 {
+            bail!("config has {warnings} warning(s) and --deny-warnings is set");
         }
         Ok(())
     }

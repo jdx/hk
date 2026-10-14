@@ -697,7 +697,7 @@ Validate the config file
 Errors for configs hk cannot run. Also prints warnings for settings that load but probably do not do what was meant: unknown properties (which release builds silently drop), `depends` that never orders anything, steps without a command, and globs that cannot match.
 """#
     flag --json help="Print the result as a JSON document on stdout"
-    flag --strict help="Exit with a non-zero status when the config has warnings"
+    flag --deny-warnings help="Exit with a non-zero status when the config has warnings"
     flag "-h --help" help="Print help" action=help builtin=#true
 }
 cmd version help="Print the version of hk" effect=read {

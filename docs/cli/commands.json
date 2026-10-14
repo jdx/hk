@@ -8208,7 +8208,7 @@
       },
       "validate": {
         "full_cmd": ["validate"],
-        "usage": "validate [--json] [--strict]",
+        "usage": "validate [--json] [--deny-warnings]",
         "subcommands": {},
         "args": [],
         "flags": [
@@ -8223,12 +8223,12 @@
             "global": false
           },
           {
-            "name": "strict",
-            "usage": "--strict",
+            "name": "deny-warnings",
+            "usage": "--deny-warnings",
             "help": "Exit with a non-zero status when the config has warnings",
             "help_first_line": "Exit with a non-zero status when the config has warnings",
             "short": [],
-            "long": ["strict"],
+            "long": ["deny-warnings"],
             "hide": false,
             "global": false
           },

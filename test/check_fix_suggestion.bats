@@ -251,7 +251,7 @@ EOF2
     echo "$output" | jq -e '.valid == true and (.warnings | length) == 1'
 }
 
-@test "validate --json --strict fails but still prints the JSON document" {
+@test "validate --json --deny-warnings fails but still prints the JSON document" {
     cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -262,12 +262,12 @@ hooks {
   }
 }
 EOF2
-    run --separate-stderr hk validate --json --strict
+    run --separate-stderr hk validate --json --deny-warnings
     assert_failure
     echo "$output" | jq -e '.warnings | length == 1'
 }
 
-@test "validate --strict succeeds on a clean config" {
+@test "validate --deny-warnings succeeds on a clean config" {
     cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -278,11 +278,11 @@ hooks {
   }
 }
 EOF2
-    run hk validate --strict
+    run hk validate --deny-warnings
     assert_success
 }
 
-@test "validate --strict fails on warnings" {
+@test "validate --deny-warnings fails on warnings" {
     cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -295,7 +295,7 @@ hooks {
 EOF2
     run hk validate
     assert_success
-    run hk validate --strict
+    run hk validate --deny-warnings
     assert_failure
-    assert_output --partial "--strict is set"
+    assert_output --partial "--deny-warnings is set"
 }
