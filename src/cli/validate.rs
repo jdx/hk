@@ -13,7 +13,7 @@ use crate::{Result, config::Config};
 pub struct Validate {
     /// Print the result as a JSON document on stdout
     #[usage(long)]
-    json: bool,
+    pub(crate) json: bool,
     /// Exit with a non-zero status when the config has warnings
     #[usage(long)]
     strict: bool,
@@ -26,7 +26,7 @@ impl Validate {
         // in release builds and rejects them in debug builds.
         if let Some(raw) = Config::project_config_json()? {
             for warning in crate::lint::unknown_properties(&raw) {
-                messages.push(warning);
+                self.report(&mut messages, warning);
             }
         }
         let config = Config::get()?;
@@ -38,7 +38,7 @@ impl Validate {
             );
         }
         for warning in config.lint() {
-            messages.push(warning);
+            self.report(&mut messages, warning);
         }
         let path = xx::file::display_path(&config.path);
         if self.json {
@@ -50,9 +50,6 @@ impl Validate {
             println!("{}", serde_json::to_string_pretty(&out)?);
             return self.check_strict(messages.len());
         }
-        for warning in &messages {
-            warn!("{warning}");
-        }
         let warnings = messages.len();
         if warnings == 0 {
             info!("{path} is valid");
@@ -60,6 +57,15 @@ impl Validate {
             info!("{path} is valid, with {warnings} warning(s)");
         }
         self.check_strict(warnings)
+    }
+
+    /// Log a warning right away so a later error does not hide it. JSON mode
+    /// keeps stdout and stderr clean and reports it in the document instead.
+    fn report(&self, messages: &mut Vec<String>, warning: String) {
+        if !self.json {
+            warn!("{warning}");
+        }
+        messages.push(warning);
     }
 
     fn check_strict(&self, warnings: usize) -> Result<()> {

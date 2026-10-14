@@ -170,6 +170,9 @@ impl Commands {
             Self::Check(command) => command.hook.format,
             Self::Fix(command) => command.hook.format,
             Self::Run(command) => command.output_format(),
+            Self::Validate(command) if command.json => {
+                Some(crate::structured_output::OutputFormat::Json)
+            }
             Self::Agent(command) if command.is_stop_hook() => {
                 Some(crate::structured_output::OutputFormat::Json)
             }
