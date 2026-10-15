@@ -1125,37 +1125,67 @@ impl Git {
         crate::stash_lock::shared_repository_mode(value.as_deref())
     }
 
-    /// Get the patches directory for this repository
-    fn patches_dir(&self) -> Result<PathBuf> {
-        let patches_dir = env::HK_STATE_DIR.join("patches");
-        env::create_state_dir_all(&patches_dir)?;
-        Ok(patches_dir)
+    /// Get the patches directory for this repository, and whether it holds
+    /// only this repository's patches
+    fn patches_dir(&self) -> Result<(PathBuf, bool)> {
+        let (patches_dir, exclusive) = &*env::HK_PATCHES_DIR;
+        env::create_state_dir_all(patches_dir)?;
+        Ok((patches_dir.clone(), *exclusive))
     }
 
-    /// Get a unique name for the repository based on its directory
+    /// The name of the repository's root directory, which prefixes patch
+    /// files kept in a shared state directory
     fn repo_name(&self) -> Result<String> {
-        let cwd = std::env::current_dir()?;
-        let name = cwd
+        // Linked worktrees share one name: that of the main checkout, found
+        // through the common git directory.
+        let root = match env::REPO_DIRS.as_ref() {
+            Some(repo) => match repo.common_dir.components().next_back() {
+                Some(std::path::Component::Normal(n)) if n == ".git" => repo
+                    .common_dir
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| repo.common_dir.clone()),
+                _ => repo.common_dir.clone(),
+            },
+            None => std::env::current_dir()?,
+        };
+        let name = root
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
-        Ok(name)
+        // Repositories with the same directory name, such as ones whose git
+        // directories live elsewhere, still get distinct prefixes.
+        let Some(repo) = env::REPO_DIRS.as_ref() else {
+            return Ok(name);
+        };
+        let identity = repo
+            .common_dir
+            .canonicalize()
+            .unwrap_or_else(|_| repo.common_dir.clone());
+        // FNV-1a: stable across hk and Rust versions, unlike `DefaultHasher`
+        let hash = identity
+            .to_string_lossy()
+            .trim_end_matches('/')
+            .bytes()
+            .fold(0x811c9dc5u32, |h, b| {
+                (h ^ b as u32).wrapping_mul(0x01000193)
+            });
+        Ok(format!("{name}-{hash:08x}"))
     }
 
     /// Rotate patch files, keeping only the last N patches for this repository
     fn rotate_patch_files(&self, keep_count: usize) -> Result<()> {
-        let patches_dir = self.patches_dir()?;
-        let repo_name = self.repo_name()?;
-        let prefix = format!("{}-", repo_name);
+        let (patches_dir, exclusive) = self.patches_dir()?;
+        let prefix = format!("{}-", self.repo_name()?);
 
         // Collect all patch files for this repo
         let mut patch_files: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
         if let Ok(entries) = std::fs::read_dir(&patches_dir) {
             for entry in entries.flatten() {
                 if let Ok(file_name) = entry.file_name().into_string()
-                    && file_name.starts_with(&prefix)
                     && file_name.ends_with(".patch")
+                    && (exclusive || is_patch_of(&file_name, &prefix))
                     && let Ok(metadata) = entry.metadata()
                     && let Ok(modified) = metadata.modified()
                 {
@@ -1193,7 +1223,7 @@ impl Git {
 
         // Get patches directory and repo name
         let (patches_dir, repo_name) = match (self.patches_dir(), self.repo_name()) {
-            (Ok(dir), Ok(name)) => (dir, name),
+            (Ok((dir, _)), Ok(name)) => (dir, name),
             (Err(e), _) => {
                 warn!("Failed to get patches directory: {}", e);
                 return;
@@ -4253,6 +4283,21 @@ fn note_running_owner(journal: &stash_journal::Journal) {
             journal.pid
         );
     }
+}
+
+/// Whether `file_name` is a patch saved for the repository named by `prefix`
+/// (`"{repo}-"`): `{repo}-YYYYMMDD-HHMMSS-{haiku}.patch`. Requiring the
+/// timestamp keeps repository `app` from claiming the patches of `app-web`.
+fn is_patch_of(file_name: &str, prefix: &str) -> bool {
+    let Some(rest) = file_name.strip_prefix(prefix) else {
+        return false;
+    };
+    let b = rest.as_bytes();
+    b.len() > 16
+        && b[..8].iter().all(u8::is_ascii_digit)
+        && b[8] == b'-'
+        && b[9..15].iter().all(u8::is_ascii_digit)
+        && b[15] == b'-'
 }
 
 #[cfg(test)]

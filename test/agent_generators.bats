@@ -41,11 +41,11 @@ assert_generator_snapshot() {
 }
 
 @test "agent generators do not edit host configuration" {
-    before="$(find . -type f -print | LC_ALL=C sort)"
+    before="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort)"
     hk agent instructions --target codex >/dev/null
     hk agent hooks --target claude-code >/dev/null
     hk agent mcp --target vscode >/dev/null
-    after="$(find . -type f -print | LC_ALL=C sort)"
+    after="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort)"
     assert_equal "$after" "$before"
 }
 

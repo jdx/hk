@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: 3ad30bf08d8a
+sourceHash: b0e22d127612
 ---
 
 # Standing orders (environment variables)
@@ -124,7 +124,7 @@ How much hk calls out on the console: `off`, `error`, `warn`, `info`, `debug`, o
 
 ## `HK_LOG_FILE` {#hk-log-file}
 
-**Type:** path · **Unless ye say otherwise:** `$HK_STATE_DIR/hk.log`
+**Type:** path · **Unless ye say otherwise:** `<git-dir>/hk/hk.log` in a repository, else `$HK_STATE_DIR/hk.log`
 
 Where the ship's log is written. For example: `HK_LOG_FILE=/tmp/hk.log hk check`.
 
@@ -143,7 +143,7 @@ Calls in the quartermaster: `hk install` uses `mise x` in the hook launchers, an
 ## `HK_OUTPUT_FILE` {#hk-output-file}
 
 Type: `path`
-Unless ye say otherwise: `~/.local/state/hk/output.log`
+Unless ye say otherwise: `<git-dir>/hk/output.log` in a repository (one per checkout), else `$HK_STATE_DIR/output.log`
 
 The file where hk writes the complete output of a failed command, every word o' the squall. An empty value uses the default location.
 
@@ -236,7 +236,7 @@ Overrides how unstaged work is stowed before a hook runs. `git` turns stashing o
 
 **Type:** nonnegative integer · **Unless ye say otherwise:** 20
 
-How many backup patches to keep for each ship (repository), under `$HK_STATE_DIR/patches/`. Set to `0` to turn patch backups off.
+How many backup patches to keep for each ship (repository), under `<common-git-dir>/hk/patches/` (or `$HK_STATE_DIR/patches/` when set). Set to `0` to turn patch backups off.
 
 ## `HK_STASH_LOCK_TIMEOUT` {#hk-stash-lock-timeout}
 
@@ -252,9 +252,9 @@ Stow untracked files in the hold too when stashing. Set this to `false` and hk a
 
 ## `HK_STATE_DIR` {#hk-state-dir}
 
-**Type:** path · **Unless ye say otherwise:** platform state directory plus `hk`
+**Type:** path · **Unless ye say otherwise:** the repository's git directory; outside a repository, the platform state directory plus `hk`
 
-Where hk keeps the ship's logs and the stash backup patches. It typically resolves to `~/.local/state/hk` on Linux, and hk falls back to that same path on platforms with no state-directory convention.
+Where hk keeps the ship's logs, command output and the stash backup patches. Without it, hk keeps `output.log` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository, or in one with `core.sharedRepository` set (which accounts share), it falls back to `~/.local/state/hk` on Linux. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_LOG_FILE` still override individual files. `GIT_DIR` / `GIT_WORK_TREE` select the repository as they do for hk itself.
 
 ## `HK_SUMMARY_TEXT` {#hk-summary-text}
 

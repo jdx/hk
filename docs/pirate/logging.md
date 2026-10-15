@@ -1,6 +1,6 @@
 ---
 description: Troubleshooting in foul weather. Diagnose hands that never turn out, charts that read wrong, missing tools, hook failures, and slow passages.
-sourceHash: bff0d03d0bbb
+sourceHash: a4165d00eb0a
 ---
 
 # Troubleshooting: riding out foul weather
@@ -123,7 +123,7 @@ Use `--quiet` to turn the output down, or `--silent` to hush it entirely. Summar
 
 ### Where the log is kept {#log-files}
 
-The ship's log goes to `$HK_STATE_DIR/hk.log` unless ye say otherwise. On Linux, that's typically `~/.local/state/hk/hk.log`. Ye can override the file path and the level independently:
+The ship's log goes to `<git-dir>/hk/hk.log` unless ye say otherwise, one per checkout. Outside a repository, or with `HK_STATE_DIR` set, it goes to `$HK_STATE_DIR/hk.log`, typically `~/.local/state/hk/hk.log` on Linux. Ye can override the file path and the level independently:
 
 ```sh
 HK_LOG_FILE=/tmp/hk-debug.log HK_LOG_FILE_LEVEL=trace hk check

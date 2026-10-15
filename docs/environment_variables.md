@@ -123,7 +123,7 @@ Console log level: `off`, `error`, `warn`, `info`, `debug`, or `trace`. `HK_LOG_
 
 ## `HK_LOG_FILE` {#hk-log-file}
 
-**Type:** path · **Default:** `$HK_STATE_DIR/hk.log`
+**Type:** path · **Default:** `<git-dir>/hk/hk.log` in a repository, else `$HK_STATE_DIR/hk.log`
 
 Log file location. Example: `HK_LOG_FILE=/tmp/hk.log hk check`.
 
@@ -142,7 +142,7 @@ Make `hk install` use `mise x` in hook launchers and make `hk init` create a sta
 ## `HK_OUTPUT_FILE` {#hk-output-file}
 
 Type: `path`
-Default: `~/.local/state/hk/output.log`
+Default: `<git-dir>/hk/output.log` in a repository (one per checkout), else `$HK_STATE_DIR/output.log`
 
 The file where hk writes the complete output of a failed command. An empty value uses the default location.
 
@@ -236,7 +236,7 @@ Override how unstaged work is saved before a hook. `git` enables stashing; `patc
 
 **Type:** nonnegative integer · **Default:** 20
 
-Number of backup patches to retain per repository under `$HK_STATE_DIR/patches/`. Set to `0` to disable patch backups.
+Number of backup patches to retain per repository under `<common-git-dir>/hk/patches/` (or `$HK_STATE_DIR/patches/` when set). Set to `0` to disable patch backups.
 
 ## `HK_STASH_LOCK_TIMEOUT` {#hk-stash-lock-timeout}
 
@@ -252,9 +252,9 @@ Include untracked files when stashing. Setting this to `false` also skips untrac
 
 ## `HK_STATE_DIR` {#hk-state-dir}
 
-**Type:** path · **Default:** platform state directory plus `hk`
+**Type:** path · **Default:** the repository's git directory; outside a repository, the platform state directory plus `hk`
 
-Directory for logs and stash backup patches. It typically resolves to `~/.local/state/hk` on Linux; hk also uses that fallback on platforms without a state-directory convention.
+Directory for logs, command output and stash backup patches. Without it, hk keeps `output.log` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository, or in one with `core.sharedRepository` set (which accounts share), it falls back to `~/.local/state/hk` on Linux. `GIT_DIR` / `GIT_WORK_TREE` select the repository as they do for hk itself. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_LOG_FILE` still override individual files.
 
 ## `HK_SUMMARY_TEXT` {#hk-summary-text}
 

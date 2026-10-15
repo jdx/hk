@@ -10,23 +10,80 @@ use crate::git::StashMethod;
 // pub static CWD: LazyLock<PathBuf> = LazyLock::new(|| current_dir().unwrap_or_default());
 
 pub static HOME_DIR: LazyLock<PathBuf> = LazyLock::new(|| dirs::home_dir().unwrap_or_default());
-pub static HK_STATE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
-    var_path("HK_STATE_DIR").unwrap_or(
-        dirs::state_dir()
-            .unwrap_or(HOME_DIR.join(".local").join("state"))
-            .join("hk"),
-    )
+/// The repository containing the current directory, if any: its git
+/// directory (per checkout) and common git directory (shared by linked
+/// worktrees).
+pub struct RepoDirs {
+    /// The repository is shared between accounts (`core.sharedRepository`),
+    /// so hk keeps its per-user state outside it.
+    pub shared: bool,
+    pub git_dir: PathBuf,
+    pub common_dir: PathBuf,
+}
+pub static REPO_DIRS: LazyLock<Option<RepoDirs>> = LazyLock::new(|| {
+    // Resolve the repository like `Git::new()`: `GIT_DIR` / `GIT_WORK_TREE`
+    // (bare-repo dotfile managers such as YADM) take precedence.
+    let repo = if var_os("GIT_DIR").is_some() || var_os("GIT_WORK_TREE").is_some() {
+        git2::Repository::open_from_env().ok()?
+    } else {
+        git2::Repository::discover(".").ok()?
+    };
+    // A repository shared between accounts (`core.sharedRepository`) cannot
+    // hold private per-account state, so keep the per-user state directory.
+    let shared = repo
+        .config()
+        .and_then(|c| c.get_string("core.sharedrepository"))
+        .ok();
+    let shared = crate::stash_lock::shared_repository_mode(shared.as_deref()).is_some();
+    Some(RepoDirs {
+        shared,
+        git_dir: repo.path().to_path_buf(),
+        common_dir: repo.commondir().to_path_buf(),
+    })
+});
+/// `HK_STATE_DIR` when set, otherwise the platform state directory.
+pub static HK_STATE_DIR: LazyLock<PathBuf> =
+    LazyLock::new(|| var_path("HK_STATE_DIR").unwrap_or(platform_state_dir()));
+fn platform_state_dir() -> PathBuf {
+    dirs::state_dir()
+        .unwrap_or(HOME_DIR.join(".local").join("state"))
+        .join("hk")
+}
+/// Where hk keeps state for the current checkout: `HK_STATE_DIR` when set,
+/// else `<git-dir>/hk` inside a repository, else the platform state dir.
+fn checkout_state_dir() -> PathBuf {
+    if var_path("HK_STATE_DIR").is_none()
+        && let Some(repo) = REPO_DIRS.as_ref().filter(|r| !r.shared)
+    {
+        return repo.git_dir.join("hk");
+    }
+    HK_STATE_DIR.clone()
+}
+/// Where stash backup patches live. Inside a repository this is
+/// `<common-git-dir>/hk/patches`, shared by its linked worktrees, unless
+/// `HK_STATE_DIR` is set. The bool is true when the directory holds only
+/// this repository's patches.
+pub static HK_PATCHES_DIR: LazyLock<(PathBuf, bool)> = LazyLock::new(|| {
+    if var_path("HK_STATE_DIR").is_none()
+        && let Some(repo) = REPO_DIRS.as_ref().filter(|r| !r.shared)
+    {
+        return (repo.common_dir.join("hk").join("patches"), true);
+    }
+    (HK_STATE_DIR.join("patches"), false)
 });
 /// Create `path` and any missing parents, like `create_dir_all`, except that
-/// directories created at or below the state directory are private to the
-/// user (0700 on Unix). The state directory holds saved stash patches and
+/// directories created at or below an hk state directory are private to the
+/// user (0700 on Unix). The state directories hold saved stash patches and
 /// command output, which can contain a repository's uncommitted changes.
 /// Directories that already exist keep their permissions.
 pub fn create_state_dir_all(path: &std::path::Path) -> std::io::Result<()> {
-    let state = &*HK_STATE_DIR;
-    if !path.starts_with(state) {
-        return std::fs::create_dir_all(path);
+    let mut roots = vec![HK_STATE_DIR.clone(), checkout_state_dir()];
+    if let Some(repo) = REPO_DIRS.as_ref().filter(|r| !r.shared) {
+        roots.push(repo.common_dir.join("hk"));
     }
+    let Some(state) = roots.iter().find(|r| path.starts_with(r)) else {
+        return std::fs::create_dir_all(path);
+    };
     // Directories above the state directory, such as ~/.local/state, are not
     // ours to restrict.
     if let Some(parent) = state.parent().filter(|p| !p.as_os_str().is_empty()) {
@@ -58,12 +115,13 @@ pub static HK_LOG: LazyLock<log::LevelFilter> = LazyLock::new(|| {
 });
 pub static HK_LOG_FILE_LEVEL: LazyLock<log::LevelFilter> =
     LazyLock::new(|| var_log_level("HK_LOG_FILE_LEVEL").unwrap_or(*HK_LOG));
-pub static HK_LOG_FILE: LazyLock<PathBuf> =
-    LazyLock::new(|| var_path("HK_LOG_FILE").unwrap_or(HK_STATE_DIR.join("hk.log")));
+pub static HK_LOG_FILE: LazyLock<PathBuf> = LazyLock::new(|| {
+    var_path("HK_LOG_FILE").unwrap_or_else(|| checkout_state_dir().join("hk.log"))
+});
 pub static HK_OUTPUT_FILE: LazyLock<PathBuf> = LazyLock::new(|| {
     var_path("HK_OUTPUT_FILE")
         .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or_else(|| HK_STATE_DIR.join("output.log"))
+        .unwrap_or_else(|| checkout_state_dir().join("output.log"))
 });
 
 // When set, write a JSON timing report to this path after the hook finishes
