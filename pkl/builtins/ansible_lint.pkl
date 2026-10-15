@@ -1,0 +1,113 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Ansible playbook, role and collection linter"
+  project_indicators {
+    new { file = ".ansible-lint" }
+    new { file = ".ansible-lint.yml" }
+    new { file = ".ansible-lint.yaml" }
+    new { file = ".config/ansible-lint.yml" }
+    new { file = ".config/ansible-lint.yaml" }
+    new { file = "ansible.cfg" }
+  }
+}
+ansible_lint = new Config.Step {
+  glob = List("**/*.yml", "**/*.yaml")
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ansible-lint", "{{files}}") }
+    effect = "read"
+  }
+  // ansible-lint exits 8 when --fix resolved every violation; treat that as success.
+  fix = new Config.CommandSpec {
+    command = new Config.Script {
+      windows = ""
+      other = "ansible-lint --fix {{files}} || [ $? -eq 8 ]"
+    }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "playbook.yml" }
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+        ---
+        - name: Example
+          hosts: localhost
+          gather_facts: false
+          tasks:
+            - name: Say hello
+              ansible.builtin.debug:
+                msg: hello
+
+        """,
+      )
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+        ---
+        - name: Example
+          hosts: localhost
+          gather_facts: false
+          tasks:
+            - name: Say hello
+              debug:
+                msg: hello
+
+        """,
+        2,
+      )
+    ["fix bad file"] =
+      testMaker.fixPass(
+        """
+        ---
+        - name: Example
+          hosts: localhost
+          gather_facts: false
+          tasks:
+            - name: Say hello
+              debug:
+                msg: hello
+
+        """,
+        """
+        ---
+        - name: Example
+          hosts: localhost
+          gather_facts: false
+          tasks:
+            - name: Say hello
+              ansible.builtin.debug:
+                msg: hello
+
+        """,
+      )
+    ["fix good file"] =
+      testMaker.fixPass(
+        """
+        ---
+        - name: Example
+          hosts: localhost
+          gather_facts: false
+          tasks:
+            - name: Say hello
+              ansible.builtin.debug:
+                msg: hello
+
+        """,
+        """
+        ---
+        - name: Example
+          hosts: localhost
+          gather_facts: false
+          tasks:
+            - name: Say hello
+              ansible.builtin.debug:
+                msg: hello
+
+        """,
+      )
+  }
+}

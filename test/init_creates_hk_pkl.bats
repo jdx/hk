@@ -113,6 +113,14 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.droast"
 }
 
+@test "hk init detects .ansible-lint" {
+    touch .ansible-lint
+    run hk init
+    assert_success
+    assert_output --partial "ansible_lint (.ansible-lint)"
+    assert_file_contains hk.pkl "Builtins.ansible_lint"
+}
+
 @test "hk init generates default template when nothing detected" {
     run hk init
     assert_success
