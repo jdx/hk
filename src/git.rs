@@ -1136,11 +1136,17 @@ impl Git {
     /// The name of the repository's root directory, which prefixes patch
     /// files kept in a shared state directory
     fn repo_name(&self) -> Result<String> {
+        // Linked worktrees share one name: that of the main checkout, found
+        // through the common git directory.
         let root = match env::REPO_DIRS.as_ref() {
-            Some(repo) => repo
-                .workdir
-                .clone()
-                .unwrap_or_else(|| repo.common_dir.clone()),
+            Some(repo) => match repo.common_dir.components().next_back() {
+                Some(std::path::Component::Normal(n)) if n == ".git" => repo
+                    .common_dir
+                    .parent()
+                    .map(|p| p.to_path_buf())
+                    .unwrap_or_else(|| repo.common_dir.clone()),
+                _ => repo.common_dir.clone(),
+            },
             None => std::env::current_dir()?,
         };
         let name = root

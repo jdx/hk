@@ -11,17 +11,16 @@ use crate::git::StashMethod;
 
 pub static HOME_DIR: LazyLock<PathBuf> = LazyLock::new(|| dirs::home_dir().unwrap_or_default());
 /// The repository containing the current directory, if any: its git
-/// directory (per checkout), common git directory (shared by linked
-/// worktrees) and working directory.
+/// directory (per checkout) and common git directory (shared by linked
+/// worktrees).
 pub struct RepoDirs {
     pub git_dir: PathBuf,
     pub common_dir: PathBuf,
-    pub workdir: Option<PathBuf>,
 }
 pub static REPO_DIRS: LazyLock<Option<RepoDirs>> = LazyLock::new(|| {
     // Resolve the repository like `Git::new()`: `GIT_DIR` / `GIT_WORK_TREE`
     // (bare-repo dotfile managers such as YADM) take precedence.
-    let repo = if var("GIT_DIR").is_ok() || var("GIT_WORK_TREE").is_ok() {
+    let repo = if var_os("GIT_DIR").is_some() || var_os("GIT_WORK_TREE").is_some() {
         git2::Repository::open_from_env().ok()?
     } else {
         git2::Repository::discover(".").ok()?
@@ -38,7 +37,6 @@ pub static REPO_DIRS: LazyLock<Option<RepoDirs>> = LazyLock::new(|| {
     Some(RepoDirs {
         git_dir: repo.path().to_path_buf(),
         common_dir: repo.commondir().to_path_buf(),
-        workdir: repo.workdir().map(|p| p.to_path_buf()),
     })
 });
 /// `HK_STATE_DIR` when set, otherwise the platform state directory.
