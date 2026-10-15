@@ -31,10 +31,24 @@ packer_fmt = new Config.Step {
     local const testMaker = new helpers.TestMaker { filename = "main.pkr.hcl" }
     local const bad = "a   = 1\nbb = 2\n"
     local const good = "a  = 1\nbb = 2\n"
-    ["check bad file"] = testMaker.checkFail(bad, 3)
     ["check good file"] = testMaker.checkPass(good)
-    ["fix bad file"] = testMaker.fixPass(bad, good)
-    ["diff bad file"] = testMaker.diffPass(bad, good)
-    ["fix good file"] = testMaker.fixPass(good, good)
+
+    local const mixed = new Config.StepTest {
+      files = List("main.pkr.hcl", "vars.pkrvars.hcl")
+      tmpdir = true
+      write {
+        ["main.pkr.hcl"] = good
+        ["vars.pkrvars.hcl"] = bad
+      }
+      expect {
+        files {
+          ["main.pkr.hcl"] = good
+          ["vars.pkrvars.hcl"] = good
+        }
+      }
+    }
+    ["check bad file"] = (mixed) { expect { code = 3; files { ["vars.pkrvars.hcl"] = bad } } }
+    ["fix bad file"] = (mixed) { run = "fix" }
+    ["diff bad file"] = (mixed) { run = "diff" }
   }
 }
