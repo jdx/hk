@@ -113,6 +113,15 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.droast"
 }
 
+@test "hk init detects packer templates" {
+    mkdir -p images
+    touch images/base.pkr.hcl
+    run hk init
+    assert_success
+    assert_output --partial "packer_fmt"
+    assert_file_contains hk.pkl "Builtins.packer_fmt"
+}
+
 @test "hk init detects .ansible-lint" {
     touch .ansible-lint
     run hk init

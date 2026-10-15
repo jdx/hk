@@ -1,0 +1,54 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Packer HCL2 template formatter"
+  project_indicators {
+    new { glob = "*.pkr.hcl"; recursive = true }
+  }
+}
+packer_fmt = new Config.Step {
+  glob = List("**/*.pkr.hcl", "**/*.pkrvars.hcl")
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("packer", "fmt", "-check", "{{files}}") }
+    effect = "read"
+  }
+  // `packer fmt -` formats stdin. `fmt -diff` would need an external `diff`
+  // program, which Windows often lacks.
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("hk", "util", "format-diff", "{{files}}", "--", "packer", "fmt", "-")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("packer", "fmt", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "main.pkr.hcl" }
+    local const bad = "a   = 1\nbb = 2\n"
+    local const good = "a  = 1\nbb = 2\n"
+    ["check good file"] = testMaker.checkPass(good)
+
+    local const mixed = new Config.StepTest {
+      files = List("main.pkr.hcl", "vars.pkrvars.hcl")
+      tmpdir = true
+      write {
+        ["main.pkr.hcl"] = good
+        ["vars.pkrvars.hcl"] = bad
+      }
+      expect {
+        files {
+          ["main.pkr.hcl"] = good
+          ["vars.pkrvars.hcl"] = good
+        }
+      }
+    }
+    ["check bad file"] = (mixed) { expect { code = 3; files { ["vars.pkrvars.hcl"] = bad } } }
+    ["fix bad file"] = (mixed) { run = "fix" }
+    ["diff bad file"] = (mixed) { run = "diff" }
+  }
+}

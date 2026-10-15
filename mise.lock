@@ -2,6 +2,61 @@
 
 lockfile_version = 2
 
+[[tools."aqua:hashicorp/packer"]]
+version = "1.16.1"
+backend = "aqua:hashicorp/packer"
+specifiers = ["1.16.1"]
+
+[tools."aqua:hashicorp/packer".options]
+"vars.bin" = "packer"
+
+[tools."aqua:hashicorp/packer"."platforms.linux-arm64"]
+checksum = "sha256:4784ac0b9228a61f3ecb3861dbf0bf9ebeab6ddb0f5a10466126b8daa5db0de5"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_linux_arm64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.linux-arm64-musl"]
+checksum = "sha256:4784ac0b9228a61f3ecb3861dbf0bf9ebeab6ddb0f5a10466126b8daa5db0de5"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_linux_arm64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.linux-x64"]
+checksum = "sha256:af38a9e93e4ed1b9ca68206ae969c64c300c82a3dde46a780dfa629f0867f651"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_linux_amd64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.linux-x64-baseline"]
+checksum = "sha256:af38a9e93e4ed1b9ca68206ae969c64c300c82a3dde46a780dfa629f0867f651"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_linux_amd64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.linux-x64-musl"]
+checksum = "sha256:af38a9e93e4ed1b9ca68206ae969c64c300c82a3dde46a780dfa629f0867f651"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_linux_amd64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:af38a9e93e4ed1b9ca68206ae969c64c300c82a3dde46a780dfa629f0867f651"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_linux_amd64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.macos-arm64"]
+checksum = "sha256:c45cb1f851971e8a340c4a36434273cf2c8ef0cc7f5b3ac65588a3539b1df424"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_darwin_arm64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.macos-x64"]
+checksum = "sha256:e3655fb154e718526c3bcaacf327e6247e55945d2fefd59f84f535750f7ef5c4"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_darwin_amd64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.macos-x64-baseline"]
+checksum = "sha256:e3655fb154e718526c3bcaacf327e6247e55945d2fefd59f84f535750f7ef5c4"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_darwin_amd64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.windows-arm64"]
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_windows_arm64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.windows-x64"]
+checksum = "sha256:48e9b25ecf807959a1dcb9aa9b074e6fcd08c7b7ed89803538647c5873dbc95b"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_windows_amd64.zip"
+
+[tools."aqua:hashicorp/packer"."platforms.windows-x64-baseline"]
+checksum = "sha256:48e9b25ecf807959a1dcb9aa9b074e6fcd08c7b7ed89803538647c5873dbc95b"
+url = "https://releases.hashicorp.com/packer/1.16.1/packer_1.16.1_windows_amd64.zip"
+
 [[tools.aube]]
 version = "2.7.0"
 backend = "packslip:github.com/aubepkg/aube"
