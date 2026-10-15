@@ -110,7 +110,7 @@ EOF
 
     run hk check --all
     assert_failure
-    assert_output --partial "See $PWD/.git/hk/output.log for full command output"
+    assert_output --regexp "See .*/\.git/hk/output\.log for full command output"
     assert_file_contains ".git/hk/output.log" "GIT_DIR_MARKER"
 
     # A linked worktree keeps its own output.log
@@ -118,6 +118,6 @@ EOF
     run hk check --all
     assert_failure
     wt_git_dir="$(git rev-parse --absolute-git-dir)"
-    assert_output --partial "See $wt_git_dir/hk/output.log for full command output"
+    assert_output --regexp "See .*/\.git/worktrees/wt/hk/output\.log for full command output"
     assert_file_contains "$wt_git_dir/hk/output.log" "GIT_DIR_MARKER"
 }
