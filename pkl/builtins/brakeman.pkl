@@ -12,7 +12,7 @@ import "../Config.pkl"
 brakeman = new Config.Step {
   types = List("ruby")
   check = new Config.CommandSpec {
-    command = new Config.Command { argv = List("brakeman", "-q", "-w2", "{{files}}") }
+    command = new Config.Command { argv = List("brakeman", "-q", "-w2") }
     effect = "read"
   }
 }
