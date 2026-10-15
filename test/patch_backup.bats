@@ -274,3 +274,66 @@ PKL
     run bash -c "head -1 $HK_STATE_DIR/patches/*.patch"
     assert_output --partial "diff --git"
 }
+
+@test "patch rotation keeps another repository's patches in a shared state dir" {
+    mkdir -p "$HK_STATE_DIR/patches"
+    other="$HK_STATE_DIR/patches/$(basename "$PWD")-web-20200101-000000-old-01.patch"
+    touch "$other"
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
+        }
+    }
+}
+PKL
+    git add hk.pkl
+    git commit -m "init"
+    export HK_STASH_BACKUP_COUNT=1
+    for i in 1 2; do
+        echo "staged$i  " > file.txt
+        git add file.txt
+        echo "unstaged$i  " > file.txt
+        run hk run pre-commit
+        assert_success
+        git reset -q --hard
+    done
+    assert_file_exist "$other"
+}
+
+@test "patches default to the git common dir, shared by worktrees" {
+    unset HK_STATE_DIR
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
+        }
+    }
+}
+PKL
+    git add hk.pkl
+    git commit -m "init"
+    git worktree add -q "$BATS_TEST_TMPDIR/wt" -b wt
+    for dir in "$PWD" "$BATS_TEST_TMPDIR/wt"; do
+        (
+            cd "$dir"
+            echo "staged  " > file.txt
+            git add file.txt
+            echo "unstaged  " > file.txt
+            hk run pre-commit
+            git reset -q --hard
+        )
+    done
+    run bash -c "ls -1 .git/hk/patches/*.patch | wc -l | xargs"
+    assert_output "2"
+}

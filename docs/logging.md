@@ -122,7 +122,7 @@ Use `--quiet` to reduce output or `--silent` to suppress it. Failed-step summari
 
 ### Log files
 
-Logs go to `$HK_STATE_DIR/hk.log` by default. On Linux, this is typically `~/.local/state/hk/hk.log`. Override the file path and level independently:
+Logs go to `<git-dir>/hk/hk.log` by default, one per checkout. Outside a repository, or with `HK_STATE_DIR` set, they go to `$HK_STATE_DIR/hk.log`, typically `~/.local/state/hk/hk.log` on Linux. Override the file path and level independently:
 
 ```sh
 HK_LOG_FILE=/tmp/hk-debug.log HK_LOG_FILE_LEVEL=trace hk check

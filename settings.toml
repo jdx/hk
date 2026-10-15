@@ -242,7 +242,7 @@ When disabled, uses git CLI commands which may provide better performance in som
 type = "path"
 sources.env = ["HK_LOG_FILE"]
 docs = """
-Path to the execution log. Defaults to `$HK_STATE_DIR/hk.log`, typically `~/.local/state/hk/hk.log` on Linux. Set a separate file verbosity with `HK_LOG_FILE_LEVEL`.
+Path to the execution log. Defaults to `<git-dir>/hk/hk.log` in a repository (one per checkout), else `$HK_STATE_DIR/hk.log`, typically `~/.local/state/hk/hk.log` on Linux. Set a separate file verbosity with `HK_LOG_FILE_LEVEL`.
 """
 
 [log_file_level]
@@ -265,7 +265,7 @@ sources.env = ["HK_OUTPUT_FILE"]
 docs = """
 Path to the file where hk writes the complete output of a failed command.
 
-Default location: `~/.local/state/hk/output.log`
+Default location: `<git-dir>/hk/output.log` in a repository (one per checkout), else `$HK_STATE_DIR/output.log`
 
 An empty value uses the default location.
 
@@ -448,7 +448,7 @@ docs = """
 Number of backup patch files to keep per repository when using git stash.
 
 Each time git stash is used, hk creates a backup patch file in
-$HK_STATE_DIR/patches/. This setting controls how many of these
+`<common-git-dir>/hk/patches/` (or `$HK_STATE_DIR/patches/` when set). This setting controls how many of these
 backups are retained per repository (oldest are automatically deleted).
 
 Set to 0 to disable patch backup creation entirely.
@@ -480,9 +480,12 @@ sources.env = ["HK_STATE_DIR"]
 docs = """
 Directory where hk stores persistent state files.
 
-Default location: `~/.local/state/hk`
+Default: inside a repository, hk keeps its state in the git directory instead
+(`<git-dir>/hk/output.log` and `hk.log` per checkout, `<common-git-dir>/hk/patches/`
+shared by a repository's linked worktrees). Outside a repository it uses
+`~/.local/state/hk`. Setting this variable puts everything under that directory.
 
-Includes logs, temporary patch files for stashing, and other state information.
+Includes logs, command output, backup patches for stashing, and other state information.
 """
 
 [summary_text]

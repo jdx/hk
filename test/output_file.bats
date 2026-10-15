@@ -87,3 +87,37 @@ EOF
     assert_file_exist "failed-output.log"
     assert_file_contains "failed-output.log" "BARE_OUTPUT_FILE_MARKER"
 }
+
+@test "output.log defaults to the checkout's git directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail"] {
+        check = "echo GIT_DIR_MARKER 1>&2 && exit 1"
+        glob = List("*.txt")
+      }
+    }
+  }
+}
+EOF
+    echo "content" > file.txt
+    git add file.txt hk.pkl
+    git commit -m init -q
+    git worktree add -q "$BATS_TEST_TMPDIR/wt" -b wt
+    unset HK_STATE_DIR HK_OUTPUT_FILE HK_LOG_FILE
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "See $PWD/.git/hk/output.log for full command output"
+    assert_file_contains ".git/hk/output.log" "GIT_DIR_MARKER"
+
+    # A linked worktree keeps its own output.log
+    cd "$BATS_TEST_TMPDIR/wt"
+    run hk check --all
+    assert_failure
+    wt_git_dir="$(git rev-parse --absolute-git-dir)"
+    assert_output --partial "See $wt_git_dir/hk/output.log for full command output"
+    assert_file_contains "$wt_git_dir/hk/output.log" "GIT_DIR_MARKER"
+}
