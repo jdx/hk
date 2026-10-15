@@ -544,6 +544,11 @@ url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 checksum = "sha256:97f36a8a9684ff0d3e35758b4610fef5b628a5880e96f2ccc11240e5daf9934e"
 url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 
+[[tools."pipx:ansible-lint"]]
+version = "26.10.1"
+backend = "pipx:ansible-lint"
+specifiers = ["26.10.1"]
+
 [[tools.pkl]]
 version = "0.32.1"
 backend = "aqua:apple/pkl"
