@@ -4262,6 +4262,21 @@ fn note_running_owner(journal: &stash_journal::Journal) {
     }
 }
 
+/// Whether `file_name` is a patch saved for the repository named by `prefix`
+/// (`"{repo}-"`): `{repo}-YYYYMMDD-HHMMSS-{haiku}.patch`. Requiring the
+/// timestamp keeps repository `app` from claiming the patches of `app-web`.
+fn is_patch_of(file_name: &str, prefix: &str) -> bool {
+    let Some(rest) = file_name.strip_prefix(prefix) else {
+        return false;
+    };
+    let b = rest.as_bytes();
+    b.len() > 16
+        && b[..8].iter().all(u8::is_ascii_digit)
+        && b[8] == b'-'
+        && b[9..15].iter().all(u8::is_ascii_digit)
+        && b[15] == b'-'
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4798,19 +4813,4 @@ mod tests {
         assert_eq!(parse_dropped_commit("nothing here"), None);
         assert_eq!(parse_dropped_commit("(not hex)"), None);
     }
-}
-
-/// Whether `file_name` is a patch saved for the repository named by `prefix`
-/// (`"{repo}-"`): `{repo}-YYYYMMDD-HHMMSS-{haiku}.patch`. Requiring the
-/// timestamp keeps repository `app` from claiming the patches of `app-web`.
-fn is_patch_of(file_name: &str, prefix: &str) -> bool {
-    let Some(rest) = file_name.strip_prefix(prefix) else {
-        return false;
-    };
-    let b = rest.as_bytes();
-    b.len() > 16
-        && b[..8].iter().all(u8::is_ascii_digit)
-        && b[8] == b'-'
-        && b[9..15].iter().all(u8::is_ascii_digit)
-        && b[15] == b'-'
 }

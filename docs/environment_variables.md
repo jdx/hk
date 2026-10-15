@@ -254,7 +254,7 @@ Include untracked files when stashing. Setting this to `false` also skips untrac
 
 **Type:** path · **Default:** the repository's git directory; outside a repository, the platform state directory plus `hk`
 
-Directory for logs, command output and stash backup patches. Without it, hk keeps `output.log` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository it falls back to `~/.local/state/hk` on Linux. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_LOG_FILE` still override individual files.
+Directory for logs, command output and stash backup patches. Without it, hk keeps `output.log` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository, or in one with `core.sharedRepository` set (which accounts share), it falls back to `~/.local/state/hk` on Linux. `GIT_DIR` / `GIT_WORK_TREE` select the repository as they do for hk itself. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_LOG_FILE` still override individual files.
 
 ## `HK_SUMMARY_TEXT` {#hk-summary-text}
 

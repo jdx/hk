@@ -19,7 +19,22 @@ pub struct RepoDirs {
     pub workdir: Option<PathBuf>,
 }
 pub static REPO_DIRS: LazyLock<Option<RepoDirs>> = LazyLock::new(|| {
-    let repo = git2::Repository::discover(".").ok()?;
+    // Resolve the repository like `Git::new()`: `GIT_DIR` / `GIT_WORK_TREE`
+    // (bare-repo dotfile managers such as YADM) take precedence.
+    let repo = if var("GIT_DIR").is_ok() || var("GIT_WORK_TREE").is_ok() {
+        git2::Repository::open_from_env().ok()?
+    } else {
+        git2::Repository::discover(".").ok()?
+    };
+    // A repository shared between accounts (`core.sharedRepository`) cannot
+    // hold private per-account state, so keep the per-user state directory.
+    let shared = repo
+        .config()
+        .and_then(|c| c.get_string("core.sharedrepository"))
+        .ok();
+    if crate::stash_lock::shared_repository_mode(shared.as_deref()).is_some() {
+        return None;
+    }
     Some(RepoDirs {
         git_dir: repo.path().to_path_buf(),
         common_dir: repo.commondir().to_path_buf(),
