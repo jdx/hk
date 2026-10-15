@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "26.10.1"
+tool = "pipx:ansible-lint"
