@@ -1154,7 +1154,24 @@ impl Git {
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
-        Ok(name)
+        // Repositories with the same directory name, such as ones whose git
+        // directories live elsewhere, still get distinct prefixes.
+        let Some(repo) = env::REPO_DIRS.as_ref() else {
+            return Ok(name);
+        };
+        let identity = repo
+            .common_dir
+            .canonicalize()
+            .unwrap_or_else(|_| repo.common_dir.clone());
+        // FNV-1a: stable across hk and Rust versions, unlike `DefaultHasher`
+        let hash = identity
+            .to_string_lossy()
+            .trim_end_matches('/')
+            .bytes()
+            .fold(0x811c9dc5u32, |h, b| {
+                (h ^ b as u32).wrapping_mul(0x01000193)
+            });
+        Ok(format!("{name}-{hash:08x}"))
     }
 
     /// Rotate patch files, keeping only the last N patches for this repository
