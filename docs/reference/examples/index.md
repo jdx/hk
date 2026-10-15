@@ -8,7 +8,7 @@ Choose a starting point, save its downloadable Pkl file as `hk.pkl`, and adapt t
 
 | Example                                           | Tools and concepts                                            |
 | ------------------------------------------------- | ------------------------------------------------------------- |
-| [JavaScript and TypeScript](./javascript-project) | ESLint, Prettier, and optional TypeScript checking            |
+| [JavaScript and TypeScript](./javascript-project) | ESLint, oxfmt, and optional TypeScript checking               |
 | [Python](./python-project)                        | Ruff linting and formatting, plus optional mypy               |
 | [Monorepo](./monorepo)                            | Component groups, inherited defaults, and multiple toolchains |
 | [Custom steps](./custom-linters)                  | Check/fix commands and self-contained step tests              |

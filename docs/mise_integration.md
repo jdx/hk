@@ -14,7 +14,7 @@ From your project directory:
 
 ```sh
 mise use hk
-mise use npm:prettier
+mise use oxfmt
 ```
 
 Commit the resulting `mise.toml`. Other developers can run `mise install` to install the declared versions.

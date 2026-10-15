@@ -1,12 +1,12 @@
 ---
-description: Configure ESLint, Prettier, and optional TypeScript checking with hk.
+description: Configure ESLint, oxfmt, and optional TypeScript checking with hk.
 ---
 
 # JavaScript and TypeScript
 
-Run ESLint before Prettier, and enable TypeScript checking when you need it.
+Run ESLint before oxfmt, and enable TypeScript checking when you need it.
 
-**Prerequisites:** ESLint, Prettier, and TypeScript executables on `PATH`, plus their project configuration. If they are package dependencies, expose `node_modules/.bin` through [mise](/mise_integration#install-tools) or your existing environment.
+**Prerequisites:** ESLint, oxfmt, and TypeScript executables on `PATH`, plus their project configuration. If they are package dependencies, expose `node_modules/.bin` through [mise](/mise_integration#install-tools) or your existing environment.
 
 <a href="/javascript-project.pkl" download>Download javascript-project.pkl</a> and save it as `hk.pkl`.
 
@@ -24,7 +24,7 @@ hk check --all --profile types
 hk fix
 ```
 
-ESLint and Prettier can both change JavaScript files. The dependency gives them a stable order; configure their rules to agree. TypeScript checking stays behind the `types` profile so it is opt-in.
+ESLint and oxfmt can both change JavaScript files. The dependency gives them a stable order; configure their rules to agree. TypeScript checking stays behind the `types` profile so it is opt-in.
 
 Top-level `steps` supplies the default `pre-commit`, `check`, and `fix` hooks. The pre-commit hook saves unstaged work before fixing and staging changes.
 

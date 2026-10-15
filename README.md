@@ -39,17 +39,17 @@ steps {
 
 Top-level `steps` is the recommended starting point: hk supplies `check`, `fix`, and `pre-commit` hooks using these steps. It is optional; you can also define steps only inside explicit hooks. See [hook defaults](https://hk.jdx.dev/configuration#hook-defaults).
 
-Add tools such as `Builtins.prettier`, `Builtins.eslint`, or `Builtins.ruff`, or [define your own steps](https://hk.jdx.dev/reference/examples/custom-linters).
+Add tools such as `Builtins.oxfmt`, `Builtins.eslint`, or `Builtins.ruff`, or [define your own steps](https://hk.jdx.dev/reference/examples/custom-linters).
 
 ## Everyday commands
 
-| Command                   | Use it to                                             |
-| ------------------------- | ----------------------------------------------------- |
-| `hk check`                | Check modified files                                  |
-| `hk fix`                  | Apply available fixes to modified files               |
-| `hk check --all`          | Check the repository, including in CI                 |
-| `hk check --plan`         | Preview selected files and steps without running them |
-| `hk check --why prettier` | Explain why a step will run or be skipped             |
+| Command                | Use it to                                             |
+| ---------------------- | ----------------------------------------------------- |
+| `hk check`             | Check modified files                                  |
+| `hk fix`               | Apply available fixes to modified files               |
+| `hk check --all`       | Check the repository, including in CI                 |
+| `hk check --plan`      | Preview selected files and steps without running them |
+| `hk check --why oxfmt` | Explain why a step will run or be skipped             |
 
 By convention, checks do not modify files. `hk fix` leaves fixes unstaged unless you pass `--stage`. The default pre-commit hook stashes unstaged work, fixes and stages changes, then restores the unstaged work. Review `git diff` and `git diff --cached`. [Learn about hooks and partial commits](https://hk.jdx.dev/hooks).
 

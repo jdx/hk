@@ -1,11 +1,11 @@
-/// Prettier and ESLint, with TypeScript checking enabled by the types profile.
+/// oxfmt and ESLint, with TypeScript checking enabled by the types profile.
 amends "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
 
 import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = (Builtins.prettier) {
+  ["oxfmt"] = (Builtins.oxfmt) {
     // Choose a stable order when both tools can format JavaScript.
     depends = "eslint"
   }

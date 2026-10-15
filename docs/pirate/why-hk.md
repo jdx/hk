@@ -1,6 +1,6 @@
 ---
 description: Why sail with hk? Its lashings (file locks), how it works each lookout's strengths, the charts it steers by, and the tradeoffs ye take aboard.
-sourceHash: 9f8ec8b3829f
+sourceHash: e3f8ecb5be98
 ---
 
 # Why sail with hk?
@@ -27,7 +27,7 @@ Sailmakers on different files mend at once. A fix holds write locks on its step'
 
 ### Diff output {#diff-output}
 
-A `check_diff` command writes out a patch and leaves the files be. When fixing, hk runs it and applies the patch itself instead of running `fix`. If the patch won't take, hk runs `fix` instead, or, for a step with no `fix`, the command it runs when checking. When the command declares `effect = "read"`, as most builtins do, hk works out the patch under read locks, so the formatter hauls alongside other steps reading the same files. It takes write locks only on the files the patch changes, and only long enough to apply it. If another hand changed one of those files in the meantime, hk works out the patch again under write locks. A `check_diff` that declares no read effect holds its write locks the whole way, as any fix does. Builtins such as Ruff's formatter sail this way.
+A `check_diff` command writes out a patch and leaves the files be. When fixing, hk runs it and applies the patch itself instead of running `fix`. If the patch won't take, hk runs `fix` instead, or, for a step with no `fix`, the command it runs when checking. When the command declares `effect = "read"`, as most builtins do, hk works out the patch under read locks, so the formatter hauls alongside other steps reading the same files. It takes write locks only on the files the patch changes, and only long enough to apply it. If another hand changed one of those files in the meantime, hk works out the patch again under write locks. A `check_diff` that declares no read effect holds its write locks the whole way, as any fix does. Builtins such as oxfmt and Ruff's formatter sail this way.
 
 ### Lists of files needing fixes {#lists-of-files-needing-fixes}
 

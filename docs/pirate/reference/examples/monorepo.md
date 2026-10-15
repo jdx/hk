@@ -1,6 +1,6 @@
 ---
 description: One ship, many crews. Share step defaults across the frontend, Rust, and Terraform hands, plus the checks that range over the whole ship.
-sourceHash: 244426a66241
+sourceHash: 399a48ff9d02
 ---
 
 # Monorepo: one ship, many crews
@@ -69,7 +69,7 @@ local linters = new Mapping<String, Step> {
   ["eslint"] = (Builtins.eslint) {
     prefix = List("aube", "exec")
   }
-  ["prettier"] = (Builtins.prettier) {
+  ["oxfmt"] = (Builtins.oxfmt) {
     prefix = List("aube", "exec")
   }
 }
@@ -155,5 +155,5 @@ This maps straight onto [mise monorepo config roots](https://mise.jdx.dev/tasks/
 the same directories that keep a `mise.toml` for the quartermaster can keep their own `hk.pkl`.
 
 Use `hk check --all --plan` to read the passage plan, the resolved jobs, without running
-any of them. For this example, the plan includes `frontend:eslint`, `frontend:prettier`,
+any of them. For this example, the plan includes `frontend:eslint`, `frontend:oxfmt`,
 `backend:cargo-fmt`, and `backend:cargo-clippy`.

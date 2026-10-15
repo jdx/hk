@@ -21,15 +21,15 @@ local linters = new Mapping {
     check_first = true
 
     // instead of passing all files to check/fix, it will split them into batches
-    // this takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier
+    // this takes advantage of parallel processing for otherwise single-threaded linters like eslint
     // default: false
     batch = true
   }
   // linters can start from a builtin linter and be customized
-  ["prettier"] = (Builtins.prettier) {
+  ["oxfmt"] = (Builtins.oxfmt) {
     // providing a "check_list_files" command will be used to help the "check_first" method work more efficiently
     // rather than running fix against all the files that were checked, it only runs fix against the files returned by this command
-    check_list_files = "prettier --list-different {{files}}"
+    check_list_files = "oxfmt --list-different {{files}}"
   }
   ["clippy"] {
     // this linter works on directories instead of individual files.

@@ -599,6 +599,12 @@ url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 checksum = "sha256:97f36a8a9684ff0d3e35758b4610fef5b628a5880e96f2ccc11240e5daf9934e"
 url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 
+[[tools.oxfmt]]
+version = "0.73.0"
+aube = { path = ".mise/locks/oxfmt/0.73.0", digest = "sha256:e42eeebedd060ec6393c40caa35362b541991453b9aab2de3d33d41a0c245a62" }
+backend = "npm:oxfmt"
+specifiers = ["latest"]
+
 [[tools."pipx:ansible-lint"]]
 version = "26.10.1"
 backend = "pipx:ansible-lint"
@@ -668,12 +674,6 @@ url_api = "https://api.github.com/repos/apple/pkl/releases/assets/487426668"
 checksum = "sha256:8550a00fcf027335e42c5e2cd553b88e98845408cb1880b3e3d1860caf46d22a"
 url = "https://github.com/apple/pkl/releases/download/0.32.1/pkl-windows-amd64.exe"
 url_api = "https://api.github.com/repos/apple/pkl/releases/assets/487426668"
-
-[[tools.prettier]]
-version = "3.9.10"
-aube = { path = ".mise/locks/prettier/3.9.10", digest = "sha256:0a52cf3e98ebe971f9f0c338c08e668756d290a8d14fe3fd308251084fba1522" }
-backend = "npm:prettier"
-specifiers = ["latest"]
 
 [[tools.ripgrep]]
 version = "15.2.0"

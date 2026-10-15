@@ -20,11 +20,11 @@ Run `hk validate` for Pkl evaluation or schema errors. Compare the project's pin
 Preview the same hook and file-selection flags as the failing invocation:
 
 ```sh
-hk run pre-commit --plan --why prettier
-hk check --all --why prettier
+hk run pre-commit --plan --why oxfmt
+hk check --all --why oxfmt
 ```
 
-These are different scopes: the second command is useful as a comparison, not a reproduction of a staged-file failure. Replace `prettier` with the actual step. `--why` implies a plan and explains inclusion and exclusion; `--json` makes that plan machine-readable.
+These are different scopes: the second command is useful as a comparison, not a reproduction of a staged-file failure. Replace `oxfmt` with the actual step. `--why` implies a plan and explains inclusion and exclusion; `--json` makes that plan machine-readable.
 
 Check the selected paths against `glob`, `exclude`, `dir`, `workspace_indicator`, profiles, conditions, and skipped-step settings. `hk check` and `hk run pre-commit` may have different step mappings and fix/stash settings. A successful all-files check does not prove the staged snapshot will pass.
 
@@ -33,7 +33,7 @@ Check the selected paths against `glob`, `exclude`, `dir`, `workspace_indicator`
 Once the plan identifies the right files and command, narrow execution to that step. For example:
 
 ```sh
-hk check --check --step prettier path/to/file.ts
+hk check --check --step oxfmt path/to/file.ts
 ```
 
 `--check` chooses check commands, but a custom check can still write files. Inspect it before executing. For command-not-found errors, check the configured `prefix`, working directory, and project tool environment rather than installing a different global tool. For linter errors, fix the reported code or configuration and rerun the same scope.

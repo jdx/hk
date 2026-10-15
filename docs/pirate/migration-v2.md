@@ -1,6 +1,6 @@
 ---
 description: Refit yer ship for hk v2 by swapping out the v1 configuration files, builtin variants, and CLI entry points that v2 struck off.
-sourceHash: cd07ad881676
+sourceHash: fa6f94bf9787
 ---
 
 # Refitting the ship for hk v2
@@ -12,14 +12,14 @@ hk v2 strikes off the deprecated configuration entry points, the old gangways in
 Every builtin, every hand of the standing crew, is a `Config.Step`. A plain reference that takes the defaults stays short, and ye needn't change it:
 
 ```pkl
-["prettier"] = Builtins.prettier
+["oxfmt"] = Builtins.oxfmt
 ```
 
 A muster of builtins is still typed as `Mapping<String, Step>`:
 
 ```pkl
 local linters = new Mapping<String, Step> {
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 
@@ -43,7 +43,7 @@ The staged, strict, and versioned names have been removed, struck off the crew r
 These stand in for `gitleaks_staged`, `knip_strict`, `pinact_v3`, and `pinact_update_v3`, in that order. Put generic step customization, the settings any hand can take, under that same amended step object, matey:
 
 ```pkl
-["prettier"] = (Builtins.prettier) { batch = false }
+["oxfmt"] = (Builtins.oxfmt) { batch = false }
 ```
 
 Two hands become one: swap `Builtins.check_byte_order_marker` and `Builtins.fix_byte_order_marker` for `Builtins.byte_order_marker`.
@@ -56,7 +56,7 @@ For a new set of charts, we recommend top-level `steps` when `check`, `fix`, and
 
 ```pkl
 steps {
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 

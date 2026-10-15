@@ -63,7 +63,7 @@ Fix commands may also stage changes. Use --no-stage to leave fixes unstaged, the
 ```sh
 hk fix --no-stage
 hk fix --all --no-stage
-hk fix --step prettier
+hk fix --step oxfmt
 git diff
 git diff --cached
 ```

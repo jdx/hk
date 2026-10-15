@@ -18,7 +18,7 @@ Prefer the built-in definition when it fits: `hk builtins` lists available names
 Extend the project's existing mapping rather than replacing its hooks. For example, with its existing `Builtins.pkl` import, add this entry to the linter mapping used by the relevant hooks:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   glob = List("**/*.js", "**/*.ts", "**/*.json")
 }
 ```
@@ -32,15 +32,15 @@ For a custom step, set `glob` to the intended files, `check` to the reporting co
 Run `hk validate`, then preview the relevant hook without executing its commands:
 
 ```sh
-hk check --all --why prettier
+hk check --all --why oxfmt
 ```
 
-Replace `prettier` with the added step and choose explicit files instead of `--all` when the task is narrower. If the step only exists in `pre-commit`, inspect it with `hk run pre-commit --plan --why prettier` instead; do not assume the `check` hook has identical steps.
+Replace `oxfmt` with the added step and choose explicit files instead of `--all` when the task is narrower. If the step only exists in `pre-commit`, inspect it with `hk run pre-commit --plan --why oxfmt` instead; do not assume the `check` hook has identical steps.
 
 After reviewing the selected commands and confirming their effects fit the task, run the targeted check:
 
 ```sh
-hk check --check --step prettier --all
+hk check --check --step oxfmt --all
 ```
 
 `--check` selects check commands even if the hook sets `fix = true`; it does not make arbitrary commands read-only. Custom check commands can write files. Use `hk fix` when corrections are intended and inspect the resulting diff; pre-commit fixers may also stage changes.

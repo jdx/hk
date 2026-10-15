@@ -139,7 +139,7 @@ const RHUMBS = Array.from({ length: 16 }, (_, i) => {
           :aria-label="pirate ? 'The ship\'s charts: steps shared by the check, fix, and pre-commit hooks' : 'Example steps shared by the check, fix, and pre-commit hooks'"
         ><code><span class="hk-code-comment">// Run by check, fix, and pre-commit</span>
 steps {
-  [<span class="hk-code-string">"prettier"</span>] = Builtins.prettier
+  [<span class="hk-code-string">"oxfmt"</span>] = Builtins.oxfmt
   [<span class="hk-code-string">"eslint"</span>] = Builtins.eslint
   [<span class="hk-code-string">"ruff"</span>] = Builtins.ruff
 }</code></pre>

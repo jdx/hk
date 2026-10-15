@@ -18,14 +18,14 @@ import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.
 hooks {
   ["check"] {
     steps {
-      ["prettier"] = Builtins.prettier
+      ["oxfmt"] = Builtins.oxfmt
       ["eslint"] = Builtins.eslint
     }
   }
 }
 ```
 
-`Builtins.prettier` is the Pkl property name. The step name, `"prettier"`, is your label for selecting the step in commands such as `hk check --step prettier`.
+`Builtins.oxfmt` is the Pkl property name. The step name, `"oxfmt"`, is your label for selecting the step in commands such as `hk check --step oxfmt`.
 
 Keep the schema and Builtins imports on the same version. The catalogue below describes the version of the source used to build this website; an older pinned package may differ.
 
@@ -34,7 +34,7 @@ Keep the schema and Builtins imports on the same version. The catalogue below de
 Amend a builtin to keep its defaults while changing specific properties:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   glob = List("*.js", "*.ts", "*.json")
   exclude = List("**/generated/**")
   batch = false
@@ -46,7 +46,7 @@ A property assignment replaces that property. If you override `glob` or `exclude
 Use dependencies for ordering and profiles for optional checks:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   depends = "eslint"
 }
 ["mypy"] = (Builtins.mypy) {

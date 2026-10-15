@@ -83,13 +83,13 @@ The `amends` line loads hk’s configuration schema. `Builtins` supplies reusabl
 
 In this configuration, `pre-commit` fixes staged files while unstaged work is stashed. `check` checks your working tree, and `fix` applies fixes to it. Steps whose file patterns do not match any selected files are skipped.
 
-When you are ready for language-specific linters, add entries to the existing `steps` block; a second top-level `steps` block would stop the configuration from loading. These builtins invoke external tools, so install and configure Prettier, ESLint, and Ruff first, or choose [builtins](/builtins) that match your project:
+When you are ready for language-specific linters, add entries to the existing `steps` block; a second top-level `steps` block would stop the configuration from loading. These builtins invoke external tools, so install and configure oxfmt, ESLint, and Ruff first, or choose [builtins](/builtins) that match your project:
 
 ```pkl
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace
   ["newlines"] = Builtins.newlines
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
   ["eslint"] = Builtins.eslint
   ["ruff"] = Builtins.ruff
 }
