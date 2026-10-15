@@ -14,6 +14,7 @@ mr-boxington  = { version = "latest", minimum_release_age = "0s" }
 node          = "latest"
 oxfmt         = "latest"
 pkl           = "latest"
+prettier      = "latest"
 ripgrep       = "latest"
 tak           = { version = "latest", minimum_release_age = "0s" }
 taplo         = "latest"
