@@ -1,0 +1,58 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Ruby"
+  description = "HTML+ERB formatter (experimental)"
+  project_indicators {
+    new { file = ".herb.yml" }
+    new { file = "package.json"; contains = "@herb-tools/formatter" }
+  }
+}
+herb_format = new Config.Step {
+  glob =
+    List(
+      "**/*.herb",
+      "**/*.html.herb",
+      "**/*.html",
+      "**/*.rhtml",
+      "**/*.html.erb",
+      "**/*.html+*.erb",
+      "**/*.turbo_stream.erb",
+    )
+  batch = true
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("herb-format", "--check", "{{files}}") }
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("hk", "util", "format-diff", "{{files}}", "--", "herb-format", "-")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("herb-format", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test file.html.erb"
+      extra_files = new Mapping<String, String> {
+        [".herb.yml"] = "formatter:\n  enabled: true\n"
+      }
+    }
+    local const bad = "<div>\n<span><%= title %></span>\n</div>\n"
+    local const good = "<div>\n  <span><%= title %></span>\n</div>\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["check herb file"] = testMaker.withFilename("test file.herb").checkFail(bad, 1)
+    ["fix herb file"] = testMaker.withFilename("test file.herb").fixPass(bad, good)
+    ["check html.herb file"] = testMaker.withFilename("test file.html.herb").checkFail(bad, 1)
+    ["fix html.herb file"] = testMaker.withFilename("test file.html.herb").fixPass(bad, good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+  }
+}
