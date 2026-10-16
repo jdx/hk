@@ -90,20 +90,27 @@ struct Hook {
     language_version: Option<String>,
 }
 
+/// A YAML scalar argument; anything else is rejected with serde's own message.
+#[derive(Deserialize)]
+#[serde(untagged, expecting = "a string argument")]
+enum Scalar {
+    String(String),
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+}
+
 /// Accept `args: [--max-line-length, 100]`, where YAML parses 100 as a number.
 fn scalar_list<'de, D: Deserializer<'de>>(de: D) -> std::result::Result<Vec<String>, D::Error> {
-    let values = Vec::<serde_yaml::Value>::deserialize(de)?;
-    values
+    Ok(Vec::<Scalar>::deserialize(de)?
         .into_iter()
         .map(|v| match v {
-            serde_yaml::Value::String(s) => Ok(s),
-            serde_yaml::Value::Number(n) => Ok(n.to_string()),
-            serde_yaml::Value::Bool(b) => Ok(b.to_string()),
-            other => Err(serde::de::Error::custom(format!(
-                "expected a string argument, got {other:?}"
-            ))),
+            Scalar::String(s) => s,
+            Scalar::Int(n) => n.to_string(),
+            Scalar::Float(n) => n.to_string(),
+            Scalar::Bool(b) => b.to_string(),
         })
-        .collect()
+        .collect())
 }
 
 /// Hooks with an equivalent hk builtin, keyed by `owner/repo` and hook id.
@@ -422,7 +429,7 @@ impl PreCommit {
         }
 
         let content = xx::file::read_to_string(&self.config)?;
-        let config: PreCommitConfig = serde_yaml::from_str(&content)
+        let config: PreCommitConfig = serde_saphyr::from_str(&content)
             .wrap_err_with(|| format!("failed to parse {}", self.config.display()))?;
 
         let runner = self.runner.clone().unwrap_or_else(|| {
@@ -1026,7 +1033,7 @@ mod tests {
     use super::*;
 
     fn migrate(yaml: &str) -> Migration {
-        convert(&serde_yaml::from_str(yaml).unwrap())
+        convert(&serde_saphyr::from_str(yaml).unwrap())
     }
 
     fn step<'a>(m: &'a Migration, stage: &str, name: &str) -> &'a Step {
