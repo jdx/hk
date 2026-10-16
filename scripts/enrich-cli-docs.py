@@ -23,7 +23,7 @@ EXAMPLES = {
     "check": ("Check a full repository or inspect one step before running it.",
               "hk check --all\nhk check --step eslint\nhk check --why eslint\nhk check --plan --json"),
     "fix": ("Fix commands may also stage changes. Use --no-stage to leave fixes unstaged, then review both working-tree and staged diffs.",
-            "hk fix --no-stage\nhk fix --all --no-stage\nhk fix --step prettier\ngit diff\ngit diff --cached"),
+            "hk fix --no-stage\nhk fix --all --no-stage\nhk fix --step oxfmt\ngit diff\ngit diff --cached"),
     "init": ("Generate a configuration, then validate it. Install selected tools separately.",
              "hk init\nhk validate\n\n# Choose linters and hooks interactively\nhk init --interactive"),
     "install": ("Choose a local installation or a global one on Git 2.54+. Add --mise when Git needs mise to provide tools.",

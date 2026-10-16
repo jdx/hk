@@ -599,6 +599,12 @@ url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 checksum = "sha256:97f36a8a9684ff0d3e35758b4610fef5b628a5880e96f2ccc11240e5daf9934e"
 url = "https://nodejs.org/dist/v26.11.1/node-v26.11.1-win-x64.zip"
 
+[[tools.oxfmt]]
+version = "0.73.0"
+aube = { path = ".mise/locks/oxfmt/0.73.0", digest = "sha256:e42eeebedd060ec6393c40caa35362b541991453b9aab2de3d33d41a0c245a62" }
+backend = "npm:oxfmt"
+specifiers = ["latest"]
+
 [[tools."pipx:ansible-lint"]]
 version = "26.10.1"
 backend = "pipx:ansible-lint"

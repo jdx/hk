@@ -20,7 +20,7 @@ import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.
 
 steps {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 
@@ -54,7 +54,7 @@ hooks {
     stage = true
     stash = "git"
     steps {
-      ["prettier"] = Builtins.prettier
+      ["oxfmt"] = Builtins.oxfmt
     }
   }
 }
@@ -300,7 +300,7 @@ hk parses the combined stdout and stderr of `check` runs. If a hand captured no 
 ### Refit a standing hand: customize a builtin {#customize-a-builtin}
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   glob = List("*.js", "*.ts", "*.json")
   exclude = List("**/generated/**")
 }
@@ -313,7 +313,7 @@ The amended object keeps every property ye don't override. See [builtins](/built
 Use `depends` when one hand needs another hand's work done first:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   depends = "eslint"
 }
 ```
@@ -331,7 +331,7 @@ local frontend = new Group {
   dir = "frontend"
   prefix = List("mise", "x", "--")
   steps {
-    ["prettier"] = Builtins.prettier
+    ["oxfmt"] = Builtins.oxfmt
     ["eslint"] = Builtins.eslint
   }
 }

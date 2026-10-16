@@ -19,7 +19,7 @@ import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.
 
 steps {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 
@@ -52,7 +52,7 @@ hooks {
     stage = true
     stash = "git"
     steps {
-      ["prettier"] = Builtins.prettier
+      ["oxfmt"] = Builtins.oxfmt
     }
   }
 }
@@ -332,7 +332,7 @@ hk parses the combined stdout and stderr of `check` runs. If a step captured no 
 ### Customize a builtin
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   glob = List("*.js", "*.ts", "*.json")
   exclude = List("**/generated/**")
 }
@@ -345,7 +345,7 @@ The amended object keeps properties you do not override. See [builtins](/builtin
 Use `depends` when the result of one step is needed by another:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   depends = "eslint"
 }
 ```
@@ -363,7 +363,7 @@ local frontend = new Group {
   dir = "frontend"
   prefix = List("mise", "x", "--")
   steps {
-    ["prettier"] = Builtins.prettier
+    ["oxfmt"] = Builtins.oxfmt
     ["eslint"] = Builtins.eslint
   }
 }
@@ -392,7 +392,7 @@ A step requires **all** of its positive profile names to be enabled by default. 
 For other combinations, such as "any of", use `profile_condition`. It is an [expression](#conditions-and-git-status) where `profile('name')` is true when that profile is enabled and not explicitly disabled. It applies in addition to `profiles`.
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   profile_condition = "profile('ci') or profile('slow')"
 }
 ```

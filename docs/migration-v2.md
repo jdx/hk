@@ -14,14 +14,14 @@ Every builtin is a `Config.Step`. Default references stay concise and do not
 need to change:
 
 ```pkl
-["prettier"] = Builtins.prettier
+["oxfmt"] = Builtins.oxfmt
 ```
 
 Builtin collections remain typed as `Mapping<String, Step>`:
 
 ```pkl
 local linters = new Mapping<String, Step> {
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 
@@ -47,7 +47,7 @@ These replace `gitleaks_staged`, `knip_strict`, `pinact_v3`, and
 same amended step object:
 
 ```pkl
-["prettier"] = (Builtins.prettier) { batch = false }
+["oxfmt"] = (Builtins.oxfmt) { batch = false }
 ```
 
 Replace `Builtins.check_byte_order_marker` and
@@ -61,7 +61,7 @@ For new configurations, we recommend top-level `steps` when `check`, `fix`, and 
 
 ```pkl
 steps {
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 

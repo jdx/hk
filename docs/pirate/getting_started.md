@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: 5e6fc49bfc4f
+sourceHash: 9dce5097211f
 ---
 
 # Getting under way
@@ -80,13 +80,13 @@ The `amends` line loads hk's configuration schema. `Builtins` supplies reusable 
 
 With these charts, `pre-commit` fixes the staged files while yer unstaged work is stowed in the hold. `check` inspects yer working tree, and `fix` applies fixes to it. A step whose file patterns match none of the selected files is skipped.
 
-When ye're ready for lookouts that know yer language, sign on more hands by adding entries to the existing `steps` block; a second top-level `steps` block would keep the charts from loading. These builtins call on outside tools, so bring Prettier, ESLint, and Ruff aboard and configure them first, or swap them for [builtins](/builtins) that suit yer project:
+When ye're ready for lookouts that know yer language, sign on more hands by adding entries to the existing `steps` block; a second top-level `steps` block would keep the charts from loading. These builtins call on outside tools, so bring oxfmt, ESLint, and Ruff aboard and configure them first, or swap them for [builtins](/builtins) that suit yer project:
 
 ```pkl
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace
   ["newlines"] = Builtins.newlines
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
   ["eslint"] = Builtins.eslint
   ["ruff"] = Builtins.ruff
 }

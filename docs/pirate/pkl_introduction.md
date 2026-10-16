@@ -1,6 +1,6 @@
 ---
 description: Learn the Pkl ye need to draw hk's charts, muster the same hands across hooks, and find out why the charts won't evaluate.
-sourceHash: 8747ce496cf7
+sourceHash: c57a31617e07
 ---
 
 # Pkl essentials for the chart room
@@ -54,7 +54,7 @@ Hooks and steps are mappings keyed by name, like a muster roll. Prefer top-level
 ```pkl
 steps {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 
@@ -65,7 +65,7 @@ Top-level `steps` is optional. To share one mapping among only the hooks ye choo
 ```pkl
 local linters = new Mapping<String, Step> {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 
 hooks {
@@ -86,7 +86,7 @@ Parentheses followed by an object body make a modified copy, refitted to yer lik
 
 ```pkl
 steps {
-  ["prettier"] = (Builtins.prettier) {
+  ["oxfmt"] = (Builtins.oxfmt) {
     glob = List("*.js", "*.ts")
     exclude = List("**/generated/**")
   }
@@ -173,13 +173,13 @@ Each `generated/*.pkl` file brings its own `STEPS` aboard, so a build script can
 add or remove step definitions, signing hands on and off, without editing `hk.pkl`:
 
 ```pkl
-// generated/prettier.pkl
+// generated/oxfmt.pkl
 import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
 
 STEPS: Mapping<String, Config.Step> = new {
-  ["prettier"] {
+  ["oxfmt"] {
     glob = List("*.md")
-    check = "prettier --check {{files}}"
+    check = "oxfmt --check {{files}}"
   }
 }
 ```

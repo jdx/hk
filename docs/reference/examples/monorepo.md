@@ -68,7 +68,7 @@ local linters = new Mapping<String, Step> {
   ["eslint"] = (Builtins.eslint) {
     prefix = List("aube", "exec")
   }
-  ["prettier"] = (Builtins.prettier) {
+  ["oxfmt"] = (Builtins.oxfmt) {
     prefix = List("aube", "exec")
   }
 }
@@ -154,5 +154,5 @@ This maps directly onto [mise monorepo config roots](https://mise.jdx.dev/tasks/
 the same directories that own a `mise.toml` can own their `hk.pkl`.
 
 Use `hk check --all --plan` to inspect the resolved jobs without executing them.
-For this example, the plan includes `frontend:eslint`, `frontend:prettier`,
+For this example, the plan includes `frontend:eslint`, `frontend:oxfmt`,
 `backend:cargo-fmt`, and `backend:cargo-clippy`.

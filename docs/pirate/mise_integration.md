@@ -1,6 +1,6 @@
 ---
 description: Let mise, the ship's quartermaster, provision hk and yer linter versions, environment variables, and the running of Git hooks.
-sourceHash: 615e042a7cef
+sourceHash: 6720d9670753
 ---
 
 # mise integration: the quartermaster
@@ -15,7 +15,7 @@ From yer project directory, there's but three words left to say, as the song goe
 
 ```sh
 mise use hk
-mise use npm:prettier
+mise use oxfmt
 ```
 
 Commit the `mise.toml` that results, so it sails with the ship. Every other sailor aboard can then run `mise install` to install the very versions it declares.

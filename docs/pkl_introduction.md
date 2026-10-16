@@ -53,7 +53,7 @@ Hooks and steps are mappings keyed by name. Prefer top-level `steps` for linters
 ```pkl
 steps {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 ```
 
@@ -64,7 +64,7 @@ Top-level `steps` is optional. To share a mapping between selected explicit hook
 ```pkl
 local linters = new Mapping<String, Step> {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = Builtins.prettier
+  ["oxfmt"] = Builtins.oxfmt
 }
 
 hooks {
@@ -85,7 +85,7 @@ Parentheses followed by an object body create a modified copy:
 
 ```pkl
 steps {
-  ["prettier"] = (Builtins.prettier) {
+  ["oxfmt"] = (Builtins.oxfmt) {
     glob = List("*.js", "*.ts")
     exclude = List("**/generated/**")
   }
@@ -170,13 +170,13 @@ Each `generated/*.pkl` file contributes its own `STEPS`, so a build script can
 add or remove step definitions without editing `hk.pkl`:
 
 ```pkl
-// generated/prettier.pkl
+// generated/oxfmt.pkl
 import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Config.pkl"
 
 STEPS: Mapping<String, Config.Step> = new {
-  ["prettier"] {
+  ["oxfmt"] {
     glob = List("*.md")
-    check = "prettier --check {{files}}"
+    check = "oxfmt --check {{files}}"
   }
 }
 ```

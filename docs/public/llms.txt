@@ -19,7 +19,7 @@
 - [Troubleshooting](https://hk.jdx.dev/logging.html): Start with a plan and verbose output. They usually show whether the problem is file selection, configuration, or a linter command.
 - [Coding agents](https://hk.jdx.dev/agents.html): hk gives coding agents a narrow, inspectable way to run project checks and fixes. Agents can use structured CLI output everywhere, or the MCP server for persistent runs, cancellation, paged logs,…
 - [Configuration examples](https://hk.jdx.dev/reference/examples/): Choose a starting point, save its downloadable Pkl file as hk.pkl, and adapt the tools and paths to your project. Each page includes the exact file it offers for download.
-- [JavaScript and TypeScript](https://hk.jdx.dev/reference/examples/javascript-project.html): Run ESLint before Prettier, and enable TypeScript checking when you need it.
+- [JavaScript and TypeScript](https://hk.jdx.dev/reference/examples/javascript-project.html): Run ESLint before oxfmt, and enable TypeScript checking when you need it.
 - [Python](https://hk.jdx.dev/reference/examples/python-project.html): Use Ruff for linting and formatting, with mypy behind the types profile.
 - [Monorepo](https://hk.jdx.dev/reference/examples/monorepo.html): Organize frontend, backend, and infrastructure checks into groups, then add repository-wide Markdown and YAML checks.
 - [Custom steps](https://hk.jdx.dev/reference/examples/custom-linters.html): A step can invoke any shell command. Define which files it uses, how to check them without writes, and how to apply fixes.

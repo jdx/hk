@@ -1,7 +1,7 @@
 ---
 outline: [2, 3]
 description: Meet the standing crew who come with the ship. Browse reusable linter and formatter definitions, refit them to yer needs, and learn which tools ye must bring aboard yerself.
-sourceHash: 3176496cdc02
+sourceHash: 52708f796997
 ---
 
 # The standing crew: built-in linters
@@ -19,14 +19,14 @@ import "package://github.com/jdx/hk/releases/download/v2.6.0/hk@2.6.0#/Builtins.
 hooks {
   ["check"] {
     steps {
-      ["prettier"] = Builtins.prettier
+      ["oxfmt"] = Builtins.oxfmt
       ["eslint"] = Builtins.eslint
     }
   }
 }
 ```
 
-`Builtins.prettier` is the Pkl property name, the name the hand goes by on the roster. The step name, `"prettier"`, is yer own label for that hand, the one ye name in calls such as `hk check --step prettier`.
+`Builtins.oxfmt` is the Pkl property name, the name the hand goes by on the roster. The step name, `"oxfmt"`, is yer own label for that hand, the one ye name in calls such as `hk check --step oxfmt`.
 
 Aye, and keep the schema and Builtins imports on the same version. The roster below describes the version of the source this website was built from; an older pinned package may differ.
 
@@ -35,7 +35,7 @@ Aye, and keep the schema and Builtins imports on the same version. The roster be
 Amend a builtin to keep its defaults while ye change particular properties:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   glob = List("*.js", "*.ts", "*.json")
   exclude = List("**/generated/**")
   batch = false
@@ -47,7 +47,7 @@ Mind this: a property assignment replaces that property whole. If ye override `g
 Use dependencies to set the order the hands work in, and profiles (the ship's watches) for optional checks:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["oxfmt"] = (Builtins.oxfmt) {
   depends = "eslint"
 }
 ["mypy"] = (Builtins.mypy) {

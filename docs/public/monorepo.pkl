@@ -12,7 +12,7 @@ local frontend = new Group {
   // Inherited by frontend steps unless a child overrides `dir`.
   dir = "frontend"
   steps {
-    ["prettier"] = (Builtins.prettier) {
+    ["oxfmt"] = (Builtins.oxfmt) {
       batch = true
     }
     ["eslint"] = (Builtins.eslint) {
