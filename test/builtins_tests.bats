@@ -277,6 +277,32 @@ PKL
     assert_output --partial "ok - kubeconform_extra :: check skips extra and default excludes"
 }
 
+@test "oxfmt skips the lockfiles it rejects on stdin" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["oxfmt"] = Builtins.oxfmt
+    }
+  }
+}
+PKL
+    printf 'const x:number=42' > foo.ts
+    printf "lockfileVersion: '9.0'\n" > pnpm-lock.yaml
+    printf '{"lockfileVersion":3}\n' > package-lock.json
+    git add -A
+    git -c commit.gpgsign=false commit -qm init
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk fix --all
+    assert_success
+    refute_output --partial "oxfmt failed"
+    assert_equal "$(cat foo.ts)" "const x: number = 42;"
+}
+
 @test "shell builtins select extensionless sh scripts but not fish" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
