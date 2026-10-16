@@ -101,3 +101,39 @@ EOF
     run git diff
     assert_output --partial "+10 unstaged"
 }
+
+@test "hk run pre-commit --from-hook --staged lets a hook opt out of stashing despite HK_STASH=git" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "none"
+        steps {
+            ["upper"] {
+                glob = "*.txt"
+                fix = "perl -pi -e 's/foo/FOO/g' {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "init"
+
+    printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n' > a.txt
+    git add a.txt
+    git commit -m "add a"
+
+    printf '1 foo\n2\n3\n4\n5\n6\n7\n8\n9\n10 unstaged\n' > a.txt
+    printf 'y\nn\n' | git add -p a.txt > /dev/null
+
+    HK_STASH=git run hk run pre-commit --from-hook --staged
+    assert_success
+
+    # No stash happened, so the fixer saw the whole file and restaged it.
+    run git diff --cached
+    assert_output --partial "+10 unstaged"
+    run git stash list
+    assert_output ""
+}
