@@ -706,8 +706,18 @@ impl Hook {
     }
 
     fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> Result<StashMethod> {
-        Ok(if opts.staged || opts.unstaged {
+        Ok(if opts.unstaged {
             StashMethod::None
+        } else if opts.staged {
+            // The global git hook passes `--staged` with `--from-hook`. It must
+            // still honor the hook's own `stash` setting, or a fixer stages
+            // unstaged hunks of a partially staged file. `HK_STASH` is ignored
+            // there so a global value cannot override a repository's choice.
+            if opts.from_hook {
+                self.resolve_stash_method(None)
+            } else {
+                StashMethod::None
+            }
         } else if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
