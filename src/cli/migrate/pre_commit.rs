@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::Result;
 use eyre::{WrapErr, bail};
 use indexmap::{IndexMap, IndexSet};
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 
 /// Migrate from pre-commit (or prek) to hk
 ///
@@ -78,7 +78,9 @@ struct Hook {
     types_or: Vec<String>,
     #[serde(default)]
     exclude_types: Vec<String>,
-    #[serde(default, deserialize_with = "scalar_list")]
+    // serde-saphyr reads `100`, `1.0` or `true` into a String as written, so
+    // `args: [--max-line-length, 100]` keeps its exact text
+    #[serde(default)]
     args: Vec<String>,
     #[serde(default)]
     additional_dependencies: Vec<String>,
@@ -88,29 +90,6 @@ struct Hook {
     always_run: bool,
     pass_filenames: Option<bool>,
     language_version: Option<String>,
-}
-
-/// A YAML scalar argument; anything else is rejected with serde's own message.
-#[derive(Deserialize)]
-#[serde(untagged, expecting = "a string argument")]
-enum Scalar {
-    String(String),
-    Int(i64),
-    Float(f64),
-    Bool(bool),
-}
-
-/// Accept `args: [--max-line-length, 100]`, where YAML parses 100 as a number.
-fn scalar_list<'de, D: Deserializer<'de>>(de: D) -> std::result::Result<Vec<String>, D::Error> {
-    Ok(Vec::<Scalar>::deserialize(de)?
-        .into_iter()
-        .map(|v| match v {
-            Scalar::String(s) => s,
-            Scalar::Int(n) => n.to_string(),
-            Scalar::Float(n) => n.to_string(),
-            Scalar::Bool(b) => b.to_string(),
-        })
-        .collect())
 }
 
 /// Hooks with an equivalent hk builtin, keyed by `owner/repo` and hook id.
@@ -1104,6 +1083,27 @@ repos:
             panic!("expected delegation");
         };
         assert!(reason.contains("--line-length 100"), "{reason}");
+    }
+
+    #[test]
+    fn numeric_and_bool_args_keep_their_source_text() {
+        let m = migrate(
+            r#"
+repos:
+- repo: https://github.com/psf/black
+  rev: 24.1.0
+  hooks:
+  - id: black
+    args: [--target, 3.10, --line-length, 100, --ratio, 1.0, --fast, true]
+"#,
+        );
+        let Action::Delegate(reason) = &step(&m, "pre-commit", "black").action else {
+            panic!("expected delegation");
+        };
+        assert!(
+            reason.contains("--target 3.10 --line-length 100 --ratio 1.0 --fast true"),
+            "{reason}"
+        );
     }
 
     #[test]
