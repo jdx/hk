@@ -58,13 +58,16 @@ oxfmt = new Config.Step {
       "**/*.handlebars",
       "**/*.hbs",
     )
+  // oxfmt skips these lockfiles by default when given paths but rejects them on
+  // stdin, which would make check_diff fail on them while check and fix pass.
+  exclude = List("**/pnpm-lock.yaml", "**/package-lock.json")
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("oxfmt", "--check", "--no-error-on-unmatched-pattern", "{{files}}")
     }
     effect = "read"
   }
-  // oxfmt formats stdin, and honors its ignore patterns there too.
+  // oxfmt formats stdin. Its default lockfile ignores don't apply there (see exclude).
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("hk", "util", "format-diff", "{{files}}", "--", "oxfmt", "--stdin-filepath", "{}")
