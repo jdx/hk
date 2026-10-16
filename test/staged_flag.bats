@@ -70,3 +70,34 @@ EOF
     assert_failure
     assert_output --partial "cannot be used with"
 }
+
+@test "hk run pre-commit --from-hook --staged honors the hook's stash setting" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+steps {
+    ["upper"] {
+        glob = "*.txt"
+        fix = "perl -pi -e 's/foo/FOO/g' {{files}}"
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "init"
+
+    printf '1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n' > a.txt
+    git add a.txt
+    git commit -m "add a"
+
+    printf '1 foo\n2\n3\n4\n5\n6\n7\n8\n9\n10 unstaged\n' > a.txt
+    printf 'y\nn\n' | git add -p a.txt > /dev/null
+
+    HK_STASH=none run hk run pre-commit --from-hook --staged
+    assert_success
+
+    run git diff --cached
+    assert_output --partial "+1 FOO"
+    refute_output --partial "10 unstaged"
+
+    run git diff
+    assert_output --partial "+10 unstaged"
+}

@@ -35,7 +35,7 @@ For both `hk run pre-commit --all` and `hk check --all`, the resolved stash meth
 `HK_STASH_UNTRACKED=0` disables discovery and stashing of untracked files. Setting it to `1` allows discovery and stashing, but does not include untracked files in `--all` when stashing is enabled.
 
 ::: warning Staged paths are not staged contents
-`--staged` does not stash unstaged changes. If a file contains both staged and unstaged edits, the command sees its working-tree contents. Use a hook configured with stashing when the staged version must be isolated.
+`--staged` does not stash unstaged changes. If a file contains both staged and unstaged edits, the command sees its working-tree contents. Use a hook configured with stashing when the staged version must be isolated. The one exception is the Git hook that `hk install --global` writes, which passes `--staged --from-hook`: it follows the hook's own `stash` setting and ignores `HK_STASH`, so a partial commit stays partial.
 :::
 
 Use `hk run pre-commit --plan` to inspect selected steps and files before executing them.
