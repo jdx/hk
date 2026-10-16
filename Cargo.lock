@@ -903,7 +903,7 @@ dependencies = [
  "winapi-util",
  "windows-sys 0.61.2",
  "xx",
- "zip 9.0.4",
+ "zip",
 ]
 
 [[package]]
@@ -1713,9 +1713,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pklr"
-version = "5.1.1"
+version = "5.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a7ccc91516ff59113663c375227da3bca2de7feaa376c318e3dfb0b642fdfb1"
+checksum = "c47b6a20594a84d98f361b36f07bee92e63bdf56f5f07778deed6b8ddc882bbd"
 dependencies = [
  "fancy-regex",
  "indexmap 2.14.2",
@@ -1730,7 +1730,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "url",
- "zip 8.6.0",
+ "zip",
 ]
 
 [[package]]
@@ -3548,20 +3548,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
-]
-
-[[package]]
-name = "zip"
-version = "8.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
-dependencies = [
- "crc32fast",
- "flate2",
- "indexmap 2.14.2",
- "memchr",
- "typed-path",
- "zopfli",
 ]
 
 [[package]]
