@@ -1,5 +1,50 @@
 # Changelog
 
+## [2.7.0](https://github.com/jdx/hk/compare/v2.6.0..v2.7.0) - 2026-10-16
+
+### 🚀 Features
+
+- **(builtins)** report jactionlint findings as SARIF and apply its fixes by [@jdx](https://github.com/jdx) in [#1687](https://github.com/jdx/hk/pull/1687)
+- **(builtins)** add Herb formatter and linter by [@beauraF](https://github.com/beauraF) in [#1706](https://github.com/jdx/hk/pull/1706)
+- **(builtins)** add ansible-lint linter by [@illesnagy1](https://github.com/illesnagy1) in [#1707](https://github.com/jdx/hk/pull/1707)
+- **(builtins)** add packer fmt formatter by [@illesnagy1](https://github.com/illesnagy1) in [#1708](https://github.com/jdx/hk/pull/1708)
+- **(step)** add profile_condition to enable steps with and/or/not over profiles by [@jdx](https://github.com/jdx) in [#1684](https://github.com/jdx/hk/pull/1684)
+- **(validate)** add --json output and --deny-warnings to fail on warnings by [@jdx](https://github.com/jdx) in [#1699](https://github.com/jdx/hk/pull/1699)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** stop passing file arguments to brakeman by [@beauraF](https://github.com/beauraF) in [#1704](https://github.com/jdx/hk/pull/1704)
+- **(config)** keep output.log, hk.log and patches in the repository's git dir by [@jdx](https://github.com/jdx) in [#1705](https://github.com/jdx/hk/pull/1705)
+- **(step)** show rendered findings instead of raw SARIF in failed check output by [@jdx](https://github.com/jdx) in [#1695](https://github.com/jdx/hk/pull/1695)
+
+### 📚 Documentation
+
+- refresh competitor benchmark for v2.6.0 by [@jdx](https://github.com/jdx) in [#1688](https://github.com/jdx/hk/pull/1688)
+
+### 🛡️ Security
+
+- **(ci)** remove claude-code-action workflow by [@jdx](https://github.com/jdx) in [#1694](https://github.com/jdx/hk/pull/1694)
+- **(deps)** update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1689](https://github.com/jdx/hk/pull/1689)
+- **(deps)** bump jactionlint to 2.2.0 and mbx to 1.24.0 by [@jdx](https://github.com/jdx) in [#1700](https://github.com/jdx/hk/pull/1700)
+- recommend oxfmt over prettier in examples and getting started by [@jdx](https://github.com/jdx) in [#1711](https://github.com/jdx/hk/pull/1711)
+
+### 🔍 Other Changes
+
+- **(release)** shorten minimum release age to 2 days by [@jdx](https://github.com/jdx) in [bd30b5d](https://github.com/jdx/hk/commit/bd30b5d7eb3de89e7824292f984beb2e23e19b5c)
+
+### 📦️ Dependency Updates
+
+- update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1690](https://github.com/jdx/hk/pull/1690)
+- update actions/checkout action to v7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1691](https://github.com/jdx/hk/pull/1691)
+- update dependency preact to v11 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1692](https://github.com/jdx/hk/pull/1692)
+- update node.js to v26.11.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1696](https://github.com/jdx/hk/pull/1696)
+- update rustls to 0.23.46 by [@jdx](https://github.com/jdx) in [#1701](https://github.com/jdx/hk/pull/1701)
+- update rust crate usage-rs to v7.0.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1702](https://github.com/jdx/hk/pull/1702)
+
+### New Contributors
+
+- @beauraF made their first contribution in [#1706](https://github.com/jdx/hk/pull/1706)
+
 ## [2.6.0](https://github.com/jdx/hk/compare/v2.5.0..v2.6.0) - 2026-10-12
 
 ### 🚀 Features
