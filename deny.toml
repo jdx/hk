@@ -5,13 +5,13 @@
 # RustSec advisory database
 db-urls = ["https://github.com/rustsec/advisory-db"]
 # Yanked releases are reported but do not fail the check.
-yanked = "warn"
 ignore = [
   { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml unmaintained - transitive via serde_yaml, no safe upgrade available" },
   { id = "RUSTSEC-2026-0367", reason = "zip < 9 SUID/SGID extraction advisory - hk's own zip is 9; the remaining 8.x copy comes from pklr, which hk uses only for pkl package archives, no safe upgrade available" },
   { id = "RUSTSEC-2026-0368", reason = "zip < 9 symlink target extraction advisory - hk's own zip is 9; the remaining 8.x copy comes from pklr, which hk uses only for pkl package archives, no safe upgrade available" },
   { id = "RUSTSEC-2026-0369", reason = "zip < 9 symlink permissions advisory - hk's own zip is 9; the remaining 8.x copy comes from pklr, which hk uses only for pkl package archives, no safe upgrade available" },
 ]
+yanked = "warn"
 
 [sources]
 allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
