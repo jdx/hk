@@ -4,6 +4,9 @@
 [advisories]
 # RustSec advisory database
 db-urls = ["https://github.com/rustsec/advisory-db"]
+ignore = [
+  { id = "RUSTSEC-2024-0449", reason = "unsafe-libyaml unmaintained - transitive via serde_yaml, no safe upgrade available" },
+]
 # Yanked releases are reported but do not fail the check.
 yanked = "warn"
 
