@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::Result;
 use eyre::{WrapErr, bail};
 use indexmap::{IndexMap, IndexSet};
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 
 /// Migrate from pre-commit (or prek) to hk
 ///
@@ -78,7 +78,9 @@ struct Hook {
     types_or: Vec<String>,
     #[serde(default)]
     exclude_types: Vec<String>,
-    #[serde(default, deserialize_with = "scalar_list")]
+    // serde-saphyr reads `100`, `1.0` or `true` into a String as written, so
+    // `args: [--max-line-length, 100]` keeps its exact text
+    #[serde(default)]
     args: Vec<String>,
     #[serde(default)]
     additional_dependencies: Vec<String>,
@@ -88,22 +90,6 @@ struct Hook {
     always_run: bool,
     pass_filenames: Option<bool>,
     language_version: Option<String>,
-}
-
-/// Accept `args: [--max-line-length, 100]`, where YAML parses 100 as a number.
-fn scalar_list<'de, D: Deserializer<'de>>(de: D) -> std::result::Result<Vec<String>, D::Error> {
-    let values = Vec::<serde_yaml::Value>::deserialize(de)?;
-    values
-        .into_iter()
-        .map(|v| match v {
-            serde_yaml::Value::String(s) => Ok(s),
-            serde_yaml::Value::Number(n) => Ok(n.to_string()),
-            serde_yaml::Value::Bool(b) => Ok(b.to_string()),
-            other => Err(serde::de::Error::custom(format!(
-                "expected a string argument, got {other:?}"
-            ))),
-        })
-        .collect()
 }
 
 /// Hooks with an equivalent hk builtin, keyed by `owner/repo` and hook id.
@@ -422,7 +408,7 @@ impl PreCommit {
         }
 
         let content = xx::file::read_to_string(&self.config)?;
-        let config: PreCommitConfig = serde_yaml::from_str(&content)
+        let config: PreCommitConfig = serde_saphyr::from_str(&content)
             .wrap_err_with(|| format!("failed to parse {}", self.config.display()))?;
 
         let runner = self.runner.clone().unwrap_or_else(|| {
@@ -1026,7 +1012,7 @@ mod tests {
     use super::*;
 
     fn migrate(yaml: &str) -> Migration {
-        convert(&serde_yaml::from_str(yaml).unwrap())
+        convert(&serde_saphyr::from_str(yaml).unwrap())
     }
 
     fn step<'a>(m: &'a Migration, stage: &str, name: &str) -> &'a Step {
@@ -1097,6 +1083,27 @@ repos:
             panic!("expected delegation");
         };
         assert!(reason.contains("--line-length 100"), "{reason}");
+    }
+
+    #[test]
+    fn numeric_and_bool_args_keep_their_source_text() {
+        let m = migrate(
+            r#"
+repos:
+- repo: https://github.com/psf/black
+  rev: 24.1.0
+  hooks:
+  - id: black
+    args: [--target, 3.10, --line-length, 100, --ratio, 1.0, --fast, true]
+"#,
+        );
+        let Action::Delegate(reason) = &step(&m, "pre-commit", "black").action else {
+            panic!("expected delegation");
+        };
+        assert!(
+            reason.contains("--target 3.10 --line-length 100 --ratio 1.0 --fast true"),
+            "{reason}"
+        );
     }
 
     #[test]

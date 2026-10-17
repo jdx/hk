@@ -55,9 +55,9 @@ rmcp               = { version = "3.1.2", features = ["transport-io"] }
 schemars           = "1"
 semver             = "1"
 serde              = { version = "1", features = ["derive"] }
+serde-saphyr       = "1"
 serde_json         = { version = "1", features = ["preserve_order"] }
 serde_with         = "3"
-serde_yaml         = "0.9"
 shell-quote        = "0.8"
 shell-words        = "1"
 similar            = "3"
