@@ -120,6 +120,32 @@ mod tests {
     }
 
     #[test]
+    fn test_builtin_names_are_pkl_identifiers() {
+        // `Builtins.<name>` is emitted verbatim, so a `-` would not resolve.
+        assert!(
+            BUILTINS_META
+                .iter()
+                .any(|b| b.name == "editorconfig_checker")
+        );
+        for meta in BUILTINS_META {
+            assert!(
+                meta.name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                "{} is not a valid pkl identifier",
+                meta.name
+            );
+        }
+
+        let ec = BUILTINS_META
+            .iter()
+            .find(|b| b.name == "editorconfig_checker")
+            .unwrap();
+        let pkl = generate_pkl(&[ec], &["pre-commit".to_string()], "1.34.0");
+        assert!(pkl.contains("[\"editorconfig_checker\"] = Builtins.editorconfig_checker"));
+    }
+
+    #[test]
     fn test_default_template() {
         let template = generate_default_template("1.34.0");
         assert!(template.contains("v1.34.0"));
