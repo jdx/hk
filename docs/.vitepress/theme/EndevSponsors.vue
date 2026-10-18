@@ -120,6 +120,7 @@ onMounted(async () => {
 
 .EndevSponsorsLogo {
   align-items: center;
+  background: #171717;
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
   display: inline-flex;
@@ -130,8 +131,16 @@ onMounted(async () => {
 }
 
 .EndevSponsorsLogo:hover {
-  background: var(--vp-c-bg-soft);
+  background: #242424;
   border-color: var(--vp-c-brand-1);
+}
+
+.dark .EndevSponsorsLogo {
+  background: var(--vp-c-bg-soft);
+}
+
+.dark .EndevSponsorsLogo:hover {
+  background: var(--vp-c-bg-mute);
 }
 
 .EndevSponsorsLogo img {
