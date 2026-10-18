@@ -72,7 +72,9 @@ fn collect_builtin_names(builtins_dir: &Path) -> Result<BTreeSet<String>, std::i
         if path.extension().and_then(|s| s.to_str()) == Some("pkl")
             && let Some(name) = path.file_stem().and_then(|s| s.to_str())
         {
-            builtins.insert(name.to_string());
+            // Pkl identifiers can't contain `-`; scripts/gen_builtins.py maps
+            // `editorconfig-checker.pkl` to `Builtins.editorconfig_checker`.
+            builtins.insert(name.replace('-', "_"));
         }
     }
 

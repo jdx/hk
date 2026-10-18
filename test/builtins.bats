@@ -17,6 +17,15 @@ teardown() {
     assert_line --regexp '^yamllint$'
 }
 
+@test "builtins are listed by their Builtins.<name> identifier" {
+    run hk builtins
+
+    assert_success
+    assert_line 'editorconfig_checker'
+    refute_line 'editorconfig-checker'
+    refute_output --regexp '(^|\n)[^\n]*-[^\n]*(\n|$)'
+}
+
 @test "builtins output is sorted" {
     run hk builtins
 
