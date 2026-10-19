@@ -11,14 +11,11 @@ mise_config_dir = new Config.Step {
   // The repository root is the config directory itself, so the files are named
   // `config.toml`, `conf.d/*.toml`, and so on. `Builtins.mise` leaves these out
   // because `config.toml` is a common name for other tools' configuration.
+  // `config.toml`, `config.*.toml`, `conf.d/*.toml`, `conf.d/*/mise.toml` and
+  // `conf.d/*/mise.*.toml`. A regex keeps `*` from crossing directories, so
+  // other TOML files nested under `conf.d` are left alone.
   glob =
-    List(
-      "config.toml",
-      "config.*.toml",
-      "conf.d/*.toml",
-      "conf.d/*/mise.toml",
-      "conf.d/*/mise.*.toml",
-    )
+    Regex(#"^(config(\.[^/]+)?\.toml|conf\.d/[^/]+\.toml|conf\.d/[^/]+/mise(\.[^/]+)?\.toml)$"#)
   // `mise fmt` without `--all` skips these names and `--all` also formats files
   // outside the repository, so each file goes through `mise fmt --stdin`.
   check = new Config.CommandSpec {
@@ -43,7 +40,12 @@ mise_config_dir = new Config.Step {
           status=0
           for f in "$@"; do
             tmp=$(mktemp) || exit 1
-            if mise fmt --stdin < "$f" > "$tmp"; then cat "$tmp" > "$f"; else status=1; fi
+            # An empty result for a non-empty file is a formatter failure, as in `hk util format-diff`.
+            if mise fmt --stdin < "$f" > "$tmp" && { [ -s "$tmp" ] || [ ! -s "$f" ]; }; then
+              cat "$tmp" > "$f" || status=1
+            else
+              status=1
+            fi
             rm -f "$tmp"
           done
           exit $status
