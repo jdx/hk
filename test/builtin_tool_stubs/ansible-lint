@@ -2,3 +2,7 @@
 
 version = "26.10.1"
 tool = "pipx:ansible-lint"
+# TODO: remove this pin once ansible-core supports Python 3.15. Without it the
+# tool resolves Python 3.15 and ansible-lint crashes ("module 'dataclasses' has
+# no attribute '_is_type'").
+python = "3.14"
