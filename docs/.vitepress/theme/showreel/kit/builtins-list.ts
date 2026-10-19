@@ -22,7 +22,7 @@ export const BUILTINS: readonly string[] = Object.freeze([
   "go_sec", "go_vet", "go_vuln_check", "golangci_lint", "golangci_lint_fmt", "gomod_tidy",
   "google_java_format", "hadolint", "harper", "harper_commit_message", "hclfmt", "hk_test", "isort", "jq",
   "just_format", "kingfisher", "knip", "ktlint", "kube_linter", "kubeconform", "ls_lint", "luacheck", "lychee",
-  "lychee_extended", "mado", "markdown_lint", "mdschema", "mise", "mix_compile", "mix_fmt", "mix_test",
+  "lychee_extended", "mado", "markdown_lint", "mdschema", "mise", "mise_config_dir", "mix_compile", "mix_fmt", "mix_test",
   "mixed_line_ending", "mypy", "newlines", "nil", "nix_fmt", "nixf_diagnose", "nixpkgs_format",
   "no_commit_to_branch", "ox_lint", "oxfmt", "php_cs", "pinact", "pinact_update", "pkl", "pkl_format",
   "prettier", "pylint", "python_check_ast", "python_debug_statements", "reek", "renovate_deps", "revive",
