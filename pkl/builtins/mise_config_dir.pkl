@@ -1,0 +1,67 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description =
+    "mise formatter for a global config repository checked out at `~/.config/mise` (e.g. `mise bootstrap --adopt`)"
+}
+mise_config_dir = new Config.Step {
+  // The repository root is the config directory itself, so the files are named
+  // `config.toml`, `conf.d/*.toml`, and so on. `Builtins.mise` leaves these out
+  // because `config.toml` is a common name for other tools' configuration.
+  glob =
+    List(
+      "config.toml",
+      "config.*.toml",
+      "conf.d/*.toml",
+      "conf.d/*/mise.toml",
+      "conf.d/*/mise.*.toml",
+    )
+  // `mise fmt` without `--all` skips these names and `--all` also formats files
+  // outside the repository, so each file goes through `mise fmt --stdin`.
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("hk", "util", "format-diff", "{{files}}", "--", "mise", "fmt", "--stdin")
+    }
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("hk", "util", "format-diff", "{{files}}", "--", "mise", "fmt", "--stdin")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List(
+          "sh",
+          "-c",
+          #"""
+          status=0
+          for f in "$@"; do
+            tmp=$(mktemp) || exit 1
+            if mise fmt --stdin < "$f" > "$tmp"; then cat "$tmp" > "$f"; else status=1; fi
+            rm -f "$tmp"
+          done
+          exit $status
+          """#,
+          "sh",
+          "{{files}}",
+        )
+    }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "config.toml" }
+    local const nested = new helpers.TestMaker { filename = "conf.d/a.toml" }
+    ["check bad file"] = testMaker.checkFail("x  =  1", 1)
+    ["check good file"] = testMaker.checkPass("x = 1\n")
+    ["fix bad file"] = testMaker.fixPass("x  =  1", "x = 1\n")
+    ["fix good file"] = testMaker.fixPass("x = 1\n", "x = 1\n")
+    ["diff bad file"] = testMaker.diffPass("x  =  1", "x = 1\n")
+    ["fix conf.d file"] = nested.fixPass("x  =  1", "x = 1\n")
+  }
+}
