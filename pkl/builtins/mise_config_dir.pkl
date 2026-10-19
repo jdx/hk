@@ -11,11 +11,25 @@ mise_config_dir = new Config.Step {
   // The repository root is the config directory itself, so the files are named
   // `config.toml`, `conf.d/*.toml`, and so on. `Builtins.mise` leaves these out
   // because `config.toml` is a common name for other tools' configuration.
-  // `config.toml`, `config.*.toml`, `conf.d/*.toml`, `conf.d/*/mise.toml` and
-  // `conf.d/*/mise.*.toml`. A regex keeps `*` from crossing directories, so
-  // other TOML files nested under `conf.d` are left alone.
   glob =
-    Regex(#"^(config(\.[^/]+)?\.toml|conf\.d/[^/]+\.toml|conf\.d/[^/]+/mise(\.[^/]+)?\.toml)$"#)
+    List(
+      "config.toml",
+      "config.*.toml",
+      "conf.d/*.toml",
+      "conf.d/*/mise.toml",
+      "conf.d/*/mise.*.toml",
+    )
+  // Without a directory scope `*` crosses `/`, so `conf.d/*.toml` also reaches
+  // files nested under `conf.d`. mise reads only `mise*.toml` from a `conf.d`
+  // folder, and only one level down, so exclude every other nested name.
+  exclude =
+    List(
+      "conf.d/*/[!m]*.toml",
+      "conf.d/*/m[!i]*.toml",
+      "conf.d/*/mi[!s]*.toml",
+      "conf.d/*/mis[!e]*.toml",
+      "conf.d/*/mise[!.]*.toml",
+    )
   // `mise fmt` without `--all` skips these names and `--all` also formats files
   // outside the repository, so each file goes through `mise fmt --stdin`.
   check = new Config.CommandSpec {
