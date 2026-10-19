@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.7.1](https://github.com/jdx/hk/compare/v2.7.0..v2.7.1) - 2026-10-18
+
+### 🐛 Bug Fixes
+
+- **(builtins)** don't fail vp_check, vp_fmt and vp_lint when no files match by [@jdx](https://github.com/jdx) in [#1716](https://github.com/jdx/hk/pull/1716)
+- **(builtins)** skip lockfiles oxfmt rejects on stdin in check_diff by [@jdx](https://github.com/jdx) in [#1717](https://github.com/jdx/hk/pull/1717)
+- **(builtins)** respect standard_rb exclusions for explicit paths by [@beauraF](https://github.com/beauraF) in [#1719](https://github.com/jdx/hk/pull/1719)
+- **(hook)** stash unstaged changes in the global pre-commit hook by [@jdx](https://github.com/jdx) in [#1715](https://github.com/jdx/hk/pull/1715)
+
+### 🛡️ Security
+
+- **(docs)** make sponsor logos visible in light mode by [@jdx](https://github.com/jdx) in [#1727](https://github.com/jdx/hk/pull/1727)
+- **(init)** emit editorconfig_checker as a valid Builtins identifier by [@jdx](https://github.com/jdx) in [#1726](https://github.com/jdx/hk/pull/1726)
+- **(migrate)** read pre-commit configs with serde-saphyr by [@jdx](https://github.com/jdx) in [#1723](https://github.com/jdx/hk/pull/1723)
+
+### 🔍 Other Changes
+
+- pin perf-runner image by tag and stop automerging it by [@jdx](https://github.com/jdx) in [#1720](https://github.com/jdx/hk/pull/1720)
+
+### 📦️ Dependency Updates
+
+- update rust crate xx to v2.6.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1721](https://github.com/jdx/hk/pull/1721)
+- bump zip to 9 and unblock cargo-deny by [@jdx](https://github.com/jdx) in [#1722](https://github.com/jdx/hk/pull/1722)
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1725](https://github.com/jdx/hk/pull/1725)
+
 ## [2.7.0](https://github.com/jdx/hk/compare/v2.6.0..v2.7.0) - 2026-10-16
 
 ### 🚀 Features
