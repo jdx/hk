@@ -11,7 +11,8 @@ destroyed_symlinks = new Config.Step {
     effect = "read"
   }
   tests {
-    local const commit = "git -c user.name=Test -c user.email=test@example.com commit -qm initial"
+    local const commit =
+      "git -c user.name=Test -c user.email=test@example.com -c commit.gpgsign=false commit -qm initial"
     ["detects destroyed symlink"] {
       run = "check"
       write { ["{{tmp}}/target.txt"] = "content\n" }
