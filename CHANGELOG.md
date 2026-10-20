@@ -1,6 +1,30 @@
 # Changelog
 
-## [2.7.1](https://github.com/jdx/hk/compare/v2.7.0..v2.7.1) - 2026-10-18
+## [2.8.0](https://github.com/jdx/hk/compare/v2.7.1..v2.8.0) - 2026-10-20
+
+### 🚀 Features
+
+- **(builtins)** add mise_config_dir to format global mise config repositories by [@jdx](https://github.com/jdx) in [#1733](https://github.com/jdx/hk/pull/1733)
+- **(builtins)** add ryl_format and ryl_markdown_format formatters by [@jdx](https://github.com/jdx) in [#1737](https://github.com/jdx/hk/pull/1737)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** pin ansible-lint test stub to Python 3.14 by [@jdx](https://github.com/jdx) in [#1732](https://github.com/jdx/hk/pull/1732)
+- **(builtins)** keep `hk test` passing when commit signing is configured by [@jdx](https://github.com/jdx) in [#1735](https://github.com/jdx/hk/pull/1735)
+
+### 🛡️ Security
+
+- **(deps)** update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1738](https://github.com/jdx/hk/pull/1738)
+
+### 📦️ Dependency Updates
+
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1729](https://github.com/jdx/hk/pull/1729)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1728](https://github.com/jdx/hk/pull/1728)
+- update rust crate serde-saphyr to v2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1740](https://github.com/jdx/hk/pull/1740)
+- update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1739](https://github.com/jdx/hk/pull/1739)
+- update webpki-root-certs and rustls-webpki for eMudhra CA revocation by [@jdx](https://github.com/jdx) in [#1742](https://github.com/jdx/hk/pull/1742)
+
+## [2.7.1](https://github.com/jdx/hk/compare/v2.7.0..v2.7.1) - 2026-10-19
 
 ### 🐛 Bug Fixes
 
