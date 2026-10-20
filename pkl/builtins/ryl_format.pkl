@@ -1,0 +1,43 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "YAML"
+  description = "YAML formatter from ryl"
+  // https://ryl-docs.pages.dev/formatter/
+  project_indicators {
+    new { file = "ryl.toml" }
+    new { file = ".ryl.toml" }
+    new { file = ".config/ryl.toml" }
+    new { file = ".config/.ryl.toml" }
+    new { file = "pyproject.toml"; contains = "[tool.ryl]" }
+  }
+}
+ryl_format = new Config.Step {
+  types = List("yaml")
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ryl", "format", "--check", "{{files}}") }
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ryl", "format", "--diff", "{{files}}") }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ryl", "format", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.yaml"
+    }
+    local const bad = "foo: { bar: 0 }\n"
+    local const good = "foo: {bar: 0}\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
