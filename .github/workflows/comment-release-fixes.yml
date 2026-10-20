@@ -24,7 +24,7 @@ jobs:
       pull-requests: read
       issues: write
       discussions: write
-    uses: jdx/workflows/.github/workflows/comment-release-fixes.yml@40a9f4239dc9c3c3fb9c58b6be8e93575ef6e72b # v1.1.1
+    uses: jdx/workflows/.github/workflows/comment-release-fixes.yml@f06c20d10cd74d518af4338abf9877ceef81213a # v1.1.2
     with:
       tag: ${{ inputs.tag || github.event.release.tag_name }}
       marker_prefix: hk-fixed-in
