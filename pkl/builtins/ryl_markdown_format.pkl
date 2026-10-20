@@ -1,0 +1,71 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Markdown"
+  description = "Format YAML embedded in Markdown (front matter + fenced yaml blocks) with ryl"
+  // https://ryl-docs.pages.dev/formatter/
+  project_indicators {
+    new { file = "ryl.toml" }
+    new { file = ".ryl.toml" }
+    new { file = ".config/ryl.toml" }
+    new { file = ".config/.ryl.toml" }
+    new { file = "pyproject.toml"; contains = "[tool.ryl]" }
+  }
+}
+ryl_markdown_format = new Config.Step {
+  types = List("markdown")
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("ryl", "format", "--check", "--markdown", "{{files}}")
+    }
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("ryl", "format", "--diff", "--markdown", "{{files}}")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ryl", "format", "--markdown", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.md"
+    }
+    local const bad =
+      """
+      ---
+      tags: { a: 1 }
+      ---
+
+      # Format YAML embedded in Markdown with ryl
+
+      ```yaml
+      foo: { bar: 0 }
+      ```
+
+      """
+    local const good =
+      """
+      ---
+      tags: {a: 1}
+      ---
+
+      # Format YAML embedded in Markdown with ryl
+
+      ```yaml
+      foo: {bar: 0}
+      ```
+
+      """
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
