@@ -1901,8 +1901,15 @@ impl Git {
             // that was replaced by a directory is checked out again
             for f in &untracked_files {
                 let path = path_from_raw(f);
-                std::fs::remove_file(&path)
-                    .wrap_err_with(|| format!("failed to remove {}", display_path(&path)))?;
+                match std::fs::remove_file(&path) {
+                    Ok(()) => {}
+                    // Already gone, which is what removing it was for
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(err) => {
+                        return Err(err)
+                            .wrap_err_with(|| format!("failed to remove {}", display_path(&path)));
+                    }
+                }
                 // `git stash -u` also removes the directories this empties
                 let mut dir = path.parent();
                 while let Some(d) = dir.filter(|d| !d.as_os_str().is_empty()) {
