@@ -1824,7 +1824,9 @@ impl Git {
             git_read_bytes(["ls-files", "-o", "--exclude-standard", "-z"])
                 .wrap_err("failed to list untracked files")?
                 .split(|&b| b == 0)
-                .filter(|f| !f.is_empty())
+                // A nested repository is listed as a directory, which
+                // `git stash -u` leaves alone
+                .filter(|f| !f.is_empty() && !f.ends_with(b"/"))
                 .map(<[u8]>::to_vec)
                 .collect()
         } else {

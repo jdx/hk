@@ -104,9 +104,9 @@ PKL
     assert_success
 
     # Should NOT contain the noisy error messages
-    refute_output --partial "exists on disk, but not in "$(hk_stash_sha)^3""
-    refute_output --partial "exists on disk, but not in "$(hk_stash_sha)^1""
-    refute_output --partial "exists on disk, but not in "$(hk_stash_sha)^2""
+    refute_output --regexp "exists on disk, but not in .*\\^3"
+    refute_output --regexp "exists on disk, but not in .*\\^1"
+    refute_output --regexp "exists on disk, but not in .*\\^2"
 }
 
 @test "unstaged changes are preserved after stash restoration" {

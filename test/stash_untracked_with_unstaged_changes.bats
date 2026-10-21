@@ -188,3 +188,32 @@ EOF
         reset_repo
     done
 }
+
+@test "an untracked nested repository is left alone when untracked files are stashed" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["noop"] {
+        check = "true"
+      }
+    }
+  }
+}
+PKL
+    echo base > f.txt
+    git add hk.pkl f.txt
+    git commit -m init
+    git init -q nested
+    git -C nested commit -q --allow-empty -m nested
+    echo unstaged > f.txt
+    echo untracked > u.txt
+    run env HK_STASH_UNTRACKED=true hk run pre-commit
+    assert_success
+    assert_dir_exists nested/.git
+    assert_equal "$(cat u.txt)" "untracked"
+    assert_equal "$(cat f.txt)" "unstaged"
+    assert_equal "$(hk_stash_list)" ""
+}
