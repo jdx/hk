@@ -1937,15 +1937,34 @@ impl Git {
                 // Only what no longer matches, so files the reset never
                 // reached are not rewritten
                 if !tracked.is_empty() {
-                    let mut args: Vec<OsString> = ["diff", "--name-only", "-z", "--no-ext-diff"]
-                        .into_iter()
-                        .map(OsString::from)
-                        .collect();
+                    let mut args: Vec<OsString> = [
+                        "diff",
+                        "--name-status",
+                        "--no-renames",
+                        "-z",
+                        "--no-ext-diff",
+                    ]
+                    .into_iter()
+                    .map(OsString::from)
+                    .collect();
                     args.push(commit.clone().into());
                     args.push("--".into());
                     args.extend(tracked.iter().map(|p| literal_pathspec(p)));
-                    let changed = git_read_raw_paths(args)?;
-                    if !changed.is_empty() {
+                    let out = git_read_bytes(args)?;
+                    let mut restore: Vec<PathBuf> = vec![];
+                    for (status, name) in out.split(|&b| b == 0).tuples() {
+                        let path = path_from_raw(name);
+                        if status == b"A" {
+                            // The entry has no file here: the stashed worktree
+                            // had deleted it, and the reset checked it out again
+                            std::fs::remove_file(&path).wrap_err_with(|| {
+                                format!("failed to remove {}", display_path(&path))
+                            })?;
+                        } else {
+                            restore.push(path);
+                        }
+                    }
+                    if !restore.is_empty() {
                         git_cmd([
                             "restore",
                             &format!("--source={commit}"),
@@ -1953,7 +1972,7 @@ impl Git {
                             "--pathspec-from-file=-",
                             "--pathspec-file-nul",
                         ])
-                        .stdin_bytes(literal_pathspecs(&changed))
+                        .stdin_bytes(literal_pathspecs(&restore))
                         .run()?;
                     }
                 }

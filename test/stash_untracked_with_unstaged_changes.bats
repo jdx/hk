@@ -242,6 +242,8 @@ PKL
     echo unstaged > f.txt
     # Sorts before ro/a.txt, so it is removed before the removal that fails
     echo earlier > earlier.txt
+    # An unstaged deletion that the cleanup has already checked out again
+    rm d.txt
     mkdir ro
     echo untracked > ro/a.txt
     chmod 555 ro
@@ -249,6 +251,7 @@ PKL
     chmod 755 ro
     assert_failure
     assert_equal "$(cat earlier.txt)" "earlier"
+    assert_file_not_exists d.txt
     assert_equal "$(cat f.txt)" "unstaged"
     assert_equal "$(cat ro/a.txt)" "untracked"
     assert_equal "$(hk_stash_list)" ""
