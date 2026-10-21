@@ -217,3 +217,36 @@ PKL
     assert_equal "$(cat f.txt)" "unstaged"
     assert_equal "$(hk_stash_list)" ""
 }
+
+# When removing the stashed changes from the worktree fails, hk puts back what
+# it had removed and drops its entry, instead of leaving a half-cleaned tree
+# that recovering the entry would apply over itself.
+@test "a failed worktree cleanup is rolled back and leaves no entry" {
+    [ "$(id -u)" != 0 ] || skip "root can remove files from a read-only directory"
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["noop"] {
+        check = "true"
+      }
+    }
+  }
+}
+PKL
+    echo base > f.txt
+    git add hk.pkl f.txt
+    git commit -m init
+    echo unstaged > f.txt
+    mkdir ro
+    echo untracked > ro/a.txt
+    chmod 555 ro
+    run env HK_STASH_UNTRACKED=true hk run pre-commit
+    chmod 755 ro
+    assert_failure
+    assert_equal "$(cat f.txt)" "unstaged"
+    assert_equal "$(cat ro/a.txt)" "untracked"
+    assert_equal "$(hk_stash_list)" ""
+}

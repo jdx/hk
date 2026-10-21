@@ -1929,9 +1929,65 @@ impl Git {
             Ok(())
         };
         if let Err(err) = reset() {
-            return Err(err).wrap_err(format!(
-                "failed to remove the unstaged changes after stashing them; they are kept in {commit}, and `git stash apply {commit}` brings them back"
-            ));
+            // Put the worktree back as it was, and drop the entry once that
+            // worked: some of the changes may already be removed while others
+            // are still on disk, and recovery from the entry would then apply
+            // them over themselves.
+            let rolled_back = (|| -> Result<()> {
+                // Only what no longer matches, so files the reset never
+                // reached are not rewritten
+                if !tracked.is_empty() {
+                    let mut args: Vec<OsString> = ["diff", "--name-only", "-z", "--no-ext-diff"]
+                        .into_iter()
+                        .map(OsString::from)
+                        .collect();
+                    args.push(commit.clone().into());
+                    args.push("--".into());
+                    args.extend(tracked.iter().map(|p| literal_pathspec(p)));
+                    let changed = git_read_raw_paths(args)?;
+                    if !changed.is_empty() {
+                        git_cmd([
+                            "restore",
+                            &format!("--source={commit}"),
+                            "--worktree",
+                            "--pathspec-from-file=-",
+                            "--pathspec-file-nul",
+                        ])
+                        .stdin_bytes(literal_pathspecs(&changed))
+                        .run()?;
+                    }
+                }
+                let missing: Vec<PathBuf> = untracked_files
+                    .iter()
+                    .map(|f| path_from_raw(f))
+                    .filter(|p| !path_exists(p))
+                    .collect();
+                if !missing.is_empty() {
+                    git_cmd([
+                        "restore",
+                        &format!("--source={commit}^3"),
+                        "--worktree",
+                        "--pathspec-from-file=-",
+                        "--pathspec-file-nul",
+                    ])
+                    .stdin_bytes(literal_pathspecs(&missing))
+                    .run()?;
+                }
+                Ok(())
+            })();
+            return match rolled_back {
+                Ok(()) => {
+                    self.stash_commit = None;
+                    match drop_stash_commit(&commit) {
+                        Ok(()) => self.journal_forget(&commit),
+                        Err(err) => warn!("failed to drop stash {commit}: {err:?}"),
+                    }
+                    Err(err)
+                }
+                Err(restore_err) => Err(err).wrap_err(format!(
+                    "failed to remove the unstaged changes after stashing them, and putting them back failed ({restore_err}); they are kept in {commit}, and `git stash apply {commit}` brings them back"
+                )),
+            };
         }
         Ok(stashed)
     }
