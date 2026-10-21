@@ -55,7 +55,7 @@ check_restore_spawns() {
     for i in $(seq 1 "$files"); do
         assert_equal "$(cat "file$i.txt")" "$(printf 'base %s\nunstaged %s' "$i" "$i")"
     done
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 
     # One read of each untouched file's stashed contents, and a few lookups
     # for the staged file, instead of several per file
@@ -108,6 +108,6 @@ PKL
 
     test -f crlf.txt
     # The file is left as the stash left it, and the stash has its edit
-    assert_equal "$(git show 'stash@{0}:crlf.txt')" "three"
+    assert_equal "$(git show "$(hk_stash_sha):crlf.txt")" "three"
     assert_equal "$(cat lf.txt)" "three"
 }

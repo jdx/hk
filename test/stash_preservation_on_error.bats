@@ -49,14 +49,14 @@ PKL
     # A better test would simulate an actual failure condition
 
     # Count stashes before commit
-    stash_count_before=$(git stash list | wc -l)
+    stash_count_before=$(hk_stash_list | wc -l)
 
     # Run pre-commit hook
     run git commit -m 'test commit'
     assert_success
 
     # Stash count should be same (stash created and dropped)
-    stash_count_after=$(git stash list | wc -l)
+    stash_count_after=$(hk_stash_list | wc -l)
     assert_equal "$stash_count_before" "$stash_count_after"
 
     # Untracked file should still exist
@@ -104,9 +104,9 @@ PKL
     assert_success
 
     # Should NOT contain the noisy error messages
-    refute_output --partial "exists on disk, but not in 'stash@{0}^3'"
-    refute_output --partial "exists on disk, but not in 'stash@{0}^1'"
-    refute_output --partial "exists on disk, but not in 'stash@{0}^2'"
+    refute_output --partial "exists on disk, but not in "$(hk_stash_sha)^3""
+    refute_output --partial "exists on disk, but not in "$(hk_stash_sha)^1""
+    refute_output --partial "exists on disk, but not in "$(hk_stash_sha)^2""
 }
 
 @test "unstaged changes are preserved after stash restoration" {

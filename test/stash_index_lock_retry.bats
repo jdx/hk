@@ -50,7 +50,7 @@ EOF
     assert_success
     assert_output --partial "+staged v2"
 
-    run git stash list
+    run hk_stash_list
     assert_success
     assert_output ""
 }

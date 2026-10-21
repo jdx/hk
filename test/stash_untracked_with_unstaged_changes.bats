@@ -89,7 +89,7 @@ make_changes() {
         assert_file_executable new/run.sh
         assert_equal "$(readlink link)" u.txt
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
 
         reset_repo
         rm -rf "$BATS_TEST_TMPDIR/orig" "$BATS_TEST_TMPDIR/seen.txt"
@@ -113,10 +113,10 @@ make_changes() {
         run cat f.txt
         assert_output $'base\nunstaged'
         assert_file_not_exists d.txt
-        git restore --source='stash@{0}^3' -- u.txt
+        git restore --source="$(hk_stash_sha)^3" -- u.txt
         cmp u.txt "$BATS_TEST_TMPDIR/orig/u.txt"
 
-        git stash drop -q
+        hk_stash_drop
         reset_repo
         rm -rf "$BATS_TEST_TMPDIR/orig"
     done
@@ -155,7 +155,7 @@ EOF
         cmp new/deep/n.bin "$BATS_TEST_TMPDIR/orig/new/deep/n.bin"
         run cat f.txt
         assert_output $'base\nunstaged'
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
 
         reset_repo
         git reset -q --hard HEAD~1
@@ -182,7 +182,7 @@ EOF
         assert_output a.txt
         run cat u.txt
         assert_output untracked
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
 
         git rm -q --cached ita.txt
         reset_repo

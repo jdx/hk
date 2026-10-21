@@ -625,7 +625,7 @@ pub fn unknown_owner_report(
         Ok(stash) => stash,
         Err(err) => {
             return Some(format!(
-                "{} has your unstaged changes stashed, or may have, and hk cannot tell whether it is still running: {why}. hk could not read the stash list ({err}), so it restored and dropped nothing. Run `git stash list` and look for entries named `hk: {}-...`; `git stash apply <commit-id>` brings one back. hk keeps reminding you until the journal {} is deleted.",
+                "{} has your unstaged changes stashed, or may have, and hk cannot tell whether it is still running: {why}. hk could not read the stash list ({err}), so it restored and dropped nothing. Run `git for-each-ref refs/hk/stash` and look for entries named `hk: {}-...`; `git stash apply <commit-id>` brings one back. hk keeps reminding you until the journal {} is deleted.",
                 journal.describe(),
                 journal.pid,
                 path.display()
@@ -728,7 +728,7 @@ pub fn report_message(
     if let ReportReason::UnknownOwner(why) = reason {
         return format!(
             "{} has your unstaged changes stashed, and hk cannot tell whether it is still running: {why}. hk restored and dropped nothing. If it is running, let it finish. If it is not, get the changes back with:\n{commands}\n\
-             hk keeps reminding you until the stash entries are dropped (`git stash list`, then `git stash drop`), or until you delete {}.",
+             hk keeps reminding you until the stash entries are dropped (`git for-each-ref refs/hk/stash`, then `git update-ref -d refs/hk/stash/<commit>`), or until you delete {}.",
             journal.describe(),
             path.display()
         );
@@ -737,7 +737,7 @@ pub fn report_message(
         "{} was stopped while it had your unstaged changes stashed, and they were not put back. {why}\n\
          To get them back, once the working tree is ready for them, run:\n{commands}\n\
          If git reports conflicts in files that are also staged, `git restore --source=<commit> --worktree -- <file>` takes the stashed version of one file.\n\
-         hk keeps reminding you until the stash entries are dropped (`git stash list`, then `git stash drop`), or until you delete {}.",
+         hk keeps reminding you until the stash entries are dropped (`git for-each-ref refs/hk/stash`, then `git update-ref -d refs/hk/stash/<commit>`), or until you delete {}.",
         journal.describe(),
         path.display()
     )
@@ -1139,7 +1139,7 @@ mod tests {
             Err("boom".to_string()),
         )
         .unwrap();
-        assert!(msg.contains("git stash list"), "{msg}");
+        assert!(msg.contains("git for-each-ref refs/hk/stash"), "{msg}");
         assert!(msg.contains("hk: 4242-"), "{msg}");
         assert!(msg.contains("boom"), "{msg}");
     }

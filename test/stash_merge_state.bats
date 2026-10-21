@@ -73,7 +73,7 @@ merge_in_progress() {
     assert_equal "$(git rev-list --parents -n1 HEAD | awk '{print NF}')" 3
     assert_equal "$(git log -1 --format=%s)" "Merge branch 'other'"
     assert_equal "$(cat f.txt)" unstaged
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "pre-commit keeps a merge in progress (HK_LIBGIT2=1)" {
@@ -95,7 +95,7 @@ cherry_pick_in_progress() {
     assert_equal "$(git log -1 --format=%an)" "Other Author"
     assert_equal "$(git log -1 --format=%s)" "change g"
     assert_equal "$(cat f.txt)" unstaged
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "pre-commit keeps the author of a cherry-pick in progress (HK_LIBGIT2=1)" {
@@ -119,7 +119,7 @@ merge_in_progress_with_intent_to_add() {
     # The commit and its two parents (awk, because BSD wc pads its count)
     assert_equal "$(git rev-list --parents -n1 HEAD | awk '{print NF}')" 3
     assert_equal "$(cat f.txt)" unstaged
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "pre-commit keeps a merge in progress when a file is intent-to-add (HK_LIBGIT2=1)" {
@@ -141,7 +141,7 @@ failing_step_keeps_merge() {
     test -f "$(git rev-parse --git-path MERGE_HEAD)"
     test -f "$(git rev-parse --git-path MERGE_MSG)"
     assert_equal "$(cat f.txt)" unstaged
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "pre-commit leaves a merge in progress when a step fails (HK_LIBGIT2=1)" {
@@ -180,7 +180,7 @@ multi_commit_cherry_pick() {
     assert_equal "$(git log -1 --format=%s)" "change h"
     assert_equal "$(git log -1 --format=%an)" "Other Author"
     assert_equal "$(cat f.txt)" unstaged
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "pre-commit keeps the sequencer of a multi-commit cherry-pick (HK_LIBGIT2=1)" {
@@ -207,7 +207,7 @@ unreadable_state_file() {
     chmod 644 "$state"
     assert_failure
     assert_output --partial "failed to read"
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
     assert_equal "$(cat f.txt)" unstaged
     test -f "$(git rev-parse --git-path MERGE_HEAD)"
 }

@@ -36,6 +36,6 @@ PKL
     # Without a stash, the fixer sees and stages the unstaged edit too.
     assert_equal "$(git show :a.txt)" "$(printf 'good\nunstaged')"
     assert_equal "$(cat a.txt)" "$(printf 'good\nunstaged')"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }

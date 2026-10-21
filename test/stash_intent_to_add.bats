@@ -93,7 +93,7 @@ assert_intent_to_add_set_aside_and_restored() {
     run git status --porcelain
     assert_output "$(printf ' R old.txt -> moved.txt\n A new.sh\n M other.txt\nM  staged.txt')"
 
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -129,7 +129,7 @@ assert_intent_to_add_set_aside_and_restored() {
     assert_output "new"
     run git status --porcelain
     assert_output "$(printf ' A new.txt\nM  staged.txt')"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -151,7 +151,7 @@ assert_intent_to_add_set_aside_and_restored() {
     assert_output "new"
     run git status --porcelain
     assert_output "$(printf ' A new.txt\n M other.txt\nM  staged.txt')"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -171,7 +171,7 @@ assert_intent_to_add_set_aside_and_restored() {
     assert_output "replacement"
     run git status --porcelain
     assert_output "$(printf 'DA old.txt\nM  staged.txt')"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -219,14 +219,14 @@ PKL
 
     run hk run pre-commit
     assert_failure
-    assert_output --partial "their contents before the hook are kept in stash@{0}"
+    assert_output --regexp "their contents before the hook are kept in [0-9a-f]{40}"
     run cat new.txt
     assert_output "from step"
     run git status --porcelain
     assert_output "$(printf ' A new.txt\nM  staged.txt')"
-    run git stash list --format=%gs
+    run git for-each-ref --format='%(contents:subject)' refs/hk/stash
     assert_output --regexp "^hk: [0-9]+-[0-9a-f]+-[0-9]+ \(intent-to-add files\)$"
-    run git show 'stash@{0}^3:new.txt'
+    run git show "$(hk_stash_sha)^3:new.txt"
     assert_output "mine"
 }
 
@@ -249,7 +249,7 @@ assert_empty_intent_to_add_set_aside() {
     assert [ -f empty.txt ] && [ ! -s empty.txt ]
     run git status --porcelain
     assert_output "$(printf ' A empty.txt\n M other.txt\nM  staged.txt')"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -292,7 +292,7 @@ PKL
     assert [ -f empty.txt ] && [ ! -s empty.txt ]
     run git status --porcelain
     assert_output "$(printf ' A empty.txt\nM  staged.txt')"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -330,7 +330,7 @@ assert_non_utf8_intent_to_add_set_aside() {
     assert_output $'bad\xffname'
     run git diff --cached --name-only
     assert_output "staged.txt"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -378,6 +378,6 @@ PKL
     assert_output "echo hi"
     run git status --porcelain
     assert_output "$(printf 'MM a.sh\n A new.txt')"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
