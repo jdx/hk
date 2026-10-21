@@ -64,7 +64,7 @@ prepare_staged_ts_and_unstaged_lock() {
     refute_line 'pnpm-lock.yaml'
 
     # Ensure no stash remains after pre-commit completes
-    run bash -lc 'git stash list'
+    run bash -lc 'git for-each-ref refs/hk/stash'
     assert_success
     assert_output ""
 }

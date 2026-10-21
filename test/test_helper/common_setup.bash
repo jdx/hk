@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 
+# hk keeps the stash entries it makes under refs/hk/stash/<commit>, which
+# `git stash` does not see, so other worktrees' stash commands cannot take
+# them. These read that list; `hk_stash_sha [n]` is the n-th newest entry.
+hk_stash_list() {
+    git for-each-ref --sort=-creatordate refs/hk/stash
+}
+
+hk_stash_sha() {
+    git for-each-ref --sort=-creatordate --format='%(objectname)' refs/hk/stash | sed -n "$((${1:-0} + 1))p"
+}
+
+hk_stash_drop() {
+    git update-ref -d "refs/hk/stash/$(hk_stash_sha "${1:-0}")"
+}
+
 _common_setup() {
     export PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/../.."
     load "$PROJECT_ROOT/test/test_helper/bats-support/load"

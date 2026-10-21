@@ -180,7 +180,7 @@ PKL
         assert_equal "$(cat :file.txt)" "$(printf 'staged\nmid\nunstaged')"
         assert_equal "$(git --literal-pathspecs show ::file.txt)" "$(printf 'staged\nmid\nlast')"
         assert_equal "$(cat file.txt)" decoy
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         git --literal-pathspecs reset -q --hard
     done
 }

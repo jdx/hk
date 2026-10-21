@@ -76,12 +76,12 @@ hooks {
             Start-Sleep -Seconds 1
             Remove-Item (Join-Path $gitDir 'started') -ErrorAction SilentlyContinue
             Test-Path $journal | Should -BeTrue
-            (git stash list | Measure-Object).Count | Should -Be 1
+            (git for-each-ref refs/hk/stash | Measure-Object).Count | Should -Be 1
 
             cmd /c "hk check --all > `"$outDir\hk-recover.txt`" 2>&1"
             $LASTEXITCODE | Should -Be 0
             ((Get-Content file.txt -Raw) -replace "`r", '') | Should -Be "staged`nunstaged`n"
-            (git stash list | Measure-Object).Count | Should -Be 0
+            (git for-each-ref refs/hk/stash | Measure-Object).Count | Should -Be 0
             Test-Path $journal | Should -BeFalse
         } finally {
             Get-CimInstance Win32_Process |
