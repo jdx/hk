@@ -1957,9 +1957,15 @@ impl Git {
                         if status == b"A" {
                             // The entry has no file here: the stashed worktree
                             // had deleted it, and the reset checked it out again
-                            std::fs::remove_file(&path).wrap_err_with(|| {
-                                format!("failed to remove {}", display_path(&path))
-                            })?;
+                            match std::fs::remove_file(&path) {
+                                Ok(()) => {}
+                                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                                Err(err) => {
+                                    return Err(err).wrap_err_with(|| {
+                                        format!("failed to remove {}", display_path(&path))
+                                    });
+                                }
+                            }
                         } else {
                             restore.push(path);
                         }

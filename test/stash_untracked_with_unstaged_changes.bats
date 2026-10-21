@@ -256,3 +256,40 @@ PKL
     assert_equal "$(cat ro/a.txt)" "untracked"
     assert_equal "$(hk_stash_list)" ""
 }
+
+# The checkout puts a deleted tracked file back before it fails on a later
+# path, so the rollback must delete that file again.
+@test "a failed checkout during cleanup deletes the files it had put back" {
+    [ "$(id -u)" != 0 ] || skip "root can write to a read-only directory"
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["noop"] {
+        check = "true"
+      }
+    }
+  }
+}
+PKL
+    mkdir ro
+    echo base > ro/t.txt
+    echo base > f.txt
+    git add hk.pkl f.txt ro/t.txt
+    git commit -m init
+    # d.txt sorts before ro/t.txt, so the checkout restores it first. An
+    # untracked file makes hk stash the whole worktree, deletions included.
+    rm d.txt
+    echo unstaged > ro/t.txt
+    echo untracked > u.txt
+    chmod 555 ro
+    run env HK_STASH_UNTRACKED=true hk run pre-commit
+    chmod 755 ro
+    assert_failure
+    assert_equal "$(cat u.txt)" "untracked"
+    assert_file_not_exists d.txt
+    assert_equal "$(cat ro/t.txt)" "unstaged"
+    assert_equal "$(hk_stash_list)" ""
+}
