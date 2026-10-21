@@ -240,12 +240,15 @@ PKL
     git add hk.pkl f.txt
     git commit -m init
     echo unstaged > f.txt
+    # Sorts before ro/a.txt, so it is removed before the removal that fails
+    echo earlier > earlier.txt
     mkdir ro
     echo untracked > ro/a.txt
     chmod 555 ro
     run env HK_STASH_UNTRACKED=true hk run pre-commit
     chmod 755 ro
     assert_failure
+    assert_equal "$(cat earlier.txt)" "earlier"
     assert_equal "$(cat f.txt)" "unstaged"
     assert_equal "$(cat ro/a.txt)" "untracked"
     assert_equal "$(hk_stash_list)" ""
