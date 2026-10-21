@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a command; when it fails, make the failed attempt visible in the CI UI.
 #
-# nick-fields/retry reruns a failing step silently: the job ends green and the
+# The retry action reruns a failing step silently: the job ends green and the
 # first attempt's failure is buried in the log. Wrapping the retried command
 # with this script annotates the run and adds a step-summary entry for each
 # failed attempt, listing the TAP "not ok" lines so the flaky test is named.
