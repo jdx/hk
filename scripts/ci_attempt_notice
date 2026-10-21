@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Run a command; when it fails, make the failed attempt visible in the CI UI.
 #
-# The retry action reruns a failing step silently: the job ends green and the
-# first attempt's failure is buried in the log. Wrapping the retried command
-# with this script annotates the run and adds a step-summary entry for each
-# failed attempt, listing the TAP "not ok" lines so the flaky test is named.
+# The retry action only logs a generic warning when an attempt fails, with the
+# exit status but no detail, and the job ends green if a later attempt passes,
+# so the first attempt's failure is easy to miss. Wrapping the retried command
+# with this script adds a warning annotation naming the label and a step-summary
+# entry for each failed attempt, listing the TAP "not ok" lines so the flaky
+# test is named. If every attempt fails, the job still fails.
 #
 # Usage: scripts/ci_attempt_notice <label> <command> [args...]
 set -uo pipefail
