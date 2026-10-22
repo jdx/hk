@@ -76,7 +76,7 @@ Look over the tools and tasks it drew up. A `mise.toml` that's already aboard is
 Use a task when a check earns its keep outside Git hooks too:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Config.pkl"
 
 hooks {
   ["check"] {
