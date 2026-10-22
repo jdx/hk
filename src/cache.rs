@@ -1,7 +1,7 @@
+use eyre::WrapErr;
 use once_cell::sync::OnceCell;
-use std::fs::File;
-use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use crate::Result;
@@ -182,14 +182,28 @@ where
         Ok(val)
     }
 
+    /// hk processes that run at once (a pre-commit and a pre-push hook, agents
+    /// working in parallel) share cache entries. An entry is written to a
+    /// temporary file and renamed over the old one, so a reader sees all of
+    /// the old entry or all of the new one, never a truncated file.
     pub fn write(&self, val: &T) -> Result<()> {
-        tracing::info!(path = %self.cache_file_path.display(), "cache.write");
-        if let Some(parent) = self.cache_file_path.parent() {
+        static NEXT_TEMP_FILE: AtomicU64 = AtomicU64::new(0);
+        let path = &self.cache_file_path;
+        tracing::info!(path = %path.display(), "cache.write");
+        let bytes = serde_json::to_vec(val)?;
+        if let Some(parent) = path.parent() {
             xx::file::create_dir_all(parent)?;
         }
-        let mut f = File::create(&self.cache_file_path)?;
-        f.write_all(&serde_json::to_vec(val)?)?;
-        Ok(())
+        let tmp = path.with_extension(format!(
+            "{}.{}.tmp",
+            std::process::id(),
+            NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let written = std::fs::write(&tmp, bytes).and_then(|()| rename_over(&tmp, path));
+        if written.is_err() {
+            let _ = std::fs::remove_file(&tmp);
+        }
+        written.wrap_err_with(|| format!("failed to write {}", path.display()))
     }
 
     #[cfg(test)]
@@ -213,6 +227,26 @@ where
             return false;
         }
         true
+    }
+}
+
+/// Renames `from` over `to`. Windows refuses to replace a file that a scanner
+/// or indexer has open for a moment, so a denied rename is tried again, as
+/// `stash_journal::replace` does.
+fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut attempt = 0;
+    loop {
+        match std::fs::rename(from, to) {
+            Err(err)
+                if cfg!(windows)
+                    && err.kind() == std::io::ErrorKind::PermissionDenied
+                    && attempt < 20 =>
+            {
+                attempt += 1;
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            result => return result,
+        }
     }
 }
 
@@ -292,6 +326,80 @@ mod tests {
         assert_ne!(
             builder(&a).build::<u8>().cache_file_path,
             builder(&b).build::<u8>().cache_file_path
+        );
+    }
+
+    fn entry_in(dir: &Path) -> CacheManager<Vec<u32>> {
+        CacheManagerBuilder::new(dir.join("entry.json")).build()
+    }
+
+    fn file_names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<_> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// A write that truncated the entry and wrote it again would change what a
+    /// reader that already opened the entry sees, partway through; only a
+    /// rename leaves the old file whole. Windows cannot replace an open file.
+    #[cfg(unix)]
+    #[test]
+    fn write_replaces_the_entry_instead_of_rewriting_it() {
+        use std::io::Read;
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        cache.write(&vec![1; 100_000]).unwrap();
+        let mut reader = std::fs::File::open(&cache.cache_file_path).unwrap();
+
+        cache.write(&vec![2; 100_000]).unwrap();
+
+        let mut old = Vec::new();
+        reader.read_to_end(&mut old).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Vec<u32>>(&old).unwrap(),
+            vec![1; 100_000]
+        );
+        assert_eq!(cache.parse().unwrap(), vec![2; 100_000]);
+    }
+
+    #[test]
+    fn write_leaves_only_the_entry_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        cache.write(&vec![1]).unwrap();
+        cache.write(&vec![2]).unwrap();
+        assert_eq!(
+            file_names(dir.path()),
+            [cache
+                .cache_file_path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()]
+        );
+    }
+
+    #[test]
+    fn a_failed_write_removes_its_temporary_file_and_names_the_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        // A directory cannot be replaced by a file, so the rename fails.
+        std::fs::create_dir(&cache.cache_file_path).unwrap();
+
+        let err = cache.write(&vec![1]).unwrap_err();
+
+        assert!(format!("{err:#}").contains(&cache.cache_file_path.display().to_string()));
+        assert_eq!(
+            file_names(dir.path()),
+            [cache
+                .cache_file_path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()]
         );
     }
 }
