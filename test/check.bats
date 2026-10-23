@@ -158,3 +158,22 @@ EOF
     assert_success
     assert_output --partial "checking sub/a.js"
 }
+
+@test "check files follows directory symlinks before .." {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { check = "echo checking {{files}}" } } }
+}
+EOF
+    git init
+    mkdir -p nested/child
+    echo "root" > a.js
+    echo "nested" > nested/a.js
+    ln -s nested/child link
+    git add .
+    git commit -m "initial commit"
+    run hk check link/../a.js
+    assert_success
+    assert_output --partial "checking nested/a.js"
+}

@@ -207,8 +207,29 @@ impl HookOptions {
             return;
         };
         let root = crate::git_util::find_work_tree_root();
+        let canonical_root = root.canonicalize().ok();
         for file in files.iter_mut() {
-            let abs = crate::hook::normalize_lexically(&cwd.join(&*file));
+            let joined = cwd.join(&*file);
+            let has_parent_dir = file
+                .components()
+                .any(|c| c == std::path::Component::ParentDir);
+            // `..` after a symlinked directory leaves the symlink's target, so
+            // resolve the parent on disk. The file name is kept so a symlinked
+            // file still matches by its own path.
+            let on_disk = has_parent_dir
+                .then(|| {
+                    let name = joined.file_name()?;
+                    Some(joined.parent()?.canonicalize().ok()?.join(name))
+                })
+                .flatten();
+            let abs = match (on_disk, &canonical_root) {
+                (Some(p), Some(r)) if p.starts_with(r) => {
+                    // Re-root onto the (possibly non-canonical) work tree path.
+                    root.join(p.strip_prefix(r).unwrap())
+                }
+                (Some(p), _) => p,
+                (None, _) => crate::hook::normalize_lexically(&joined),
+            };
             if let Ok(rel) = abs.strip_prefix(&root) {
                 *file = if rel.as_os_str().is_empty() {
                     PathBuf::from(".")
