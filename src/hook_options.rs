@@ -196,6 +196,31 @@ impl HookOptions {
         Ok(())
     }
 
+    /// hk runs from the repository root, but file arguments are written relative
+    /// to the directory the user invoked it from. Rewrite them as repo-relative
+    /// paths before the working directory changes.
+    fn resolve_file_args(&mut self) {
+        let Some(files) = &mut self.files else {
+            return;
+        };
+        let Ok(cwd) = std::env::current_dir() else {
+            return;
+        };
+        let root = crate::git_util::find_work_tree_root();
+        for file in files.iter_mut() {
+            let abs = crate::hook::normalize_lexically(&cwd.join(&*file));
+            if let Ok(rel) = abs.strip_prefix(&root) {
+                *file = if rel.as_os_str().is_empty() {
+                    PathBuf::from(".")
+                } else {
+                    rel.to_path_buf()
+                };
+            } else {
+                *file = abs;
+            }
+        }
+    }
+
     pub fn should_stage(&self) -> Option<bool> {
         if self.stage {
             Some(true)
@@ -209,6 +234,7 @@ impl HookOptions {
     pub(crate) async fn run(mut self, name: &str) -> Result<()> {
         self.validate()?;
         self.load_files0()?;
+        self.resolve_file_args();
         // Under `--from-hook`, short-circuit *before* loading the config. A
         // broken user-global config shouldn't fail every `git commit` in a
         // repo that doesn't use hk — which is the main risk under

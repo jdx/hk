@@ -132,3 +132,29 @@ EOF
     assert_success
     assert_output --partial "checking test.js"
 }
+
+@test "check files resolves relative to the invocation directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { check = "echo checking {{files}}" } } }
+}
+EOF
+    git init
+    mkdir sub
+    echo "root" > a.js
+    echo "sub" > sub/a.js
+    git add .
+    git commit -m "initial commit"
+    cd sub
+    run hk check a.js
+    assert_success
+    assert_output --partial "checking sub/a.js"
+    refute_output --partial "checking a.js"
+    run hk check ../a.js
+    assert_success
+    assert_output --partial "checking a.js"
+    run hk check .
+    assert_success
+    assert_output --partial "checking sub/a.js"
+}

@@ -2194,7 +2194,7 @@ fn with_forward_slashes(path: PathBuf) -> PathBuf {
 
 /// Remove `.` components and resolve `..` against preceding components without
 /// touching the filesystem. Leading `..` components of a relative path are kept.
-fn normalize_lexically(path: &Path) -> PathBuf {
+pub(crate) fn normalize_lexically(path: &Path) -> PathBuf {
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
