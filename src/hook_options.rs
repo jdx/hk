@@ -225,26 +225,25 @@ impl HookOptions {
                     Some(joined.parent()?.canonicalize().ok()?.join(name))
                 })
                 .flatten();
-            let abs = match (on_disk, &canonical_root) {
-                (Some(p), Some(r)) if p.starts_with(r) => {
-                    // Re-root onto the (possibly non-canonical) work tree path.
-                    root.join(p.strip_prefix(r).unwrap())
-                }
-                (Some(p), _) => p,
+            let abs = match on_disk {
+                Some(p) => p,
                 // A `..` that cannot be resolved on disk is kept as written:
                 // collapsing it lexically could select a different file.
-                (None, _) if has_parent_dir => joined,
-                (None, _) => crate::hook::normalize_lexically(&joined),
+                None if has_parent_dir => joined,
+                None => crate::hook::normalize_lexically(&joined),
             };
-            if let Ok(rel) = abs.strip_prefix(&root) {
-                *file = if rel.as_os_str().is_empty() {
-                    PathBuf::from(".")
-                } else {
-                    crate::hook::with_forward_slashes(rel.to_path_buf())
-                };
-            } else {
-                *file = abs;
-            }
+            // The work tree may be spelled through a symlink (`GIT_WORK_TREE`),
+            // while on-disk resolution yields the canonical spelling.
+            let rel = abs.strip_prefix(&root).ok().or_else(|| {
+                canonical_root
+                    .as_deref()
+                    .and_then(|r| abs.strip_prefix(r).ok())
+            });
+            *file = match rel {
+                Some(rel) if rel.as_os_str().is_empty() => PathBuf::from("."),
+                Some(rel) => crate::hook::with_forward_slashes(rel.to_path_buf()),
+                None => abs,
+            };
         }
     }
 
