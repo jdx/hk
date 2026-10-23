@@ -259,12 +259,20 @@ fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 /// The replacement keeps the permissions of the entry it replaces, as an
-/// in-place write would. A new entry gets the default mode.
+/// in-place write would. A new entry gets the default mode. Only Unix modes
+/// are carried over: Windows has just a read-only flag, which would stop the
+/// rename over the old entry and leave a temporary file that cannot be removed.
+#[cfg(unix)]
 fn keep_mode(entry: &Path, tmp: &Path) -> std::io::Result<()> {
     match std::fs::metadata(entry) {
         Ok(meta) => std::fs::set_permissions(tmp, meta.permissions()),
         Err(_) => Ok(()),
     }
+}
+
+#[cfg(not(unix))]
+fn keep_mode(_entry: &Path, _tmp: &Path) -> std::io::Result<()> {
+    Ok(())
 }
 
 fn fresh_file_cache_key(path: &Path) -> String {
