@@ -234,9 +234,9 @@ dependencies = [
 
 [[package]]
 name = "clx"
-version = "3.0.4"
+version = "3.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cea51a952e2d16a0589c18b4b38943583c9dc975077cb803813f695b22b708ab"
+checksum = "c680ee8c44bf5dabebb3c9be19a2ffe737977a5e5f10f4983dc0b190a1c0b15a"
 dependencies = [
  "console",
  "nix 0.31.3",
@@ -1787,9 +1787,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pklr"
-version = "5.2.0"
+version = "5.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38ac079acf680c4f427eb3242e91e5b717b30934fc9803df1a09dbf50feaf800"
+checksum = "05351b9680b83364046d58025016accf4d1e941d2be7ebf34f340d045814724c"
 dependencies = [
  "fancy-regex",
  "indexmap 2.14.2",
