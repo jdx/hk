@@ -492,11 +492,15 @@ jobs:
       - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
         with:
           cache: false
+      # Builtins.pkl is generated and gitignored; the crate must ship it so
+      # `cargo install hk` embeds the Pkl package like the release binaries.
+      - run: mise run pkl:gen
       # crates.io trusted publishing is not set up for hk; publish with the token
       # jactionlint ignore=use-trusted-publishing
       - run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          HK_REQUIRE_EMBEDDED_PKL: "1"
 
   enhance-release:
     needs: [create-release]
