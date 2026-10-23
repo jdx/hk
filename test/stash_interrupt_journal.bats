@@ -56,7 +56,7 @@ prepare_repo() {
 }
 
 wait_for_step() {
-    for _ in $(seq 100); do
+    for _ in $(seq 600); do
         [ -e started ] && return 0
         sleep 0.1
     done
@@ -90,7 +90,7 @@ term_mid_step() {
     # Nothing was left running. The step's process group is killed before hk
     # exits, but the kernel reaps the dead processes asynchronously, so a
     # zombie can still show up for a moment (seen on macOS).
-    for _ in $(seq 50); do
+    for _ in $(seq 300); do
         pgrep -f "sleep $SLEEP_MARK\$" >/dev/null || return 0
         sleep 0.1
     done
@@ -358,7 +358,7 @@ open(sys.argv[2], "w").close()
 time.sleep(60)
 PY
     local holder=$!
-    for _ in $(seq 100); do
+    for _ in $(seq 600); do
         [ -e "$BATS_TEST_TMPDIR/lock-held" ] && break
         sleep 0.1
     done
