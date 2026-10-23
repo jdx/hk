@@ -8,9 +8,11 @@ setup() {
     load 'test_helper/common_setup'
     _common_setup
     # A sleep duration no other test (or file) uses, so a process check matches
-    # only this test's step. A bare "sleep 30" also matches the sleepers of
+    # only this test's step. A bare "sleep 120" also matches the sleepers of
     # tests running concurrently under bats --jobs.
-    SLEEP_MARK="30.$$$RANDOM$RANDOM"
+    # Longer than the longest wait below, so a leaked child cannot exit on its own
+    # while the test polls for it.
+    SLEEP_MARK="120.$$$RANDOM$RANDOM"
 }
 
 teardown() {
