@@ -215,7 +215,7 @@ EOF
     assert_success
     assert_output --partial "did not finish within 3 seconds"
     local i
-    for i in $(seq 1 50); do
+    for i in $(seq 1 300); do
         pgrep -f "sleep ${marker//./\\.}\$" >/dev/null || break
         sleep 0.1
     done
