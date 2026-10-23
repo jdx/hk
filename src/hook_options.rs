@@ -196,6 +196,57 @@ impl HookOptions {
         Ok(())
     }
 
+    /// hk runs from the repository root, but file arguments are written relative
+    /// to the directory the user invoked it from. Rewrite them as repo-relative
+    /// paths before the working directory changes.
+    fn resolve_file_args(&mut self) {
+        let Some(files) = &mut self.files else {
+            return;
+        };
+        let Ok(cwd) = std::env::current_dir() else {
+            return;
+        };
+        let root = crate::git_util::find_work_tree_root();
+        let canonical_root = root.canonicalize().ok();
+        for file in files.iter_mut() {
+            let joined = cwd.join(&*file);
+            let has_parent_dir = file
+                .components()
+                .any(|c| c == std::path::Component::ParentDir);
+            // `..` after a symlinked directory leaves the symlink's target, so
+            // resolve the parent on disk. The file name is kept so a symlinked
+            // file still matches by its own path.
+            let on_disk = has_parent_dir
+                .then(|| {
+                    // An argument ending in `..` (`sub/..`) has no file name to keep.
+                    let Some(name) = joined.file_name() else {
+                        return joined.canonicalize().ok();
+                    };
+                    Some(joined.parent()?.canonicalize().ok()?.join(name))
+                })
+                .flatten();
+            let abs = match on_disk {
+                Some(p) => p,
+                // A `..` that cannot be resolved on disk is kept as written:
+                // collapsing it lexically could select a different file.
+                None if has_parent_dir => joined,
+                None => crate::hook::normalize_lexically(&joined),
+            };
+            // The work tree may be spelled through a symlink (`GIT_WORK_TREE`),
+            // while on-disk resolution yields the canonical spelling.
+            let rel = abs.strip_prefix(&root).ok().or_else(|| {
+                canonical_root
+                    .as_deref()
+                    .and_then(|r| abs.strip_prefix(r).ok())
+            });
+            *file = match rel {
+                Some(rel) if rel.as_os_str().is_empty() => PathBuf::from("."),
+                Some(rel) => crate::hook::with_forward_slashes(rel.to_path_buf()),
+                None => abs,
+            };
+        }
+    }
+
     pub fn should_stage(&self) -> Option<bool> {
         if self.stage {
             Some(true)
@@ -209,6 +260,7 @@ impl HookOptions {
     pub(crate) async fn run(mut self, name: &str) -> Result<()> {
         self.validate()?;
         self.load_files0()?;
+        self.resolve_file_args();
         // Under `--from-hook`, short-circuit *before* loading the config. A
         // broken user-global config shouldn't fail every `git commit` in a
         // repo that doesn't use hk — which is the main risk under

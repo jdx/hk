@@ -2183,7 +2183,7 @@ impl fmt::Display for Hook {
 
 /// Use `/` separators, as git paths and exclude patterns do. Rebuilding a path
 /// from components on Windows joins them with `\`, which regexes would not match.
-fn with_forward_slashes(path: PathBuf) -> PathBuf {
+pub(crate) fn with_forward_slashes(path: PathBuf) -> PathBuf {
     if cfg!(windows)
         && let Some(s) = path.to_str()
     {
@@ -2194,7 +2194,7 @@ fn with_forward_slashes(path: PathBuf) -> PathBuf {
 
 /// Remove `.` components and resolve `..` against preceding components without
 /// touching the filesystem. Leading `..` components of a relative path are kept.
-fn normalize_lexically(path: &Path) -> PathBuf {
+pub(crate) fn normalize_lexically(path: &Path) -> PathBuf {
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
