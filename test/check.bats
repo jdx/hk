@@ -192,3 +192,21 @@ EOF
     run hk check missing/../a.js
     refute_output --partial "checking a.js"
 }
+
+@test "check files resolves directory arguments ending in .." {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { dir = "src"; check = "echo checking {{files}}" } } }
+}
+EOF
+    git init
+    mkdir -p src sub
+    echo "x" > src/a.js
+    echo "y" > sub/b.js
+    git add .
+    git commit -m "initial commit"
+    run hk check sub/..
+    assert_success
+    assert_output --partial "checking a.js"
+}
