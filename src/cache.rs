@@ -187,9 +187,15 @@ where
     /// temporary file and renamed over the old one, so a reader sees all of
     /// the old entry or all of the new one, never a truncated file.
     pub fn write(&self, val: &T) -> Result<()> {
-        static NEXT_TEMP_FILE: AtomicU64 = AtomicU64::new(0);
         let path = &self.cache_file_path;
         tracing::info!(path = %path.display(), "cache.write");
+        self.replace_entry(val)
+            .wrap_err_with(|| format!("failed to write {}", path.display()))
+    }
+
+    fn replace_entry(&self, val: &T) -> Result<()> {
+        static NEXT_TEMP_FILE: AtomicU64 = AtomicU64::new(0);
+        let path = &self.cache_file_path;
         let bytes = serde_json::to_vec(val)?;
         if let Some(parent) = path.parent() {
             xx::file::create_dir_all(parent)?;
@@ -199,11 +205,13 @@ where
             std::process::id(),
             NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed)
         ));
-        let written = std::fs::write(&tmp, bytes).and_then(|()| rename_over(&tmp, path));
+        let written = std::fs::write(&tmp, bytes)
+            .and_then(|()| keep_mode(path, &tmp))
+            .and_then(|()| rename_over(&tmp, path));
         if written.is_err() {
             let _ = std::fs::remove_file(&tmp);
         }
-        written.wrap_err_with(|| format!("failed to write {}", path.display()))
+        Ok(written?)
     }
 
     #[cfg(test)]
@@ -247,6 +255,15 @@ fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
             }
             result => return result,
         }
+    }
+}
+
+/// The replacement keeps the permissions of the entry it replaces, as an
+/// in-place write would. A new entry gets the default mode.
+fn keep_mode(entry: &Path, tmp: &Path) -> std::io::Result<()> {
+    match std::fs::metadata(entry) {
+        Ok(meta) => std::fs::set_permissions(tmp, meta.permissions()),
+        Err(_) => Ok(()),
     }
 }
 
@@ -401,5 +418,39 @@ mod tests {
                 .to_string_lossy()
                 .into_owned()]
         );
+    }
+
+    /// Replacing an entry must not widen the mode someone gave it.
+    #[cfg(unix)]
+    #[test]
+    fn write_keeps_the_mode_of_the_entry_it_replaces() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        cache.write(&vec![1]).unwrap();
+        let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        std::fs::set_permissions(
+            &cache.cache_file_path,
+            std::fs::Permissions::from_mode(0o640),
+        )
+        .unwrap();
+
+        cache.write(&vec![2]).unwrap();
+
+        assert_eq!(mode(&cache.cache_file_path), 0o640);
+        assert_eq!(cache.parse().unwrap(), vec![2]);
+    }
+
+    #[test]
+    fn a_write_that_cannot_create_the_directory_names_the_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocker = dir.path().join("blocker");
+        std::fs::write(&blocker, "").unwrap();
+        let cache: CacheManager<Vec<u32>> =
+            CacheManagerBuilder::new(blocker.join("entry.json")).build();
+
+        let err = cache.write(&vec![1]).unwrap_err();
+
+        assert!(format!("{err:#}").contains(&cache.cache_file_path.display().to_string()));
     }
 }
