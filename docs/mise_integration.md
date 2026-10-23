@@ -84,7 +84,7 @@ Review the generated tools and tasks. Existing `mise.toml` files are preserved.
 Use a task when a check is also useful outside Git hooks:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Config.pkl"
 
 hooks {
   ["check"] {

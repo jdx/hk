@@ -156,8 +156,8 @@ failure and hauled back to port.
 `commit-msg` runs after the commit message is prepared and before the commit is made. Use the built-in Conventional Commits check, one of the standing crew:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.8.0/hk@2.8.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Builtins.pkl"
 
 hooks {
   ["commit-msg"] {

@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.8.1](https://github.com/jdx/hk/compare/v2.8.0..v2.8.1) - 2026-10-22
+
+### 🐛 Bug Fixes
+
+- **(builtins)** ryl_markdown deprecation warning by [@illesnagy1](https://github.com/illesnagy1) in [#1741](https://github.com/jdx/hk/pull/1741)
+- **(ci)** skip unrelated old release tags when commenting fixed-in releases by [@jdx](https://github.com/jdx) in [#1744](https://github.com/jdx/hk/pull/1744)
+- **(stash)** keep hk's stash entry off the stack shared by linked worktrees by [@jdx](https://github.com/jdx) in [#1747](https://github.com/jdx/hk/pull/1747)
+
+### 🛡️ Security
+
+- **(deps)** update communique, mr-boxington in mise.lock by [@jdx](https://github.com/jdx) in [#1743](https://github.com/jdx/hk/pull/1743)
+
+### 🔍 Other Changes
+
+- use jdx/workflows retry action by [@jdx](https://github.com/jdx) in [#1748](https://github.com/jdx/hk/pull/1748)
+
+### 📦️ Dependency Updates
+
+- update rust crate usage-rs to v7.1.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1749](https://github.com/jdx/hk/pull/1749)
+
 ## [2.8.0](https://github.com/jdx/hk/compare/v2.7.1..v2.8.0) - 2026-10-20
 
 ### 🚀 Features
