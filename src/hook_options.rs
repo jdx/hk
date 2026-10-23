@@ -228,6 +228,9 @@ impl HookOptions {
                     root.join(p.strip_prefix(r).unwrap())
                 }
                 (Some(p), _) => p,
+                // A `..` that cannot be resolved on disk is kept as written:
+                // collapsing it lexically could select a different file.
+                (None, _) if has_parent_dir => joined,
                 (None, _) => crate::hook::normalize_lexically(&joined),
             };
             if let Ok(rel) = abs.strip_prefix(&root) {

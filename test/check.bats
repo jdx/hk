@@ -177,3 +177,18 @@ EOF
     assert_success
     assert_output --partial "checking nested/a.js"
 }
+
+@test "check files keeps unresolvable .. paths unchanged" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { check = "echo checking {{files}}" } } }
+}
+EOF
+    git init
+    echo "root" > a.js
+    git add .
+    git commit -m "initial commit"
+    run hk check missing/../a.js
+    refute_output --partial "checking a.js"
+}
