@@ -240,7 +240,7 @@ impl HookOptions {
                 *file = if rel.as_os_str().is_empty() {
                     PathBuf::from(".")
                 } else {
-                    rel.to_path_buf()
+                    crate::hook::with_forward_slashes(rel.to_path_buf())
                 };
             } else {
                 *file = abs;
