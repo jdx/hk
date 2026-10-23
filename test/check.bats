@@ -211,3 +211,21 @@ EOF
     assert_success
     assert_output --partial "checking a.js"
 }
+
+@test "check files keeps a final directory symlink name after .." {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { dir = "alias"; check = "echo checking {{files}}" } } }
+}
+EOF
+    git init
+    mkdir -p sub real
+    echo "x" > real/a.js
+    ln -s real alias
+    git add .
+    git commit -m "initial commit"
+    HK_WALK_IGNORE=0 run hk check sub/../alias
+    assert_success
+    assert_output --partial "checking a.js"
+}

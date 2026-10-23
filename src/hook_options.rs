@@ -218,11 +218,10 @@ impl HookOptions {
             // file still matches by its own path.
             let on_disk = has_parent_dir
                 .then(|| {
-                    // A directory argument (`sub/..`) has no file name to keep.
-                    if joined.is_dir() {
+                    // An argument ending in `..` (`sub/..`) has no file name to keep.
+                    let Some(name) = joined.file_name() else {
                         return joined.canonicalize().ok();
-                    }
-                    let name = joined.file_name()?;
+                    };
                     Some(joined.parent()?.canonicalize().ok()?.join(name))
                 })
                 .flatten();
