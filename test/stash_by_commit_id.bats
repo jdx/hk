@@ -1,8 +1,9 @@
 #!/usr/bin/env bats
 
-# hk finds the stash entry it created by its commit id. The stash is shared by
-# every worktree of a repository, so `stash@{n}` can name someone else's entry
-# by the time hk restores.
+# hk keeps the stash entry it creates under its own ref, `refs/hk/stash/<commit>`,
+# and finds it again by its commit id. The `git stash` stack is shared by every
+# worktree of a repository, so another worktree pushing, popping or dropping
+# there while a hook runs must not reach hk's entry.
 
 setup() {
     load 'test_helper/common_setup'
@@ -67,55 +68,49 @@ prepare_repo() {
 
 assert_foreign_push_leaves_hk_entry_alone() {
     local use_libgit2="$1"
-    local expected_log="${2:-}"
     write_config "git -C '$TEST_TEMP_DIR/other-worktree' stash push -m foreign-entry"
     prepare_repo
 
-    run env HK_LIBGIT2="$use_libgit2" HK_LOG=debug hk run pre-commit
+    run env HK_LIBGIT2="$use_libgit2" hk run pre-commit
     assert_success
-    if [ -n "$expected_log" ]; then
-        assert_output --partial "$expected_log"
-    fi
 
     # hk's unstaged edit is back, the staged one is still staged
     assert_equal "$(cat file.txt)" "$(printf 'staged\nunstaged\n')"
     assert_equal "$(git show :file.txt)" "staged"
-    # hk dropped its own entry and only that one
+    # hk's entry is gone, and the foreign one is on the stash untouched
+    assert_equal "$(hk_stash_list)" ""
     run git stash list
     assert_success
     assert_line --partial "foreign-entry"
     assert_equal "$(git stash list | wc -l | tr -d ' ')" "1"
-    # the foreign entry still holds the other worktree's edit
     assert_equal "$(git show 'stash@{0}:other.txt')" "other worktree edit"
     assert_equal "$(cat "$TEST_TEMP_DIR/other-worktree/other.txt")" "base"
 }
 
-# A named tracked path makes hk stash with shell git even with libgit2 on
-@test "foreign stash push between stash and restore is untouched (named paths, shell git)" {
-    assert_foreign_push_leaves_hk_entry_alone 1 "git stash push"
+@test "foreign stash push between stash and restore is untouched (named paths)" {
+    assert_foreign_push_leaves_hk_entry_alone 1
 }
 
-# An untracked file makes hk stash the whole worktree, with no path limit, so
-# it calls libgit2's stash_save and uses the id it returns
-@test "foreign stash push between stash and restore is untouched (libgit2 whole worktree)" {
+@test "foreign stash push between stash and restore is untouched (shell git)" {
+    assert_foreign_push_leaves_hk_entry_alone 0
+}
+
+@test "foreign stash push between stash and restore is untouched (whole worktree)" {
     write_config_whole "git -C '$TEST_TEMP_DIR/other-worktree' stash push -m foreign-entry"
     prepare_repo
     printf 'untracked\n' > untracked.txt
-    run env HK_LIBGIT2=1 HK_STASH_UNTRACKED=true HK_LOG=debug hk run pre-commit
+    run env HK_STASH_UNTRACKED=true hk run pre-commit
     assert_success
-    assert_output --partial "libgit2 stashed the unstaged changes as"
-    refute_output --partial "git stash push --keep-index"
     assert_equal "$(cat untracked.txt)" "untracked"
     assert_equal "$(cat file.txt)" "$(printf 'staged\nunstaged\n')"
     assert_equal "$(git show :file.txt)" "staged"
-    run git stash list
-    assert_line --partial "foreign-entry"
+    assert_equal "$(hk_stash_list)" ""
     assert_equal "$(git stash list | wc -l | tr -d ' ')" "1"
     assert_equal "$(git show 'stash@{0}:other.txt')" "other worktree edit"
 }
 
-# git pushes no entry when nothing is stashed; hk records nothing and a
-# foreign push meanwhile is not mistaken for hk's
+# hk records nothing when nothing is stashed, and a foreign push meanwhile is
+# not mistaken for hk's
 @test "nothing to stash with a foreign push in between touches no entry" {
     write_config "git -C '$TEST_TEMP_DIR/other-worktree' stash push -m foreign-entry"
     printf 'base\n' > file.txt
@@ -125,42 +120,49 @@ assert_foreign_push_leaves_hk_entry_alone() {
     printf 'x\n' > "$TEST_TEMP_DIR/other-worktree/file.txt"
     printf 'staged\n' > file.txt
     git add file.txt
-    run env HK_LIBGIT2=0 hk run pre-commit
+    run hk run pre-commit
     assert_success
     assert_equal "$(git stash list | wc -l | tr -d ' ')" "1"
     run git stash list
     assert_line --partial "foreign-entry"
+    assert_equal "$(hk_stash_list)" ""
 }
 
-@test "foreign stash push between stash and restore is untouched (shell git)" {
-    assert_foreign_push_leaves_hk_entry_alone 0 "git stash push"
-}
-
-assert_missing_entry_is_reported_and_others_survive() {
-    local use_libgit2="$1"
-    # Something else drops hk's entry (the top one) and pushes its own
-    write_config "git -C '$TEST_TEMP_DIR/other-worktree' stash drop --quiet && git -C '$TEST_TEMP_DIR/other-worktree' stash push -m foreign-entry"
+# The race from jdx/hk#1746: another worktree pops, drops and pushes on the
+# shared stack while hk's hook runs. hk's entry is not on that stack.
+@test "another worktree dropping and pushing on the shared stash does not reach hk's entry" {
+    write_config "git -C '$TEST_TEMP_DIR/other-worktree' stash drop --quiet && git -C '$TEST_TEMP_DIR/other-worktree' stash push -q -m foreign-entry"
     prepare_repo
-    # An older entry that must also survive
+    # Both entries are on the shared stack before the hook starts
     printf 'older\n' > "$TEST_TEMP_DIR/other-worktree/other.txt"
     git -C "$TEST_TEMP_DIR/other-worktree" stash push -q -m older-entry
     printf 'other worktree edit\n' > "$TEST_TEMP_DIR/other-worktree/other.txt"
 
-    run env HK_LIBGIT2="$use_libgit2" hk run pre-commit
+    run hk run pre-commit
+    assert_success
+
+    assert_equal "$(cat file.txt)" "$(printf 'staged\nunstaged\n')"
+    assert_equal "$(git show :file.txt)" "staged"
+    assert_equal "$(hk_stash_list)" ""
+    # The other worktree's own stash operations ran as it expected
+    run git stash list
+    assert_line --partial "foreign-entry"
+    assert_equal "$(git stash list | wc -l | tr -d ' ')" "1"
+}
+
+@test "an entry whose ref was deleted is reported, and other entries survive" {
+    write_config "git update-ref -d refs/hk/stash/\$(git for-each-ref --format='%(objectname)' refs/hk/stash | head -1)"
+    prepare_repo
+    printf 'older\n' > "$TEST_TEMP_DIR/other-worktree/other.txt"
+    git -C "$TEST_TEMP_DIR/other-worktree" stash push -q -m older-entry
+    printf 'other worktree edit\n' > "$TEST_TEMP_DIR/other-worktree/other.txt"
+
+    run hk run pre-commit
     assert_failure
-    assert_output --partial "is no longer in the stash list"
+    assert_output --partial "is no longer in hk's stash entries"
     assert_output --partial "left every stash entry alone"
 
     run git stash list
-    assert_line --partial "foreign-entry"
     assert_line --partial "older-entry"
-    assert_equal "$(git stash list | wc -l | tr -d ' ')" "2"
-}
-
-@test "an entry that vanished from the stash list is reported, not replaced (named paths, HK_LIBGIT2=1)" {
-    assert_missing_entry_is_reported_and_others_survive 1
-}
-
-@test "an entry that vanished from the stash list is reported, not replaced (shell git)" {
-    assert_missing_entry_is_reported_and_others_survive 0
+    assert_equal "$(git stash list | wc -l | tr -d ' ')" "1"
 }

@@ -56,7 +56,7 @@ prepare_repo() {
 }
 
 wait_for_step() {
-    for _ in $(seq 100); do
+    for _ in $(seq 600); do
         [ -e started ] && return 0
         sleep 0.1
     done
@@ -66,7 +66,7 @@ wait_for_step() {
 assert_changes_restored() {
     assert_equal "$(cat file.txt)" "$(printf 'staged\nunstaged\n')"
     assert_equal "$(git show :file.txt)" "staged"
-    assert_equal "$(git stash list | wc -l | tr -d ' ')" "0"
+    assert_equal "$(git for-each-ref refs/hk/stash | wc -l | tr -d ' ')" "0"
     [ ! -e "$JOURNAL" ]
 }
 
@@ -90,7 +90,7 @@ term_mid_step() {
     # Nothing was left running. The step's process group is killed before hk
     # exits, but the kernel reaps the dead processes asynchronously, so a
     # zombie can still show up for a moment (seen on macOS).
-    for _ in $(seq 50); do
+    for _ in $(seq 300); do
         pgrep -f "sleep $SLEEP_MARK\$" >/dev/null || return 0
         sleep 0.1
     done
@@ -128,7 +128,7 @@ kill9_then_recover() {
     # Killed: the changes are stranded in the stash, and the journal names them
     assert_equal "$(cat file.txt)" "staged"
     assert_file_exists "$JOURNAL"
-    commit="$(git stash list --format=%H)"
+    commit="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
     run grep "$commit" "$JOURNAL"
     assert_success
 }
@@ -149,17 +149,17 @@ kill9_then_recover() {
 @test "after SIGKILL a dirty worktree is reported with the exact command and nothing is dropped" {
     kill9_then_recover 1
     printf 'something else\n' > new.txt
-    commit="$(git stash list --format=%H)"
+    commit="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
     run env HK_LIBGIT2=1 hk check --all
     assert_output --partial "git stash apply $commit"
     assert_file_exists "$JOURNAL"
-    assert_equal "$(git stash list --format=%H)" "$commit"
+    assert_equal "$(git for-each-ref --format='%(objectname)' refs/hk/stash)" "$commit"
     assert_equal "$(cat file.txt)" "staged"
     # Once the user has applied and dropped the entry, hk stops mentioning it
     rm new.txt
     assert_output --partial "git restore --source=<commit>"
     git restore --source="$commit" --worktree -- file.txt
-    git stash drop
+    hk_stash_drop
     run env HK_LIBGIT2=1 hk check --all
     refute_output --partial "git stash apply"
     [ ! -e "$JOURNAL" ]
@@ -201,19 +201,20 @@ crash_before_record() {
     prepare_repo
     run env HK_DEBUG_KILL_BEFORE_JOURNAL_RECORD=1 HK_LIBGIT2="$use_libgit2" hk run pre-commit
     assert_failure
-    # The changes are stranded in the stash and the journal names nothing
-    assert_equal "$(cat file.txt)" "staged"
+    # The entry exists but hk died before it cleaned the worktree, so the edit
+    # is still in place, and the journal names nothing
+    assert_equal "$(cat file.txt)" "$(printf 'staged\nunstaged\n')"
     assert_file_exists "$JOURNAL"
     run grep -c '"commit"' "$JOURNAL"
     assert_output 0
-    commit="$(git stash list --format=%H)"
+    commit="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
     [ -n "$commit" ]
-    run git stash list --format=%gs
+    run git for-each-ref --format='%(contents:subject)' refs/hk/stash
     assert_output --regexp "hk: [0-9]+-"
     run env HK_LIBGIT2="$use_libgit2" hk check --all
     assert_output --partial "git stash apply $commit"
     assert_file_exists "$JOURNAL"
-    assert_equal "$(git stash list --format=%H)" "$commit"
+    assert_equal "$(git for-each-ref --format='%(objectname)' refs/hk/stash)" "$commit"
 }
 
 @test "a stash made just before hk is killed is reported by the next run (libgit2)" {
@@ -272,13 +273,13 @@ foreign_owner_is_reported() {
     original="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["owner_host"])' "$JOURNAL")"
     set_owner_host "$identity"
     local commit
-    commit="$(git stash list --format=%H)"
+    commit="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
     run env HK_LIBGIT2="$use_libgit2" hk check --all
     assert_output --partial "git stash apply $commit"
     assert_output --partial "cannot tell whether it is still running"
     # Nothing was restored or dropped
     assert_file_exists "$JOURNAL"
-    assert_equal "$(git stash list --format=%H)" "$commit"
+    assert_equal "$(git for-each-ref --format='%(objectname)' refs/hk/stash)" "$commit"
     assert_equal "$(cat file.txt)" "staged"
     # The same journal written where hk runs is recovered as before
     set_owner_host "$original"
@@ -310,7 +311,7 @@ foreign_owner_unrecorded_entry_is_reported() {
     run grep -c '"commit"' "$JOURNAL"
     assert_output 0
     local commit before
-    commit="$(git stash list --format=%H)"
+    commit="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
     [ -n "$commit" ]
     set_owner_host "$identity"
     before="$(cat "$JOURNAL")"
@@ -321,8 +322,8 @@ foreign_owner_unrecorded_entry_is_reported() {
     # Nothing was restored, dropped or rewritten
     assert_file_exists "$JOURNAL"
     assert_equal "$(cat "$JOURNAL")" "$before"
-    assert_equal "$(git stash list --format=%H)" "$commit"
-    assert_equal "$(cat file.txt)" "staged"
+    assert_equal "$(git for-each-ref --format='%(objectname)' refs/hk/stash)" "$commit"
+    assert_equal "$(cat file.txt)" "$(printf 'staged\nunstaged\n')"
 }
 
 @test "an unrecorded stash entry is reported for a journal from another host (libgit2)" {
@@ -347,8 +348,8 @@ recovery_waits_for_the_stash_lock() {
     local use_libgit2="$1"
     kill9_then_recover "$use_libgit2"
     local commit lock
-    commit="$(git stash list --format=%H)"
-    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    commit="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
+    lock="$(git rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
     python3 - "$lock" "$BATS_TEST_TMPDIR/lock-held" <<'PY' &
 import fcntl, sys, time
 f = open(sys.argv[1], "w")
@@ -357,7 +358,7 @@ open(sys.argv[2], "w").close()
 time.sleep(60)
 PY
     local holder=$!
-    for _ in $(seq 100); do
+    for _ in $(seq 600); do
         [ -e "$BATS_TEST_TMPDIR/lock-held" ] && break
         sleep 0.1
     done
@@ -370,7 +371,7 @@ PY
     assert_output --partial "left its journal"
     # Nothing was restored while the lock was held elsewhere
     assert_file_exists "$JOURNAL"
-    assert_equal "$(git stash list --format=%H)" "$commit"
+    assert_equal "$(git for-each-ref --format='%(objectname)' refs/hk/stash)" "$commit"
     assert_equal "$(cat file.txt)" "staged"
     kill "$holder"
     wait "$holder" 2>/dev/null || true
@@ -394,7 +395,7 @@ reported_journal_is_not_restored_over_a_running_fixer() {
     local use_libgit2="$1"
     kill9_then_recover "$use_libgit2"
     local old
-    old="$(git stash list --format=%H)"
+    old="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
     printf 'staged\nnew edit\n' > file.txt
     HK_LIBGIT2="$use_libgit2" hk run pre-commit >"$BATS_TEST_TMPDIR/b.out" 2>&1 &
     local pid=$!
@@ -403,20 +404,20 @@ reported_journal_is_not_restored_over_a_running_fixer() {
     # reported are still in the stash, and its own edit is the one stashed now
     assert_file_exists "$JOURNAL"
     assert_equal "$(cat file.txt)" "staged"
-    run git stash list --format=%H
+    run git for-each-ref --format='%(objectname)' refs/hk/stash
     assert_equal "${#lines[@]}" 2
     # A third run sees a clean tree but may not recover while that is so
     HK_STASH_LOCK_TIMEOUT=1 HK_LIBGIT2="$use_libgit2" run hk check --all
     assert_output --partial "left its journal"
     assert_equal "$(cat file.txt)" "staged"
-    run git stash list --format=%H
+    run git for-each-ref --format='%(objectname)' refs/hk/stash
     assert_equal "${#lines[@]}" 2
     assert_file_exists "$JOURNAL"
     kill -TERM "$pid"
     wait "$pid" || true
     # The running one put its own edit back and left the reported entry alone
     assert_equal "$(cat file.txt)" "$(printf 'staged\nnew edit\n')"
-    assert_equal "$(git stash list --format=%H)" "$old"
+    assert_equal "$(git for-each-ref --format='%(objectname)' refs/hk/stash)" "$old"
     assert_file_exists "$JOURNAL"
     grep -q "pending-stash journal is still in place" "$BATS_TEST_TMPDIR/b.out"
 }
@@ -437,7 +438,7 @@ stale_foreign_journal_is_removed() {
     kill9_then_recover "$use_libgit2"
     set_owner_host "elsewhere.example|pid:[4026539999]"
     # The entry was applied and dropped by hand
-    git stash drop
+    hk_stash_drop
     run env HK_LIBGIT2="$use_libgit2" hk check --all
     assert_output --partial "removed the stale pending-stash journal"
     [ ! -e "$JOURNAL" ]

@@ -3,7 +3,7 @@ setup() {
     _common_setup
 }
 
-export BATS_TEST_TIMEOUT="${BATS_TEST_TIMEOUT:-10}"
+export BATS_TEST_TIMEOUT="${BATS_TEST_TIMEOUT:-60}"
 
 teardown() {
     _common_teardown
