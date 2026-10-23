@@ -190,6 +190,7 @@ EOF
     git add .
     git commit -m "initial commit"
     run hk check missing/../a.js
+    assert_success
     refute_output --partial "checking a.js"
 }
 
