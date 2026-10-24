@@ -1,6 +1,22 @@
 # Changelog
 
-## [2.8.1](https://github.com/jdx/hk/compare/v2.8.0..v2.8.1) - 2026-10-22
+## [2.8.2](https://github.com/jdx/hk/compare/v2.8.1..v2.8.2) - 2026-10-24
+
+### 🐛 Bug Fixes
+
+- **(check)** resolve file arguments from the directory hk was run in by [@jdx](https://github.com/jdx) in [#1754](https://github.com/jdx/hk/pull/1754)
+- **(pkl)** embed the Pkl package in cargo install builds by [@jdx](https://github.com/jdx) in [#1755](https://github.com/jdx/hk/pull/1755)
+
+### 🧪 Testing
+
+- stop macOS CI flaking on fixed bats timeouts by [@jdx](https://github.com/jdx) in [#1756](https://github.com/jdx/hk/pull/1756)
+
+### 📦️ Dependency Updates
+
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1751](https://github.com/jdx/hk/pull/1751)
+- update rust crate usage-rs to v7.1.2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1757](https://github.com/jdx/hk/pull/1757)
+
+## [2.8.1](https://github.com/jdx/hk/compare/v2.8.0..v2.8.1) - 2026-10-23
 
 ### 🐛 Bug Fixes
 
