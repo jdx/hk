@@ -205,7 +205,11 @@ where
             std::process::id(),
             NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed)
         ));
-        let written = std::fs::write(&tmp, bytes)
+        let written = create_temp(path, &tmp)
+            .and_then(|mut file| {
+                use std::io::Write;
+                file.write_all(&bytes)
+            })
             .and_then(|()| keep_mode(path, &tmp))
             .and_then(|()| rename_over(&tmp, path));
         if written.is_err() {
@@ -238,18 +242,23 @@ where
     }
 }
 
-/// Renames `from` over `to`. Windows refuses to replace a file that a scanner
-/// or indexer has open for a moment, so a denied rename is tried again, as
+/// Whether a failed rename is worth trying again. Windows refuses to replace a
+/// file that a scanner or indexer has open for a moment: with "access denied",
+/// or with a sharing violation (32), which `std` leaves uncategorized.
+fn rename_is_retryable(err: &std::io::Error) -> bool {
+    const ERROR_SHARING_VIOLATION: i32 = 32;
+    cfg!(windows)
+        && (err.kind() == std::io::ErrorKind::PermissionDenied
+            || err.raw_os_error() == Some(ERROR_SHARING_VIOLATION))
+}
+
+/// Renames `from` over `to`, trying again where Windows briefly refuses, as
 /// `stash_journal::replace` does.
 fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
     let mut attempt = 0;
     loop {
         match std::fs::rename(from, to) {
-            Err(err)
-                if cfg!(windows)
-                    && err.kind() == std::io::ErrorKind::PermissionDenied
-                    && attempt < 20 =>
-            {
+            Err(err) if rename_is_retryable(&err) && attempt < 20 => {
                 attempt += 1;
                 std::thread::sleep(Duration::from_millis(25));
             }
@@ -258,10 +267,27 @@ fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
     }
 }
 
-/// The replacement keeps the permissions of the entry it replaces, as an
-/// in-place write would. A new entry gets the default mode. Only Unix modes
-/// are carried over: Windows has just a read-only flag, which would stop the
-/// rename over the old entry and leave a temporary file that cannot be removed.
+/// Creates the temporary file that will replace `entry`. It is born with the
+/// mode of the entry it replaces (a new entry gets the default mode), so the
+/// content never sits in a file more readable than the one it replaces. Only
+/// Unix modes are carried over: Windows has just a read-only flag, which would
+/// stop the rename over the old entry and leave a temporary file that cannot
+/// be removed. `create_new` also refuses a temporary file that already exists.
+fn create_temp(entry: &Path, tmp: &Path) -> std::io::Result<std::fs::File> {
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    if let Ok(meta) = std::fs::metadata(entry) {
+        use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+        opts.mode(meta.mode() & 0o7777);
+    }
+    #[cfg(not(unix))]
+    let _ = entry;
+    opts.open(tmp)
+}
+
+/// The umask can only narrow the mode `create_temp` asked for, so the exact
+/// mode of the entry is restored once the temporary file exists.
 #[cfg(unix)]
 fn keep_mode(entry: &Path, tmp: &Path) -> std::io::Result<()> {
     match std::fs::metadata(entry) {
@@ -447,6 +473,59 @@ mod tests {
 
         assert_eq!(mode(&cache.cache_file_path), 0o640);
         assert_eq!(cache.parse().unwrap(), vec![2]);
+    }
+
+    /// The replacement must never hold the new content in a file that anyone
+    /// the old entry kept out could read, not even before the mode is fixed up.
+    #[cfg(unix)]
+    #[test]
+    fn the_temporary_file_is_born_as_private_as_the_entry_it_replaces() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let entry = dir.path().join("entry.json");
+        std::fs::write(&entry, "[1]").unwrap();
+        std::fs::set_permissions(&entry, std::fs::Permissions::from_mode(0o600)).unwrap();
+        let tmp = dir.path().join("entry.tmp");
+
+        let file = create_temp(&entry, &tmp).unwrap();
+
+        let mode = file.metadata().unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode & 0o077, 0, "temporary file was created with {mode:o}");
+    }
+
+    #[test]
+    fn a_temporary_file_that_already_exists_is_not_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let entry = dir.path().join("entry.json");
+        let tmp = dir.path().join("entry.tmp");
+        std::fs::write(&tmp, "taken").unwrap();
+
+        let err = create_temp(&entry, &tmp).unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read_to_string(&tmp).unwrap(), "taken");
+    }
+
+    /// `std` leaves ERROR_SHARING_VIOLATION uncategorized, so it is matched by
+    /// its raw code. Only Windows has these failures to retry.
+    #[cfg(windows)]
+    #[test]
+    fn windows_sharing_violations_and_denials_are_retried() {
+        assert!(rename_is_retryable(&std::io::Error::from_raw_os_error(32)));
+        assert!(rename_is_retryable(&std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied
+        )));
+        assert!(!rename_is_retryable(&std::io::Error::from(
+            std::io::ErrorKind::NotFound
+        )));
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn renames_are_never_retried_off_windows() {
+        assert!(!rename_is_retryable(&std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied
+        )));
     }
 
     #[test]
