@@ -16,7 +16,7 @@ shfmt = new Config.Step {
       new Config.FileSelector {
         glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
       },
-      new Config.FileSelector { types = List("sh", "bash") },
+      new Config.FileSelector { types = List("sh", "bash", "zsh") },
     )
   check_diff = new Config.CommandSpec {
     command = "shfmt -d --apply-ignore {{ files }}"
@@ -66,6 +66,13 @@ shfmt = new Config.Step {
         "#!/bin/sh\n" + before,
         1,
       )
+
+    local const zshrcTestMaker = new helpers.TestMaker {
+      filename = ".zshrc"
+      files = List(".zshrc")
+    }
+    ["check zsh startup file"] = zshrcTestMaker.checkFail(before, 1)
+    ["fix zsh startup file"] = zshrcTestMaker.fixPass(before, after)
 
     local const ignoredTestMaker = new helpers.TestMaker {
       filename = "test.sh"

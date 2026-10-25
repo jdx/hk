@@ -667,6 +667,12 @@ fn get_types_by_filename(filename: &str) -> Option<HashSet<String>> {
             types.insert("text".to_string());
             types.insert("go".to_string());
         }
+        // zsh startup files, which usually have no shebang or extension
+        ".zshenv" | ".zprofile" | ".zshrc" | ".zlogin" | ".zlogout" => {
+            types.insert("text".to_string());
+            types.insert("shell".to_string());
+            types.insert("zsh".to_string());
+        }
         _ => {
             // Check for Dockerfile variants (Dockerfile.dev, etc.)
             if filename.starts_with("Dockerfile") || filename.starts_with("dockerfile") {
@@ -860,6 +866,19 @@ mod tests {
         assert!(types.contains("dockerfile"));
 
         std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_zsh_startup_files() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [".zshenv", ".zprofile", ".zshrc", ".zlogin", ".zlogout"] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, "setopt extendedglob\n").unwrap();
+
+            let types = get_file_types(&path);
+            assert!(types.contains("shell"), "{name}: {types:?}");
+            assert!(types.contains("zsh"), "{name}: {types:?}");
+        }
     }
 
     #[test]
