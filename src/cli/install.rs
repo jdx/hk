@@ -13,18 +13,19 @@ const CORE_GLOBAL_EVENTS: &[&str] = &["commit-msg", "pre-commit", "pre-push", "p
 /// Set up git hooks to run hk.
 ///
 /// The recommended setup is `hk install --global`, which installs hooks
-/// once into the user's `~/.gitconfig` so every repository on the machine
-/// picks them up automatically. In a project without an `hk.pkl`, the
-/// installed hook exits silently — no-op — so it's safe to enable
-/// everywhere. Requires Git 2.54+.
+/// once into the user's global git config (`~/.gitconfig`, or
+/// `~/.config/git/config` when that is the one git uses) so every
+/// repository on the machine picks them up automatically. In a project
+/// without an `hk.pkl`, the installed hook exits silently — no-op — so
+/// it's safe to enable everywhere. Requires Git 2.54+.
 ///
 /// Without `--global`, hooks are installed into the current repo only.
 /// On Git 2.54+ this uses config-based hooks (`hook.<name>.command`),
 /// which keeps `.git/hooks/` untouched and composes cleanly with other
 /// hook managers. On older Git it falls back to writing script shims.
 ///
-/// If hk is already configured globally (any `hook.hk-*` entry in
-/// `~/.gitconfig`), the per-repo install is skipped — and any stale
+/// If hk is already configured globally (any `hook.hk-*` entry in the
+/// global git config), the per-repo install is skipped — and any stale
 /// local hooks are cleaned up — so the global install remains the
 /// single source of truth and hk doesn't fire twice per event. Pass
 /// `--force-local` to install local hooks anyway.
@@ -32,13 +33,13 @@ const CORE_GLOBAL_EVENTS: &[&str] = &["commit-msg", "pre-commit", "pre-push", "p
 #[usage(effect = "write")]
 pub struct Install {
     /// Install local hooks even when hk is already configured globally
-    /// (any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
+    /// (any `hook.hk-*` entry in the global git config). By default a per-repo
     /// install is skipped in that case to avoid hk firing twice per
     /// event. Not compatible with `--global`.
     #[usage(long, verbatim_doc_comment, conflicts = "--global")]
     force_local: bool,
 
-    /// Recommended. Install at user level (~/.gitconfig) so every repo
+    /// Recommended. Install in the global git config so every repo
     /// on this machine gets hk hooks. Requires Git 2.54 or newer. In
     /// repos without an `hk.pkl`, the installed hook is a silent no-op.
     #[usage(long, verbatim_doc_comment)]
@@ -87,11 +88,13 @@ impl Install {
             let removed = remove_local_shims()? + remove_local_config_entries()?;
             if removed > 0 {
                 info!(
-                    "hk hooks already configured globally (~/.gitconfig); removed {removed} stale local hook(s) and did not install new ones. Pass `--force-local` to install per-repo hooks anyway."
+                    "hk hooks already configured globally ({}); removed {removed} stale local hook(s) and did not install new ones. Pass `--force-local` to install per-repo hooks anyway.",
+                    global_hooks_config_file()
                 );
             } else {
                 info!(
-                    "hk hooks already configured globally (~/.gitconfig); skipping local install. Pass `--force-local` to install per-repo hooks anyway."
+                    "hk hooks already configured globally ({}); skipping local install. Pass `--force-local` to install per-repo hooks anyway.",
+                    global_hooks_config_file()
                 );
             }
             return Ok(());
@@ -229,7 +232,7 @@ fn check_legacy_targets(events: &[String], force: bool) -> Result<()> {
     );
 }
 
-/// Returns true if any `hook.hk-*.command` entry is set in `~/.gitconfig`.
+/// Returns true if any `hook.hk-*.command` entry is set in the global git config.
 /// Used to short-circuit the per-repo install when a global one is already
 /// in place (overridable with `--force-local`).
 fn has_global_hk_hooks() -> Result<bool> {
@@ -254,6 +257,33 @@ fn has_global_hk_hooks() -> Result<bool> {
             );
         }
     }
+}
+
+/// The file holding hk's global hooks, for messages. `git config --global`
+/// writes to `$GIT_CONFIG_GLOBAL`, `~/.gitconfig`, or
+/// `$XDG_CONFIG_HOME/git/config` when only that one exists, so ask git
+/// instead of assuming `~/.gitconfig`. `--global` also reads only that one
+/// file, so the origin is the file hk's install and uninstall change.
+pub(crate) fn global_hooks_config_file() -> String {
+    Command::new("git")
+        .args([
+            "config",
+            "--global",
+            "--show-origin",
+            "--null",
+            "--get-regexp",
+            "^hook\\.hk-.*\\.command$",
+        ])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| {
+            // With --null each entry starts `file:<path>\0`.
+            let origin = output.stdout.split(|&b| b == 0).next()?;
+            let path = std::str::from_utf8(origin).ok()?.strip_prefix("file:")?;
+            Some(xx::file::display_path(Path::new(path)))
+        })
+        .unwrap_or_else(|| "the global git config".to_string())
 }
 
 fn local_hook_command(use_mise: bool) -> OsString {
@@ -493,7 +523,8 @@ fn note_global_overlap(events: &[String]) {
     });
     if !active.is_empty() {
         info!(
-            "global hooks (~/.gitconfig) also exist for: {}. In this repo the local hook replaces the global one, so hk runs once per event. `hk uninstall` here would go back to the global hooks, but it removes every local hk hook in this repo, including events with no global hook; `hk install --force-local` adds them back.",
+            "global hooks ({}) also exist for: {}. In this repo the local hook replaces the global one, so hk runs once per event. `hk uninstall` here would go back to the global hooks, but it removes every local hk hook in this repo, including events with no global hook; `hk install --force-local` adds them back.",
+            global_hooks_config_file(),
             active.join(", ")
         );
     }
@@ -516,7 +547,8 @@ fn install_global(events: &[String], command: &OsStr) -> Result<()> {
         write_config_hook("--global", command, event, true)?;
     }
     info!(
-        "Installed hk global hooks in ~/.gitconfig for: {}",
+        "Installed hk global hooks in {} for: {}",
+        global_hooks_config_file(),
         events.join(", ")
     );
     info!(
