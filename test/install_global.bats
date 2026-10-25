@@ -146,3 +146,25 @@ EOF
     run git config --global --get hook.hk-pre-commit.command
     assert_failure
 }
+
+@test "hk install --global names ~/.gitconfig when the XDG git config also has hk hooks" {
+    require_git_2_54
+
+    # Hooks installed before ~/.gitconfig existed are left in the XDG file.
+    # With ~/.gitconfig present, git config --global reads and writes only it.
+    mkdir -p "$XDG_CONFIG_HOME/git"
+    mv "$HOME/.gitconfig" "$XDG_CONFIG_HOME/git/config"
+    run hk install --global
+    assert_success
+    git config --file "$HOME/.gitconfig" init.defaultBranch main
+
+    run hk install --global
+    assert_success
+    assert_output --partial 'Installed hk global hooks in ~/.gitconfig for:'
+
+    run hk uninstall --global
+    assert_success
+    assert_output --partial 'removed hk hooks from ~/.gitconfig'
+    run git config --file "$HOME/.gitconfig" --get hook.hk-pre-commit.command
+    assert_failure
+}

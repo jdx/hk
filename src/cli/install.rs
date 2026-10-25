@@ -262,7 +262,8 @@ fn has_global_hk_hooks() -> Result<bool> {
 /// The file holding hk's global hooks, for messages. `git config --global`
 /// writes to `$GIT_CONFIG_GLOBAL`, `~/.gitconfig`, or
 /// `$XDG_CONFIG_HOME/git/config` when only that one exists, so ask git
-/// instead of assuming `~/.gitconfig`.
+/// instead of assuming `~/.gitconfig`. `--global` also reads only that one
+/// file, so the origin is the file hk's install and uninstall change.
 pub(crate) fn global_hooks_config_file() -> String {
     Command::new("git")
         .args([
