@@ -5,8 +5,8 @@ import "./test/helpers.pkl"
 /// Formats sh, bash, mksh, bats and zsh files.
 ///
 /// shfmt picks each file's dialect from its extension, shebang or name. zsh files need shfmt
-/// 3.13.1 or newer, and 3.14 or newer to recognize every zsh startup file such as `.zlogout`;
-/// older versions fail to parse zsh, or skip dotfiles such as `.zshrc` without reporting them.
+/// 3.13.1 or newer; older versions fail to parse zsh, or skip dotfiles such as `.zshrc` without
+/// reporting them.
 @Builtins.meta {
   category = "Shell"
   description = "Shell formatter"
