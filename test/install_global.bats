@@ -114,3 +114,35 @@ EOF
     run env PATH="/usr/bin:/bin:/usr/sbin:/sbin" sh -c "$command" hook-shim
     assert_success
 }
+
+@test "hk install --global names ~/.gitconfig when git writes there" {
+    require_git_2_54
+
+    run hk install --global
+    assert_success
+    assert_output --partial 'Installed hk global hooks in ~/.gitconfig for:'
+}
+
+@test "hk install --global names the XDG git config when ~/.gitconfig does not exist" {
+    require_git_2_54
+
+    # Without ~/.gitconfig, git config --global writes to $XDG_CONFIG_HOME/git/config.
+    mkdir -p "$XDG_CONFIG_HOME/git"
+    mv "$HOME/.gitconfig" "$XDG_CONFIG_HOME/git/config"
+
+    run hk install --global
+    assert_success
+    assert_output --partial 'Installed hk global hooks in ~/.config/git/config for:'
+    refute_output --partial '.gitconfig'
+    assert [ ! -e "$HOME/.gitconfig" ]
+
+    run hk install
+    assert_success
+    assert_output --partial 'hk hooks already configured globally (~/.config/git/config)'
+
+    run hk uninstall --global
+    assert_success
+    assert_output --partial 'removed hk hooks from ~/.config/git/config'
+    run git config --global --get hook.hk-pre-commit.command
+    assert_failure
+}
