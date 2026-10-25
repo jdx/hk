@@ -2,6 +2,11 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+/// Formats sh, bash, mksh, bats and zsh files.
+///
+/// shfmt picks each file's dialect from its extension, shebang or name. zsh files need shfmt
+/// 3.13.1 or newer, and 3.14 or newer to recognize every zsh startup file such as `.zlogout`;
+/// older versions fail to parse zsh, or skip dotfiles such as `.zshrc` without reporting them.
 @Builtins.meta {
   category = "Shell"
   description = "Shell formatter"
@@ -67,12 +72,33 @@ shfmt = new Config.Step {
         1,
       )
 
-    local const zshrcTestMaker = new helpers.TestMaker {
-      filename = ".zshrc"
-      files = List(".zshrc")
+    // Parameter expansion flags are zsh-only, so these fail if shfmt parses the file as bash.
+    // The files are not listed explicitly, so the step's filters must select them.
+    local const zshBefore =
+      """
+      foo() {
+        print ${(j:,:)arr}
+      }
+      """ + "\n"
+    local const zshAfter =
+      """
+      foo() {
+      	print ${(j:,:)arr}
+      }
+      """ + "\n"
+    local const zshrcTestMaker = new helpers.TestMaker { filename = ".zshrc" }
+    ["check zsh startup file"] = zshrcTestMaker.checkFail(zshBefore, 1)
+    ["fix zsh startup file"] = zshrcTestMaker.fixPass(zshBefore, zshAfter)
+
+    // The test runner filters files before writing them, so it cannot detect a type from a
+    // shebang; list the script explicitly.
+    local const zshScriptTestMaker = new helpers.TestMaker {
+      filename = "script"
+      files = List("script")
     }
-    ["check zsh startup file"] = zshrcTestMaker.checkFail(before, 1)
-    ["fix zsh startup file"] = zshrcTestMaker.fixPass(before, after)
+    ["check extensionless zsh script"] = zshScriptTestMaker.checkFail("#!/bin/zsh\n" + zshBefore, 1)
+    ["fix extensionless zsh script"] =
+      zshScriptTestMaker.fixPass("#!/bin/zsh\n" + zshBefore, "#!/bin/zsh\n" + zshAfter)
 
     local const ignoredTestMaker = new helpers.TestMaker {
       filename = "test.sh"

@@ -667,8 +667,10 @@ fn get_types_by_filename(filename: &str) -> Option<HashSet<String>> {
             types.insert("text".to_string());
             types.insert("go".to_string());
         }
-        // zsh startup files, which usually have no shebang or extension
-        ".zshenv" | ".zprofile" | ".zshrc" | ".zlogin" | ".zlogout" => {
+        // zsh startup files, which usually have no shebang or extension. Dotfiles
+        // repos often store them without the leading dot.
+        ".zshenv" | ".zprofile" | ".zshrc" | ".zlogin" | ".zlogout" | "zshenv" | "zprofile"
+        | "zshrc" | "zlogin" | "zlogout" => {
             types.insert("text".to_string());
             types.insert("shell".to_string());
             types.insert("zsh".to_string());
@@ -871,7 +873,18 @@ mod tests {
     #[test]
     fn test_zsh_startup_files() {
         let dir = tempfile::tempdir().unwrap();
-        for name in [".zshenv", ".zprofile", ".zshrc", ".zlogin", ".zlogout"] {
+        for name in [
+            ".zshenv",
+            ".zprofile",
+            ".zshrc",
+            ".zlogin",
+            ".zlogout",
+            "zshenv",
+            "zprofile",
+            "zshrc",
+            "zlogin",
+            "zlogout",
+        ] {
             let path = dir.path().join(name);
             std::fs::write(&path, "setopt extendedglob\n").unwrap();
 
