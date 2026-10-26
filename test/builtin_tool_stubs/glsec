@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "1.24.1"
+tool = "github:glsec/glsec"

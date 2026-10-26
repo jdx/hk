@@ -113,6 +113,14 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.droast"
 }
 
+@test "hk init detects GitLab CI pipelines" {
+    touch .gitlab-ci.yml
+    run hk init
+    assert_success
+    assert_output --partial "glsec"
+    assert_file_contains hk.pkl "Builtins.glsec"
+}
+
 @test "hk init detects packer templates" {
     mkdir -p images
     touch images/base.pkr.hcl

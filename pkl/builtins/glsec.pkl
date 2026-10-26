@@ -1,0 +1,52 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "GitLab CI/CD pipeline security linter"
+  project_indicators {
+    new { file = ".gitlab-ci.yml" }
+  }
+}
+glsec = new Config.Step {
+  glob = List(".gitlab-ci.yml", "**/.gitlab-ci.yml")
+  // glsec exits 1 for error findings only; warnings are printed but pass.
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("glsec", "--no-color", "{{files}}") }
+    effect = "read"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = ".gitlab-ci.yml"
+    }
+    local const good =
+      """
+      workflow:
+        rules:
+          - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      test:
+        image: node:22.11.0
+        script:
+          - npm ci
+          - npm test
+
+      """
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+        workflow:
+          rules:
+            - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+        test:
+          image: node:latest
+          script:
+            - npm ci
+            - npm test
+
+        """,
+        1,
+      )
+    ["check good file"] = testMaker.checkPass(good)
+  }
+}
