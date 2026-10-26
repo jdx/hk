@@ -13,7 +13,7 @@ import "../Config.pkl"
   }
 }
 terraform_docs = new Config.Step {
-  glob = List("**/*.tf", "**/*.tofu", "**/.terraform.lock.hcl")
+  glob = List("**/*.tf", "**/*.tf.json", "**/*.tofu", "**/.terraform.lock.hcl")
   exclude = "**/.terraform/**"
   check = new Config.CommandSpec {
     command =
@@ -79,6 +79,19 @@ terraform_docs = new Config.Step {
         code = 0
         stdout = "README.md updated successfully"
       }
+    }
+    ["fix documents JSON module"] {
+      run = "fix"
+      tmpdir = true
+      write {
+        ["main.tf.json"] =
+          """
+          {"variable": {"name": {"description": "The name", "type": "string"}}}
+          """
+      }
+      files = List("main.tf.json")
+      after = "grep -q input_name README.md"
+      expect { code = 0 }
     }
   }
 }
