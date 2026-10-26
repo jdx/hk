@@ -47,7 +47,6 @@ terraform_docs = new Config.Step {
       run = "check"
       tmpdir = true
       write { ["main.tf"] = moduleFile }
-      files = List("main.tf")
       expect { code = 1 }
     }
     ["check stale README"] {
@@ -57,7 +56,6 @@ terraform_docs = new Config.Step {
         ["main.tf"] = moduleFile
         ["README.md"] = "<!-- BEGIN_TF_DOCS -->\n<!-- END_TF_DOCS -->"
       }
-      files = List("main.tf")
       expect { code = 1 }
     }
     ["check up to date README"] {
@@ -65,14 +63,12 @@ terraform_docs = new Config.Step {
       tmpdir = true
       write { ["main.tf"] = moduleFile }
       before = generate
-      files = List("main.tf")
       expect { code = 0 }
     }
     ["fix generates README"] {
       run = "fix"
       tmpdir = true
       write { ["main.tf"] = moduleFile }
-      files = List("main.tf")
       after =
         "terraform-docs markdown table --output-check --output-file README.md --output-mode inject ."
       expect {
@@ -89,7 +85,6 @@ terraform_docs = new Config.Step {
           {"variable": {"name": {"description": "The name", "type": "string"}}}
           """
       }
-      files = List("main.tf.json")
       after = "grep -q input_name README.md"
       expect { code = 0 }
     }

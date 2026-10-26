@@ -44,7 +44,6 @@ tofu_validate = new Config.Step {
 
           """
       }
-      files = List("main.tf")
       expect { code = 0 }
     }
     ["check undeclared reference"] {
@@ -59,8 +58,38 @@ tofu_validate = new Config.Step {
 
           """
       }
-      files = List("main.tf")
-      expect { code = 1 }
+      expect {
+        code = 1
+        stderr = "Reference to undeclared input variable"
+      }
+    }
+    ["check undeclared reference in JSON"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["main.tf.json"] =
+          """
+          {"output": {"name": {"value": "${var.undeclared}"}}}
+          """
+      }
+      expect {
+        code = 1
+        stderr = "Reference to undeclared input variable"
+      }
+    }
+    ["check undeclared reference in OpenTofu JSON"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["main.tofu.json"] =
+          """
+          {"output": {"name": {"value": "${var.undeclared}"}}}
+          """
+      }
+      expect {
+        code = 1
+        stderr = "Reference to undeclared input variable"
+      }
     }
   }
 }
