@@ -12,8 +12,8 @@ Builtins are reusable Pkl step definitions for linters, formatters, and hk’s o
 ## Use a builtin
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.8.2/hk@2.8.2#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.8.2/hk@2.8.2#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Builtins.pkl"
 
 hooks {
   ["check"] {
