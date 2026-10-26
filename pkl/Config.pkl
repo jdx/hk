@@ -407,7 +407,8 @@ open class Step {
   /// Types are detected using:
   /// 1. File extension (e.g., `.py` → `python`)
   /// 2. Shebang line (e.g., `#!/usr/bin/env python3` → `python`)
-  /// 3. Special filenames (e.g., `Dockerfile` → `dockerfile`)
+  /// 3. Special filenames (e.g., `Dockerfile` → `dockerfile`; zsh startup files such as
+  ///    `.zshrc` → `shell`, `zsh`)
   /// 4. Content/magic number detection for binary files
   types: List<String>?
 
