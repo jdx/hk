@@ -1,6 +1,38 @@
 # Changelog
 
-## [2.8.1](https://github.com/jdx/hk/compare/v2.8.0..v2.8.1) - 2026-10-22
+## [2.8.2](https://github.com/jdx/hk/compare/v2.8.1..v2.8.2) - 2026-10-26
+
+### 🐛 Bug Fixes
+
+- **(cache)** write config cache files atomically by [@zachbornheimer](https://github.com/zachbornheimer) in [#1750](https://github.com/jdx/hk/pull/1750)
+- **(check)** resolve file arguments from the directory hk was run in by [@jdx](https://github.com/jdx) in [#1754](https://github.com/jdx/hk/pull/1754)
+- **(pkl)** embed the Pkl package in cargo install builds by [@jdx](https://github.com/jdx) in [#1755](https://github.com/jdx/hk/pull/1755)
+
+### 🧪 Testing
+
+- stop macOS CI flaking on fixed bats timeouts by [@jdx](https://github.com/jdx) in [#1756](https://github.com/jdx/hk/pull/1756)
+
+### 🛡️ Security
+
+- **(install)** name the git config file global hooks were written to by [@sahidvelji](https://github.com/sahidvelji) in [#1758](https://github.com/jdx/hk/pull/1758)
+
+### 🔍 Other Changes
+
+- use the runner's JDK for builtin tests instead of mise java by [@jdx](https://github.com/jdx) in [#1764](https://github.com/jdx/hk/pull/1764)
+
+### 📦️ Dependency Updates
+
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1751](https://github.com/jdx/hk/pull/1751)
+- update rust crate usage-rs to v7.1.2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1757](https://github.com/jdx/hk/pull/1757)
+- update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1761](https://github.com/jdx/hk/pull/1761)
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1763](https://github.com/jdx/hk/pull/1763)
+- update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1760](https://github.com/jdx/hk/pull/1760)
+
+### New Contributors
+
+- @zachbornheimer made their first contribution in [#1750](https://github.com/jdx/hk/pull/1750)
+
+## [2.8.1](https://github.com/jdx/hk/compare/v2.8.0..v2.8.1) - 2026-10-23
 
 ### 🐛 Bug Fixes
 
