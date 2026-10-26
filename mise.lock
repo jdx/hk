@@ -383,7 +383,7 @@ provenance = "github-attestations"
 [[tools.java]]
 version = "21.0.12+101.0.LTS"
 backend = "core:java"
-specifiers = ["21"]
+specifiers = ["21.0.12"]
 
 [tools.java.options]
 shorthand_vendor = "temurin"
