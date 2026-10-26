@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.9.0](https://github.com/jdx/hk/compare/v2.8.2..v2.9.0) - 2026-10-26
+
+### 🚀 Features
+
+- **(builtins)** format zsh startup files and zsh-shebang scripts with shfmt by [@sahidvelji](https://github.com/sahidvelji) in [#1759](https://github.com/jdx/hk/pull/1759)
+- **(builtins)** opentofu-validate builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1766](https://github.com/jdx/hk/pull/1766)
+
+### 🐛 Bug Fixes
+
+- **(ci)** publish crate with generated Pkl files and email on release failure by [@jdx](https://github.com/jdx) in [#1770](https://github.com/jdx/hk/pull/1770)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1762](https://github.com/jdx/hk/pull/1762)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1768](https://github.com/jdx/hk/pull/1768)
+
 ## [2.8.2](https://github.com/jdx/hk/compare/v2.8.1..v2.8.2) - 2026-10-26
 
 ### 🐛 Bug Fixes
