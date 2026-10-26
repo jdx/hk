@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#MISE tools = { java = "21" }
 
 set -euo pipefail
 
