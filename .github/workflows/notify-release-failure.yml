@@ -54,7 +54,7 @@ jobs:
             '
             ("https://github.com/\($repo)/releases/tag/\($tag | @uri)") as $release_url |
             {
-              from: "hk Releases <hk@mise.jdx.dev>",
+              from: "hk Releases <mise@en.dev>",
               to: [$to],
               subject: "❌ hk \($tag): \($workflow) \($conclusion)",
               html: (
