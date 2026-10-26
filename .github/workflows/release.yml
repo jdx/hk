@@ -496,8 +496,10 @@ jobs:
       # `cargo install hk` embeds the Pkl package like the release binaries.
       - run: mise run pkl:gen
       # crates.io trusted publishing is not set up for hk; publish with the token
+      # --allow-dirty: the generated Pkl files are gitignored but listed in
+      # Cargo.toml `include`, which cargo reports as uncommitted changes.
       # jactionlint ignore=use-trusted-publishing
-      - run: cargo publish
+      - run: cargo publish --allow-dirty
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           HK_REQUIRE_EMBEDDED_PKL: "1"
