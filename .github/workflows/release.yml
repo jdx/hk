@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           cache: false
       # No `shell:` override: mise picks gen.ps1 on Windows, where the bash
@@ -278,7 +278,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           cache: false
       - name: Package Pkl
@@ -378,7 +378,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           cache: false
       - name: Extract release notes from CHANGELOG.md
@@ -464,7 +464,7 @@ jobs:
       # than against a key this project would have to hold. The Pkl package
       # is not an artifact anyone installs a binary from, so it stays out.
       # See https://packslip.dev.
-      - uses: jdx/packslip@7b32cd29a9240927882ee18b3db1dcfd8e0328b4 # v1.7.0
+      - uses: jdx/packslip@2187c31f8317b8548833baf60cfe93db1f42431d # v1.9.0
         with:
           tag: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
           artifacts: release-assets/hk-*.tar.gz release-assets/hk-*.tar.xz release-assets/hk-*.zip
@@ -489,7 +489,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           cache: false
       # Builtins.pkl is generated and gitignored; the crate must ship it so
@@ -513,7 +513,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5.2.1
         with:
           cache: false
       - name: Enhance release notes with communique
@@ -585,7 +585,7 @@ jobs:
       pull-requests: read
       issues: write
       discussions: write
-    uses: jdx/workflows/.github/workflows/comment-release-fixes.yml@4c952564543dd54d60f15ef4062af7fb60c5561d # v1.1.0
+    uses: jdx/workflows/.github/workflows/comment-release-fixes.yml@7e4ea6cf326e2b3bb4335f733381af531aaa699d # v1.2.1
     with:
       tag: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
       marker_prefix: hk-fixed-in
