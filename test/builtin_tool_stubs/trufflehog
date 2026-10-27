@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "3.99.7"
+tool = "aqua:trufflesecurity/trufflehog"

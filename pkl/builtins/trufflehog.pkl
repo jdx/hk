@@ -1,0 +1,41 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Secrets"
+  description = "Secret scanner that classifies 800+ credential types"
+}
+trufflehog = new Config.Step {
+  types = List("text")
+  // --fail exits with code 183 when results are found.
+  // --no-verification keeps scans offline: verification sends each candidate secret to its provider's API.
+  // Reference: https://github.com/trufflesecurity/trufflehog#memo-usage
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List("trufflehog", "filesystem", "{{files}}", "--fail", "--no-update", "--no-verification")
+    }
+    effect = "read"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+    // Reference: https://github.com/trufflesecurity/trufflehog/blob/v3.99.7/pkg/detectors/slack/slack_test.go#L15
+    // The token is split so secret-scanning push protection does not match the literal.
+    ["check bad file"] =
+      testMaker.checkFail("token = \"xoxb-65677559833-" + "9613778673399u\"", 183)
+    ["check good file"] = testMaker.checkPass("message = foobar")
+    ["check bad file after another path"] =
+      (
+        new helpers.TestMaker {
+          filename = "secret.txt"
+          files = List("clean.txt", "secret.txt")
+          extra_files {
+            ["clean.txt"] = "message = foobar"
+          }
+        }
+      ).checkFail("token = \"xoxb-65677559833-" + "9613778673399u\"", 183)
+    ["check ignore comment"] =
+      testMaker.checkPass("token = \"xoxb-65677559833-" + "9613778673399u\" # trufflehog:ignore")
+  }
+}
