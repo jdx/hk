@@ -86,6 +86,31 @@ EOF
     assert_output --partial "unstaged-change"
 }
 
+@test "hook timeout also bounds the report command" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        timeout = "1s"
+        report = "sleep 30"
+        steps {
+            ["quick"] {
+                check = "true"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    start=$SECONDS
+    run hk check --all
+    assert_failure
+    assert_output --partial "timed out after 1s"
+    [ $((SECONDS - start)) -lt 15 ]
+}
+
 @test "hook timeout rejects values without a unit" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

@@ -1519,6 +1519,19 @@ impl Hook {
             .transpose()
             .map_err(|err| eyre::eyre!("{self}: {err}"))?;
         let timeout_message = timeout.map(|limit| format!("{self}: timed out after {limit:?}"));
+        let deadline = timeout.map(|limit| run_started + limit);
+        // Steps stopped by the timeout end as cancelled, and a run can also pass its deadline
+        // while the stash is restored or the report runs; fail all of these as timeouts.
+        let settle_timeout = |result: &mut Result<()>| {
+            if timed_out.load(Ordering::SeqCst)
+                && result
+                    .as_ref()
+                    .err()
+                    .is_none_or(crate::error::is_cancellation)
+            {
+                *result = Err(eyre::eyre!(timeout_message.clone().unwrap_or_default()));
+            }
+        };
         let _timeout_watch = timeout.map(|limit| {
             let cancel = hook_ctx.failed.clone();
             let timed_out = timed_out.clone();
@@ -1526,7 +1539,7 @@ impl Hook {
             AbortOnDrop(tokio::spawn(async move {
                 tokio::time::sleep(remaining).await;
                 timed_out.store(true, Ordering::SeqCst);
-                cancel.cancel();
+                crate::step::cancel_running_steps(&cancel).await;
             }))
         });
 
@@ -1644,15 +1657,7 @@ impl Hook {
                 break;
             }
         }
-        // Steps stopped by the timeout end as cancelled; report the timeout instead.
-        if timed_out.load(Ordering::SeqCst)
-            && result
-                .as_ref()
-                .err()
-                .is_none_or(crate::error::is_cancellation)
-        {
-            result = Err(eyre::eyre!(timeout_message.clone().unwrap_or_default()));
-        }
+        settle_timeout(&mut result);
         // When fail_on_fix is enabled, fail if fix commands actually modified files.
         // Compares file content hashes against pre-run snapshot.
         if result.is_ok() && self.fail_on_fix && matches!(run_type, RunType::Fix) {
@@ -1945,7 +1950,19 @@ impl Hook {
                         .body("report: {{message}}")
                         .prop("message", &run)
                         .start();
-                    let cmd = cmd.env("HK_REPORT_JSON", json).with_pr(pr);
+                    // The report is part of the hook, so it gets only what is left of the timeout.
+                    let report_cancel = CancellationToken::new();
+                    let _report_deadline = deadline.map(|deadline| {
+                        let cancel = report_cancel.clone();
+                        AbortOnDrop(tokio::spawn(async move {
+                            tokio::time::sleep_until(deadline.into()).await;
+                            cancel.cancel();
+                        }))
+                    });
+                    let cmd = cmd
+                        .env("HK_REPORT_JSON", json)
+                        .with_pr(pr)
+                        .with_cancel_token(report_cancel.clone());
                     if let Err(err) = cmd.execute().await {
                         warn!("Report command failed: {err}");
                     }
@@ -1953,6 +1970,7 @@ impl Hook {
                 Err(err) => warn!("Report command failed: {err}"),
             }
         }
+        settle_timeout(&mut result);
         // Emit collected fix suggestions at the end (after progress bars and summaries)
         let suggestions = hook_ctx.take_fix_suggestions();
         if !suggestions.is_empty() {
