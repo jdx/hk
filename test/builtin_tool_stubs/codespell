@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "2.4.3"
+tool = "pipx:codespell"
