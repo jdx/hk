@@ -1358,11 +1358,32 @@ impl Hook {
                 return Err(err);
             }
         };
+        // A hook timeout cancels the run like Ctrl-C does, so running steps stop and the
+        // stash is restored, then the hook fails with the timeout rather than "cancelled".
+        // The limit counts from the start of the run, so slow setup uses it up too.
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let timeout = self
+            .timeout
+            .as_deref()
+            .map(parse_timeout)
+            .transpose()
+            .map_err(|err| eyre::eyre!("{self}: {err}"))?;
+        let timeout_message = timeout.map(|limit| format!("{self}: timed out after {limit:?}"));
+        let deadline = timeout.map(|limit| run_started + limit);
         // Changes an earlier, killed run left in the stash, before this run stashes more
         {
             let mut repo = repo.lock().await;
+            // Waiting for the stash lock is cut short at the hook's deadline
+            let recovery_cancel = CancellationToken::new();
+            let _recovery_deadline = deadline.map(|deadline| {
+                let cancel = recovery_cancel.clone();
+                AbortOnDrop(tokio::spawn(async move {
+                    tokio::time::sleep_until(deadline.into()).await;
+                    cancel.cancel();
+                }))
+            });
             // May wait for the stash lock, which blocks this thread
-            tokio::task::block_in_place(|| repo.recover_pending_stash());
+            tokio::task::block_in_place(|| repo.recover_pending_stash(&recovery_cancel));
             repo.set_stash_hook_name(&self.name);
         }
         let stash_method = match self.resolve_stash_method_for_opts(&opts) {
@@ -1508,18 +1529,6 @@ impl Hook {
 
         crate::shutdown::watch(hook_ctx.failed.clone());
 
-        // A hook timeout cancels the run like Ctrl-C does, so running steps stop and the
-        // stash is restored, then the hook fails with the timeout rather than "cancelled".
-        // The limit counts from the start of the run, so slow setup uses it up too.
-        let timed_out = Arc::new(AtomicBool::new(false));
-        let timeout = self
-            .timeout
-            .as_deref()
-            .map(parse_timeout)
-            .transpose()
-            .map_err(|err| eyre::eyre!("{self}: {err}"))?;
-        let timeout_message = timeout.map(|limit| format!("{self}: timed out after {limit:?}"));
-        let deadline = timeout.map(|limit| run_started + limit);
         // Steps stopped by the timeout end as cancelled, and a run can also pass its deadline
         // while the stash is restored or the report runs; fail all of these as timeouts.
         let settle_timeout = |result: &mut Result<()>| {
