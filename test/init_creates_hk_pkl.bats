@@ -130,6 +130,31 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.ansible_lint"
 }
 
+@test "hk init detects pyrightconfig.json" {
+    echo '{}' > pyrightconfig.json
+    run hk init
+    assert_success
+    assert_output --partial "pyright (pyrightconfig.json)"
+    assert_file_contains hk.pkl "Builtins.pyright"
+}
+
+@test "hk init detects [tool.pyright] in pyproject.toml" {
+    echo '[tool.pyright]' > pyproject.toml
+    echo 'typeCheckingMode = "strict"' >> pyproject.toml
+    run hk init
+    assert_success
+    assert_output --partial "pyright (pyproject.toml matches"
+    assert_file_contains hk.pkl "Builtins.pyright"
+}
+
+@test "hk init ignores pyproject.toml without [tool.pyright]" {
+    echo '[project]' > pyproject.toml
+    echo 'name = "pyright-plugin"' >> pyproject.toml
+    run hk init
+    assert_success
+    assert_file_not_contains hk.pkl "Builtins.pyright"
+}
+
 @test "hk init generates default template when nothing detected" {
     run hk init
     assert_success
