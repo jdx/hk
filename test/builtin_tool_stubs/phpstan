@@ -1,0 +1,5 @@
+#!/usr/bin/env -S mise tool-stub
+
+# phpstan.phar runs with `#!/usr/bin/env php`, which the php stub here provides.
+version = "2.3.2"
+tool = "github:phpstan/phpstan"
