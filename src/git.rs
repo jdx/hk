@@ -2493,13 +2493,16 @@ impl Git {
     /// Looks for a pending-stash journal that a hk which was killed left
     /// behind, and puts its stashed changes back or says how to. Never fails
     /// the run, and never touches the journal of a hk that is still running.
-    pub fn recover_pending_stash(&mut self) {
-        if let Err(err) = self.try_recover_pending_stash() {
+    pub fn recover_pending_stash(&mut self, cancel: &tokio_util::sync::CancellationToken) {
+        if let Err(err) = self.try_recover_pending_stash(cancel) {
             warn!("failed to check for stashed changes left by an interrupted hk: {err:?}");
         }
     }
 
-    fn try_recover_pending_stash(&mut self) -> Result<()> {
+    fn try_recover_pending_stash(
+        &mut self,
+        cancel: &tokio_util::sync::CancellationToken,
+    ) -> Result<()> {
         let path = Self::journal_file()?;
         // The usual case, no journal, takes no lock and creates no file
         if !path.try_exists().unwrap_or(true) {
@@ -2525,7 +2528,7 @@ impl Git {
             &lock_path,
             shared_mode,
             timeout,
-            &tokio_util::sync::CancellationToken::new(),
+            cancel,
             || {
                 warn!(
                     "waiting for another hk process to finish stashing before checking for stashed changes an interrupted hk left (lock: {})",

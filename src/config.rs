@@ -958,7 +958,8 @@ impl Config {
                     || sub_hook.stash.is_some()
                     || sub_hook.stage.is_some()
                     || sub_hook.fail_on_fix
-                    || sub_hook.report.is_some())
+                    || sub_hook.report.is_some()
+                    || sub_hook.timeout.is_some())
             {
                 debug!(
                     "subprojects: ignoring hook-level settings for '{hook_name}' in {}",

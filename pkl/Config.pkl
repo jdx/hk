@@ -305,6 +305,24 @@ class Hook {
   /// ```
   fail_on_fix: Boolean = false
 
+  /// Default: no limit
+  ///
+  /// The longest the whole hook may run, across all of its steps. When the limit passes, hk
+  /// stops the running steps, restores any stashed changes, and fails the hook with a message
+  /// naming the timeout.
+  ///
+  /// Write it as a number with a unit (`ms`, `s`, `m`, `h`); units can be combined, as in `"1m30s"`.
+  ///
+  /// ```pkl
+  /// hooks {
+  ///   ["pre-commit"] {
+  ///     timeout = "10s"
+  ///     steps = linters
+  ///   }
+  /// }
+  /// ```
+  timeout: String(matches(Regex(#"(\d+(ms|s|m|h))+"#)))?
+
   /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
   ///
   /// A plain string or `Script` has an unknown effect, so `--safe` refuses to run the hook.

@@ -118,6 +118,74 @@ pub struct Hook {
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Command>,
+    /// Longest the whole hook may run, as written in the config (for example `"10s"`).
+    #[serde(default, deserialize_with = "deserialize_timeout")]
+    pub timeout: Option<String>,
+}
+
+/// Stops the spawned task when dropped, however `run` returns.
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// Parses a hook timeout such as `"10s"`, `"500ms"` or `"1m30s"`.
+///
+/// Units are `ms`, `s`, `m` and `h`; several may be combined, and the total must be positive.
+pub fn parse_timeout(input: &str) -> std::result::Result<std::time::Duration, String> {
+    let invalid = || {
+        format!(
+            "invalid timeout {input:?}: use a number with a unit (ms, s, m, h), such as \"10s\" or \"1m30s\""
+        )
+    };
+    let mut rest = input.trim();
+    let mut total = std::time::Duration::ZERO;
+    if rest.is_empty() {
+        return Err(invalid());
+    }
+    while !rest.is_empty() {
+        let digits = rest
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(rest.len());
+        let value: u64 = rest[..digits].parse().map_err(|_| invalid())?;
+        rest = &rest[digits..];
+        let unit_len = rest
+            .find(|c: char| c.is_ascii_digit())
+            .unwrap_or(rest.len());
+        let part = match &rest[..unit_len] {
+            "ms" => std::time::Duration::from_millis(value),
+            "s" => std::time::Duration::from_secs(value),
+            "m" => std::time::Duration::from_secs(value.saturating_mul(60)),
+            "h" => std::time::Duration::from_secs(value.saturating_mul(3600)),
+            _ => return Err(invalid()),
+        };
+        total = total.saturating_add(part);
+        rest = &rest[unit_len..];
+    }
+    if total.is_zero() {
+        return Err(format!(
+            "invalid timeout {input:?}: must be greater than zero"
+        ));
+    }
+    // Run deadlines are `Instant`s, which cannot represent arbitrarily distant times
+    if Instant::now().checked_add(total).is_none() {
+        return Err(format!("invalid timeout {input:?}: too large"));
+    }
+    Ok(total)
+}
+
+fn deserialize_timeout<'de, D>(deserializer: D) -> std::result::Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    if let Some(value) = &value {
+        parse_timeout(value).map_err(D::Error::custom)?;
+    }
+    Ok(value)
 }
 
 fn default_true() -> bool {
@@ -136,6 +204,7 @@ impl Default for Hook {
             fail_on_fix: false,
             env: IndexMap::new(),
             report: None,
+            timeout: None,
         }
     }
 }
@@ -1293,12 +1362,50 @@ impl Hook {
                 return Err(err);
             }
         };
+        // A hook timeout cancels the run like Ctrl-C does, so running steps stop and the
+        // stash is restored, then the hook fails with the timeout rather than "cancelled".
+        // The limit counts from the start of the run, so slow setup uses it up too.
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let timeout = self
+            .timeout
+            .as_deref()
+            .map(parse_timeout)
+            .transpose()
+            .map_err(|err| eyre::eyre!("{self}: {err}"))?;
+        let timeout_message = timeout.map(|limit| format!("{self}: timed out after {limit:?}"));
+        // parse_timeout rejects limits too large for an `Instant`
+        let deadline = timeout.and_then(|limit| run_started.checked_add(limit));
         // Changes an earlier, killed run left in the stash, before this run stashes more
         {
             let mut repo = repo.lock().await;
+            // Waiting for the stash lock is cut short at the hook's deadline
+            let recovery_cancel = CancellationToken::new();
+            let _recovery_deadline = deadline.map(|deadline| {
+                let cancel = recovery_cancel.clone();
+                AbortOnDrop(tokio::spawn(async move {
+                    tokio::time::sleep_until(deadline.into()).await;
+                    cancel.cancel();
+                }))
+            });
             // May wait for the stash lock, which blocks this thread
-            tokio::task::block_in_place(|| repo.recover_pending_stash());
+            tokio::task::block_in_place(|| repo.recover_pending_stash(&recovery_cancel));
             repo.set_stash_hook_name(&self.name);
+        }
+        // Recovery may have been cut short by the deadline, leaving a pending stash behind;
+        // do not let a no-op hook pass over that.
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            let err = eyre::eyre!(timeout_message.clone().unwrap_or_default());
+            error!("{err}");
+            crate::structured_output::emit_error_run(
+                output_format,
+                &self.name,
+                started_at.clone(),
+                run_started.elapsed().as_millis(),
+                err.to_string(),
+                reports,
+            )?;
+            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
+            return Err(err);
         }
         let stash_method = match self.resolve_stash_method_for_opts(&opts) {
             Ok(method) => method,
@@ -1443,6 +1550,36 @@ impl Hook {
 
         crate::shutdown::watch(hook_ctx.failed.clone());
 
+        // Steps stopped by the timeout end as cancelled, and a run can also pass its deadline
+        // while the stash is restored or the report runs; fail all of these as timeouts.
+        let settle_timeout = |result: &mut Result<()>| {
+            // The flag is set by a task that may not have run yet when the deadline just passed.
+            let expired = timed_out.load(Ordering::SeqCst)
+                || deadline.is_some_and(|deadline| Instant::now() >= deadline);
+            if expired
+                && result
+                    .as_ref()
+                    .err()
+                    .is_none_or(crate::error::is_cancellation)
+            {
+                *result = Err(eyre::eyre!(timeout_message.clone().unwrap_or_default()));
+            }
+        };
+        let _timeout_watch = deadline.map(|deadline| {
+            let cancel = hook_ctx.failed.clone();
+            let timed_out = timed_out.clone();
+            if Instant::now() >= deadline {
+                // Setup used up the limit: cancel now, before any step can start.
+                timed_out.store(true, Ordering::SeqCst);
+                cancel.cancel();
+            }
+            AbortOnDrop(tokio::spawn(async move {
+                tokio::time::sleep_until(deadline.into()).await;
+                timed_out.store(true, Ordering::SeqCst);
+                crate::step::cancel_running_steps(&cancel).await;
+            }))
+        });
+
         // Held from before the stash is made until it is restored, so another
         // hk process in this repository cannot stash in between.
         let mut stash_lock = None;
@@ -1476,6 +1613,20 @@ impl Hook {
                     Err(err) if err.downcast_ref::<crate::stash_lock::Cancelled>().is_some() => {
                         // Ctrl-C while waiting: nothing was stashed. Exit
                         // non-zero (so a git hook aborts) without a trace.
+                        if timed_out.load(Ordering::SeqCst) {
+                            let err = eyre::eyre!(timeout_message.clone().unwrap_or_default());
+                            error!("{err}");
+                            crate::structured_output::emit_error_run(
+                                output_format,
+                                &self.name,
+                                started_at.clone(),
+                                run_started.elapsed().as_millis(),
+                                err.to_string(),
+                                reports,
+                            )?;
+                            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
+                            return Err(err);
+                        }
                         warn!("{self}: {err}");
                         ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
                         return Err(err);
@@ -1543,6 +1694,7 @@ impl Hook {
                 break;
             }
         }
+        settle_timeout(&mut result);
         // When fail_on_fix is enabled, fail if fix commands actually modified files.
         // Compares file content hashes against pre-run snapshot.
         if result.is_ok() && self.fail_on_fix && matches!(run_type, RunType::Fix) {
@@ -1835,7 +1987,19 @@ impl Hook {
                         .body("report: {{message}}")
                         .prop("message", &run)
                         .start();
-                    let cmd = cmd.env("HK_REPORT_JSON", json).with_pr(pr);
+                    // The report is part of the hook, so it gets only what is left of the timeout.
+                    let report_cancel = CancellationToken::new();
+                    let _report_deadline = deadline.map(|deadline| {
+                        let cancel = report_cancel.clone();
+                        AbortOnDrop(tokio::spawn(async move {
+                            tokio::time::sleep_until(deadline.into()).await;
+                            cancel.cancel();
+                        }))
+                    });
+                    let cmd = cmd
+                        .env("HK_REPORT_JSON", json)
+                        .with_pr(pr)
+                        .with_cancel_token(report_cancel.clone());
                     if let Err(err) = cmd.execute().await {
                         warn!("Report command failed: {err}");
                     }
@@ -1843,6 +2007,7 @@ impl Hook {
                 Err(err) => warn!("Report command failed: {err}"),
             }
         }
+        settle_timeout(&mut result);
         // Emit collected fix suggestions at the end (after progress bars and summaries)
         let suggestions = hook_ctx.take_fix_suggestions();
         if !suggestions.is_empty() {
@@ -2476,6 +2641,32 @@ fn skip_reason_to_reason(reason: &SkipReason) -> Reason {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn parse_timeout_accepts_units_and_combinations() {
+        use std::time::Duration;
+        assert_eq!(parse_timeout("500ms"), Ok(Duration::from_millis(500)));
+        assert_eq!(parse_timeout("10s"), Ok(Duration::from_secs(10)));
+        assert_eq!(parse_timeout("1m30s"), Ok(Duration::from_secs(90)));
+        assert_eq!(parse_timeout("2h"), Ok(Duration::from_secs(7200)));
+    }
+
+    #[test]
+    fn parse_timeout_rejects_bad_values() {
+        for bad in [
+            "",
+            "10",
+            "s",
+            "1x",
+            "1.5s",
+            "-1s",
+            "0s",
+            "1s foo",
+            "18446744073709551615h",
+        ] {
+            assert!(parse_timeout(bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
 
     fn argv_report(argv: &[&str]) -> Command {
         Command::Argv(crate::step::ArgvCommand {
