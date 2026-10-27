@@ -118,6 +118,70 @@ pub struct Hook {
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Command>,
+    /// Longest the whole hook may run, as written in the config (for example `"10s"`).
+    #[serde(default, deserialize_with = "deserialize_timeout")]
+    pub timeout: Option<String>,
+}
+
+/// Stops the spawned task when dropped, however `run` returns.
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// Parses a hook timeout such as `"10s"`, `"500ms"` or `"1m30s"`.
+///
+/// Units are `ms`, `s`, `m` and `h`; several may be combined, and the total must be positive.
+pub fn parse_timeout(input: &str) -> std::result::Result<std::time::Duration, String> {
+    let invalid = || {
+        format!(
+            "invalid timeout {input:?}: use a number with a unit (ms, s, m, h), such as \"10s\" or \"1m30s\""
+        )
+    };
+    let mut rest = input.trim();
+    let mut total = std::time::Duration::ZERO;
+    if rest.is_empty() {
+        return Err(invalid());
+    }
+    while !rest.is_empty() {
+        let digits = rest
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(rest.len());
+        let value: u64 = rest[..digits].parse().map_err(|_| invalid())?;
+        rest = &rest[digits..];
+        let unit_len = rest
+            .find(|c: char| c.is_ascii_digit())
+            .unwrap_or(rest.len());
+        let part = match &rest[..unit_len] {
+            "ms" => std::time::Duration::from_millis(value),
+            "s" => std::time::Duration::from_secs(value),
+            "m" => std::time::Duration::from_secs(value.saturating_mul(60)),
+            "h" => std::time::Duration::from_secs(value.saturating_mul(3600)),
+            _ => return Err(invalid()),
+        };
+        total = total.saturating_add(part);
+        rest = &rest[unit_len..];
+    }
+    if total.is_zero() {
+        return Err(format!(
+            "invalid timeout {input:?}: must be greater than zero"
+        ));
+    }
+    Ok(total)
+}
+
+fn deserialize_timeout<'de, D>(deserializer: D) -> std::result::Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    if let Some(value) = &value {
+        parse_timeout(value).map_err(D::Error::custom)?;
+    }
+    Ok(value)
 }
 
 fn default_true() -> bool {
@@ -136,6 +200,7 @@ impl Default for Hook {
             fail_on_fix: false,
             env: IndexMap::new(),
             report: None,
+            timeout: None,
         }
     }
 }
@@ -1443,6 +1508,26 @@ impl Hook {
 
         crate::shutdown::watch(hook_ctx.failed.clone());
 
+        // A hook timeout cancels the run like Ctrl-C does, so running steps stop and the
+        // stash is restored, then the hook fails with the timeout rather than "cancelled".
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let timeout = self
+            .timeout
+            .as_deref()
+            .map(parse_timeout)
+            .transpose()
+            .map_err(|err| eyre::eyre!("{self}: {err}"))?;
+        let timeout_message = timeout.map(|limit| format!("{self}: timed out after {limit:?}"));
+        let _timeout_watch = timeout.map(|limit| {
+            let cancel = hook_ctx.failed.clone();
+            let timed_out = timed_out.clone();
+            AbortOnDrop(tokio::spawn(async move {
+                tokio::time::sleep(limit).await;
+                timed_out.store(true, Ordering::SeqCst);
+                cancel.cancel();
+            }))
+        });
+
         // Held from before the stash is made until it is restored, so another
         // hk process in this repository cannot stash in between.
         let mut stash_lock = None;
@@ -1476,6 +1561,12 @@ impl Hook {
                     Err(err) if err.downcast_ref::<crate::stash_lock::Cancelled>().is_some() => {
                         // Ctrl-C while waiting: nothing was stashed. Exit
                         // non-zero (so a git hook aborts) without a trace.
+                        if timed_out.load(Ordering::SeqCst) {
+                            let err = eyre::eyre!(timeout_message.clone().unwrap_or_default());
+                            error!("{err}");
+                            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
+                            return Err(err);
+                        }
                         warn!("{self}: {err}");
                         ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
                         return Err(err);
@@ -1542,6 +1633,15 @@ impl Hook {
             if fail_fast && result.is_err() {
                 break;
             }
+        }
+        // Steps stopped by the timeout end as cancelled; report the timeout instead.
+        if timed_out.load(Ordering::SeqCst)
+            && result
+                .as_ref()
+                .err()
+                .is_none_or(crate::error::is_cancellation)
+        {
+            result = Err(eyre::eyre!(timeout_message.clone().unwrap_or_default()));
         }
         // When fail_on_fix is enabled, fail if fix commands actually modified files.
         // Compares file content hashes against pre-run snapshot.
@@ -2476,6 +2576,22 @@ fn skip_reason_to_reason(reason: &SkipReason) -> Reason {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn parse_timeout_accepts_units_and_combinations() {
+        use std::time::Duration;
+        assert_eq!(parse_timeout("500ms"), Ok(Duration::from_millis(500)));
+        assert_eq!(parse_timeout("10s"), Ok(Duration::from_secs(10)));
+        assert_eq!(parse_timeout("1m30s"), Ok(Duration::from_secs(90)));
+        assert_eq!(parse_timeout("2h"), Ok(Duration::from_secs(7200)));
+    }
+
+    #[test]
+    fn parse_timeout_rejects_bad_values() {
+        for bad in ["", "10", "s", "1x", "1.5s", "-1s", "0s", "1s foo"] {
+            assert!(parse_timeout(bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
 
     fn argv_report(argv: &[&str]) -> Command {
         Command::Argv(crate::step::ArgvCommand {

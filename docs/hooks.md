@@ -118,6 +118,24 @@ When a fixer changes a file, hk fails the hook and leaves the fixes for you to r
 
 For a single run, use `--no-stage` to disable automatic staging.
 
+## Limit how long a hook runs
+
+Fast feedback is the point of a pre-commit hook. To enforce it, give the hook a `timeout`:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    timeout = "10s"
+    steps = linters
+  }
+}
+```
+
+The limit covers the whole hook, across all of its steps, including time spent waiting for the stash lock. When it passes, hk stops the running steps, puts any stashed changes back, and fails the hook with `pre-commit: timed out after 10s`, so the commit or push is blocked. Without `timeout`, a hook runs until its steps finish.
+
+Write the value as a number with a unit (`ms`, `s`, `m` or `h`); units can be combined, as in `"1m30s"`.
+
 <span id="hook-behavior"></span>
 
 ## Order steps deliberately
