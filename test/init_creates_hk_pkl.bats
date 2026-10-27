@@ -202,6 +202,38 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.osv_scanner"
 }
 
+@test "hk init detects .codespellrc" {
+    printf '[codespell]\n' > .codespellrc
+    run hk init
+    assert_success
+    assert_output --partial "codespell (.codespellrc)"
+    assert_file_contains hk.pkl "Builtins.codespell"
+}
+
+@test "hk init detects codespell in setup.cfg" {
+    printf '[codespell]\nskip = *.lock\n' > setup.cfg
+    run hk init
+    assert_success
+    assert_output --partial "codespell (setup.cfg contains [codespell])"
+    assert_file_contains hk.pkl "Builtins.codespell"
+}
+
+@test "hk init detects codespell in pyproject.toml" {
+    printf '[tool.codespell]\nskip = "*.lock"\n' > pyproject.toml
+    run hk init
+    assert_success
+    assert_output --partial "codespell (pyproject.toml contains [tool.codespell])"
+    assert_file_contains hk.pkl "Builtins.codespell"
+}
+
+@test "hk init ignores setup.cfg without a codespell section" {
+    printf '[metadata]\nname = example\n' > setup.cfg
+    run hk init
+    assert_success
+    refute_output --partial "codespell"
+    assert_file_not_contains hk.pkl "Builtins.codespell"
+}
+
 @test "hk init generates default template when nothing detected" {
     run hk init
     assert_success

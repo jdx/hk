@@ -1,0 +1,64 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Spell checker for common misspellings in code"
+  project_indicators {
+    new { file = ".codespellrc" }
+    new { file = "setup.cfg"; contains = "[codespell]" }
+    new { file = "pyproject.toml"; contains = "[tool.codespell]" }
+  }
+}
+codespell = new Config.Step {
+  types = List("text")
+  // codespell exits 65 when it finds misspellings and 78 for an invalid config file
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("codespell", "{{files}}") }
+    effect = "read"
+  }
+  // Findings are `path:line: wrong ==> right` (no column or severity)
+  diagnostic_format = "gcc"
+  // Only typos with a single suggestion are fixed; codespell still exits 65 when
+  // ambiguous ones (several suggestions) remain.
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("codespell", "--write-changes", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.txt"
+      extra_files = new Mapping<String, String> {
+        [".codespellrc"] = "[codespell]\nskip = excluded.txt\n"
+      }
+    }
+    local const invalidConfig = new helpers.TestMaker {
+      filename = "test.txt"
+      extra_files { [".codespellrc"] = "[codespell\n" }
+    }
+    ["check rejects invalid config"] = invalidConfig.checkFail("correct\n", 78)
+    ["fix rejects invalid config"] = invalidConfig.fixFail("correct\n", "correct\n", 78)
+    local const before = "maintainance\n"
+    local const after = "maintenance\n"
+    ["check bad file"] = testMaker.checkFail(before, 65)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        before,
+        65,
+        List(new Config.StepTestDiagnostic {
+          path = "test.txt"
+          line = 1
+          severity = "error"
+          message = "maintainance ==> maintenance"
+        }),
+      )
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+    ["fix leaves ambiguous typo"] =
+      testMaker.fixFail("maintainance abouta\n", "maintenance abouta\n", 65)
+    ["check respects config skip"] = testMaker.withFilename("excluded.txt").checkPass(before)
+    ["fix respects config skip"] = testMaker.withFilename("excluded.txt").fixPass(before, before)
+  }
+}
