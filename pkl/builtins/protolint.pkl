@@ -1,0 +1,79 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Data Formats"
+  description = "Protocol Buffers linter"
+  project_indicators {
+    new { file = ".protolint.yaml" }
+    new { file = ".protolint.yml" }
+    new { file = "protolint.yaml" }
+    new { file = "protolint.yml" }
+  }
+}
+protolint = new Config.Step {
+  glob = "**/*.proto"
+  // protolint prints `[path:line:column] message`, which no diagnostic_format parses
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("protolint", "lint", "{{files}}") }
+    effect = "read"
+  }
+  // `lint -fix` exits 1 whenever it found problems, even after fixing all of them, so its
+  // report is discarded and a second lint decides the result and prints what remains.
+  fix = new Config.CommandSpec {
+    command = new Config.Script {
+      windows = "protolint lint -fix {{files}} 2>NUL || protolint lint {{files}}"
+      other = "protolint lint -fix {{files}} 2>/dev/null || protolint lint {{files}}"
+    }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "weather.proto" }
+    local const good =
+      """
+      syntax = "proto3";
+
+      package weather;
+
+      message Forecast {
+        string city_name = 1;
+      }
+
+      """
+    local const badIndent =
+      """
+      syntax = "proto3";
+
+      package weather;
+
+      message Forecast {
+          string city_name = 1;
+      }
+
+      """
+    local const badName =
+      """
+      syntax = "proto3";
+
+      package weather;
+
+      message forecast {
+        string city_name = 1;
+      }
+
+      """
+    // MAX_LINE_LENGTH (80) has no fixer, so `fix` corrects the indentation and still fails
+    local const comment = "// the name of the city this forecast applies to, in its local language"
+    ["check good file"] = testMaker.checkPass(good)
+    ["check bad file"] = testMaker.checkFail(badName, 1)
+    ["fix bad file"] = testMaker.fixPass(badIndent, good)
+    ["fix bad file partially"] =
+      testMaker.fixFail(
+        badIndent.replaceFirst("city_name = 1;", "city_name = 1; \(comment)"),
+        good.replaceFirst("city_name = 1;", "city_name = 1; \(comment)"),
+        1,
+      )
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}

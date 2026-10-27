@@ -155,6 +155,14 @@ teardown() {
     assert_file_not_contains hk.pkl "Builtins.pyright"
 }
 
+@test "hk init detects .protolint.yaml" {
+    touch .protolint.yaml
+    run hk init
+    assert_success
+    assert_output --partial "protolint (.protolint.yaml)"
+    assert_file_contains hk.pkl "Builtins.protolint"
+}
+
 @test "hk init generates default template when nothing detected" {
     run hk init
     assert_success
