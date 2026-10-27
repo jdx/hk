@@ -50,6 +50,15 @@ hooks {
       }
     }
   }
+  ["check-timeout-nofiles"] {
+    timeout = "1s"
+    steps {
+      ["quick"] {
+        glob = "**/*.nomatch"
+        check = "true"
+      }
+    }
+  }
 }
 PKL
 }
@@ -397,8 +406,10 @@ PY
     recovery_waits_for_the_stash_lock 0
 }
 
-# The hook timeout covers the wait for the stash lock during recovery too.
-@test "a hook timeout cuts short the recovery wait for the stash lock" {
+# The hook timeout covers the wait for the stash lock during recovery too, even for a
+# hook that would otherwise find nothing to do.
+recovery_wait_is_cut_short_by_the_hook_timeout() {
+    local hook="$1"
     kill9_then_recover 1
     local lock
     lock="$(git rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
@@ -416,7 +427,7 @@ PY
     done
     [ -e "$BATS_TEST_TMPDIR/lock-held" ] || { kill "$holder" 2>/dev/null || true; fail "lock holder never took the lock"; }
     start=$SECONDS
-    HK_STASH_LOCK_TIMEOUT=50 HK_LIBGIT2=1 run hk run check-timeout --all
+    HK_STASH_LOCK_TIMEOUT=50 HK_LIBGIT2=1 run hk run "$hook" --all
     elapsed=$((SECONDS - start))
     kill "$holder"
     wait "$holder" 2>/dev/null || true
@@ -425,6 +436,14 @@ PY
     [ "$elapsed" -lt 20 ]
     # Nothing was restored while the lock was held elsewhere
     assert_file_exists "$JOURNAL"
+}
+
+@test "a hook timeout cuts short the recovery wait for the stash lock" {
+    recovery_wait_is_cut_short_by_the_hook_timeout check-timeout
+}
+
+@test "a hook timeout during recovery fails a hook with no files to check" {
+    recovery_wait_is_cut_short_by_the_hook_timeout check-timeout-nofiles
 }
 
 # A journal that was only reported (the tree had edits of its own) stays. A

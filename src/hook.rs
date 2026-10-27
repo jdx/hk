@@ -170,6 +170,10 @@ pub fn parse_timeout(input: &str) -> std::result::Result<std::time::Duration, St
             "invalid timeout {input:?}: must be greater than zero"
         ));
     }
+    // Run deadlines are `Instant`s, which cannot represent arbitrarily distant times
+    if Instant::now().checked_add(total).is_none() {
+        return Err(format!("invalid timeout {input:?}: too large"));
+    }
     Ok(total)
 }
 
@@ -1369,7 +1373,8 @@ impl Hook {
             .transpose()
             .map_err(|err| eyre::eyre!("{self}: {err}"))?;
         let timeout_message = timeout.map(|limit| format!("{self}: timed out after {limit:?}"));
-        let deadline = timeout.map(|limit| run_started + limit);
+        // parse_timeout rejects limits too large for an `Instant`
+        let deadline = timeout.and_then(|limit| run_started.checked_add(limit));
         // Changes an earlier, killed run left in the stash, before this run stashes more
         {
             let mut repo = repo.lock().await;
@@ -1385,6 +1390,22 @@ impl Hook {
             // May wait for the stash lock, which blocks this thread
             tokio::task::block_in_place(|| repo.recover_pending_stash(&recovery_cancel));
             repo.set_stash_hook_name(&self.name);
+        }
+        // Recovery may have been cut short by the deadline, leaving a pending stash behind;
+        // do not let a no-op hook pass over that.
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+            let err = eyre::eyre!(timeout_message.clone().unwrap_or_default());
+            error!("{err}");
+            crate::structured_output::emit_error_run(
+                output_format,
+                &self.name,
+                started_at.clone(),
+                run_started.elapsed().as_millis(),
+                err.to_string(),
+                reports,
+            )?;
+            ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
+            return Err(err);
         }
         let stash_method = match self.resolve_stash_method_for_opts(&opts) {
             Ok(method) => method,
@@ -2632,7 +2653,17 @@ mod tests {
 
     #[test]
     fn parse_timeout_rejects_bad_values() {
-        for bad in ["", "10", "s", "1x", "1.5s", "-1s", "0s", "1s foo"] {
+        for bad in [
+            "",
+            "10",
+            "s",
+            "1x",
+            "1.5s",
+            "-1s",
+            "0s",
+            "1s foo",
+            "18446744073709551615h",
+        ] {
             assert!(parse_timeout(bad).is_err(), "{bad:?} should be rejected");
         }
     }
