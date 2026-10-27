@@ -86,6 +86,29 @@ EOF
     assert_output --partial "unstaged-change"
 }
 
+@test "hook timeout used up by setup starts no steps" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        timeout = "1ms"
+        steps {
+            ["marker"] {
+                check = "touch step-ran"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "timed out after 1ms"
+    [ ! -e step-ran ]
+}
+
 @test "hook timeout also bounds the report command" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

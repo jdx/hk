@@ -1523,7 +1523,10 @@ impl Hook {
         // Steps stopped by the timeout end as cancelled, and a run can also pass its deadline
         // while the stash is restored or the report runs; fail all of these as timeouts.
         let settle_timeout = |result: &mut Result<()>| {
-            if timed_out.load(Ordering::SeqCst)
+            // The flag is set by a task that may not have run yet when the deadline just passed.
+            let expired = timed_out.load(Ordering::SeqCst)
+                || deadline.is_some_and(|deadline| Instant::now() >= deadline);
+            if expired
                 && result
                     .as_ref()
                     .err()
@@ -1536,6 +1539,11 @@ impl Hook {
             let cancel = hook_ctx.failed.clone();
             let timed_out = timed_out.clone();
             let remaining = limit.saturating_sub(run_started.elapsed());
+            if remaining.is_zero() {
+                // Setup used up the limit: cancel now, before any step can start.
+                timed_out.store(true, Ordering::SeqCst);
+                cancel.cancel();
+            }
             AbortOnDrop(tokio::spawn(async move {
                 tokio::time::sleep(remaining).await;
                 timed_out.store(true, Ordering::SeqCst);
