@@ -34,7 +34,15 @@ hooks {
     }
   }
   ["check"] {
-    ${CHECK_TIMEOUT:+timeout = \"$CHECK_TIMEOUT\"}
+    steps {
+      ["quick"] {
+        glob = "**/*.txt"
+        check = "true"
+      }
+    }
+  }
+  ["check-timeout"] {
+    timeout = "1s"
     steps {
       ["quick"] {
         glob = "**/*.txt"
@@ -391,7 +399,7 @@ PY
 
 # The hook timeout covers the wait for the stash lock during recovery too.
 @test "a hook timeout cuts short the recovery wait for the stash lock" {
-    CHECK_TIMEOUT=1s kill9_then_recover 1
+    kill9_then_recover 1
     local lock
     lock="$(git rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
     python3 - "$lock" "$BATS_TEST_TMPDIR/lock-held" <<'PY' &
@@ -408,7 +416,7 @@ PY
     done
     [ -e "$BATS_TEST_TMPDIR/lock-held" ] || { kill "$holder" 2>/dev/null || true; fail "lock holder never took the lock"; }
     start=$SECONDS
-    HK_STASH_LOCK_TIMEOUT=50 HK_LIBGIT2=1 run hk check --all
+    HK_STASH_LOCK_TIMEOUT=50 HK_LIBGIT2=1 run hk run check-timeout --all
     elapsed=$((SECONDS - start))
     kill "$holder"
     wait "$holder" 2>/dev/null || true
