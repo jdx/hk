@@ -1535,17 +1535,16 @@ impl Hook {
                 *result = Err(eyre::eyre!(timeout_message.clone().unwrap_or_default()));
             }
         };
-        let _timeout_watch = timeout.map(|limit| {
+        let _timeout_watch = deadline.map(|deadline| {
             let cancel = hook_ctx.failed.clone();
             let timed_out = timed_out.clone();
-            let remaining = limit.saturating_sub(run_started.elapsed());
-            if remaining.is_zero() {
+            if Instant::now() >= deadline {
                 // Setup used up the limit: cancel now, before any step can start.
                 timed_out.store(true, Ordering::SeqCst);
                 cancel.cancel();
             }
             AbortOnDrop(tokio::spawn(async move {
-                tokio::time::sleep(remaining).await;
+                tokio::time::sleep_until(deadline.into()).await;
                 timed_out.store(true, Ordering::SeqCst);
                 crate::step::cancel_running_steps(&cancel).await;
             }))
