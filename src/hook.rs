@@ -1510,6 +1510,7 @@ impl Hook {
 
         // A hook timeout cancels the run like Ctrl-C does, so running steps stop and the
         // stash is restored, then the hook fails with the timeout rather than "cancelled".
+        // The limit counts from the start of the run, so slow setup uses it up too.
         let timed_out = Arc::new(AtomicBool::new(false));
         let timeout = self
             .timeout
@@ -1521,8 +1522,9 @@ impl Hook {
         let _timeout_watch = timeout.map(|limit| {
             let cancel = hook_ctx.failed.clone();
             let timed_out = timed_out.clone();
+            let remaining = limit.saturating_sub(run_started.elapsed());
             AbortOnDrop(tokio::spawn(async move {
-                tokio::time::sleep(limit).await;
+                tokio::time::sleep(remaining).await;
                 timed_out.store(true, Ordering::SeqCst);
                 cancel.cancel();
             }))
@@ -1564,6 +1566,14 @@ impl Hook {
                         if timed_out.load(Ordering::SeqCst) {
                             let err = eyre::eyre!(timeout_message.clone().unwrap_or_default());
                             error!("{err}");
+                            crate::structured_output::emit_error_run(
+                                output_format,
+                                &self.name,
+                                started_at.clone(),
+                                run_started.elapsed().as_millis(),
+                                err.to_string(),
+                                reports,
+                            )?;
                             ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
                             return Err(err);
                         }
