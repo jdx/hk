@@ -130,6 +130,37 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.ansible_lint"
 }
 
+@test "hk init detects phpstan.neon" {
+    touch phpstan.neon
+    run hk init
+    assert_success
+    assert_output --partial "phpstan (phpstan.neon)"
+    assert_file_contains hk.pkl "Builtins.phpstan"
+}
+
+@test "hk init detects phpstan.dist.neon" {
+    touch phpstan.dist.neon
+    run hk init
+    assert_success
+    assert_output --partial "phpstan (phpstan.dist.neon)"
+    assert_file_contains hk.pkl "Builtins.phpstan"
+}
+
+@test "hk init detects phpstan in composer.json" {
+    echo '{"require-dev": {"phpstan/phpstan": "^2.0"}}' > composer.json
+    run hk init
+    assert_success
+    assert_output --partial "phpstan (composer.json contains phpstan)"
+    assert_file_contains hk.pkl "Builtins.phpstan"
+}
+
+@test "hk init skips phpstan for composer.json without phpstan" {
+    echo '{"require": {"php": "^8.2"}}' > composer.json
+    run hk init
+    assert_success
+    assert_file_not_contains hk.pkl "Builtins.phpstan"
+}
+
 @test "hk init detects pyrightconfig.json" {
     echo '{}' > pyrightconfig.json
     run hk init
