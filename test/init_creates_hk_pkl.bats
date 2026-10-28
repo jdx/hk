@@ -194,6 +194,14 @@ teardown() {
     assert_file_not_contains hk.pkl "Builtins.phpstan"
 }
 
+@test "hk init detects osv-scanner.toml" {
+    touch osv-scanner.toml
+    run hk init
+    assert_success
+    assert_output --partial "osv_scanner (osv-scanner.toml)"
+    assert_file_contains hk.pkl "Builtins.osv_scanner"
+}
+
 @test "hk init generates default template when nothing detected" {
     run hk init
     assert_success

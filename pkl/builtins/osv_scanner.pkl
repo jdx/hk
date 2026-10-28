@@ -1,0 +1,118 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Vulnerability scanner for dependency lockfiles using the OSV database"
+  project_indicators {
+    new { file = "osv-scanner.toml" }
+  }
+}
+osv_scanner = new Config.Step {
+  // Lockfiles and manifests osv-scanner reads when scanning source:
+  // https://google.github.io/osv-scanner/supported-languages-and-lockfiles/#supported-lockfilesmanifests
+  glob =
+    List(
+      "**/*.deps.json",
+      "**/*requirements*.txt",
+      "**/buildscript-gradle.lockfile",
+      "**/bun.lock",
+      "**/cabal.project.freeze",
+      "**/Cargo.lock",
+      "**/composer.lock",
+      "**/conan.lock",
+      "**/Gemfile.lock",
+      "**/gems.locked",
+      "**/go.mod",
+      "**/gradle.lockfile",
+      "**/gradle/verification-metadata.xml",
+      "**/mix.lock",
+      "**/npm-shrinkwrap.json",
+      "**/package_config.json",
+      "**/package-lock.json",
+      "**/packages.config",
+      "**/packages.lock.json",
+      "**/pdm.lock",
+      "**/Pipfile.lock",
+      "**/pnpm-lock.yaml",
+      "**/poetry.lock",
+      "**/pom.xml",
+      "**/pubspec.lock",
+      "**/pylock.toml",
+      "**/renv.lock",
+      "**/stack.yaml.lock",
+      "**/uv.lock",
+      "**/yarn.lock",
+    )
+
+  // osv-scanner scans each file path given as an argument, the same as `-L`, and reads
+  // osv-scanner.toml from the lockfile's directory. --allow-no-lockfiles makes a lockfile
+  // with no dependencies pass instead of exiting 128.
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("osv-scanner", "scan", "source", "--allow-no-lockfiles", "{{files}}")
+    }
+    effect = "read"
+  }
+  // These tests query the OSV API (api.osv.dev), so they need network access.
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "package-lock.json" }
+    local const lockfile = (version: String) ->
+      """
+      {
+        "name": "test",
+        "version": "1.0.0",
+        "lockfileVersion": 3,
+        "requires": true,
+        "packages": {
+          "": {
+            "name": "test",
+            "version": "1.0.0",
+            "dependencies": {
+              "lodash": "\(version)"
+            }
+          },
+          "node_modules/lodash": {
+            "version": "\(version)",
+            "resolved": "https://registry.npmjs.org/lodash/-/lodash-\(version).tgz"
+          }
+        }
+      }
+
+      """
+    ["check lockfile without dependencies"] =
+      testMaker.checkPass(
+        """
+        {
+          "name": "test",
+          "version": "1.0.0",
+          "lockfileVersion": 3,
+          "requires": true,
+          "packages": {
+            "": {
+              "name": "test",
+              "version": "1.0.0"
+            }
+          }
+        }
+
+        """,
+      )
+    ["check vulnerable dependency"] = testMaker.checkFail(lockfile.apply("4.17.15"), 1)
+    ["check ignored vulnerable dependency"] =
+      (testMaker) {
+        extra_files {
+          ["osv-scanner.toml"] =
+            """
+            [[PackageOverrides]]
+            name = "lodash"
+            ecosystem = "npm"
+            ignore = true
+            reason = "test"
+
+            """
+        }
+      }.checkPass(lockfile.apply("4.17.15"))
+  }
+}
