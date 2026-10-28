@@ -60,14 +60,21 @@ enum RejectionReason {
     BothHashesInvalid,
 }
 
-fn format_rejection_reason(reason: RejectionReason) -> &'static str {
+fn print_stdin_rejection_warning(line: &str, reason: RejectionReason) {
+    let prefix = format!("Ignoring malformed stdin line \"{line}\"");
     match reason {
-        RejectionReason::Empty => "empty",
-        RejectionReason::NotFourParts => "must be four whitespace-separated parts",
-        RejectionReason::FirstHashInvalid => "second part must be 40 or 64 lowercase hexits",
-        RejectionReason::SecondHashInvalid => "fourth part must be 40 or 64 lowercase hexits",
+        RejectionReason::Empty => eprintln!("Ignoring empty stdin line"),
+        RejectionReason::NotFourParts => {
+            eprintln!("{prefix}: must be four whitespace-separated parts")
+        }
+        RejectionReason::FirstHashInvalid => {
+            eprintln!("{prefix}: second part must be 40 or 64 lowercase hexits")
+        }
+        RejectionReason::SecondHashInvalid => {
+            eprintln!("{prefix}: fourth part must be 40 or 64 lowercase hexits")
+        }
         RejectionReason::BothHashesInvalid => {
-            "second and fourth parts must be 40 or 64 lowercase hexits"
+            eprintln!("{prefix}: second and fourth parts must be 40 or 64 lowercase hexits")
         }
     }
 }
@@ -138,13 +145,7 @@ impl PrePush {
                         Ok(()) => true,
                         Err(reason) => {
                             some_line_is_malformed = true;
-                            if reason == RejectionReason::Empty {
-                                // use different format so we don't print "Ignoring malformed stdin line : empty"
-                                eprintln!("Ignoring empty stdin line");
-                            } else {
-                                let reason_str = format_rejection_reason(reason);
-                                eprintln!("Ignoring malformed stdin line \"{line}\": {reason_str}");
-                            }
+                            print_stdin_rejection_warning(line, reason);
                             false
                         }
                     }
