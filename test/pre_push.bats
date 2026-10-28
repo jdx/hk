@@ -220,6 +220,7 @@ EOF
 
     assert_success
     assert_output --partial "Ignoring malformed stdin line \""
+    assert_output --partial "Pre-push stdin, if provided"
     refute_output --partial "panicked"
 }
 
@@ -243,5 +244,6 @@ EOF
 
     assert_success
     assert_output --partial "second and fourth parts must be 40 or 64 lowercase hexits"
+    assert_output --partial "Pre-push stdin, if provided"
     refute_output --partial "panicked"
 }
