@@ -214,7 +214,7 @@ teardown() {
     printf '[codespell]\nskip = *.lock\n' > setup.cfg
     run hk init
     assert_success
-    assert_output --partial "codespell (setup.cfg contains [codespell])"
+    assert_output --partial "codespell (setup.cfg matches"
     assert_file_contains hk.pkl "Builtins.codespell"
 }
 
@@ -222,12 +222,21 @@ teardown() {
     printf '[tool.codespell]\nskip = "*.lock"\n' > pyproject.toml
     run hk init
     assert_success
-    assert_output --partial "codespell (pyproject.toml contains [tool.codespell])"
+    assert_output --partial "codespell (pyproject.toml matches"
     assert_file_contains hk.pkl "Builtins.codespell"
 }
 
 @test "hk init ignores setup.cfg without a codespell section" {
     printf '[metadata]\nname = example\n' > setup.cfg
+    run hk init
+    assert_success
+    refute_output --partial "codespell"
+    assert_file_not_contains hk.pkl "Builtins.codespell"
+}
+
+@test "hk init ignores commented-out codespell sections" {
+    printf '# [codespell]\n; [codespell]\n' > setup.cfg
+    printf '# [tool.codespell]\n' > pyproject.toml
     run hk init
     assert_success
     refute_output --partial "codespell"
