@@ -220,7 +220,97 @@ EOF
 
     assert_success
     assert_output --partial "Ignoring malformed stdin line \""
+    assert_output --partial 'Pre-push stdin, if provided, must be lines in format `<local ref> <local SHA> <remote ref> <remote SHA>`'
     refute_output --partial "panicked"
+}
+
+@test "pre-push prints the stdin format reminder once for multiple malformed lines" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+    git push origin main
+    git remote set-head origin --auto
+
+    run bash -c "printf 'refs/heads/main\nrefs/heads/other\n' | hk run pre-push origin example"
+
+    assert_success
+    assert_equal "$(grep -c 'Ignoring malformed stdin line' <<< "$output")" 2
+    assert_equal "$(grep -c 'Pre-push stdin, if provided' <<< "$output")" 1
+}
+
+@test "pre-push keeps valid refs that follow a malformed stdin line" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+    git push origin main
+    git remote set-head origin --auto
+
+    echo "first content" > first.txt
+    git add first.txt
+    git commit -m "test(pre-push): add first content"
+    first_sha="$(git rev-parse HEAD)"
+    echo "pushed content" > pushed.txt
+    git add pushed.txt
+    git commit -m "test(pre-push): add pushed content"
+    local_sha="$(git rev-parse HEAD)"
+
+    # The remote SHA is the first.txt commit, not origin/main, so the valid
+    # ref selects only pushed.txt. If the valid ref were dropped, hk would
+    # fall back to origin/main..HEAD and select first.txt as well.
+    run bash -c "printf 'refs/heads/main\nrefs/heads/main $local_sha refs/heads/main $first_sha\n' | hk run pre-push origin example"
+
+    assert_success
+    assert_output --partial "Ignoring malformed stdin line \"refs/heads/main\""
+    assert_output --partial "print-files – pushed.txt"
+    refute_output --partial "first.txt"
+}
+
+@test "pre-push does not warn on well-formed stdin" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+    git push origin main
+    git remote set-head origin --auto
+
+    echo "pushed content" > pushed.txt
+    git add pushed.txt
+    git commit -m "test(pre-push): add pushed content"
+    local_sha="$(git rev-parse HEAD)"
+    remote_sha="$(git rev-parse origin/main)"
+
+    run bash -c "printf 'refs/heads/main $local_sha refs/heads/main $remote_sha\n' | hk run pre-push origin example"
+
+    assert_success
+    assert_output --partial "print-files – pushed.txt"
+    refute_output --partial "Ignoring"
+    refute_output --partial "Pre-push stdin, if provided"
 }
 
 @test "pre-push warns on abbreviated commit hashes from stdin" {
@@ -243,5 +333,6 @@ EOF
 
     assert_success
     assert_output --partial "second and fourth parts must be 40 or 64 lowercase hexits"
+    assert_output --partial "Pre-push stdin, if provided"
     refute_output --partial "panicked"
 }
