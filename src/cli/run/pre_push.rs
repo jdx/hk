@@ -60,6 +60,7 @@ enum RejectionReason {
     BothHashesInvalid,
 }
 
+/// Print to stderr a message explaining why a stdin line has been filtered out.
 fn print_stdin_rejection_warning(line: &str, reason: RejectionReason) {
     let prefix = format!("Ignoring malformed stdin line \"{line}\"");
     match reason {
