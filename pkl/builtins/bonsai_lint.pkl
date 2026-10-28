@@ -1,0 +1,61 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Multi-language cognitive complexity linter"
+  project_indicators {
+    new { file = "bonsai-lint.toml" }
+    new { file = "package.json"; contains = "bonsai-lint" }
+    new { file = "composer.json"; contains = "bonsai-lint" }
+  }
+}
+bonsai_lint = new Config.Step {
+  glob = List("**/*.{cjs,cts,go,java,js,jsx,mjs,mts,php,phtml,py,pyw,ts,tsx,vue}")
+  check = new Config.CommandSpec {
+    // --config . judges each file against the root config, as a run from the root does.
+    // --allow-no-files passes when every file is one bonsai-lint skips, like *.min.js.
+    command = new Config.Command {
+      argv = List("bonsai-lint", "--config", ".", "--allow-no-files", "{{files}}")
+    }
+    effect = "read"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.js" }
+    local const lenientConfig = new helpers.TestMaker {
+      filename = "test.js"
+      extra_files { ["bonsai-lint.toml"] = "threshold = 20\n" }
+    }
+    local const complex =
+      """
+      function classify(rows) {
+        for (const row of rows) {
+          if (row) {
+            for (const cell of row) {
+              if (cell > 0 && cell < 100) {
+                if (cell % 2) {
+                  console.log(cell);
+                }
+              }
+            }
+          }
+        }
+        return rows;
+      }
+
+      """
+    ["check bad file"] = testMaker.checkFail(complex, 1)
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+        function add(a, b) {
+          return a + b;
+        }
+
+        """,
+      )
+    ["check respects config threshold"] = lenientConfig.checkPass(complex)
+    ["check skips minified file"] = testMaker.withFilename("test.min.js").checkPass(complex)
+  }
+}

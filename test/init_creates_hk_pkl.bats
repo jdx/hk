@@ -194,6 +194,37 @@ teardown() {
     assert_file_not_contains hk.pkl "Builtins.phpstan"
 }
 
+@test "hk init detects bonsai-lint.toml" {
+    touch bonsai-lint.toml
+    run hk init
+    assert_success
+    assert_output --partial "bonsai_lint (bonsai-lint.toml)"
+    assert_file_contains hk.pkl "Builtins.bonsai_lint"
+}
+
+@test "hk init detects bonsai-lint in package.json" {
+    echo '{"devDependencies": {"bonsai-lint": "^0.5.0"}}' > package.json
+    run hk init
+    assert_success
+    assert_output --partial "bonsai_lint (package.json contains bonsai-lint)"
+    assert_file_contains hk.pkl "Builtins.bonsai_lint"
+}
+
+@test "hk init detects bonsai-lint in composer.json" {
+    echo '{"require-dev": {"bonsai-lint/bonsai-lint": "^0.5.0"}}' > composer.json
+    run hk init
+    assert_success
+    assert_output --partial "bonsai_lint (composer.json contains bonsai-lint)"
+    assert_file_contains hk.pkl "Builtins.bonsai_lint"
+}
+
+@test "hk init skips bonsai-lint for package.json without bonsai-lint" {
+    echo '{"devDependencies": {"eslint": "^9.0.0"}}' > package.json
+    run hk init
+    assert_success
+    assert_file_not_contains hk.pkl "Builtins.bonsai_lint"
+}
+
 @test "hk init generates default template when nothing detected" {
     run hk init
     assert_success
