@@ -1,0 +1,35 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Data Formats"
+  description = ".env file linter"
+}
+dotenv_linter = new Config.Step {
+  glob = List("**/.env", "**/.env.*", "**/*.env")
+  // `--skip-updates` stops `check` from querying crates.io for a newer release.
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("dotenv-linter", "check", "--skip-updates", "{{files}}")
+    }
+    effect = "read"
+  }
+  // `fix` otherwise leaves a `.env_<timestamp>.bak` copy next to each file it changes.
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("dotenv-linter", "fix", "--no-backup", "{{files}}")
+    }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = ".env" }
+    local const good = "BAR=2\nFOO=1\n"
+    local const bad = "foo=1\nBAR = 2\n"
+    ["check good file"] = testMaker.checkPass(good)
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check bad .env.local file"] = testMaker.withFilename(".env.local").checkFail(bad, 1)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
