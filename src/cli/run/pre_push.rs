@@ -310,7 +310,10 @@ mod tests {
     #[test]
     fn test_rejects_line_with_too_many_fields() {
         let line = format!("refs/heads/main {SHA1} refs/heads/main {SHA1} extra");
-        assert!(validate_input_line(&line) == Err(RejectionReason::NotFourParts));
+        assert_eq!(
+            validate_input_line(&line),
+            Err(RejectionReason::NotFourParts)
+        );
     }
 
     #[test]
