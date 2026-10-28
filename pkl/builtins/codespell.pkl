@@ -7,8 +7,8 @@ import "./test/helpers.pkl"
   description = "Spell checker for common misspellings in code"
   project_indicators {
     new { file = ".codespellrc" }
-    new { file = "setup.cfg"; contains = "[codespell]" }
-    new { file = "pyproject.toml"; contains = "[tool.codespell]" }
+    new { file = "setup.cfg"; contains_regex = #"^[ \t]*\[codespell\]"# }
+    new { file = "pyproject.toml"; contains_regex = #"^[ \t]*\[tool\.codespell\]"# }
   }
 }
 codespell = new Config.Step {
