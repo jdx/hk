@@ -7,7 +7,7 @@ description: Browse reusable linter and formatter definitions, customize them, a
 
 Builtins are reusable Pkl step definitions for linters, formatters, and hk’s own utilities. They supply file patterns, check and fix commands, and optimizations such as diff output.
 
-**Install the tools separately.** A builtin invokes executables from your environment; it does not install them. Use your project’s package manager or [mise](/mise_integration); each entry in the [catalogue](#available-builtins) lists the `mise use` command that installs its tool, or the tool’s project page when mise can’t install it.
+**Install the tools separately.** A builtin invokes executables from your environment; it does not install them. Use your project’s package manager or [mise](/mise_integration); most entries in the [catalogue](#available-builtins) list the `mise use` command that installs their tool, or the tool’s project page when mise can’t install it. Builtins that run only `hk util` commands have no Install line because they need no separate tool.
 
 ## Use a builtin
 
