@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Nix"
   description = "Alternative Nix formatter"
+  homepage = "https://github.com/kamadorueda/alejandra"
 }
 alejandra = new Config.Step {
   glob = "**/*.nix"

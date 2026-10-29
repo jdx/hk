@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "Cargo.toml" }
   }
+  mise_tools = List("rust")
 }
 cargo_fmt = new Config.Step {
   // See https://github.com/rust-lang/rustfmt/blob/main/README.md#configuring-rustfmt

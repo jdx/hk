@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "package.json"; contains = "stylelint" }
   }
+  mise_tools = List("npm:stylelint")
 }
 stylelint = new Config.Step {
   glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")

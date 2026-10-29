@@ -10,6 +10,7 @@ import "./test/helpers.pkl"
     new { file = ".ls-lint.yml" }
     new { file = ".ls-lint.yaml" }
   }
+  mise_tools = List("ls-lint")
 }
 ls_lint = new Config.Step {
   // ls-lint validates the whole tree against .ls-lint.yml itself and defaults

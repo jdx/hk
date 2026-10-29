@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Go modernizer (requires Go 1.26+)"
+  mise_tools = List("go")
 }
 go_fix = new Config.Step {
   glob = "**/*.go"

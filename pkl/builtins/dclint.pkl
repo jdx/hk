@@ -11,6 +11,7 @@ import "./test/helpers.pkl"
     new { file = "docker-compose.yml" }
     new { file = "docker-compose.yaml" }
   }
+  mise_tools = List("npm:dclint")
 }
 dclint = new Config.Step {
   glob =

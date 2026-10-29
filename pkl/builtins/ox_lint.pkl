@@ -12,6 +12,7 @@ import "./test/helpers.pkl"
     new { file = ".oxlintrc.jsonc" }
     new { file = "oxlint.config.ts" }
   }
+  mise_tools = List("oxlint")
 }
 ox_lint = new Config.Step {
   // Supported file types:

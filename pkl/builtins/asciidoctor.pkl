@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "AsciiDoc"
   description = "AsciiDoc syntax validator and processor"
+  mise_tools = List("gem:asciidoctor")
 }
 const asciidoctor = new Config.Step {
   types = List("asciidoc")

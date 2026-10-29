@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Long line fixer"
+  mise_tools = List("golines")
 }
 go_lines = new Config.Step {
   glob = "**/*.go"

@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "TypeScript language server diagnostics"
+  mise_tools = List("npm:tsc-files", "npm:typescript")
 }
 tsserver = new Config.Step {
   glob = List("**/*.ts", "**/*.tsx")

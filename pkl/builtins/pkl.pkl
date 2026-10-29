@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Pkl"
   description = "Pkl configuration language"
+  mise_tools = List("pkl")
 }
 pkl = new Config.Step {
   types = List("pkl")

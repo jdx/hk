@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { glob = "*.sh"; recursive = true }
   }
+  mise_tools = List("shellcheck")
 }
 shellcheck = new Config.Step {
   batch = true

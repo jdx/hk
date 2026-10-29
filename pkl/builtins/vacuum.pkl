@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "Fast OpenAPI linter"
+  mise_tools = List("vacuum")
 }
 vacuum = new Config.Step {
   glob =

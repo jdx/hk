@@ -12,6 +12,7 @@ import "../Config.pkl"
     new { file = "astro.config.mts" }
     new { file = "package.json"; contains = "\"astro\"" }
   }
+  homepage = "https://docs.astro.build/en/reference/cli-reference/"
 }
 astro = new Config.Step {
   glob = "**/*.astro"

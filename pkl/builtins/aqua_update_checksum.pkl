@@ -10,6 +10,7 @@ import "./test/helpers.pkl"
     new { file = "aqua/aqua-checksums.json" }
     new { file = ".aqua/aqua-checksums.json" }
   }
+  mise_tools = List("aqua")
 }
 const aqua_update_checksum = new Config.Step {
   glob =

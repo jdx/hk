@@ -10,6 +10,7 @@ import "../Config.pkl"
     new { file = ".dprint.json" }
     new { file = ".dprint.jsonc" }
   }
+  mise_tools = List("dprint")
 }
 dprint = new Config.Step {
   types = List("text")
