@@ -53,6 +53,18 @@ codespell = new Config.Step {
           message = "maintainance ==> maintenance"
         }),
       )
+    ["check file with spaces reports diagnostics"] =
+      testMaker
+        .withFilename("user guide.txt")
+        .checkDiagnostics(
+          before,
+          65,
+          List(new Config.StepTestDiagnostic {
+            path = "user guide.txt"
+            line = 1
+            message = "maintainance ==> maintenance"
+          }),
+        )
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
