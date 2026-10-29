@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = ".github/workflows" }
   }
+  mise_tools = List("actionlint")
 }
 const actionlint = new Config.Step {
   glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")

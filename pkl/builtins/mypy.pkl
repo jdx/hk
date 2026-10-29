@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "pyproject.toml"; contains = "mypy" }
   }
+  mise_tools = List("pipx:mypy")
 }
 mypy = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")

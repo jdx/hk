@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "YAML linter"
+  mise_tools = List("yamllint")
 }
 yamllint = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")

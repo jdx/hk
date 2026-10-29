@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Special Purpose"
   description = "Grammar checker for commit message"
+  mise_tools = List("harper-cli")
 }
 harper_commit_message = new Config.Step {
   check = new Config.CommandSpec {

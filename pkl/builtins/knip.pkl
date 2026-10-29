@@ -110,6 +110,7 @@ class KnipStep extends Config.Step {
   project_indicators {
     new { file = "package.json"; contains = "\"knip\"" }
   }
+  mise_tools = List("npm:knip")
 }
 // Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
 // instance when it is inserted into Mapping<String, Config.Step>.

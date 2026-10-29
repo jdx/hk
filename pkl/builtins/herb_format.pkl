@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".herb.yml" }
     new { file = "package.json"; contains = "@herb-tools/formatter" }
   }
+  mise_tools = List("npm:@herb-tools/formatter")
 }
 herb_format = new Config.Step {
   glob =

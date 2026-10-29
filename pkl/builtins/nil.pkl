@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Nix"
   description = "Nix Language server"
+  homepage = "https://github.com/oxalica/nil"
 }
 nil = new Config.Step {
   glob = "**/*.nix"

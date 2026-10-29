@@ -1,14 +1,14 @@
 ---
 outline: [2, 3]
 description: Meet the standing crew who come with the ship. Browse reusable linter and formatter definitions, refit them to yer needs, and learn which tools ye must bring aboard yerself.
-sourceHash: 52708f796997
+sourceHash: 37627d1d00aa
 ---
 
 # The standing crew: built-in linters
 
 Builtins be the standing crew who come with the ship: reusable Pkl step definitions for linters, formatters, and hk's own utilities. Between them they bring file patterns, check and fix commands, and optimizations such as diff output.
 
-**Bring the tools aboard separately.** A builtin calls on executables from yer environment; it does not install them. Provision them with yer project's package manager or with [mise, the quartermaster](/mise_integration).
+**Bring the tools aboard separately.** A builtin calls on executables from yer environment; it does not install them. Provision them with yer project's package manager or with [mise, the quartermaster](/mise_integration); each entry in the [catalogue](#available-builtins) names the `mise use` command that fetches its tool, or the tool's project page when the quartermaster can't stock it.
 
 ## Muster a builtin {#use-a-builtin}
 

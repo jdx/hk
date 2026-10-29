@@ -12,6 +12,7 @@ import "./test/helpers.pkl"
     new { file = ".oxfmtrc.jsonc" }
     new { file = "oxfmt.config.ts" }
   }
+  mise_tools = List("oxfmt")
 }
 oxfmt = new Config.Step {
   // Supported file types:

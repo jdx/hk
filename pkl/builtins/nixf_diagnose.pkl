@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Nix"
   description = "Nix linter based on libnixf"
+  homepage = "https://github.com/inclyc/nixf-diagnose"
 }
 nixf_diagnose = new Config.Step {
   glob = "**/*.nix"

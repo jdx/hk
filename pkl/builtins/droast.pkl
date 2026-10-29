@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "Dockerfile" }
     new { file = "Containerfile" }
   }
+  mise_tools = List("github:immanuwell/dockerfile-roast")
 }
 droast = new Config.Step {
   glob =

@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Error handling checker"
+  mise_tools = List("go:github.com/kisielk/errcheck")
 }
 err_check = new Config.Step {
   glob = "**/*.go"

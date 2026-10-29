@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".herb.yml" }
     new { file = "package.json"; contains = "@herb-tools/linter" }
   }
+  mise_tools = List("npm:@herb-tools/linter")
 }
 herb_lint = new Config.Step {
   glob =

@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Rust"
   description = "Rust code formatter (standalone)"
+  mise_tools = List("rust")
 }
 rustfmt = new Config.Step {
   glob = "**/*.rs"

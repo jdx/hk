@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "pyproject.toml" }
     new { file = "requirements.txt" }
   }
+  mise_tools = List("ruff")
 }
 ruff = new Config.Step {
   types = List("python")
