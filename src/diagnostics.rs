@@ -406,6 +406,11 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
         r"^(\S+?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){RULE}"
     ))
     .expect("valid column-less diagnostic regex");
+    // codespell prints `path:line: wrong ==> right` with no column. Its arrow is specific
+    // enough to let that path contain spaces (`docs/user guide.txt`), which the pattern
+    // above refuses; the path still may not start with whitespace.
+    let spelling = regex::Regex::new(r"^(\S.*):(\d+): (\S+ ==> \S.*)$")
+        .expect("valid codespell diagnostic regex");
     // `diagnostic_severity` applies only to findings shaped `rule-name: message`; any other
     // line without a severity word (for example `syntax error`) stays an error.
     let rule_prefixed = regex::Regex::new(r"^[A-Za-z_][\w.-]*:\s").expect("valid rule regex");
@@ -467,8 +472,7 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
                 c[5].to_string(),
                 c.get(6),
             )
-        } else {
-            let c = without_column.captures(line)?;
+        } else if let Some(c) = without_column.captures(line) {
             let path = &c[1];
             if path.contains("://") || path.starts_with("//") || path.starts_with("/*") {
                 return None;
@@ -480,6 +484,16 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
                 c.get(3),
                 c[4].to_string(),
                 c.get(5),
+            )
+        } else {
+            let c = spelling.captures(line)?;
+            (
+                c[1].to_string(),
+                c[2].to_string(),
+                1,
+                None,
+                c[3].to_string(),
+                None,
             )
         };
         // `[*]` marks an auto-fixable finding (rumdl); it is not a rule name.
@@ -798,6 +812,36 @@ mod tests {
         assert_eq!(
             parsed.diagnostics[0].message,
             "bad\n// note:12: text\nhttp://x:80: y\n  ^"
+        );
+    }
+
+    #[test]
+    fn gcc_reads_codespell_paths_with_spaces() {
+        let output = "docs/user guide.txt:3: maintainance ==> maintenance\ndocs/user guide.txt:4: abouta ==> about a, about\ntest.txt:1: maintainance ==> maintenance\n";
+        let parsed = gcc(output);
+        assert!(parsed.warnings.is_empty());
+        assert_eq!(parsed.diagnostics.len(), 3);
+        assert_eq!(at(&parsed.diagnostics[0]), ("docs/user guide.txt", 3, 1));
+        assert_eq!(parsed.diagnostics[0].severity, Severity::Error);
+        assert_eq!(
+            parsed.diagnostics[0].message,
+            "maintainance ==> maintenance"
+        );
+        assert_eq!(parsed.diagnostics[0].rule, None);
+        assert_eq!(parsed.diagnostics[1].message, "abouta ==> about a, about");
+        assert_eq!(at(&parsed.diagnostics[2]), ("test.txt", 1, 1));
+        assert_eq!(
+            parsed.diagnostics[2].message,
+            "maintainance ==> maintenance"
+        );
+        // Source lines under a finding stay part of it: indented ones, and spaced text
+        // without codespell's arrow.
+        let output = "a.c:1:3: error: bad\n    x = f(a:1: b ==> c);\nsee note:12: text\n";
+        let parsed = gcc(output);
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert_eq!(
+            parsed.diagnostics[0].message,
+            "bad\n    x = f(a:1: b ==> c);\nsee note:12: text"
         );
     }
 
