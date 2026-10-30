@@ -1686,6 +1686,10 @@ impl Git {
         for p in status.unstaged_files.iter() {
             files_to_stash.insert(p.clone());
         }
+        // `unstaged_files` lists only paths that exist. A file deleted from the
+        // worktree is still in the index and would be committed, so stashing
+        // brings it back for the hook to see.
+        files_to_stash.extend(status.unstaged_deleted_files.iter().cloned());
         // An empty intent-to-add file counts as staged, not unstaged. Setting
         // the intent-to-add files aside removes them from the set again.
         files_to_stash.extend(intent_to_add.iter().cloned());
@@ -3938,6 +3942,7 @@ impl GitStatus {
     /// including untracked files when `include_untracked` is set.
     pub fn has_unstaged_changes(&self, include_untracked: bool) -> bool {
         !self.unstaged_files.is_empty()
+            || !self.unstaged_deleted_files.is_empty()
             || self.skipped_unstaged
             || !self.intent_to_add_files.is_empty()
             || (include_untracked && (!self.untracked_files.is_empty() || self.skipped_untracked))
