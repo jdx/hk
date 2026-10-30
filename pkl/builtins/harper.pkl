@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Special Purpose"
   description = "Grammar checker for prose and documentation"
+  mise_tools = List("harper-cli")
 }
 harper = new Config.Step {
   types = List("text")

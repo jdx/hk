@@ -19,6 +19,7 @@ import "../Config.pkl"
     new { file = ".eslintrc.js" }
     new { file = ".eslintrc.cjs" }
   }
+  mise_tools = List("npm:eslint")
 }
 eslint = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")

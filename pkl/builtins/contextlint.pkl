@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "contextlint.config.json" }
   }
+  mise_tools = List("npm:@contextlint/cli")
 }
 contextlint = new Config.Step {
   workspace_indicator = "contextlint.config.json"

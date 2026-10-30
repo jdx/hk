@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.10.0](https://github.com/jdx/hk/compare/v2.9.0..v2.10.0) - 2026-10-28
+
+### 🚀 Features
+
+- **(builtins)** add pyright builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1775](https://github.com/jdx/hk/pull/1775)
+- **(builtins)** add protolint builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1777](https://github.com/jdx/hk/pull/1777)
+- **(builtins)** add phpstan linter builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1778](https://github.com/jdx/hk/pull/1778)
+- **(builtins)** add dotenv-linter as a builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1779](https://github.com/jdx/hk/pull/1779)
+- **(builtins)** add osv dependency vulnerability scanner builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1782](https://github.com/jdx/hk/pull/1782)
+- **(hook)** fail a hook that runs past its timeout by [@jdx](https://github.com/jdx) in [#1776](https://github.com/jdx/hk/pull/1776)
+- **(pre-push)** print reminder of stdin format if stdin contains malformed lines by [@connormharris](https://github.com/connormharris) in [#1781](https://github.com/jdx/hk/pull/1781)
+
+### 🛡️ Security
+
+- **(builtins)** add trufflehog secret scanner builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1774](https://github.com/jdx/hk/pull/1774)
+
+### 📦️ Dependency Updates
+
+- update dependency aube to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1765](https://github.com/jdx/hk/pull/1765)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1771](https://github.com/jdx/hk/pull/1771)
+
 ## [2.9.0](https://github.com/jdx/hk/compare/v2.8.2..v2.9.0) - 2026-10-26
 
 ### 🚀 Features

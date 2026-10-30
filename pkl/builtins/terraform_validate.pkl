@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terraform configuration validator"
+  mise_tools = List("terraform")
 }
 terraform_validate = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tf.json", "**/*.tofu", "**/.terraform.lock.hcl")

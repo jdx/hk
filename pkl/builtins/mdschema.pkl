@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = ".mdschema.yml" }
   }
+  mise_tools = List("aqua:jackchuka/mdschema")
 }
 mdschema = new Config.Step {
   workspace_indicator = ".mdschema.yml"

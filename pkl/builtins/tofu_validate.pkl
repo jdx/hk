@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "OpenTofu configuration validator"
+  mise_tools = List("opentofu")
 }
 tofu_validate = new Config.Step {
   glob =

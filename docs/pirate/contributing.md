@@ -1,6 +1,6 @@
 ---
 description: Sign aboard hk. Fit out for development, run focused checks, edit the generated documentation, and ready yer contribution for review.
-sourceHash: f3afc58cd3e8
+sourceHash: c3cdb922a0f6
 ---
 
 # Signing aboard to contribute
@@ -64,13 +64,15 @@ Run the checks that suit yer change. Integration tests sail in isolated temporar
 
 ## Add a builtin to the standing crew {#add-a-builtin}
 
-1. Add `pkl/builtins/<name>.pkl` with the new hand's metadata, file patterns, and commands.
+1. Add `pkl/builtins/<name>.pkl` with the new hand's metadata, file patterns, and commands. In the `@Builtins.meta` annotation, set `mise_tools` to the mise tools that install the executables it runs (a registry name such as `shfmt`, or a backend spec such as `npm:eslint`), or `homepage` when mise can't install the tool. The catalogue prints either as the entry's **Install** line.
 2. Define Pkl-level tests in the step's `tests` field. Use `TestMaker` from `pkl/builtins/test/helpers.pkl` for the standard check/fix patterns.
 3. Add a `mise tool-stub` script in `test/builtin_tool_stubs/` if the tool isn't already aboard.
 4. Regenerate and build the ship with `mise run build`.
 5. Run `mise run test:bats test/builtins_tests.bats`, or use `hk test --step <name>` with a configuration that brings the builtin aboard.
 
 Tests should prove meaningful behavior: a clean check, a failing check, and the expected result of a fix when the hand supports one. A builtin with `check_diff` also needs a diff test (`TestMaker.diffPass` or `diffFail`), which applies the patch `check_diff` prints the way `hk fix` does and fails if hk cannot apply it. Fix tests can't catch that, because they run `fix` directly, and `test/builtins_tests.bats` fails for a tested builtin without a diff test. Avoid enabling batching or slipping the lashings (bypassing locks) until ye've confirmed how the tool behaves.
+
+Files in `test/builtin_tool_stubs/` be mise tool stubs, not mock executables: each needs a `tool` and `version` declaration so the test harness can validate and provision it. The Bats setup task tries to install every declared stub before the tests run; if installation fails, it warns and sails on, so tests may run without those stubs. Putting a fake executable earlier on `PATH` changes what the test runs, but does not dodge the installation attempt. When a builtin test needs deterministic tool output, put a fake executable in a separate test-only directory and prepend that directory to `PATH` before `test/builtin_tool_stubs/`. Keep the mise stub in place so the builtin still declares its real tool requirement.
 
 ## Keep the documentation shipshape {#edit-documentation}
 

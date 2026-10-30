@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "buf.yaml" }
     new { file = "buf.work.yaml" }
   }
+  mise_tools = List("buf")
 }
 buf_lint = new Config.Step {
   glob = "**/*.proto"

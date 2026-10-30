@@ -1,20 +1,20 @@
 ---
 outline: [2, 3]
 description: Meet the standing crew who come with the ship. Browse reusable linter and formatter definitions, refit them to yer needs, and learn which tools ye must bring aboard yerself.
-sourceHash: 52708f796997
+sourceHash: b300454a35ff
 ---
 
 # The standing crew: built-in linters
 
 Builtins be the standing crew who come with the ship: reusable Pkl step definitions for linters, formatters, and hk's own utilities. Between them they bring file patterns, check and fix commands, and optimizations such as diff output.
 
-**Bring the tools aboard separately.** A builtin calls on executables from yer environment; it does not install them. Provision them with yer project's package manager or with [mise, the quartermaster](/mise_integration).
+**Bring the tools aboard separately.** A builtin calls on executables from yer environment; it does not install them. Provision them with yer project's package manager or with [mise, the quartermaster](/mise_integration); most entries in the [catalogue](#available-builtins) name the `mise use` command that fetches their tool, or the tool's project page when the quartermaster can't stock it. Builtins that run only `hk util` commands have no Install line, for they need no separate tool, except `python-check-ast`, which needs Python on `PATH`.
 
 ## Muster a builtin {#use-a-builtin}
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.9.0/hk@2.9.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.10.0/hk@2.10.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.10.0/hk@2.10.0#/Builtins.pkl"
 
 hooks {
   ["check"] {

@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "stylua.toml" }
     new { file = ".stylua.toml" }
   }
+  mise_tools = List("stylua")
 }
 stylua = new Config.Step {
   types = List("lua")

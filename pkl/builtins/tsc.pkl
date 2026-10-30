@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "tsconfig.json" }
   }
+  mise_tools = List("npm:typescript")
 }
 tsc = new Config.Step {
   workspace_indicator = "tsconfig.json"

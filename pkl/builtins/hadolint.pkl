@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "Dockerfile" }
   }
+  mise_tools = List("hadolint")
 }
 hadolint = new Config.Step {
   glob = "**/Dockerfile*"

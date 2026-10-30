@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Go code vetting"
+  mise_tools = List("go")
 }
 go_vet = new Config.Step {
   glob = "**/*.go"

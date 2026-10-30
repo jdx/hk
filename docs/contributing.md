@@ -63,7 +63,7 @@ Run checks appropriate to the change. Integration tests use isolated temporary r
 
 ## Add a builtin
 
-1. Add `pkl/builtins/<name>.pkl` with metadata, file patterns, and commands.
+1. Add `pkl/builtins/<name>.pkl` with metadata, file patterns, and commands. In the `@Builtins.meta` annotation, set `mise_tools` to the mise tools that install the executables it runs (a registry name such as `shfmt`, or a backend spec such as `npm:eslint`), or `homepage` when mise can’t install the tool. The catalogue prints either as the entry’s **Install** line.
 2. Define Pkl-level tests in the step’s `tests` field. Use `TestMaker` from `pkl/builtins/test/helpers.pkl` for standard check/fix patterns.
 3. Add a `mise tool-stub` script in `test/builtin_tool_stubs/` if the tool is not already available.
 4. Regenerate and build with `mise run build`.

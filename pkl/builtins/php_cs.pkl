@@ -10,6 +10,7 @@ import "../Config.pkl"
     new { file = ".phpcs.xml" }
     new { file = ".phpcs.xml.dist" }
   }
+  homepage = "https://github.com/PHPCSStandards/PHP_CodeSniffer"
 }
 php_cs = new Config.Step {
   glob = "**/*.php"

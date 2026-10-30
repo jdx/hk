@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Hashicorp's hclfmt"
+  mise_tools = List("go:github.com/hashicorp/hcl/v2/cmd/hclfmt")
 }
 hclfmt = new Config.Step {
   glob = "**/*.hcl"

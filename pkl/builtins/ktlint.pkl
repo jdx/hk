@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Other Languages"
   description = "Kotlin linter and formatter"
+  mise_tools = List("ktlint")
 }
 ktlint = new Config.Step {
   glob = "**/*.kt"

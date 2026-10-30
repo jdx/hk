@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".clang-format" }
     new { file = "_clang-format" }
   }
+  mise_tools = List("pipx:clang-format")
 }
 clang_format = new Config.Step {
   glob =

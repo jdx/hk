@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { glob = "*.pkr.hcl"; recursive = true }
   }
+  mise_tools = List("packer")
 }
 packer_fmt = new Config.Step {
   glob = List("**/*.pkr.hcl", "**/*.pkrvars.hcl")

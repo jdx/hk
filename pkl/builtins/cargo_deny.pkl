@@ -13,6 +13,7 @@ import "./test/helpers.pkl"
     new { file = ".deny.exceptions.toml" }
     new { file = ".cargo/deny.exceptions.toml" }
   }
+  mise_tools = List("cargo-deny")
 }
 cargo_deny = new Config.Step {
   glob =
