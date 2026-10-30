@@ -905,11 +905,19 @@ fn checkout_matches_stash_index(stash_ref: &str, path: &std::path::Path) -> bool
     let is_symlink =
         std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink());
     // A symlink is stored as its target, not the contents it points to, and
-    // only matches an entry that is a symlink too. With `core.symlinks=false`
-    // git checks the entry out as a plain file holding the target, which the
-    // content comparison below accepts.
+    // only matches an entry that is a symlink too.
     if is_symlink {
         return mode == "120000" && symlink_target_matches(path, indexed);
+    }
+    // Only with `core.symlinks=false` does git check a symlink entry out as a
+    // plain file holding the target. Otherwise a regular file there is a
+    // type change by a step, whatever it holds. git's default is true.
+    if mode == "120000"
+        && git_cmd_silent(["config", "--type=bool", "core.symlinks"])
+            .read()
+            .map_or(true, |value| value.trim() != "false")
+    {
+        return false;
     }
     git_read([OsString::from("hash-object"), "--".into(), path.into()])
         .is_ok_and(|current| current.trim() == indexed)

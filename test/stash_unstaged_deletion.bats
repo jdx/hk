@@ -145,3 +145,19 @@ PKL
     run git for-each-ref refs/hk/stash
     assert_output --partial "refs/hk/stash/"
 }
+
+@test "pre-commit: a step that replaces a deleted symlink with a regular file keeps the file" {
+    _write_config
+    ln -s other.txt link.txt
+    git add link.txt
+    git commit -m "add symlink"
+    sed -i.bak 's|check = "\(.*\)"|check = "\1 \&\& git rm -q --cached link.txt \&\& rm link.txt \&\& printf other.txt > link.txt"|' hk.pkl
+    rm hk.pkl.bak
+    rm link.txt
+
+    run hk run pre-commit --check
+    assert_failure
+
+    assert_file_exists link.txt
+    assert [ ! -L link.txt ]
+}
