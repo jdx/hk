@@ -885,6 +885,44 @@ fn worktree_matches_index(path: &std::path::Path) -> bool {
     .is_ok()
 }
 
+/// Whether the worktree file at `path` still has the contents the stash's
+/// index (`<stash_ref>^2`) has there, which are what hk checked out for the
+/// steps.
+fn checkout_matches_stash_index(stash_ref: &str, path: &std::path::Path) -> bool {
+    // `<mode> blob <oid>\t<path>`
+    let Ok(entry) = git_read([
+        OsString::from("ls-tree"),
+        format!("{stash_ref}^2").into(),
+        "--".into(),
+        literal_pathspec(path),
+    ]) else {
+        return false;
+    };
+    let mut fields = entry.split(['\t', ' ']);
+    let (Some(mode), Some(_), Some(indexed)) = (fields.next(), fields.next(), fields.next()) else {
+        return false;
+    };
+    let is_symlink =
+        std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink());
+    // A symlink is stored as its target, not the contents it points to, and
+    // only matches an entry that is a symlink too.
+    if is_symlink {
+        return mode == "120000" && symlink_target_matches(path, indexed);
+    }
+    // Only with `core.symlinks=false` does git check a symlink entry out as a
+    // plain file holding the target. Otherwise a regular file there is a
+    // type change by a step, whatever it holds. git's default is true.
+    if mode == "120000"
+        && git_cmd_silent(["config", "--type=bool", "core.symlinks"])
+            .read()
+            .map_or(true, |value| value.trim() != "false")
+    {
+        return false;
+    }
+    git_read([OsString::from("hash-object"), "--".into(), path.into()])
+        .is_ok_and(|current| current.trim() == indexed)
+}
+
 /// A shell command that restores `path` from `source` in the worktree only.
 fn restore_command(source: &str, path: &std::path::Path) -> String {
     let mut pathspec = OsString::from(":(literal)");
@@ -1686,6 +1724,10 @@ impl Git {
         for p in status.unstaged_files.iter() {
             files_to_stash.insert(p.clone());
         }
+        // `unstaged_files` lists only paths that exist. A file deleted from the
+        // worktree is still in the index and would be committed, so stashing
+        // brings it back for the hook to see.
+        files_to_stash.extend(status.unstaged_deleted_files.iter().cloned());
         // An empty intent-to-add file counts as staged, not unstaged. Setting
         // the intent-to-add files aside removes them from the set again.
         files_to_stash.extend(intent_to_add.iter().cloned());
@@ -2168,8 +2210,10 @@ impl Git {
             stdin.extend_from_slice(p.as_os_str().as_encoded_bytes());
             stdin.push(0);
         }
-        // Record the worktree contents, which `git add` would clean
-        git_cmd(["update-index", "--add", "-z", "--stdin"])
+        // Record the worktree contents, which `git add` would clean. A path
+        // with no file there, such as one staged as added and then deleted,
+        // is recorded as deleted.
+        git_cmd(["update-index", "--add", "--remove", "-z", "--stdin"])
             .env("GIT_INDEX_FILE", &tmp_index)
             .stdin_bytes(stdin)
             .run()
@@ -2955,6 +2999,34 @@ impl Git {
                     // intentionally removed it — do not restore the tracked worktree blob.
                     // (Untracked variants — `git rm --cached` — are handled above.)
                     if staged_deleted_set.contains(&path) {
+                        // A path the stash recorded as deleted from the worktree was
+                        // checked out from the index while steps ran. A step that
+                        // staged its deletion left that checkout on disk, unless it
+                        // wrote something else there, which stays.
+                        if matches!(changes.entry(&path), StashedEntry::Deleted)
+                            && std::fs::symlink_metadata(&path).is_ok()
+                        {
+                            if checkout_matches_stash_index(&stash_ref, &path) {
+                                if let Err(err) = restore_stashed_path(
+                                    &stash_ref,
+                                    path.as_os_str(),
+                                    StashedEntry::Deleted,
+                                ) {
+                                    warn!(
+                                        "failed to remove {} after its deletion was staged: {err:?}",
+                                        display_path(&path)
+                                    );
+                                    restoration_failed = true;
+                                }
+                            } else {
+                                keep_step_output(
+                                    &mut not_restored,
+                                    &path,
+                                    "wrote new contents to {} after staging its deletion",
+                                );
+                                restoration_failed = true;
+                            }
+                        }
                         debug!(
                             "manual-unstash: skipping staged-deleted path={}",
                             display_path(&path)
@@ -3938,6 +4010,7 @@ impl GitStatus {
     /// including untracked files when `include_untracked` is set.
     pub fn has_unstaged_changes(&self, include_untracked: bool) -> bool {
         !self.unstaged_files.is_empty()
+            || !self.unstaged_deleted_files.is_empty()
             || self.skipped_unstaged
             || !self.intent_to_add_files.is_empty()
             || (include_untracked && (!self.untracked_files.is_empty() || self.skipped_untracked))
