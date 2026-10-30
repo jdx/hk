@@ -891,13 +891,16 @@ fn worktree_matches_index(path: &std::path::Path) -> bool {
 fn checkout_matches_stash_index(stash_ref: &str, path: &std::path::Path) -> bool {
     let mut object = OsString::from(format!("{stash_ref}^2:"));
     object.push(path.as_os_str());
-    let (Ok(indexed), Ok(current)) = (
-        git_read([OsString::from("rev-parse"), "--verify".into(), object]),
-        git_read([OsString::from("hash-object"), "--".into(), path.into()]),
-    ) else {
+    let Ok(indexed) = git_read([OsString::from("rev-parse"), "--verify".into(), object]) else {
         return false;
     };
-    indexed.trim() == current.trim()
+    let indexed = indexed.trim();
+    // A symlink is stored as its target, not the contents it points to
+    if std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        return symlink_target_matches(path, indexed);
+    }
+    git_read([OsString::from("hash-object"), "--".into(), path.into()])
+        .is_ok_and(|current| current.trim() == indexed)
 }
 
 /// A shell command that restores `path` from `source` in the worktree only.

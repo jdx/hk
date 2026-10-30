@@ -106,3 +106,21 @@ PKL
 
     assert_equal "$(cat tracked.txt)" "step-output"
 }
+
+@test "pre-commit: a step that stages the deletion of a symlink leaves no checkout behind" {
+    _write_config
+    ln -s other.txt link.txt
+    git add link.txt
+    git commit -m "add symlink"
+    sed -i.bak 's|check = "\(.*\)"|check = "\1 \&\& test -L link.txt \&\& git rm -q --cached link.txt"|' hk.pkl
+    rm hk.pkl.bak
+    rm link.txt
+
+    run hk run pre-commit --check
+    assert_success
+
+    assert [ ! -e link.txt ] && [ ! -L link.txt ]
+    run git status --porcelain
+    assert_output --partial "D  link.txt"
+    refute_output --partial "?? link.txt"
+}
