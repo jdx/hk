@@ -6,6 +6,7 @@ import "./test/helpers.pkl"
   category = "Infrastructure"
   description =
     "mise formatter for a global config repository checked out at `~/.config/mise` (e.g. `mise bootstrap --adopt`)"
+  homepage = "https://mise.jdx.dev/installing-mise.html"
 }
 mise_config_dir = new Config.Step {
   // The repository root is the config directory itself, so the files are named

@@ -126,6 +126,8 @@ struct BuiltinInfo {
     name: String,
     category: String,
     description: String,
+    mise_tools: Vec<String>,
+    homepage: Option<String>,
     step: serde_json::Value,
 }
 
@@ -335,6 +337,23 @@ fn push_command_doc(md: &mut String, step: &serde_json::Value, field: &str, labe
     }
 }
 
+/// How to get the executable a builtin runs: the mise tool when mise can install it, otherwise the
+/// tool's homepage. Builtins that run only `hk util` commands have neither.
+fn install_doc(info: &BuiltinInfo) -> Option<String> {
+    let mut parts = Vec::new();
+    if !info.mise_tools.is_empty() {
+        parts.push(format!("`mise use {}`", info.mise_tools.join(" ")));
+    }
+    if let Some(homepage) = &info.homepage {
+        parts.push(format!("[project page]({homepage})"));
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(", "))
+    }
+}
+
 fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
     let cwd = std::env::current_dir()?;
     let reflect_script = cwd.join("scripts/reflect.pkl");
@@ -387,10 +406,12 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                 for (name, prop) in props {
                     // Get annotations from the property
                     let annotations = prop.get("annotations");
-                    let (category, description) =
+                    let (category, description, mise_tools, homepage) =
                         if let Some(serde_json::Value::Array(anns)) = annotations {
                             let mut cat = "Uncategorized".to_string();
                             let mut desc = String::new();
+                            let mut tools = Vec::new();
+                            let mut home = None;
                             for ann in anns {
                                 if let Some(c) = ann.get("category").and_then(|v| v.as_str()) {
                                     cat = c.to_string();
@@ -398,10 +419,19 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                                 if let Some(d) = ann.get("description").and_then(|v| v.as_str()) {
                                     desc = d.to_string();
                                 }
+                                if let Some(t) = ann.get("mise_tools").and_then(|v| v.as_array()) {
+                                    tools = t
+                                        .iter()
+                                        .filter_map(|v| v.as_str().map(str::to_string))
+                                        .collect();
+                                }
+                                if let Some(h) = ann.get("homepage").and_then(|v| v.as_str()) {
+                                    home = Some(h.to_string());
+                                }
                             }
-                            (cat, desc)
+                            (cat, desc, tools, home)
                         } else {
-                            ("Uncategorized".to_string(), String::new())
+                            ("Uncategorized".to_string(), String::new(), Vec::new(), None)
                         };
 
                     let step: serde_json::Value =
@@ -411,6 +441,8 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                         name: name.clone(),
                         category,
                         description,
+                        mise_tools,
+                        homepage,
                         step,
                     });
                 }
@@ -460,6 +492,10 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
 
             if let Some(files) = files_doc(&info.step) {
                 md.push_str(&format!("- **Files:** {files}\n"));
+            }
+
+            if let Some(install) = install_doc(info) {
+                md.push_str(&format!("- **Install:** {install}\n"));
             }
 
             push_command_doc(&mut md, &info.step, "check", "Check");

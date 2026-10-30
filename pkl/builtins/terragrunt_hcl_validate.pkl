@@ -17,6 +17,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terragrunt HCL validator"
+  mise_tools = List("terragrunt")
 }
 terragrunt_hcl_validate = new Config.Step {
   glob = "**/*.hcl"

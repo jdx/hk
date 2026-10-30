@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Security scanner"
+  mise_tools = List("aqua:securego/gosec")
 }
 go_sec = new Config.Step {
   glob = "**/*.go"

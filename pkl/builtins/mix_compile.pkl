@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Elixir"
   description = "Compile Elixir with Mix"
+  mise_tools = List("elixir")
 }
 mix_compile = new Config.Step {
   glob = "**/*.ex"

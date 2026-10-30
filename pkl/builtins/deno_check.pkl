@@ -8,6 +8,7 @@ import "../Config.pkl"
     new { file = "deno.json" }
     new { file = "deno.jsonc" }
   }
+  mise_tools = List("deno")
 }
 deno_check = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")

@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Fast Go linter"
+  mise_tools = List("revive")
 }
 revive = new Config.Step {
   glob = "**/*.go"

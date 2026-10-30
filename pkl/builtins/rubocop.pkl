@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "Gemfile" }
   }
+  mise_tools = List("gem:rubocop")
 }
 rubocop = new Config.Step {
   // RuboCop's default configuration

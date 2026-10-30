@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Go import management"
+  mise_tools = List("go:golang.org/x/tools/cmd/goimports")
 }
 go_imports = new Config.Step {
   glob = "**/*.go"

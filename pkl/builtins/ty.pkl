@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "ty.toml" }
     new { file = "pyproject.toml"; contains_regex = #"^[ \t]*\[tool\.ty[\].]"# }
   }
+  mise_tools = List("ty")
 }
 ty = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")

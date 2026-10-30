@@ -11,6 +11,7 @@ import "../Config.pkl"
     new { file = ".terraform-docs.yml" }
     new { file = ".terraform-docs.yaml" }
   }
+  mise_tools = List("terraform-docs")
 }
 terraform_docs = new Config.Step {
   glob = List("**/*.tf", "**/*.tf.json", "**/*.tofu", "**/.terraform.lock.hcl")

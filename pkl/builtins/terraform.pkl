@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terraform formatter"
+  mise_tools = List("terraform")
 }
 terraform = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")

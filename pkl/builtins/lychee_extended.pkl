@@ -5,6 +5,7 @@ import "../Config.pkl"
   category = "Special Purpose"
   description =
     "Flint's repository-aware link check (requires flint and lychee). See https://github.com/grafana/flint/blob/main/docs/linters/lychee.md"
+  mise_tools = List("packslip:grafana/flint", "lychee")
 }
 lychee_extended = new Config.Step {
   types = List("text")

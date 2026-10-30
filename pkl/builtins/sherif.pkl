@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "package.json"; contains = "\"sherif\"" }
   }
+  mise_tools = List("sherif")
 }
 sherif = new Config.Step {
   // sherif always scans the whole workspace from the repo root; it does not

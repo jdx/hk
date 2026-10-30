@@ -10,6 +10,7 @@ import "./test/helpers.pkl"
     new { file = "biome.json" }
     new { file = "biome.jsonc" }
   }
+  mise_tools = List("biome")
 }
 biome = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")

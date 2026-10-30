@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "YAML processor"
+  mise_tools = List("yq")
 }
 yq = new Config.Step {
   glob = List("**/*.yaml", "**/*.yml")
