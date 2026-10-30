@@ -78,6 +78,7 @@ PKL
     assert_file_not_exists tracked.txt
     run git status --porcelain
     assert_output --partial " D tracked.txt"
+    assert_output --partial "M  other.txt"
 }
 
 @test "pre-commit: a step that stages the deletion leaves no checkout behind" {
@@ -93,4 +94,15 @@ PKL
     run git status --porcelain
     assert_output --partial "D  tracked.txt"
     refute_output --partial "?? tracked.txt"
+}
+
+@test "pre-commit: a step that stages the deletion and writes the file keeps its output" {
+    _write_config
+    sed -i.bak 's|check = "\(.*\)"|check = "\1 \&\& git rm -q --cached tracked.txt \&\& echo step-output > tracked.txt"|' hk.pkl
+    rm hk.pkl.bak
+    rm tracked.txt
+
+    run hk run pre-commit --check
+
+    assert_equal "$(cat tracked.txt)" "step-output"
 }

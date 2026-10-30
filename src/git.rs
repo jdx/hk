@@ -885,6 +885,21 @@ fn worktree_matches_index(path: &std::path::Path) -> bool {
     .is_ok()
 }
 
+/// Whether the worktree file at `path` still has the contents the stash's
+/// index (`<stash_ref>^2`) has there, which are what hk checked out for the
+/// steps.
+fn checkout_matches_stash_index(stash_ref: &str, path: &std::path::Path) -> bool {
+    let mut object = OsString::from(format!("{stash_ref}^2:"));
+    object.push(path.as_os_str());
+    let (Ok(indexed), Ok(current)) = (
+        git_read([OsString::from("rev-parse"), "--verify".into(), object]),
+        git_read([OsString::from("hash-object"), "--".into(), path.into()]),
+    ) else {
+        return false;
+    };
+    indexed.trim() == current.trim()
+}
+
 /// A shell command that restores `path` from `source` in the worktree only.
 fn restore_command(source: &str, path: &std::path::Path) -> String {
     let mut pathspec = OsString::from(":(literal)");
@@ -2963,19 +2978,31 @@ impl Git {
                     if staged_deleted_set.contains(&path) {
                         // A path the stash recorded as deleted from the worktree was
                         // checked out from the index while steps ran. A step that
-                        // staged its deletion left that checkout on disk.
+                        // staged its deletion left that checkout on disk, unless it
+                        // wrote something else there, which stays.
                         if matches!(changes.entry(&path), StashedEntry::Deleted)
-                            && let Err(err) = restore_stashed_path(
-                                &stash_ref,
-                                path.as_os_str(),
-                                StashedEntry::Deleted,
-                            )
+                            && std::fs::symlink_metadata(&path).is_ok()
                         {
-                            warn!(
-                                "failed to remove {} after its deletion was staged: {err:?}",
-                                display_path(&path)
-                            );
-                            restoration_failed = true;
+                            if checkout_matches_stash_index(&stash_ref, &path) {
+                                if let Err(err) = restore_stashed_path(
+                                    &stash_ref,
+                                    path.as_os_str(),
+                                    StashedEntry::Deleted,
+                                ) {
+                                    warn!(
+                                        "failed to remove {} after its deletion was staged: {err:?}",
+                                        display_path(&path)
+                                    );
+                                    restoration_failed = true;
+                                }
+                            } else {
+                                keep_step_output(
+                                    &mut not_restored,
+                                    &path,
+                                    "wrote new contents to {} after staging its deletion",
+                                );
+                                restoration_failed = true;
+                            }
                         }
                         debug!(
                             "manual-unstash: skipping staged-deleted path={}",
