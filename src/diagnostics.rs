@@ -457,6 +457,10 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
     ))
     .expect("valid summary regex");
 
+    // A column-less "path" that is a URL or starts a comment is source text.
+    let is_source_text =
+        |path: &str| path.contains("://") || path.starts_with("//") || path.starts_with("/*");
+
     let locate = |line: &str| -> Option<Diagnostic> {
         let line = match tool_prefix.captures(line) {
             Some(prefix) => &line[prefix.get(1).map_or(0, |m| m.start())..],
@@ -473,8 +477,7 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
                 c.get(6),
             )
         } else if let Some(c) = without_column.captures(line) {
-            let path = &c[1];
-            if path.contains("://") || path.starts_with("//") || path.starts_with("/*") {
+            if is_source_text(&c[1]) {
                 return None;
             }
             (
@@ -487,6 +490,9 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
             )
         } else {
             let c = spelling.captures(line)?;
+            if is_source_text(&c[1]) {
+                return None;
+            }
             (
                 c[1].to_string(),
                 c[2].to_string(),
@@ -842,6 +848,14 @@ mod tests {
         assert_eq!(
             parsed.diagnostics[0].message,
             "bad\n    x = f(a:1: b ==> c);\nsee note:12: text"
+        );
+        // Comments and URLs with the arrow stay source text too, as for other column-less lines.
+        let output = "a.c:1:3: error: bad\n// see a b.c:1: x ==> y\n/* a b.c:2: x ==> y */\nhttp://x y:80: a ==> b\n";
+        let parsed = gcc(output);
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert_eq!(
+            parsed.diagnostics[0].message,
+            "bad\n// see a b.c:1: x ==> y\n/* a b.c:2: x ==> y */\nhttp://x y:80: a ==> b"
         );
     }
 
