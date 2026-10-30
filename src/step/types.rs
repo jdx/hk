@@ -428,6 +428,14 @@ pub enum DiagnosticFormat {
     CargoJson,
     EslintJson,
     Gcc,
+    GccParen,
+    Rustc,
+    Rustfmt,
+    Stylish,
+    Tsc,
+    Shellcheck,
+    Pyright,
+    Biome,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

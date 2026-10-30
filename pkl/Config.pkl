@@ -32,7 +32,19 @@ class Command {
 }
 
 typealias CommandEffect = "read" | "write" | "destructive"
-typealias DiagnosticFormat = "sarif" | "cargo-json" | "eslint-json" | "gcc"
+typealias DiagnosticFormat =
+  "sarif"
+    | "cargo-json"
+    | "eslint-json"
+    | "gcc"
+    | "gcc-paren"
+    | "rustc"
+    | "rustfmt"
+    | "stylish"
+    | "tsc"
+    | "shellcheck"
+    | "pyright"
+    | "biome"
 
 /// A command paired with its declared effect on user or project state.
 /// Commands that do not use CommandSpec remain valid and have an unknown effect.
@@ -1040,9 +1052,18 @@ open class Step {
   /// the command must print one of these formats itself:
   ///
   /// - `gcc`: `path:line:column: [severity:] message [rule]` lines
+  /// - `gcc-paren`: `path:line:column: message (rule)` lines, as golangci-lint and staticcheck print
   /// - `sarif`: a SARIF 2.1.0 log
   /// - `eslint-json`: the output of `eslint --format json`
   /// - `cargo-json`: the output of `cargo check --message-format=json`
+  /// - `rustc`: rustc's default output (`error[E0308]: message` then ` --> path:line:column`), as
+  ///   cargo, clippy, ty and ruff print
+  /// - `rustfmt`: the `Diff in path:line:` hunks that `rustfmt --check` and `cargo fmt --check` print
+  /// - `stylish`: ESLint's default `stylish` output, which stylelint and yamllint also print
+  /// - `tsc`: `path(line,column): error TS2322: message` lines
+  /// - `shellcheck`: ShellCheck's default `In path line N:` blocks
+  /// - `pyright`: pyright's default `path:line:column - error: message (rule)` lines
+  /// - `biome`: Biome's default `path:line:column category ━━━` blocks
   ///
   /// When the step sets `dir` (including `dir = "{{workspace}}"`), the tool prints paths relative
   /// to that directory. hk rebases them onto the repository root, so SARIF, JSON and MCP

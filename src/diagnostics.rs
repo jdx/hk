@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
 
+mod text;
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
@@ -73,6 +75,10 @@ pub fn parse_with_default(
     output: &str,
     default_severity: Option<Severity>,
 ) -> ParseResult {
+    // Text formats can arrive colored (cargo_check forces color when hk's output has it);
+    // escapes would hide the shapes the parsers look for.
+    let plain = console::strip_ansi_codes(output);
+    let text = plain.as_ref();
     let mut result = match format {
         DiagnosticFormat::Sarif => parse_sarif(step, tool, output),
         DiagnosticFormat::CargoJson => parse_cargo(step, tool, output),
@@ -82,7 +88,22 @@ pub fn parse_with_default(
             tool,
             output,
             default_severity.unwrap_or(Severity::Error),
+            RuleStyle::Brackets,
         ),
+        DiagnosticFormat::GccParen => parse_gcc(
+            step,
+            tool,
+            text,
+            default_severity.unwrap_or(Severity::Error),
+            RuleStyle::Parentheses,
+        ),
+        DiagnosticFormat::Rustc => text::parse_rustc(step, tool, text),
+        DiagnosticFormat::Rustfmt => text::parse_rustfmt(step, tool, text),
+        DiagnosticFormat::Stylish => text::parse_stylish(step, tool, text),
+        DiagnosticFormat::Tsc => text::parse_tsc(step, tool, text),
+        DiagnosticFormat::Shellcheck => text::parse_shellcheck(step, tool, text),
+        DiagnosticFormat::Pyright => text::parse_pyright(step, tool, text),
+        DiagnosticFormat::Biome => text::parse_biome(step, tool, text),
     };
     let mut seen = IndexSet::new();
     result
@@ -379,6 +400,16 @@ fn parse_eslint(step: &str, tool: &str, output: &str) -> ParseResult {
     parsed
 }
 
+/// Where a `gcc`-style line puts its rule.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuleStyle {
+    /// `message [rule]`, as gcc, mypy and flake8 print.
+    Brackets,
+    /// `message (rule)`, as golangci-lint and staticcheck print. The lines below such a finding
+    /// are a source excerpt, not more of the message, so they are not appended to it.
+    Parentheses,
+}
+
 /// Parses `path:line[:column]: [severity:] message [rule]` lines.
 ///
 /// Beyond the classic GCC shape, this is deliberately tolerant of the way other
@@ -391,11 +422,22 @@ fn parse_eslint(step: &str, tool: &str, output: &str) -> ParseResult {
 ///   `path:1: : # package`, as golangci-lint prints) are skipped, but not
 ///   preprocessor lines such as `#define X`;
 /// - a message continues over the following lines only until a blank line or a
-///   recognizable summary line, so trailing summaries never reach the last finding.
-fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -> ParseResult {
-    const RULE: &str = r"(?:\s+\[([^\]]+)\](?:\s+\[\d+\])?)?$";
+///   recognizable summary line, so trailing summaries never reach the last finding;
+/// - with [`RuleStyle::Parentheses`], the rule is a trailing `(rule)` and following lines
+///   never continue the message.
+fn parse_gcc(
+    step: &str,
+    tool: &str,
+    output: &str,
+    default_severity: Severity,
+    style: RuleStyle,
+) -> ParseResult {
+    let rule_pattern = match style {
+        RuleStyle::Brackets => r"(?:\s+\[([^\]]+)\](?:\s+\[\d+\])?)?$",
+        RuleStyle::Parentheses => r"(?:\s+\(([\w./:-]+)\))?$",
+    };
     let with_column = regex::Regex::new(&format!(
-        r"^(.*?):(\d+):(\d+):\s*(?:(error|warning|note|help):\s*)?(.*?){RULE}"
+        r"^(.*?):(\d+):(\d+):\s*(?:(error|warning|note|help):\s*)?(.*?){rule_pattern}"
     ))
     .expect("valid GCC diagnostic regex");
     // Without a column the finding is easy to confuse with source text that clang-format
@@ -403,7 +445,7 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
     // which also keeps indented sub-locations continuation lines), must not be a URL
     // (`http://x:80: y`), and must not start a comment (`//note:12: text`).
     let without_column = regex::Regex::new(&format!(
-        r"^(\S+?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){RULE}"
+        r"^(\S+?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){rule_pattern}"
     ))
     .expect("valid column-less diagnostic regex");
     // `diagnostic_severity` applies only to findings shaped `rule-name: message`; any other
@@ -527,7 +569,7 @@ fn parse_gcc(step: &str, tool: &str, output: &str, default_severity: Severity) -
             open = true;
         } else if is_header(line) || summary.is_match(line) {
             open = false;
-        } else if open {
+        } else if open && style == RuleStyle::Brackets {
             if let Some(previous) = parsed.diagnostics.last_mut() {
                 previous.message.push('\n');
                 previous.message.push_str(line);
