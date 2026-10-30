@@ -103,8 +103,12 @@ PKL
     rm tracked.txt
 
     run hk run pre-commit --check
+    assert_failure
 
     assert_equal "$(cat tracked.txt)" "step-output"
+    # hk keeps the stash entry because it did not restore everything
+    run git for-each-ref refs/hk/stash
+    assert_output --partial "refs/hk/stash/"
 }
 
 @test "pre-commit: a step that stages the deletion of a symlink leaves no checkout behind" {
