@@ -18,6 +18,8 @@ cargo_fmt = new Config.Step {
     command = "cargo fmt --check --manifest-path {{workspace_indicator}}"
     effect = "read"
   }
+  // Each `Diff in path:line:` hunk becomes a warning whose message is the diff
+  diagnostic_format = "rustfmt"
   check_list_files = new Config.CommandSpec {
     command = "cargo fmt --check --manifest-path {{workspace_indicator}} -- --files-with-diff"
     effect = "read"
@@ -62,5 +64,16 @@ cargo_fmt = new Config.Step {
       }
       expect { code = 1 }
     }
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        before,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "src/main.rs"
+          line = 1
+          severity = "warning"
+          message = "+fn main() {}"
+        }),
+      )
   }
 }

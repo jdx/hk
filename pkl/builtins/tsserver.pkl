@@ -12,4 +12,6 @@ tsserver = new Config.Step {
     command = new Config.Command { argv = List("tsc-files", "--noEmit", "{{files}}") }
     effect = "write"
   }
+  // tsc-files passes tsc's `path(line,col): error TS2322: message` output through
+  diagnostic_format = "tsc"
 }

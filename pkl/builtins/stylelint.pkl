@@ -16,6 +16,8 @@ stylelint = new Config.Step {
     command = new Config.Command { argv = List("stylelint", "{{files}}") }
     effect = "read"
   }
+  // The default `string` formatter prints the same rows as ESLint's `stylish`
+  diagnostic_format = "stylish"
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("stylelint", "--fix", "{{files}}") }
     effect = "write"
@@ -45,6 +47,18 @@ stylelint = new Config.Step {
         "a { overflow: overlay; }\n\n@media tty {}\n",
         "a { overflow: auto; }\n\n@media tty {}\n",
         2,
+      )
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "a { overflow: overlay; }\n",
+        2,
+        List(new Config.StepTestDiagnostic {
+          path = "test.css"
+          line = 1
+          column = 15
+          severity = "error"
+          rule = "declaration-property-value-keyword-no-deprecated"
+        }),
       )
   }
 }

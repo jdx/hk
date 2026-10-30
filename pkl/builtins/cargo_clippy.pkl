@@ -16,6 +16,8 @@ cargo_clippy = new Config.Step {
     command = "cargo clippy --manifest-path {{workspace_indicator}} --quiet"
     effect = "write"
   }
+  // rustc's `warning: message` / ` --> path:line:col` output; the lint is the rule
+  diagnostic_format = "rustc"
   fix = new Config.CommandSpec {
     command =
       "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"

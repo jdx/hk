@@ -28,6 +28,8 @@ eslint = new Config.Step {
     command = new Config.Command { argv = List("eslint", "{{files}}") }
     effect = "read"
   }
+  // The default `stylish` formatter: a path line, then `  line:col  severity  message  rule` rows
+  diagnostic_format = "stylish"
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("eslint", "--fix", "{{files}}") }
     effect = "write"

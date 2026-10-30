@@ -22,6 +22,8 @@ ruff = new Config.Step {
   // check runs too: remaining issues fail without a patch, and hk runs the
   // fixer, which reports them. After a patch applies, `check_after_diff`
   // reports what it left.
+  // ruff 0.12 and later print `F401 [*] message` / ` --> path:line:col`, the same shape as rustc's
+  diagnostic_format = "rustc"
   check_diff = new Config.CommandSpec {
     command =
       "ruff check --force-exclude --diff --exit-non-zero-on-fix {{ files }} && ruff check --force-exclude {{ files }}"
@@ -52,5 +54,18 @@ ruff = new Config.Step {
     ["fix respects config exclude"] = testMaker.withFilename("excluded.py").fixPass(before, before)
     ["diff respects config exclude"] =
       testMaker.withFilename("excluded.py").diffPass(before, before)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        before,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.py"
+          line = 1
+          column = 8
+          severity = "error"
+          rule = "F401"
+          message = "`sys` imported but unused"
+        }),
+      )
   }
 }

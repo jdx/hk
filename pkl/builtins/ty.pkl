@@ -17,9 +17,22 @@ ty = new Config.Step {
     command = new Config.Command { argv = List("ty", "check", "{{files}}") }
     effect = "write"
   }
+  // `error[invalid-assignment]: message` / ` --> path:line:col`, the same shape as rustc's
+  diagnostic_format = "rustc"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.py" }
     ["check bad file"] = testMaker.checkFail("x: int = ''", 1)
     ["check good file"] = testMaker.checkPass("x: str = ''")
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "x: int = ''",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.py"
+          line = 1
+          severity = "error"
+          rule = "invalid-assignment"
+        }),
+      )
   }
 }

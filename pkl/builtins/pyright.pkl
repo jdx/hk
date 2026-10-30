@@ -17,12 +17,24 @@ pyright = new Config.Step {
     // The CLI keeps no cache on disk, unlike mypy and ty
     effect = "read"
   }
-  // No diagnostic_format: findings are `  path:line:col - error: message (rule)`, which the gcc
-  // parser does not read
+  // Findings are `  path:line:col - error: message`, with the `(rule)` after the last line of the message
+  diagnostic_format = "pyright"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.py" }
     ["check bad file"] = testMaker.checkFail("x: int = ''", 1)
     ["check good file"] = testMaker.checkPass("x: str = ''")
     ["check bad pyw file"] = testMaker.withFilename("test.pyw").checkFail("x: int = ''", 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "x: int = ''",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.py"
+          line = 1
+          column = 10
+          severity = "error"
+          rule = "reportAssignmentType"
+        }),
+      )
   }
 }

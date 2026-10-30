@@ -15,6 +15,8 @@ rustfmt = new Config.Step {
     }
     effect = "read"
   }
+  // Each `Diff in path:line:` hunk becomes a warning whose message is the diff
+  diagnostic_format = "rustfmt"
   check_list_files = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("rustfmt", "--check", "--edition", "2024", "--files-with-diff", "{{files}}")
@@ -35,5 +37,16 @@ rustfmt = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        before,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.rs"
+          line = 1
+          severity = "warning"
+          message = "+fn main() {}"
+        }),
+      )
   }
 }
