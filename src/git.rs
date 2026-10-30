@@ -4721,6 +4721,21 @@ mod tests {
     }
 
     #[test]
+    fn test_has_unstaged_changes_counts_deletions() {
+        let mut status = GitStatus::default();
+        for include_untracked in [false, true] {
+            assert!(!status.has_unstaged_changes(include_untracked));
+        }
+        status.unstaged_deleted_files.insert("deleted.txt".into());
+        for include_untracked in [false, true] {
+            assert!(status.has_unstaged_changes(include_untracked));
+        }
+        assert!(status.unstaged_files.is_empty());
+        assert!(status.staged_files.is_empty());
+        assert!(status.modified_files.is_empty());
+    }
+
+    #[test]
     fn test_porcelain_status_intent_to_add_replacing_a_committed_file() {
         // `git rm --cached a.txt`, then `git add -N a.txt`: the index drops
         // the committed entry, and the worktree adds the new one
