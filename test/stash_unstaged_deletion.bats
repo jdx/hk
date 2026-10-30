@@ -19,7 +19,7 @@ hooks {
     fix = false
     steps {
       ["assert-index-file-present"] {
-        check = "test -f tracked.txt"
+        check = "test -f tracked.txt && grep -qx baseline extra.txt"
       }
     }
   }
@@ -66,7 +66,8 @@ PKL
 
 @test "pre-commit: a failing hook still keeps the unstaged deletion" {
     _write_config
-    sed -i 's|check = "test -f tracked.txt"|check = "test -f tracked.txt \&\& touch .git/seen-tracked; false"|' hk.pkl
+    sed -i.bak 's|check = "\(.*\)"|check = "\1 \&\& touch .git/seen-tracked; false"|' hk.pkl
+    rm hk.pkl.bak
     rm tracked.txt
 
     run hk run pre-commit --check
@@ -77,4 +78,19 @@ PKL
     assert_file_not_exists tracked.txt
     run git status --porcelain
     assert_output --partial " D tracked.txt"
+}
+
+@test "pre-commit: a step that stages the deletion leaves no checkout behind" {
+    _write_config
+    sed -i.bak 's|check = "\(.*\)"|check = "\1 \&\& git rm -q --cached tracked.txt"|' hk.pkl
+    rm hk.pkl.bak
+    rm tracked.txt
+
+    run hk run pre-commit --check
+    assert_success
+
+    assert_file_not_exists tracked.txt
+    run git status --porcelain
+    assert_output --partial "D  tracked.txt"
+    refute_output --partial "?? tracked.txt"
 }

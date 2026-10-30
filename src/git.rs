@@ -2172,8 +2172,10 @@ impl Git {
             stdin.extend_from_slice(p.as_os_str().as_encoded_bytes());
             stdin.push(0);
         }
-        // Record the worktree contents, which `git add` would clean
-        git_cmd(["update-index", "--add", "-z", "--stdin"])
+        // Record the worktree contents, which `git add` would clean. A path
+        // with no file there, such as one staged as added and then deleted,
+        // is recorded as deleted.
+        git_cmd(["update-index", "--add", "--remove", "-z", "--stdin"])
             .env("GIT_INDEX_FILE", &tmp_index)
             .stdin_bytes(stdin)
             .run()
@@ -2959,6 +2961,22 @@ impl Git {
                     // intentionally removed it — do not restore the tracked worktree blob.
                     // (Untracked variants — `git rm --cached` — are handled above.)
                     if staged_deleted_set.contains(&path) {
+                        // A path the stash recorded as deleted from the worktree was
+                        // checked out from the index while steps ran. A step that
+                        // staged its deletion left that checkout on disk.
+                        if matches!(changes.entry(&path), StashedEntry::Deleted)
+                            && let Err(err) = restore_stashed_path(
+                                &stash_ref,
+                                path.as_os_str(),
+                                StashedEntry::Deleted,
+                            )
+                        {
+                            warn!(
+                                "failed to remove {} after its deletion was staged: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
+                        }
                         debug!(
                             "manual-unstash: skipping staged-deleted path={}",
                             display_path(&path)
