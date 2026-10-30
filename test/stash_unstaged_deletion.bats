@@ -139,6 +139,9 @@ PKL
     rm tracked.txt
 
     run hk run pre-commit --check
+    assert_failure
 
     assert_link_exists tracked.txt
+    run git for-each-ref refs/hk/stash
+    assert_output --partial "refs/hk/stash/"
 }
