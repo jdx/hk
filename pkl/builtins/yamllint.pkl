@@ -13,25 +13,13 @@ yamllint = new Config.Step {
     command = new Config.Command { argv = List("yamllint", "--strict", "{{files}}") }
     effect = "read"
   }
-  // Off a terminal yamllint prints a path line, then `  line:col  level  message  (rule)` rows
-  diagnostic_format = "stylish"
+  // No diagnostic_format: yamllint prints `stylish` rows, but GitHub annotations under GitHub
+  // Actions, so its default output depends on where it runs
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.yaml" }
     ["check good file"] = testMaker.checkPass("---\nx: 1\n")
     ["check warning file"] = testMaker.checkFail("x: 1\n", 2)
     ["check error file"] = testMaker.checkFail("---\nx: 1\nx: 2\n", 1)
     ["check warning+error file"] = testMaker.checkFail("x: 1\nx: 2\n", 1)
-    ["check error file reports diagnostics"] =
-      testMaker.checkDiagnostics(
-        "---\nx: 1\nx: 2\n",
-        1,
-        List(new Config.StepTestDiagnostic {
-          path = "test.yaml"
-          line = 3
-          column = 1
-          severity = "error"
-          rule = "key-duplicates"
-        }),
-      )
   }
 }

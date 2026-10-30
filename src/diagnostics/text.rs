@@ -2,9 +2,10 @@
 //!
 //! Builtins don't add flags that change what a tool prints, so these read each tool's default
 //! output. Each parser recognizes the lines that start or locate a finding and ignores the rest
-//! (source snippets, fix suggestions, summaries). Like the `gcc` parser, unrecognized lines become
-//! parse warnings only while no finding has been read, so a tool that printed something else
-//! entirely is reported without flooding the warnings with snippet lines.
+//! (source snippets, fix suggestions, summaries). Unrecognized lines become parse warnings only
+//! when no finding was read at all ([`finish`]), so a tool that printed something else entirely,
+//! such as a crash or a configuration error, is reported without flooding the warnings with
+//! snippet lines. A tool's success summary is not a warning.
 
 use super::{Diagnostic, ParseResult, Position, Range, Severity};
 use regex::Regex;
@@ -40,13 +41,51 @@ fn number(value: &str) -> u64 {
     value.parse().unwrap_or(1)
 }
 
-/// Records `line` as a parse warning if nothing has been parsed yet.
+/// How many unrecognized lines one parse reports.
+const MAX_WARNINGS: usize = 20;
+
+/// Records `line` as a parse warning; [`finish`] keeps them only when no finding was read.
 fn unrecognized(parsed: &mut ParseResult, format: &str, line: &str) {
-    if parsed.diagnostics.is_empty() && !line.trim().is_empty() {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || success_summary(trimmed) {
+        return;
+    }
+    if parsed.warnings.len() < MAX_WARNINGS {
         parsed
             .warnings
             .push(format!("unrecognized {format} diagnostic: {line}"));
+    } else if parsed.warnings.len() == MAX_WARNINGS {
+        parsed
+            .warnings
+            .push(format!("more unrecognized {format} output left out"));
     }
+}
+
+/// What these tools print when they found nothing.
+fn success_summary(line: &str) -> bool {
+    static SUCCESS: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(concat!(
+            r"^(?:All checks passed!?",
+            r"|Checked \d+ files? in .*",
+            r"|Found 0 \w+.*",
+            r"|0 errors?, 0 warnings?, 0 informations?",
+            r"|No fixes applied\.?",
+            r"|No configuration file found\.?",
+            r"|Success: .*",
+            r")$"
+        ))
+        .expect("valid success regex")
+    });
+    SUCCESS.is_match(line)
+}
+
+/// Drops the parse warnings once any finding was read: the unrecognized lines were then the
+/// excerpts and summaries around it.
+pub(super) fn finish(mut parsed: ParseResult) -> ParseResult {
+    if !parsed.diagnostics.is_empty() {
+        parsed.warnings.clear();
+    }
+    parsed
 }
 
 fn level(value: &str) -> Severity {
@@ -159,6 +198,7 @@ pub(super) fn parse_rustfmt(step: &str, tool: &str, output: &str) -> ParseResult
             }
         } else {
             open = false;
+            unrecognized(&mut parsed, "rustfmt", line);
         }
     }
     for diagnostic in &mut parsed.diagnostics {
@@ -205,7 +245,9 @@ pub(super) fn parse_stylish(step: &str, tool: &str, output: &str) -> ParseResult
         } else if !line.starts_with(char::is_whitespace)
             && !line.starts_with(['✖', '⚠', '×', '✔', '!'])
         {
+            // A file line, or an error the tool printed instead of findings.
             file = Some(line.trim_end().to_string());
+            unrecognized(&mut parsed, "stylish", line);
         } else {
             unrecognized(&mut parsed, "stylish", line);
         }
@@ -290,6 +332,8 @@ pub(super) fn parse_shellcheck(step: &str, tool: &str, output: &str) -> ParseRes
             parsed.diagnostics.push(diagnostic);
         } else if let Some((_, _, source @ None)) = &mut current {
             *source = Some(line.to_string());
+        } else if current.is_none() {
+            unrecognized(&mut parsed, "shellcheck", line);
         }
     }
     parsed
@@ -322,6 +366,7 @@ pub(super) fn parse_pyright(step: &str, tool: &str, output: &str) -> ParseResult
             }
         } else {
             open = false;
+            unrecognized(&mut parsed, "pyright", line);
         }
     }
     for diagnostic in &mut parsed.diagnostics {
@@ -338,7 +383,8 @@ pub(super) fn parse_pyright(step: &str, tool: &str, output: &str) -> ParseResult
 /// no position for whole-file findings such as `format`), then the message after a `×`, `!` or
 /// `i` marker that gives its severity.
 pub(super) fn parse_biome(step: &str, tool: &str, output: &str) -> ParseResult {
-    let header = Regex::new(r"^(\S+?)(?::(\d+):(\d+))? ([^\s━]+)(?:\s+[A-Z]+)*\s+━{3,}$")
+    // The path may hold spaces: the category is the last word before the flags and the rule.
+    let header = Regex::new(r"^(\S.*?)(?::(\d+):(\d+))? ([^\s━]+)(?:\s+[A-Z]+)*\s+━{3,}$")
         .expect("valid biome header regex");
     let message = Regex::new(r"^\s+([×✖!⚠iℹ]) (.+)$").expect("valid biome message regex");
     let mut parsed = ParseResult::default();
@@ -367,6 +413,8 @@ pub(super) fn parse_biome(step: &str, tool: &str, output: &str) -> ParseResult {
                 last.message = c[2].trim_end().to_string();
             }
             awaiting = false;
+        } else if !line.starts_with(char::is_whitespace) {
+            unrecognized(&mut parsed, "biome", line);
         }
     }
     for diagnostic in &mut parsed.diagnostics {
@@ -640,6 +688,72 @@ Found 2 errors.
         assert_eq!(format.path.as_deref(), Some("t.js"));
         assert_eq!(format.range, None);
         assert_eq!(format.rule.as_deref(), Some("format"));
+    }
+
+    #[test]
+    fn unreadable_output_is_a_warning_and_success_is_not() {
+        for format in [
+            DiagnosticFormat::Rustc,
+            DiagnosticFormat::Rustfmt,
+            DiagnosticFormat::Stylish,
+            DiagnosticFormat::Tsc,
+            DiagnosticFormat::Shellcheck,
+            DiagnosticFormat::Pyright,
+            DiagnosticFormat::Biome,
+        ] {
+            let parsed = parse(format, "s", "t", "Segmentation fault (core dumped)\n");
+            assert!(parsed.diagnostics.is_empty(), "{format:?}");
+            assert_eq!(
+                parsed.warnings.len(),
+                1,
+                "{format:?}: {:?}",
+                parsed.warnings
+            );
+        }
+        for (format, success) in [
+            (DiagnosticFormat::Rustc, "All checks passed!\n"),
+            (
+                DiagnosticFormat::Pyright,
+                "0 errors, 0 warnings, 0 informations \n",
+            ),
+            (
+                DiagnosticFormat::Biome,
+                "Checked 1 file in 3ms. No fixes applied.\n",
+            ),
+            (DiagnosticFormat::Tsc, "Found 0 errors.\n"),
+        ] {
+            let parsed = parse(format, "s", "t", success);
+            assert!(
+                parsed.warnings.is_empty(),
+                "{format:?}: {:?}",
+                parsed.warnings
+            );
+        }
+        // An ESLint configuration error prints only unindented lines.
+        let parsed = parse(
+            DiagnosticFormat::Stylish,
+            "eslint",
+            "eslint",
+            "Oops! Something went wrong! :(\nESLint couldn't find an eslint.config.js file.\n",
+        );
+        assert_eq!(parsed.warnings.len(), 2, "{:?}", parsed.warnings);
+    }
+
+    #[test]
+    fn biome_reads_paths_with_spaces() {
+        let output = "src/my file.ts:2:1 lint/suspicious/noDebugger  FIXABLE  ━━━━━━━━━━\n\n  × This is an unexpected use of the debugger statement.\n\nsrc/my file.ts format ━━━━━━━━━━\n\n  × File content differs from formatting output\n";
+        let parsed = parse(DiagnosticFormat::Biome, "biome", "biome", output);
+        assert_eq!(parsed.diagnostics.len(), 2);
+        assert_eq!(
+            located(&parsed.diagnostics[0]),
+            (Some("src/my file.ts"), 2, 1)
+        );
+        assert_eq!(
+            parsed.diagnostics[1].path.as_deref(),
+            Some("src/my file.ts")
+        );
+        assert_eq!(parsed.diagnostics[1].rule.as_deref(), Some("format"));
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
     }
 
     #[test]

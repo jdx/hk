@@ -97,13 +97,13 @@ pub fn parse_with_default(
             default_severity.unwrap_or(Severity::Error),
             RuleStyle::Parentheses,
         ),
-        DiagnosticFormat::Rustc => text::parse_rustc(step, tool, text),
-        DiagnosticFormat::Rustfmt => text::parse_rustfmt(step, tool, text),
-        DiagnosticFormat::Stylish => text::parse_stylish(step, tool, text),
-        DiagnosticFormat::Tsc => text::parse_tsc(step, tool, text),
-        DiagnosticFormat::Shellcheck => text::parse_shellcheck(step, tool, text),
-        DiagnosticFormat::Pyright => text::parse_pyright(step, tool, text),
-        DiagnosticFormat::Biome => text::parse_biome(step, tool, text),
+        DiagnosticFormat::Rustc => text::finish(text::parse_rustc(step, tool, text)),
+        DiagnosticFormat::Rustfmt => text::finish(text::parse_rustfmt(step, tool, text)),
+        DiagnosticFormat::Stylish => text::finish(text::parse_stylish(step, tool, text)),
+        DiagnosticFormat::Tsc => text::finish(text::parse_tsc(step, tool, text)),
+        DiagnosticFormat::Shellcheck => text::finish(text::parse_shellcheck(step, tool, text)),
+        DiagnosticFormat::Pyright => text::finish(text::parse_pyright(step, tool, text)),
+        DiagnosticFormat::Biome => text::finish(text::parse_biome(step, tool, text)),
     };
     let mut seen = IndexSet::new();
     result
