@@ -889,15 +889,25 @@ fn worktree_matches_index(path: &std::path::Path) -> bool {
 /// index (`<stash_ref>^2`) has there, which are what hk checked out for the
 /// steps.
 fn checkout_matches_stash_index(stash_ref: &str, path: &std::path::Path) -> bool {
-    let mut object = OsString::from(format!("{stash_ref}^2:"));
-    object.push(path.as_os_str());
-    let Ok(indexed) = git_read([OsString::from("rev-parse"), "--verify".into(), object]) else {
+    // `<mode> blob <oid>\t<path>`
+    let Ok(entry) = git_read([
+        OsString::from("ls-tree"),
+        format!("{stash_ref}^2").into(),
+        "--".into(),
+        literal_pathspec(path),
+    ]) else {
         return false;
     };
-    let indexed = indexed.trim();
-    // A symlink is stored as its target, not the contents it points to
-    if std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
-        return symlink_target_matches(path, indexed);
+    let mut fields = entry.split(['\t', ' ']);
+    let (Some(mode), Some(_), Some(indexed)) = (fields.next(), fields.next(), fields.next()) else {
+        return false;
+    };
+    let is_symlink =
+        std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink());
+    // A symlink is stored as its target, not the contents it points to, and
+    // only matches an entry that is a symlink too
+    if is_symlink || mode == "120000" {
+        return is_symlink && mode == "120000" && symlink_target_matches(path, indexed);
     }
     git_read([OsString::from("hash-object"), "--".into(), path.into()])
         .is_ok_and(|current| current.trim() == indexed)

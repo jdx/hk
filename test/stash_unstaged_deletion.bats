@@ -124,3 +124,17 @@ PKL
     assert_output --partial "D  link.txt"
     refute_output --partial "?? link.txt"
 }
+
+@test "pre-commit: a step that replaces a deleted file with a symlink keeps the symlink" {
+    _write_config
+    printf 'other.txt' > tracked.txt
+    git add tracked.txt
+    git commit -m "tracked file holds a link target"
+    sed -i.bak 's|check = "\(.*\)"|check = "\1 \&\& git rm -q --cached tracked.txt \&\& rm tracked.txt \&\& ln -s other.txt tracked.txt"|' hk.pkl
+    rm hk.pkl.bak
+    rm tracked.txt
+
+    run hk run pre-commit --check
+
+    assert_link_exists tracked.txt
+}
