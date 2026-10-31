@@ -26,6 +26,8 @@ shellcheck = new Config.Step {
   // `check` once hk has applied the patch, so a file with both a fixable and a
   // non-fixable finding is fixed and still fails on what is left, rather than
   // being masked by the clean apply.
+  // The default `tty` format: `In path line N:`, the source line, then a `^-- SC2086 (info): message` marker
+  diagnostic_format = "shellcheck"
   check_diff = new Config.CommandSpec {
     command = new Config.Command { argv = List("shellcheck", "--format=diff", "{{files}}") }
     effect = "read"
@@ -36,6 +38,18 @@ shellcheck = new Config.Step {
       filename = "test.sh"
     }
     ["check bad file"] = testMaker.checkFail("#!/usr/bin/bash\necho 'oops I'm escaped'", 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "#!/usr/bin/bash\necho $1\n",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.sh"
+          line = 2
+          column = 6
+          severity = "note"
+          rule = "SC2086"
+        }),
+      )
     ["check good file"] = testMaker.checkPass("#!/usr/bin/bash\necho 'oops I'\\''m escaped'\n")
     local const extensionlessTestMaker = new helpers.TestMaker {
       filename = "script"

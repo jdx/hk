@@ -13,6 +13,8 @@ yamllint = new Config.Step {
     command = new Config.Command { argv = List("yamllint", "--strict", "{{files}}") }
     effect = "read"
   }
+  // No diagnostic_format: yamllint prints `stylish` rows, but GitHub annotations under GitHub
+  // Actions, so its default output depends on where it runs
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.yaml" }
     ["check good file"] = testMaker.checkPass("---\nx: 1\n")

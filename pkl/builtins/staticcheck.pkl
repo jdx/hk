@@ -17,4 +17,6 @@ staticcheck = new Config.Step {
     command = "staticcheck ./..."
     effect = "write"
   }
+  // `path:line:col: message (SA4006)`
+  diagnostic_format = "gcc-paren"
 }

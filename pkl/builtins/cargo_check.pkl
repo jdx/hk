@@ -13,6 +13,8 @@ cargo_check = new Config.Step {
     command = "cargo check --quiet"
     effect = "write"
   }
+  // rustc's `error[E0425]: message` / ` --> path:line:col` output
+  diagnostic_format = "rustc"
   fix = new Config.CommandSpec {
     command = "cargo fix --allow-dirty --allow-staged --quiet"
     effect = "write"
@@ -49,5 +51,18 @@ cargo_check = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(fixBefore, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        checkBefore,
+        101,
+        List(new Config.StepTestDiagnostic {
+          path = "src/main.rs"
+          line = 2
+          column = 5
+          severity = "error"
+          rule = "E0425"
+          message = "cannot find function `missing_function`"
+        }),
+      )
   }
 }
