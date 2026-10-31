@@ -216,16 +216,41 @@ pub(super) fn parse_rustfmt(step: &str, tool: &str, output: &str) -> ParseResult
 /// the file, then one `  line:col  severity  message  rule` row per finding, its columns
 /// separated by two or more spaces. stylelint marks severity with `✖`/`⚠`, and yamllint puts
 /// the rule in parentheses.
+///
+/// A message may itself hold two spaces, so a rule-shaped last word is not enough to tell a
+/// rule from the end of a message. ESLint and stylelint pad the message column, so every rule in
+/// a file's rows starts at the same column: a row whose last word starts left of that column has
+/// no rule, and its whole text is the message. yamllint's `(rule)` is unambiguous.
 pub(super) fn parse_stylish(step: &str, tool: &str, output: &str) -> ParseResult {
     let row = Regex::new(r"^\s+(\d+):(\d+)\s+(error|warning|info|✖|⚠|ℹ|×)\s+(.+?)\s*$")
         .expect("valid stylish row regex");
-    // The rule column: an ESLint or stylelint rule name (`no-unused-vars`, `react/jsx-key`,
-    // `@typescript-eslint/no-explicit-any`) or yamllint's `(rule)`, after two or more spaces.
-    let rule_column =
-        Regex::new(r"^(.*?)\s{2,}(\(?@?[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*\)?)$")
-            .expect("valid rule column regex");
+    // A rule-shaped last column: an ESLint or stylelint rule name (`no-unused-vars`,
+    // `react/jsx-key`, `@typescript-eslint/no-explicit-any`) or `(rule)`.
+    let rule_column = Regex::new(r"\s{2,}(\(?@?[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*\)?)$")
+        .expect("valid rule column regex");
     let mut parsed = ParseResult::default();
     let mut file: Option<String> = None;
+    // The current file's rows: the finding with its whole text as the message, and where a
+    // rule-shaped last column starts in the line, if there is one.
+    let mut rows: Vec<(Diagnostic, Option<(usize, usize)>)> = Vec::new();
+    let flush = |rows: &mut Vec<(Diagnostic, Option<(usize, usize)>)>, parsed: &mut ParseResult| {
+        let column = rows.iter().filter_map(|(_, r)| r.map(|(at, _)| at)).max();
+        for (mut diagnostic, rule) in rows.drain(..) {
+            if let Some((at, cut)) = rule {
+                let word = diagnostic.message[cut..].trim_start().to_string();
+                let parenthesized = word.starts_with('(') && word.ends_with(')');
+                if parenthesized || Some(at) == column {
+                    diagnostic.rule = Some(
+                        word.trim_start_matches('(')
+                            .trim_end_matches(')')
+                            .to_string(),
+                    );
+                    diagnostic.message.truncate(cut);
+                }
+            }
+            parsed.diagnostics.push(diagnostic);
+        }
+    };
     for line in output.lines() {
         if line.trim().is_empty() {
             continue;
@@ -235,38 +260,34 @@ pub(super) fn parse_stylish(step: &str, tool: &str, output: &str) -> ParseResult
                 unrecognized(&mut parsed, "stylish", line);
                 continue;
             };
-            // Without a rule name at the end, the whole text is the message.
-            let (message, rule) = match rule_column.captures(&c[4]) {
-                Some(r) => (
-                    r[1].to_string(),
-                    Some(
-                        r[2].trim_start_matches('(')
-                            .trim_end_matches(')')
-                            .to_string(),
-                    ),
-                ),
-                None => (c[4].to_string(), None),
-            };
-            let mut diagnostic = finding(
+            let text = c.get(4).expect("the row's text");
+            let rule = rule_column.captures(text.as_str()).map(|r| {
+                let word = r.get(1).expect("the rule");
+                // The rule's column in the line, and where the message ends.
+                let at = line[..text.start() + word.start()].chars().count();
+                (at, r.get(0).expect("the match").start())
+            });
+            let diagnostic = finding(
                 step,
                 tool,
                 level(&c[3]),
-                message,
+                text.as_str().to_string(),
                 Some(path),
                 Some((number(&c[1]), number(&c[2]))),
             );
-            diagnostic.rule = rule;
-            parsed.diagnostics.push(diagnostic);
+            rows.push((diagnostic, rule));
         } else if !line.starts_with(char::is_whitespace)
             && !line.starts_with(['✖', '⚠', '×', '✔', '!'])
         {
             // A file line, or an error the tool printed instead of findings.
+            flush(&mut rows, &mut parsed);
             file = Some(line.trim_end().to_string());
             unrecognized(&mut parsed, "stylish", line);
         } else {
             unrecognized(&mut parsed, "stylish", line);
         }
     }
+    flush(&mut rows, &mut parsed);
     parsed
 }
 
@@ -758,6 +779,27 @@ Found 2 errors.
             "Oops! Something went wrong! :(\nESLint couldn't find an eslint.config.js file.\n",
         );
         assert_eq!(parsed.warnings.len(), 2, "{:?}", parsed.warnings);
+    }
+
+    #[test]
+    fn stylish_tells_a_spaced_message_from_a_rule_by_the_rule_column() {
+        // ESLint pads messages so the rules line up; a ruleless row's last word sits left of
+        // that column, even when it is the longest message.
+        let output = "a.js\n  1:5  error  Unexpected  token\n  2:1  error  Missing semicolon  semi\n  3:1  error  Unexpected  token  in the middle of it\n";
+        let parsed = parse(DiagnosticFormat::Stylish, "eslint", "eslint", output);
+        let found: Vec<(&str, Option<&str>)> = parsed
+            .diagnostics
+            .iter()
+            .map(|d| (d.message.as_str(), d.rule.as_deref()))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                ("Unexpected  token", None),
+                ("Missing semicolon", Some("semi")),
+                ("Unexpected  token  in the middle of it", None),
+            ]
+        );
     }
 
     #[test]
