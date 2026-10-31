@@ -83,10 +83,13 @@ fn success_summary(line: &str) -> bool {
 /// excerpts and summaries around it.
 pub(super) fn finish(mut parsed: ParseResult) -> ParseResult {
     if !parsed.diagnostics.is_empty() {
-        parsed.warnings.clear();
+        parsed.warnings.retain(|w| w.starts_with(INCOMPLETE));
     }
     parsed
 }
+
+/// How a warning about a finding cut short starts: kept even when other findings were read.
+const INCOMPLETE: &str = "incomplete ";
 
 fn level(value: &str) -> Severity {
     match value {
@@ -216,7 +219,11 @@ pub(super) fn parse_rustfmt(step: &str, tool: &str, output: &str) -> ParseResult
 pub(super) fn parse_stylish(step: &str, tool: &str, output: &str) -> ParseResult {
     let row = Regex::new(r"^\s+(\d+):(\d+)\s+(error|warning|info|✖|⚠|ℹ|×)\s+(.+?)\s*$")
         .expect("valid stylish row regex");
-    let columns = Regex::new(r"\s{2,}").expect("valid column regex");
+    // The rule column: an ESLint or stylelint rule name (`no-unused-vars`, `react/jsx-key`,
+    // `@typescript-eslint/no-explicit-any`) or yamllint's `(rule)`, after two or more spaces.
+    let rule_column =
+        Regex::new(r"^(.*?)\s{2,}(\(?@?[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*\)?)$")
+            .expect("valid rule column regex");
     let mut parsed = ParseResult::default();
     let mut file: Option<String> = None;
     for line in output.lines() {
@@ -228,19 +235,27 @@ pub(super) fn parse_stylish(step: &str, tool: &str, output: &str) -> ParseResult
                 unrecognized(&mut parsed, "stylish", line);
                 continue;
             };
-            let mut parts: Vec<&str> = columns.split(&c[4]).collect();
-            let rule = if parts.len() > 1 { parts.pop() } else { None };
+            // Without a rule name at the end, the whole text is the message.
+            let (message, rule) = match rule_column.captures(&c[4]) {
+                Some(r) => (
+                    r[1].to_string(),
+                    Some(
+                        r[2].trim_start_matches('(')
+                            .trim_end_matches(')')
+                            .to_string(),
+                    ),
+                ),
+                None => (c[4].to_string(), None),
+            };
             let mut diagnostic = finding(
                 step,
                 tool,
                 level(&c[3]),
-                parts.join("  "),
+                message,
                 Some(path),
                 Some((number(&c[1]), number(&c[2]))),
             );
-            diagnostic.rule = rule
-                .map(|rule| rule.trim_start_matches('(').trim_end_matches(')'))
-                .map(str::to_string);
+            diagnostic.rule = rule;
             parsed.diagnostics.push(diagnostic);
         } else if !line.starts_with(char::is_whitespace)
             && !line.starts_with(['✖', '⚠', '×', '✔', '!'])
@@ -332,7 +347,7 @@ pub(super) fn parse_shellcheck(step: &str, tool: &str, output: &str) -> ParseRes
             parsed.diagnostics.push(diagnostic);
         } else if let Some((_, _, source @ None)) = &mut current {
             *source = Some(line.to_string());
-        } else if current.is_none() {
+        } else {
             unrecognized(&mut parsed, "shellcheck", line);
         }
     }
@@ -388,10 +403,19 @@ pub(super) fn parse_biome(step: &str, tool: &str, output: &str) -> ParseResult {
         .expect("valid biome header regex");
     let message = Regex::new(r"^\s+([×✖!⚠iℹ]) (.+)$").expect("valid biome message regex");
     let mut parsed = ParseResult::default();
-    // True until the latest finding has its message.
-    let mut awaiting = false;
+    // A header waiting for its message, and the header line, which is reported if no message
+    // follows.
+    let mut pending: Option<(Diagnostic, String)> = None;
+    let incomplete = |parsed: &mut ParseResult, header: String| {
+        parsed.warnings.push(format!(
+            "{INCOMPLETE}biome finding with no message: {header}"
+        ));
+    };
     for line in output.lines() {
         if let Some(c) = header.captures(line) {
+            if let Some((_, previous)) = pending.take() {
+                incomplete(&mut parsed, previous);
+            }
             let start = c
                 .get(2)
                 .zip(c.get(3))
@@ -405,22 +429,19 @@ pub(super) fn parse_biome(step: &str, tool: &str, output: &str) -> ParseResult {
                 start,
             );
             diagnostic.rule = Some(c[4].to_string());
+            pending = Some((diagnostic, line.to_string()));
+        } else if let Some(c) = message.captures(line)
+            && let Some((mut diagnostic, _)) = pending.take()
+        {
+            diagnostic.severity = level(&c[1]);
+            diagnostic.message = c[2].trim_end().to_string();
             parsed.diagnostics.push(diagnostic);
-            awaiting = true;
-        } else if awaiting && let Some(c) = message.captures(line) {
-            if let Some(last) = parsed.diagnostics.last_mut() {
-                last.severity = level(&c[1]);
-                last.message = c[2].trim_end().to_string();
-            }
-            awaiting = false;
         } else if !line.starts_with(char::is_whitespace) {
             unrecognized(&mut parsed, "biome", line);
         }
     }
-    for diagnostic in &mut parsed.diagnostics {
-        if diagnostic.message.is_empty() {
-            diagnostic.message = diagnostic.rule.clone().unwrap_or_default();
-        }
+    if let Some((_, header)) = pending {
+        incomplete(&mut parsed, header);
     }
     parsed
 }
@@ -737,6 +758,47 @@ Found 2 errors.
             "Oops! Something went wrong! :(\nESLint couldn't find an eslint.config.js file.\n",
         );
         assert_eq!(parsed.warnings.len(), 2, "{:?}", parsed.warnings);
+    }
+
+    #[test]
+    fn stylish_keeps_spaced_messages_without_a_rule_whole() {
+        let output = "a.js\n  1:5  error  Parsing error:  Unexpected token\n  2:1  error  Unexpected var  @typescript-eslint/no-var-requires\n";
+        let parsed = parse(DiagnosticFormat::Stylish, "eslint", "eslint", output);
+        assert_eq!(
+            parsed.diagnostics[0].message,
+            "Parsing error:  Unexpected token"
+        );
+        assert_eq!(parsed.diagnostics[0].rule, None);
+        assert_eq!(parsed.diagnostics[1].message, "Unexpected var");
+        assert_eq!(
+            parsed.diagnostics[1].rule.as_deref(),
+            Some("@typescript-eslint/no-var-requires")
+        );
+    }
+
+    #[test]
+    fn shellcheck_reports_lines_inside_a_block_it_cannot_read() {
+        let output = "\nIn t.sh line 2:\necho $1\nshellcheck: internal error\n";
+        let parsed = parse(
+            DiagnosticFormat::Shellcheck,
+            "shellcheck",
+            "shellcheck",
+            output,
+        );
+        assert!(parsed.diagnostics.is_empty());
+        assert_eq!(parsed.warnings.len(), 1, "{:?}", parsed.warnings);
+    }
+
+    #[test]
+    fn biome_reports_a_header_with_no_message_instead_of_a_finding() {
+        let output = "a.js:1:1 lint/style/useConst  FIXABLE  ━━━━━━━━━━\n\nb.js:2:1 lint/suspicious/noDebugger  ━━━━━━━━━━\n\n  × This is an unexpected use of the debugger statement.\n\nc.js:3:1 lint/style/useConst  ━━━━━━━━━━\n";
+        let parsed = parse(DiagnosticFormat::Biome, "biome", "biome", output);
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert_eq!(parsed.diagnostics[0].path.as_deref(), Some("b.js"));
+        assert_eq!(parsed.warnings.len(), 2, "{:?}", parsed.warnings);
+        assert!(
+            parsed.warnings[0].starts_with("incomplete biome finding with no message: a.js:1:1")
+        );
     }
 
     #[test]
