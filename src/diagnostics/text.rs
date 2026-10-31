@@ -234,17 +234,21 @@ pub(super) fn parse_stylish(step: &str, tool: &str, output: &str) -> ParseResult
     // rule-shaped last column starts in the line, if there is one.
     let mut rows: Vec<(Diagnostic, Option<(usize, usize)>)> = Vec::new();
     let flush = |rows: &mut Vec<(Diagnostic, Option<(usize, usize)>)>, parsed: &mut ParseResult| {
+        let word = |d: &Diagnostic, cut: usize| d.message[cut..].trim_start().to_string();
+        let parenthesized = |w: &str| w.starts_with('(') && w.ends_with(')');
         let column = rows.iter().filter_map(|(_, r)| r.map(|(at, _)| at)).max();
+        // yamllint's `(rule)` needs no column, but only in a file whose rows have no bare rule
+        // word: in ESLint's or stylelint's rows, a trailing `(word)` is part of a message.
+        let yamllint = rows
+            .iter()
+            .filter_map(|(d, r)| r.map(|(_, cut)| word(d, cut)))
+            .all(|w| parenthesized(&w));
         for (mut diagnostic, rule) in rows.drain(..) {
             if let Some((at, cut)) = rule {
-                let word = diagnostic.message[cut..].trim_start().to_string();
-                let parenthesized = word.starts_with('(') && word.ends_with(')');
-                if parenthesized || Some(at) == column {
-                    diagnostic.rule = Some(
-                        word.trim_start_matches('(')
-                            .trim_end_matches(')')
-                            .to_string(),
-                    );
+                let w = word(&diagnostic, cut);
+                if (yamllint && parenthesized(&w)) || Some(at) == column {
+                    diagnostic.rule =
+                        Some(w.trim_start_matches('(').trim_end_matches(')').to_string());
                     diagnostic.message.truncate(cut);
                 }
             }
@@ -264,7 +268,7 @@ pub(super) fn parse_stylish(step: &str, tool: &str, output: &str) -> ParseResult
             let rule = rule_column.captures(text.as_str()).map(|r| {
                 let word = r.get(1).expect("the rule");
                 // The rule's column in the line, and where the message ends.
-                let at = line[..text.start() + word.start()].chars().count();
+                let at = line[..text.start() + word.start()].encode_utf16().count();
                 (at, r.get(0).expect("the match").start())
             });
             let diagnostic = finding(
@@ -800,6 +804,21 @@ Found 2 errors.
                 ("Unexpected  token  in the middle of it", None),
             ]
         );
+    }
+
+    #[test]
+    fn stylish_aligns_rules_in_utf16_and_reads_parentheses_only_for_yamllint() {
+        // ESLint pads by UTF-16 length: "Bad 🚀" is 6 units, padded to the 17 of the longest
+        // message, so its rule is one character left of the other row's.
+        let output = "a.js\n  1:1  error  Bad 🚀             no-alert\n  2:1  error  Missing semicolon  semi\n";
+        let parsed = parse(DiagnosticFormat::Stylish, "eslint", "eslint", output);
+        assert_eq!(parsed.diagnostics[0].rule.as_deref(), Some("no-alert"));
+        assert_eq!(parsed.diagnostics[0].message, "Bad 🚀");
+        // Among ESLint rows, a trailing `(word)` that is not at the rule column is message text.
+        let output = "a.js\n  1:1  error  Expected a value  (value)\n  2:1  error  Missing semicolon         semi\n";
+        let parsed = parse(DiagnosticFormat::Stylish, "eslint", "eslint", output);
+        assert_eq!(parsed.diagnostics[0].message, "Expected a value  (value)");
+        assert_eq!(parsed.diagnostics[0].rule, None);
     }
 
     #[test]
