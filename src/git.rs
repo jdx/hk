@@ -34,13 +34,42 @@ pub fn is_zero_sha(sha: &str) -> bool {
     !sha.is_empty() && sha.bytes().all(|b| b == b'0')
 }
 
+/// The environment variables that change how git reads every pathspec, so
+/// hk's own would not mean what hk wrote. `git --literal-pathspecs` sets
+/// `GIT_LITERAL_PATHSPECS=1` for all its children, a commit's hooks among
+/// them, and then git takes the magic hk writes (`:(literal)src/a.rs`) as
+/// part of a file name, so no path matches: a stash restore or a `git add`
+/// of fixed files fails.
+const PATHSPEC_MODES: [&str; 4] = [
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+];
+
+/// `git ARGS`, with hk's own pathspecs read as hk writes them.
+fn git_expr(args: Vec<OsString>) -> xx::process::XXExpression {
+    PATHSPEC_MODES
+        .iter()
+        .fold(xx::process::cmd("git", args), |cmd, var| cmd.env(var, "0"))
+}
+
+/// A `git` command, with hk's own pathspecs read as hk writes them.
+fn git_command() -> Command {
+    let mut cmd = Command::new("git");
+    for var in PATHSPEC_MODES {
+        cmd.env(var, "0");
+    }
+    cmd
+}
+
 fn git_cmd<I, S>(args: I) -> xx::process::XXExpression
 where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
-    xx::process::cmd("git", args).on_stderr_line(|line| {
+    git_expr(args).on_stderr_line(|line| {
         clx::progress::with_terminal_lock(|| eprintln!("{} {}", style::edim("git"), line))
     })
 }
@@ -52,7 +81,7 @@ where
 {
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
     // Silently ignore stderr output by using an empty handler
-    xx::process::cmd("git", args).on_stderr_line(|_line| {})
+    git_expr(args).on_stderr_line(|_line| {})
 }
 
 /// Files in the git directory that record an operation in progress and that a
@@ -199,7 +228,7 @@ where
 {
     // Don't use git_cmd here because it adds stderr handlers which breaks stdout capture
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
-    let output = xx::process::cmd("git", args).stdout_capture().run()?;
+    let output = git_expr(args).stdout_capture().run()?;
     Ok(output.stdout)
 }
 
@@ -1610,7 +1639,7 @@ impl Git {
         // back, and writing the index re-hashes every racily clean entry
         // in the repository, not just the ones in `pathspec`.
         // The output is read as bytes: paths need not be valid UTF-8.
-        let output = xx::process::cmd("git", args)
+        let output = git_expr(args)
             .env("GIT_OPTIONAL_LOCKS", "0")
             .stdout_capture()
             .run()?
@@ -2119,7 +2148,7 @@ impl Git {
         if let Some(ref ts) = tracked_subset
             && !ts.is_empty()
         {
-            let diff_status = Command::new("git")
+            let diff_status = git_command()
                 .args([
                     "diff",
                     "--quiet",
@@ -3935,7 +3964,7 @@ fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
 }
 
 fn git_rev_exists(rev: &str) -> Result<bool> {
-    let output = Command::new("git")
+    let output = git_command()
         .args(["rev-parse", "--verify", "--quiet", "--end-of-options", rev])
         .output()
         .wrap_err("Failed to run git rev-parse")?;
@@ -3953,7 +3982,7 @@ fn git_rev_exists(rev: &str) -> Result<bool> {
 }
 
 fn git_merge_base(from_ref: &str, to_ref: &str) -> Result<Option<String>> {
-    let output = Command::new("git")
+    let output = git_command()
         .args(["merge-base", "--end-of-options", from_ref, to_ref])
         .output()
         .wrap_err("Failed to run git merge-base")?;
