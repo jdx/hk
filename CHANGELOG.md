@@ -1,6 +1,29 @@
 # Changelog
 
-## [2.10.0](https://github.com/jdx/hk/compare/v2.9.0..v2.10.0) - 2026-10-28
+## [2.11.0](https://github.com/jdx/hk/compare/v2.10.0..v2.11.0) - 2026-10-31
+
+### 🚀 Features
+
+- **(builtins)** report diagnostics from clippy, ruff, eslint, tsc, shellcheck, pyright, biome and golangci-lint by [@jdx](https://github.com/jdx) in [#1791](https://github.com/jdx/hk/pull/1791)
+
+### 🐛 Bug Fixes
+
+- **(stash)** restore unstaged-deleted files while pre-commit checks run by [@jdx](https://github.com/jdx) in [#1789](https://github.com/jdx/hk/pull/1789)
+
+### 📚 Documentation
+
+- **(builtins)** show how to install each builtin's tool with mise by [@jdx](https://github.com/jdx) in [#1785](https://github.com/jdx/hk/pull/1785)
+
+### 🔍 Other Changes
+
+- add Entire's StopFailure hook for Claude Code by [@jdx](https://github.com/jdx) in [#1792](https://github.com/jdx/hk/pull/1792)
+
+### 📦️ Dependency Updates
+
+- update rust crate usage-rs to v7.1.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1787](https://github.com/jdx/hk/pull/1787)
+- update libz-sys to 1.1.31 for RUSTSEC-2026-0418 by [@jdx](https://github.com/jdx) in [#1793](https://github.com/jdx/hk/pull/1793)
+
+## [2.10.0](https://github.com/jdx/hk/compare/v2.9.0..v2.10.0) - 2026-10-29
 
 ### 🚀 Features
 
