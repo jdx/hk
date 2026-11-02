@@ -648,9 +648,9 @@ dependencies = [
 
 [[package]]
 name = "fancy-regex"
-version = "0.19.2"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d301f5bf187b3c295fce6468d3875037a0bccc5f6b151c63cac2f85babf21912"
+checksum = "20ed7f62ce0ae0da1a8b93c3c7104ab7e0760a74491e097c701fff966e945390"
 dependencies = [
  "bit-set",
  "regex-automata",
@@ -1796,9 +1796,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pklr"
-version = "5.2.2"
+version = "5.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef01467c684fcfe530ee8cbf0bce7d23ef625546e309e3f20fd9b23be4b25510"
+checksum = "6d94cf92a4e66ac2dae846910ae96622f2f2c8f9d26dda1721f341066387f508"
 dependencies = [
  "fancy-regex",
  "indexmap 2.14.2",
