@@ -103,7 +103,7 @@ jobs:
         with:
           cache: false
           cache_save: false
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           backend: github
           cache-generation: ci-v2
