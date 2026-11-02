@@ -1,25 +1,12 @@
 ---
 description: Sign aboard hk. Fit out for development, run focused checks, edit the generated documentation, and ready yer contribution for review.
-sourceHash: c3cdb922a0f6
+sourceHash: c621e0ba3638
 ---
 
 # Signing aboard to contribute
 
-::: danger No AI replies on the bulletin board: Discussions and Issues are restricted
-AI replies to Discussions and Issues are restricted, and breaking the rule is **an instant ban across all of jdx's projects**, matey.
-
-Ye may only use AI to reply to a [Discussion](https://github.com/jdx/hk/discussions) or [Issue](https://github.com/jdx/hk/issues) if ye
-created it, ye opened a PR that fixes it, or a contribution attributed to yer GitHub account has already been merged into the default branch of hk. Everyone else is not allowed to use AI to reply. This is a growing problem.
-
-This covers raw, lightly edited, reviewed, and disclosed model output. Tacking on an "AI-assisted"
-footer does not make an AI reply acceptable on its own. If ye run an agent, make sure it
-does not post to threads ye are not allowed to reply to, and never let it sweep through many
-threads at once.
-:::
-
-Using AI to help write and file yer own Discussion or Issue is fine. Review it before posting, and
-disclose that AI contributed. If ye are allowed to use AI to reply, review and verify the reply before
-posting it, and disclose that AI contributed.
+Using AI to help write a Discussion, Issue, reply, or pull request is fine, matey. Review it before posting, and
+disclose that AI contributed.
 
 _So all you hands who would sign aboard:_ bug fixes, documentation improvements, and builtin definitions for the standing crew are all welcome. For a substantial feature or a change in behavior, talk over the course ye mean to set before ye invest in building it.
 
