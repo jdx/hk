@@ -5,5 +5,5 @@ lint        = "mise run lint"
 
 [checks.focused]
 bats  = "jouet test --cmd -- mise run test:bats test/NAME.bats"
-cargo = "jouet test --cmd -- cargo test NAME"
+cargo = "mise run pkl:gen && jouet test --cmd -- cargo test --all --all-features NAME"
 unit  = "jouet test --affected"

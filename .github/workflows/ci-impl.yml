@@ -265,9 +265,6 @@ jobs:
           if-no-files-found: ignore
   ci-other:
     name: ci-other (${{ matrix.os }})
-    # `jouet cost push` writes refs/notes/jouet-cost on pushes to main.
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -283,8 +280,7 @@ jobs:
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Only main keeps the token, for `jouet cost push` below.
-          persist-credentials: ${{ inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          persist-credentials: false
       - uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5.2.3
         with:
           cache_save: false
@@ -301,13 +297,22 @@ jobs:
       - name: mise run test:cargo
         if: ${{ !(inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
         run: mise run test:cargo
-      # On main the same run goes through jouet so its timing is recorded, and
-      # `jouet cost push` shares the timings with agents.
-      - name: mise run test:cargo with jouet and share timings
+      # On main the same run goes through jouet so its timing is recorded. The
+      # `cost` job in ci.yml pushes the timings, so this job needs no write token.
+      # `--display human` streams the output, and the baseline rerun is off so a
+      # failure stays a failure.
+      - name: mise run test:cargo with jouet
         if: ${{ inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          JOUET_TEST_BASELINE: "off"
         run: |
-          jouet test --cmd -- mise run test:cargo
-          jouet cost push
+          jouet test --display human --cmd -- mise run test:cargo
+          git bundle create "$RUNNER_TEMP/jouet-cost.bundle" refs/notes/jouet-cost
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        with:
+          name: jouet-cost
+          path: ${{ runner.temp }}/jouet-cost.bundle
       - name: mise run render
         run: mise run render
       - name: assert render produces no diff
