@@ -1,0 +1,9 @@
+[checks]
+before_push = ["mise run render", "mise run lint"]
+full        = "mise run test"
+lint        = "mise run lint"
+
+[checks.focused]
+bats  = "jouet test --cmd -- mise run test:bats test/NAME.bats"
+cargo = "jouet test --cmd -- cargo test NAME"
+unit  = "jouet test --affected"
