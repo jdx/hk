@@ -194,58 +194,58 @@ url_api = "https://api.github.com/repos/crate-ci/cargo-release/releases/assets/6
 provenance = "github-attestations"
 
 [[tools.communique]]
-version = "1.7.0"
+version = "1.8.0"
 backend = "packslip:github.com/jdx/communique"
 specifiers = ["latest"]
 
 [tools.communique."platforms.linux-arm64"]
-checksum = "sha256:cf0d39cdda3c91d1d8b80ed8ccd2d5124850e4989b29202165d88223f713403b"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-aarch64-unknown-linux-gnu.tar.gz"
+checksum = "sha256:365f67f2bb21f31966d265ad42516fb14e423411e36fadab8f99002046a6310e"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-aarch64-unknown-linux-gnu.tar.gz"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.linux-arm64-musl"]
-checksum = "sha256:c8eb52db52a482f229308ac791aae9e22d070b14978ea606d40c3955aef0852d"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-aarch64-unknown-linux-musl.tar.gz"
+checksum = "sha256:0fc5cc37af55f9acd205f8d4b54a118a36315e5fc809c775aa7b3bae70071abd"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-aarch64-unknown-linux-musl.tar.gz"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.linux-x64"]
-checksum = "sha256:b89db2a79f67b7ba0229f4448dee28ba5336f4716bc04048592d8d33c4dc817c"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-x86_64-unknown-linux-gnu.tar.gz"
+checksum = "sha256:a600a3a26ef66e5695e1ac7bf57b3d30fdf6d075dc8349d054711a605a311199"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-x86_64-unknown-linux-gnu.tar.gz"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.linux-x64-baseline"]
-checksum = "sha256:b89db2a79f67b7ba0229f4448dee28ba5336f4716bc04048592d8d33c4dc817c"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-x86_64-unknown-linux-gnu.tar.gz"
+checksum = "sha256:a600a3a26ef66e5695e1ac7bf57b3d30fdf6d075dc8349d054711a605a311199"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-x86_64-unknown-linux-gnu.tar.gz"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.linux-x64-musl"]
-checksum = "sha256:4b0a9ac46eb52e6ce14776c5424e30a09eb5b781674ba8128b5604e4009385dd"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:50131e6cd61be26c7b34154bab1da26c53146064d0dd18ba20ee936451369526"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-x86_64-unknown-linux-musl.tar.gz"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:4b0a9ac46eb52e6ce14776c5424e30a09eb5b781674ba8128b5604e4009385dd"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:50131e6cd61be26c7b34154bab1da26c53146064d0dd18ba20ee936451369526"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-x86_64-unknown-linux-musl.tar.gz"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.macos-arm64"]
-checksum = "sha256:c9ccb7521fa3c6839e5ac48c9b1add5a501b153552274a3cccaa8848d4647a9b"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-aarch64-apple-darwin.tar.gz"
+checksum = "sha256:e22c3a05649241fa0e7ffd27d32a436ecde19a23e09f39ff00686ea8d71a5f9b"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-aarch64-apple-darwin.tar.gz"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.windows-arm64"]
-checksum = "sha256:b8cbdad75c26f9ed5ae8908b35c2e66e2e01dd2451c9fc2006a1548835f1cc7f"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-aarch64-pc-windows-msvc.zip"
+checksum = "sha256:dc583cfb76c7cae987cd38755550bbe7ba521d1c93327f1634a6b735733f5c9d"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-aarch64-pc-windows-msvc.zip"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.windows-x64"]
-checksum = "sha256:85e92a547b53089da469a32b9c66bbb18335803ca495b0904738a3e21b286909"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-x86_64-pc-windows-msvc.zip"
+checksum = "sha256:1f51b5c434fb65fa5c16826322bdcc25f980083b90eaf24051d12beff9524b58"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-x86_64-pc-windows-msvc.zip"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [tools.communique."platforms.windows-x64-baseline"]
-checksum = "sha256:85e92a547b53089da469a32b9c66bbb18335803ca495b0904738a3e21b286909"
-url = "https://github.com/jdx/communique/releases/download/v1.7.0/communique-x86_64-pc-windows-msvc.zip"
+checksum = "sha256:1f51b5c434fb65fa5c16826322bdcc25f980083b90eaf24051d12beff9524b58"
+url = "https://github.com/jdx/communique/releases/download/v1.8.0/communique-x86_64-pc-windows-msvc.zip"
 signer = "sigstore-oidc:https://github.com/jdx/communique/.github/workflows/release.yml"
 
 [[tools.git-cliff]]
