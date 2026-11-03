@@ -175,8 +175,8 @@ failure.
 `commit-msg` runs after the message is prepared and before the commit is created. Use the built-in Conventional Commits check:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.11.0/hk@2.11.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.11.0/hk@2.11.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
 
 hooks {
   ["commit-msg"] {
