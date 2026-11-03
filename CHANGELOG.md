@@ -1,6 +1,38 @@
 # Changelog
 
-## [2.11.0](https://github.com/jdx/hk/compare/v2.10.0..v2.11.0) - 2026-10-31
+## [2.11.1](https://github.com/jdx/hk/compare/v2.11.0..v2.11.1) - 2026-11-03
+
+### 🐛 Bug Fixes
+
+- **(stash)** read hk's own pathspecs as written under GIT_LITERAL_PATHSPECS by [@jdx](https://github.com/jdx) in [#1796](https://github.com/jdx/hk/pull/1796)
+
+### 📚 Documentation
+
+- **(contributing)** remove the AI reply restriction by [@jdx](https://github.com/jdx) in [#1802](https://github.com/jdx/hk/pull/1802)
+
+### 🛡️ Security
+
+- **(deps)** update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1797](https://github.com/jdx/hk/pull/1797)
+- **(deps)** update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1798](https://github.com/jdx/hk/pull/1798)
+
+### 🔍 Other Changes
+
+- set up jouet for agents by [@jdx](https://github.com/jdx) in [#1805](https://github.com/jdx/hk/pull/1805)
+
+### 📦️ Dependency Updates
+
+- update rust crate usage-rs to v7.1.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1794](https://github.com/jdx/hk/pull/1794)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1799](https://github.com/jdx/hk/pull/1799)
+- update jdx/mr-boxington-action action to v1.7.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1800](https://github.com/jdx/hk/pull/1800)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1801](https://github.com/jdx/hk/pull/1801)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1803](https://github.com/jdx/hk/pull/1803)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1804](https://github.com/jdx/hk/pull/1804)
+- update rust crate pklr to v5.2.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1806](https://github.com/jdx/hk/pull/1806)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1807](https://github.com/jdx/hk/pull/1807)
+- update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1808](https://github.com/jdx/hk/pull/1808)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1809](https://github.com/jdx/hk/pull/1809)
+
+## [2.11.0](https://github.com/jdx/hk/compare/v2.10.0..v2.11.0) - 2026-11-01
 
 ### 🚀 Features
 
