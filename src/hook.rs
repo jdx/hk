@@ -1627,7 +1627,13 @@ impl Hook {
                             ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
                             return Err(err);
                         }
-                        warn!("{self}: {err}");
+                        if let Some(signal) = crate::shutdown::signal_name() {
+                            warn!(
+                                "{self}: stopped by {signal} before the run finished (no step failed)"
+                            );
+                        } else {
+                            warn!("{self}: {err}");
+                        }
                         ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
                         return Err(err);
                     }
