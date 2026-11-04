@@ -20,15 +20,29 @@ pub struct CheckConventionalCommit {
         delimiter = ','
     )]
     pub allowed_types: Vec<String>,
+
+    /// Comma-separated list of scopes to accept; unscoped commits are always allowed
+    ///
+    /// By default, any scope is accepted. An empty list allows only unscoped commits.
+    #[usage(long, delimiter = ',')]
+    pub allowed_scopes: Option<Vec<String>>,
 }
 
 impl CheckConventionalCommit {
     pub async fn run(&self) -> Result<()> {
-        check_conventional_commit(&self.commit_msg_file, &self.allowed_types)
+        check_conventional_commit(
+            &self.commit_msg_file,
+            &self.allowed_types,
+            self.allowed_scopes.as_deref(),
+        )
     }
 }
 
-fn check_conventional_commit(path: &PathBuf, allowed_types: &[String]) -> Result<()> {
+fn check_conventional_commit(
+    path: &PathBuf,
+    allowed_types: &[String],
+    allowed_scopes: Option<&[String]>,
+) -> Result<()> {
     let file = File::open(path)?;
     let mut lines = BufReader::new(file)
         .lines()
@@ -39,12 +53,16 @@ fn check_conventional_commit(path: &PathBuf, allowed_types: &[String]) -> Result
         return Err(eyre::eyre!("Empty commit message"));
     };
 
-    parse_commit_title(&title, allowed_types)?;
+    parse_commit_title(&title, allowed_types, allowed_scopes)?;
 
     Ok(())
 }
 
-fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
+fn parse_commit_title(
+    title: &str,
+    allowed_types: &[String],
+    allowed_scopes: Option<&[String]>,
+) -> Result<bool> {
     // Git generates some titles itself. They never follow the conventional format and
     // are not written by the user, so skip validation for them:
     //
@@ -138,6 +156,14 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
                 "Invalid scope, unexpected parentheses after closing parenthesis"
             ));
         }
+        if let Some(allowed_scopes) = allowed_scopes
+            && !allowed_scopes.iter().any(|scope| scope == inner)
+        {
+            return Err(eyre::eyre!(
+                "Invalid commit scope: '{inner}'. Allowed scopes: {}. Commits without a scope are also allowed",
+                allowed_scopes.join(", ")
+            ));
+        }
     }
 
     // Ensure description has been provided and isn't an empty string
@@ -162,10 +188,50 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
+    fn test_allowed_scopes() {
+        let types = ["fix".to_string(), "feat".to_string()];
+        let scopes = ["web".to_string(), "api".to_string()];
+        for title in [
+            "fix(api): fix auth",
+            "feat(web): add new dashboard",
+            "fix(api)!: change auth",
+            "fix: fix auth",
+            "feat!: change dashboard",
+            "fixup! fix(other): fix auth",
+            "Merge branch 'main'",
+            "Revert \"fix(other): fix auth\"",
+        ] {
+            assert!(
+                parse_commit_title(title, &types, Some(&scopes)).is_ok(),
+                "{title} should be accepted"
+            );
+        }
+        for scope in ["other", "API", "api/web", "web,api", "web "] {
+            let error =
+                parse_commit_title(&format!("fix({scope}): fix auth"), &types, Some(&scopes))
+                    .unwrap_err()
+                    .to_string();
+            assert_eq!(
+                error,
+                format!(
+                    "Invalid commit scope: '{scope}'. Allowed scopes: web, api. Commits without a scope are also allowed"
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn test_empty_allowed_scopes() {
+        let types = ["fix".to_string()];
+        assert!(parse_commit_title("fix: fix auth", &types, Some(&[])).is_ok());
+        assert!(parse_commit_title("fix(api): fix auth", &types, Some(&[])).is_err());
+    }
+
+    #[test]
     fn test_empty_commit_message() {
         let commit_msg_file = NamedTempFile::new().unwrap();
         let path = commit_msg_file.path().to_path_buf();
-        let result = check_conventional_commit(&path, &[]);
+        let result = check_conventional_commit(&path, &[], None);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "Empty commit message");
     }
@@ -176,7 +242,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b": test description").unwrap();
 
-        let result = check_conventional_commit(&path, &[]);
+        let result = check_conventional_commit(&path, &[], None);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "Missing commit type");
     }
@@ -187,7 +253,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"test: ").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().to_string(), "Missing description");
     }
@@ -198,7 +264,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"testing: test description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -212,9 +278,10 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"wip stuff").unwrap();
 
-        let message = check_conventional_commit(&path, &["fix".to_string(), "feat".to_string()])
-            .unwrap_err()
-            .to_string();
+        let message =
+            check_conventional_commit(&path, &["fix".to_string(), "feat".to_string()], None)
+                .unwrap_err()
+                .to_string();
         assert!(message.starts_with("Invalid commit type: 'wip stuff'."));
         assert!(message.contains("<type>(<scope>): <description>"));
         assert!(message.contains("for example 'fix: handle empty input'"));
@@ -227,7 +294,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"test(scope: test description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -241,7 +308,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"test(scope): test description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_ok());
     }
 
@@ -251,7 +318,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"test(): test description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -265,7 +332,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"test(scope)(x): test description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -280,7 +347,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"test(scope)!: test description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_ok());
     }
 
@@ -290,7 +357,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"fixup! chore: some description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_ok());
     }
 
@@ -300,7 +367,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"squash! feat: something").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_ok());
     }
 
@@ -310,7 +377,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"amend! fix: something").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_ok());
     }
 
@@ -320,7 +387,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"fixup! fixup! chore: deps").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_ok());
     }
 
@@ -344,7 +411,8 @@ mod tests {
         ] {
             let f = NamedTempFile::new().unwrap();
             fs::write(f.path(), title).unwrap();
-            let result = check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()]);
+            let result =
+                check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()], None);
             assert!(result.is_ok(), "{title} should be skipped");
         }
     }
@@ -373,7 +441,8 @@ mod tests {
         ] {
             let f = NamedTempFile::new().unwrap();
             fs::write(f.path(), title).unwrap();
-            let result = check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()]);
+            let result =
+                check_conventional_commit(&f.path().to_path_buf(), &["test".to_string()], None);
             assert!(result.is_err(), "{title} should be rejected");
         }
     }
@@ -384,7 +453,7 @@ mod tests {
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"fixup!chore: description").unwrap();
 
-        let result = check_conventional_commit(&path, &["test".to_string()]);
+        let result = check_conventional_commit(&path, &["test".to_string()], None);
         assert!(result.is_err());
         assert!(
             result

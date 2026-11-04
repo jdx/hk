@@ -569,6 +569,14 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag --allowed-types help="Comma-separated list of commit types to accept" var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test delimiter=, {
             arg <ALLOWED_TYPES>
         }
+        flag --allowed-scopes help="Comma-separated list of scopes to accept; unscoped commits are always allowed" var=#true delimiter=, {
+            long_help #"""
+Comma-separated list of scopes to accept; unscoped commits are always allowed
+
+By default, any scope is accepted. An empty list allows only unscoped commits.
+"""#
+            arg <ALLOWED_SCOPES>
+        }
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <COMMIT_MSG_FILE> help="Commit message file to check"
     }

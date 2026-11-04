@@ -7259,7 +7259,7 @@
           },
           "check-conventional-commit": {
             "full_cmd": ["util", "check-conventional-commit"],
-            "usage": "util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>",
+            "usage": "util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] [--allowed-scopes <ALLOWED_SCOPES>] <COMMIT_MSG_FILE>",
             "subcommands": {},
             "args": [
               {
@@ -7294,6 +7294,26 @@
                 "default": [
                   "build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test"
                 ]
+              },
+              {
+                "name": "allowed-scopes",
+                "usage": "--allowed-scopes <ALLOWED_SCOPES>",
+                "help": "Comma-separated list of scopes to accept; unscoped commits are always allowed",
+                "help_long": "Comma-separated list of scopes to accept; unscoped commits are always allowed\n\nBy default, any scope is accepted. An empty list allows only unscoped commits.",
+                "help_first_line": "Comma-separated list of scopes to accept; unscoped commits are always allowed",
+                "short": [],
+                "long": ["allowed-scopes"],
+                "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "ALLOWED_SCOPES",
+                  "usage": "<ALLOWED_SCOPES>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "delimiter": ",",
+                  "hide": false
+                }
               },
               {
                 "name": "help",

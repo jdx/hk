@@ -1,13 +1,26 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
 
+class CheckConventionalCommitStep extends Config.Step {
+  /// Accepted scopes, or null to accept any scope. An empty list forbids scopes.
+  /// Commits without a scope are always allowed.
+  hidden allowed_scopes: List<String>?
+
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List("hk", "util", "check-conventional-commit", "{{commit_msg_file}}")
+          + if (allowed_scopes == null)
+            List()
+          else
+            List("--allowed-scopes=\(allowed_scopes.join(","))")
+    }
+    effect = "read"
+  }
+}
+
 @Builtins.meta {
   category = "Special Purpose"
   description = "Verify commit message matches conventional commits formatting"
 }
-check_conventional_commit = new Config.Step {
-  check = new Config.CommandSpec {
-    command = "hk util check-conventional-commit {{commit_msg_file}}"
-    effect = "read"
-  }
-}
+check_conventional_commit = (new CheckConventionalCommitStep {}) as Config.Step
