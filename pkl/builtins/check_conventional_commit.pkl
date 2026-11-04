@@ -3,7 +3,7 @@ import "../Config.pkl"
 
 class CheckConventionalCommitStep extends Config.Step {
   /// Accepted scopes, or null to accept any scope. An empty list forbids scopes.
-  /// Commits without a scope are always allowed.
+  /// Commits without a scope are always allowed. Scopes cannot contain commas.
   hidden allowed_scopes: List<String>?
 
   check = new Config.CommandSpec {
@@ -12,6 +12,10 @@ class CheckConventionalCommitStep extends Config.Step {
         List("hk", "util", "check-conventional-commit", "{{commit_msg_file}}")
           + if (allowed_scopes == null)
             List()
+          else if (allowed_scopes.any((scope) -> scope.contains(",")))
+            throw(
+              "allowed_scopes entries must not contain commas; use separate list entries for each scope"
+            )
           else
             List("--allowed-scopes=\(allowed_scopes.join(","))")
     }

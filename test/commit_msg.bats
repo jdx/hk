@@ -33,6 +33,26 @@ PKL
     assert_output --partial "Invalid commit scope: 'other'. Allowed scopes: web, api"
 }
 
+@test "conventional commit builtin rejects comma-containing scope entries" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = (Builtins.check_conventional_commit) {
+        allowed_scopes = List("web,api")
+      }
+    }
+  }
+}
+PKL
+
+    run hk validate
+    assert_failure
+    assert_output --partial "allowed_scopes entries must not contain commas"
+}
+
 @test "conventional commit builtin with empty scopes allows only unscoped commits" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"

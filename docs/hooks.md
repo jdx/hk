@@ -198,7 +198,7 @@ To restrict scopes, configure the builtin with a `List<String>`:
 ```
 
 This accepts `fix(api): fix auth`, `feat(web): add dashboard`, and unscoped messages such as `fix: fix auth`. Other scopes are rejected with a list of allowed values.
-Omit `allowed_scopes` to accept any scope, or set `allowed_scopes = List()` to allow only unscoped commits.
+Omit `allowed_scopes` to accept any scope, or set `allowed_scopes = List()` to allow only unscoped commits. Each list entry must be a single scope without commas.
 
 ## Other Git events
 

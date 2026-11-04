@@ -179,7 +179,7 @@ To keep scopes on the crew's approved list, configure the builtin with a `List<S
 ```
 
 This accepts `fix(api): fix auth`, `feat(web): add dashboard`, and unscoped messages such as `fix: fix auth`.
-Other scopes are turned back with a list of allowed values. Omit `allowed_scopes` to accept any scope, or set `allowed_scopes = List()` to allow only unscoped commits.
+Other scopes are turned back with a list of allowed values. Omit `allowed_scopes` to accept any scope, or set `allowed_scopes = List()` to allow only unscoped commits. Each entry must name a single scope without commas, matey.
 
 ## When else Git sounds the pipe {#other-git-events}
 
