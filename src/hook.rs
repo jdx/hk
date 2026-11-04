@@ -1627,7 +1627,13 @@ impl Hook {
                             ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
                             return Err(err);
                         }
-                        warn!("{self}: {err}");
+                        if let Some(signal) = crate::shutdown::signal_name() {
+                            warn!(
+                                "{self}: stopped by {signal} before the run finished (no step failed)"
+                            );
+                        } else {
+                            warn!("{self}: {err}");
+                        }
                         ERROR_REPORTED.store(true, std::sync::atomic::Ordering::Relaxed);
                         return Err(err);
                     }
@@ -2026,7 +2032,19 @@ impl Hook {
                 )
             });
             if !is_script_failed {
-                error!("{self}: hook finished with error: {err:?}");
+                if let Some(signal) = crate::step_group::is_cancelled_run_error(&hook_ctx, err)
+                    .then(crate::shutdown::signal_name)
+                    .flatten()
+                {
+                    // The cancelled command is only whichever step was running;
+                    // naming it would read as that step's failure.
+                    let code = crate::shutdown::exit_code().unwrap_or_default();
+                    error!(
+                        "{self}: stopped by {signal} before the run finished (no step failed); exit {code}"
+                    );
+                } else {
+                    error!("{self}: hook finished with error: {err:?}");
+                }
                 error_logged = true;
             }
         } else {
