@@ -2432,6 +2432,25 @@ impl Git {
         self.hook_name = name.to_string();
     }
 
+    /// Where this run is, as the pending-stash journal records it: the
+    /// worktree's absolute git directory, its HEAD and its branch. A journal
+    /// is only recovered when it was written here, at this HEAD, on this
+    /// branch: the stash entries it names are this worktree's, made from this
+    /// commit, and no other worktree's.
+    fn origin_now() -> stash_journal::Origin {
+        let field = |args: &[&str]| {
+            git_read(args.iter().copied())
+                .ok()
+                .map(|out| out.trim().to_string())
+                .filter(|out| !out.is_empty())
+        };
+        stash_journal::Origin {
+            git_dir: field(&["rev-parse", "--absolute-git-dir"]),
+            head: field(&["rev-parse", "--verify", "--quiet", "HEAD"]),
+            branch: field(&["symbolic-ref", "--quiet", "--short", "HEAD"]),
+        }
+    }
+
     /// The pending-stash journal of this worktree.
     fn journal_file() -> Result<PathBuf> {
         let dir = git_read(["rev-parse", "--absolute-git-dir"])?;
@@ -2450,6 +2469,7 @@ impl Git {
             let journal = stash_journal::Journal::new(
                 &self.hook_name,
                 &std::env::current_dir()?,
+                Self::origin_now(),
                 stash_entries()?.into_iter().map(|e| e.commit).collect(),
             );
             stash_journal::OwnedJournal::begin(path, journal, self.stash_lock_shared_mode())
@@ -2638,7 +2658,7 @@ impl Git {
             "--untracked-files=normal",
         ])?;
         let clean = !stash_journal::status_has_worktree_changes(&String::from_utf8_lossy(&status));
-        match stash_journal::decide(journal, &stash, clean) {
+        match stash_journal::decide(journal, &stash, clean, &Self::origin_now()) {
             Action::Discard(why) => {
                 debug!("removing {}: {why}", path.display());
                 Ok(true)
