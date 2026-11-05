@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "go.mod" }
   }
+  mise_tools = List("go")
 }
 go_fmt = new Config.Step {
   glob = "**/*.go"

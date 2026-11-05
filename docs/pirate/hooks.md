@@ -156,8 +156,8 @@ failure and hauled back to port.
 `commit-msg` runs after the commit message is prepared and before the commit is made. Use the built-in Conventional Commits check, one of the standing crew:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.8.1/hk@2.8.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
 
 hooks {
   ["commit-msg"] {
@@ -169,6 +169,17 @@ hooks {
 ```
 
 The `commit_msg_file` template variable holds the message's path. `prepare-commit-msg` also gets `source` and `sha` when Git supplies them. Use that hook to prepare or edit a message before the sailor's editor opens.
+
+To keep scopes on the crew's approved list, configure the builtin with a `List<String>`:
+
+```pkl
+["conventional-commit"] = (Builtins.check_conventional_commit) {
+  allowed_scopes = List("web", "api")
+}
+```
+
+This accepts `fix(api): fix auth`, `feat(web): add dashboard`, and unscoped messages such as `fix: fix auth`.
+Other scopes are turned back with a list of allowed values. Omit `allowed_scopes` to accept any scope, or set `allowed_scopes = List()` to allow only unscoped commits. Each entry must name a single scope without commas, matey.
 
 ## When else Git sounds the pipe {#other-git-events}
 

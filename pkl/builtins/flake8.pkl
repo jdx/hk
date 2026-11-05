@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = ".flake8" }
   }
+  mise_tools = List("pipx:flake8")
 }
 flake8 = new Config.Step {
   glob = "**/*.py"

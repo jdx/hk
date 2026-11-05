@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "OpenTofu formatter"
+  mise_tools = List("opentofu")
 }
 tofu = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")

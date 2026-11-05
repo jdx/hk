@@ -6,6 +6,7 @@ import "./test/helpers.pkl"
   category = "Special Purpose"
   description =
     "Flint's repository-aware dependency check (requires flint and renovate). See https://github.com/grafana/flint/blob/main/docs/linters/renovate-deps.md"
+  mise_tools = List("packslip:grafana/flint", "npm:renovate")
 }
 renovate_deps = new Config.Step {
   glob = List("**/*")

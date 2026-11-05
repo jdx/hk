@@ -8,6 +8,7 @@ import "../Config.pkl"
     new { file = "mix.exs" }
     new { file = ".formatter.exs" }
   }
+  mise_tools = List("elixir")
 }
 mix_fmt = new Config.Step {
   glob = List("**/*.ex", "**/*.exs")

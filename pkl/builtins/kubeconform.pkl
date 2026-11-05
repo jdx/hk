@@ -76,6 +76,7 @@ class KubeconformStep extends Config.Step {
 @Builtins.meta {
   category = "Infrastructure"
   description = "Kubernetes manifest validator"
+  mise_tools = List("kubeconform")
 }
 // Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
 // instance when it is inserted into Mapping<String, Config.Step>.

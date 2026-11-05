@@ -42,6 +42,15 @@ pub fn exit_code() -> Option<i32> {
     }
 }
 
+/// The name of the SIGTERM or SIGHUP that stopped the run, if one did.
+pub fn signal_name() -> Option<&'static str> {
+    match exit_code()? {
+        143 => Some("SIGTERM"),
+        129 => Some("SIGHUP"),
+        _ => Some("a termination signal"),
+    }
+}
+
 /// Cancels `cancel` on the first termination signal.
 pub fn watch(cancel: CancellationToken) {
     let Some(mut signals) = Signals::new() else {

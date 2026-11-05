@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Pkl"
   description = "Pkl formatter"
+  mise_tools = List("pkl")
 }
 pkl_format = new Config.Step {
   types = List("pkl")

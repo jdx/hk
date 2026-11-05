@@ -46,6 +46,7 @@ const HOOK_KEYS: &[&str] = &[
     "fail_on_fix",
     "env",
     "report",
+    "timeout",
 ];
 
 const GROUP_KEYS: &[&str] = &[

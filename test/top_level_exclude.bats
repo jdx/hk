@@ -337,8 +337,9 @@ EOF
     git add -A
     git commit -m "initial commit"
 
-    # link/../main.js opens other/main.js, which the exclude does not match
+    # link/../main.js opens other/main.js, which the exclude does not match;
+    # hk resolves the argument on disk to that repo-relative path
     run hk check link/../main.js
     assert_success
-    assert_output --partial 'checking: link/../main.js'
+    assert_output --partial 'checking: other/main.js'
 }

@@ -7,6 +7,7 @@ import "../Config.pkl"
   project_indicators {
     new { file = "package.json"; contains = "\"xo\"" }
   }
+  mise_tools = List("npm:xo")
 }
 xo = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")

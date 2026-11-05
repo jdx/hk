@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".isort.cfg" }
     new { file = "pyproject.toml"; contains_regex = #"^[ \t]*\[tool\.isort[\].]"# }
   }
+  mise_tools = List("pipx:isort")
 }
 isort = new Config.Step {
   glob = "**/*.py"

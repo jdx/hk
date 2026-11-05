@@ -13,19 +13,19 @@ description: "Choose a local installation or a global one on Git 2.54+. Add --mi
 
 Set up git hooks to run hk.
 
-The recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.
+The recommended setup is `hk install --global`, which installs hooks once into the user's global git config (`~/.gitconfig`, or `~/.config/git/config` when that is the one git uses) so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.
 
 Without `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.
 
-If hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.
+If hk is already configured globally (any `hook.hk-*` entry in the global git config), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.
 
 ## Flags
 
 - **`--force-local`** — Install local hooks even when hk is already configured globally
-  (any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
+  (any `hook.hk-*` entry in the global git config). By default a per-repo
   install is skipped in that case to avoid hk firing twice per
   event. Not compatible with `--global`.
-- **`--global`** — Recommended. Install at user level (~/.gitconfig) so every repo
+- **`--global`** — Recommended. Install in the global git config so every repo
   on this machine gets hk hooks. Requires Git 2.54 or newer. In
   repos without an `hk.pkl`, the installed hook is a silent no-op.
 - **`--legacy`** — Force using the legacy `.git/hooks/` script shims instead of Git

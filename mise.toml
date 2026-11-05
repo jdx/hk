@@ -10,6 +10,7 @@ cargo-release = "latest"
 communique    = { version = "latest", minimum_release_age = "0s" }
 git-cliff     = "latest"
 jactionlint   = "latest"
+jouet         = "0.0.3"
 mr-boxington  = { version = "latest", minimum_release_age = "0s" }
 node          = "latest"
 oxfmt         = "latest"

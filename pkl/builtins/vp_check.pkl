@@ -10,6 +10,7 @@ import "./test/helpers.pkl"
     // https://viteplus.dev/guide/commit-hooks
     new { file = "vite.config.ts" }
   }
+  mise_tools = List("vp")
 }
 vp_check = new Config.Step {
   // Supported file types:

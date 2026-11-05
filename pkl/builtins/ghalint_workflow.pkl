@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".ghalint.yaml" }
     new { file = ".ghalint.yml" }
   }
+  mise_tools = List("ghalint")
 }
 const ghalint_workflow = new Config.Step {
   glob = List(".github/workflows/*")

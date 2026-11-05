@@ -1,6 +1,130 @@
 # Changelog
 
-## [2.8.1](https://github.com/jdx/hk/compare/v2.8.0..v2.8.1) - 2026-10-22
+## [2.11.1](https://github.com/jdx/hk/compare/v2.11.0..v2.11.1) - 2026-11-03
+
+### 🐛 Bug Fixes
+
+- **(stash)** read hk's own pathspecs as written under GIT_LITERAL_PATHSPECS by [@jdx](https://github.com/jdx) in [#1796](https://github.com/jdx/hk/pull/1796)
+
+### 📚 Documentation
+
+- **(contributing)** remove the AI reply restriction by [@jdx](https://github.com/jdx) in [#1802](https://github.com/jdx/hk/pull/1802)
+
+### 🛡️ Security
+
+- **(deps)** update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1797](https://github.com/jdx/hk/pull/1797)
+- **(deps)** update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1798](https://github.com/jdx/hk/pull/1798)
+
+### 🔍 Other Changes
+
+- set up jouet for agents by [@jdx](https://github.com/jdx) in [#1805](https://github.com/jdx/hk/pull/1805)
+
+### 📦️ Dependency Updates
+
+- update rust crate usage-rs to v7.1.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1794](https://github.com/jdx/hk/pull/1794)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1799](https://github.com/jdx/hk/pull/1799)
+- update jdx/mr-boxington-action action to v1.7.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1800](https://github.com/jdx/hk/pull/1800)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1801](https://github.com/jdx/hk/pull/1801)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1803](https://github.com/jdx/hk/pull/1803)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1804](https://github.com/jdx/hk/pull/1804)
+- update rust crate pklr to v5.2.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1806](https://github.com/jdx/hk/pull/1806)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1807](https://github.com/jdx/hk/pull/1807)
+- update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1808](https://github.com/jdx/hk/pull/1808)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1809](https://github.com/jdx/hk/pull/1809)
+
+## [2.11.0](https://github.com/jdx/hk/compare/v2.10.0..v2.11.0) - 2026-11-01
+
+### 🚀 Features
+
+- **(builtins)** report diagnostics from clippy, ruff, eslint, tsc, shellcheck, pyright, biome and golangci-lint by [@jdx](https://github.com/jdx) in [#1791](https://github.com/jdx/hk/pull/1791)
+
+### 🐛 Bug Fixes
+
+- **(stash)** restore unstaged-deleted files while pre-commit checks run by [@jdx](https://github.com/jdx) in [#1789](https://github.com/jdx/hk/pull/1789)
+
+### 📚 Documentation
+
+- **(builtins)** show how to install each builtin's tool with mise by [@jdx](https://github.com/jdx) in [#1785](https://github.com/jdx/hk/pull/1785)
+
+### 🔍 Other Changes
+
+- add Entire's StopFailure hook for Claude Code by [@jdx](https://github.com/jdx) in [#1792](https://github.com/jdx/hk/pull/1792)
+
+### 📦️ Dependency Updates
+
+- update rust crate usage-rs to v7.1.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1787](https://github.com/jdx/hk/pull/1787)
+- update libz-sys to 1.1.31 for RUSTSEC-2026-0418 by [@jdx](https://github.com/jdx) in [#1793](https://github.com/jdx/hk/pull/1793)
+
+## [2.10.0](https://github.com/jdx/hk/compare/v2.9.0..v2.10.0) - 2026-10-29
+
+### 🚀 Features
+
+- **(builtins)** add pyright builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1775](https://github.com/jdx/hk/pull/1775)
+- **(builtins)** add protolint builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1777](https://github.com/jdx/hk/pull/1777)
+- **(builtins)** add phpstan linter builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1778](https://github.com/jdx/hk/pull/1778)
+- **(builtins)** add dotenv-linter as a builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1779](https://github.com/jdx/hk/pull/1779)
+- **(builtins)** add osv dependency vulnerability scanner builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1782](https://github.com/jdx/hk/pull/1782)
+- **(hook)** fail a hook that runs past its timeout by [@jdx](https://github.com/jdx) in [#1776](https://github.com/jdx/hk/pull/1776)
+- **(pre-push)** print reminder of stdin format if stdin contains malformed lines by [@connormharris](https://github.com/connormharris) in [#1781](https://github.com/jdx/hk/pull/1781)
+
+### 🛡️ Security
+
+- **(builtins)** add trufflehog secret scanner builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1774](https://github.com/jdx/hk/pull/1774)
+
+### 📦️ Dependency Updates
+
+- update dependency aube to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1765](https://github.com/jdx/hk/pull/1765)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1771](https://github.com/jdx/hk/pull/1771)
+
+## [2.9.0](https://github.com/jdx/hk/compare/v2.8.2..v2.9.0) - 2026-10-26
+
+### 🚀 Features
+
+- **(builtins)** format zsh startup files and zsh-shebang scripts with shfmt by [@sahidvelji](https://github.com/sahidvelji) in [#1759](https://github.com/jdx/hk/pull/1759)
+- **(builtins)** opentofu-validate builtin by [@illesnagy1](https://github.com/illesnagy1) in [#1766](https://github.com/jdx/hk/pull/1766)
+
+### 🐛 Bug Fixes
+
+- **(ci)** publish crate with generated Pkl files and email on release failure by [@jdx](https://github.com/jdx) in [#1770](https://github.com/jdx/hk/pull/1770)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1762](https://github.com/jdx/hk/pull/1762)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1768](https://github.com/jdx/hk/pull/1768)
+
+## [2.8.2](https://github.com/jdx/hk/compare/v2.8.1..v2.8.2) - 2026-10-26
+
+### 🐛 Bug Fixes
+
+- **(cache)** write config cache files atomically by [@zachbornheimer](https://github.com/zachbornheimer) in [#1750](https://github.com/jdx/hk/pull/1750)
+- **(check)** resolve file arguments from the directory hk was run in by [@jdx](https://github.com/jdx) in [#1754](https://github.com/jdx/hk/pull/1754)
+- **(pkl)** embed the Pkl package in cargo install builds by [@jdx](https://github.com/jdx) in [#1755](https://github.com/jdx/hk/pull/1755)
+
+### 🧪 Testing
+
+- stop macOS CI flaking on fixed bats timeouts by [@jdx](https://github.com/jdx) in [#1756](https://github.com/jdx/hk/pull/1756)
+
+### 🛡️ Security
+
+- **(install)** name the git config file global hooks were written to by [@sahidvelji](https://github.com/sahidvelji) in [#1758](https://github.com/jdx/hk/pull/1758)
+
+### 🔍 Other Changes
+
+- use the runner's JDK for builtin tests instead of mise java by [@jdx](https://github.com/jdx) in [#1764](https://github.com/jdx/hk/pull/1764)
+
+### 📦️ Dependency Updates
+
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1751](https://github.com/jdx/hk/pull/1751)
+- update rust crate usage-rs to v7.1.2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1757](https://github.com/jdx/hk/pull/1757)
+- update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1761](https://github.com/jdx/hk/pull/1761)
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1763](https://github.com/jdx/hk/pull/1763)
+- update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1760](https://github.com/jdx/hk/pull/1760)
+
+### New Contributors
+
+- @zachbornheimer made their first contribution in [#1750](https://github.com/jdx/hk/pull/1750)
+
+## [2.8.1](https://github.com/jdx/hk/compare/v2.8.0..v2.8.1) - 2026-10-23
 
 ### 🐛 Bug Fixes
 

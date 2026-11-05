@@ -13,6 +13,7 @@ import "./test/helpers.pkl"
     new { file = ".config/ansible-lint.yaml" }
     new { file = "ansible.cfg" }
   }
+  mise_tools = List("pipx:ansible-lint")
 }
 ansible_lint = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")

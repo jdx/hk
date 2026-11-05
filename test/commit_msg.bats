@@ -6,6 +6,78 @@ teardown() {
     _common_teardown
 }
 
+@test "conventional commit builtin validates configured scopes" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = (Builtins.check_conventional_commit) {
+        allowed_scopes = List("web", "api")
+      }
+    }
+  }
+}
+PKL
+
+    for title in "fix(api): fix auth" "feat(web): add dashboard" "fix(api)!: change auth" "fix: fix auth"; do
+        printf '%s\n' "$title" > "commit message.txt"
+        run hk run commit-msg "commit message.txt"
+        assert_success
+    done
+
+    printf '%s\n' "fix(other): fix auth" > "commit message.txt"
+    run hk run commit-msg "commit message.txt"
+    assert_failure
+    assert_output --partial "Invalid commit scope: 'other'. Allowed scopes: web, api"
+}
+
+@test "conventional commit builtin rejects comma-containing scope entries" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = (Builtins.check_conventional_commit) {
+        allowed_scopes = List("web,api")
+      }
+    }
+  }
+}
+PKL
+
+    run hk validate
+    assert_failure
+    assert_output --partial "allowed_scopes entries must not contain commas"
+}
+
+@test "conventional commit builtin with empty scopes allows only unscoped commits" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = (Builtins.check_conventional_commit) {
+        allowed_scopes = List()
+      }
+    }
+  }
+}
+PKL
+
+    printf '%s\n' "fix: fix auth" > message.txt
+    run hk run commit-msg message.txt
+    assert_success
+
+    printf '%s\n' "fix(api): fix auth" > message.txt
+    run hk run commit-msg message.txt
+    assert_failure
+    assert_output --partial "Invalid commit scope: 'api'"
+}
+
 @test "commit-msg hook" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "JSON processor"
+  mise_tools = List("jq")
 }
 jq = new Config.Step {
   glob = "**/*.json"

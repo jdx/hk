@@ -14,6 +14,7 @@ import "./test/helpers.pkl"
     new { file = ".textlintrc.yaml" }
     new { file = ".textlintrc.js" }
   }
+  mise_tools = List("npm:textlint")
 }
 textlint = new Config.Step {
   // textlint's default plugins support Markdown and plain text:

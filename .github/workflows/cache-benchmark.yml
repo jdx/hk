@@ -46,7 +46,7 @@ jobs:
       - name: Restore Cargo cache
         # save-if restricts writes to main pushes
         # jactionlint ignore=cache-poisoning
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: cache-benchmark-linux-v1
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -79,7 +79,7 @@ jobs:
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           version: 1.19.0
           cache-generation: ci-v2
@@ -144,7 +144,7 @@ jobs:
       - name: Restore Cargo cache
         # save-if restricts writes to main pushes
         # jactionlint ignore=cache-poisoning
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: cache-benchmark-macos-v1
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -177,7 +177,7 @@ jobs:
         run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           version: 1.19.0
           cache-generation: ci-v2
@@ -242,7 +242,7 @@ jobs:
       - name: Restore Cargo cache
         # save-if restricts writes to main pushes
         # jactionlint ignore=cache-poisoning
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: cache-benchmark-windows-v1
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -276,7 +276,7 @@ jobs:
         run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       # The action restores Cargo's pruned target tree from the GitHub cache and,
       # like rust-cache above, saves a new entry only on main-branch pushes.
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           version: 1.19.0
           cache-generation: ci-v2

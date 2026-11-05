@@ -34,13 +34,42 @@ pub fn is_zero_sha(sha: &str) -> bool {
     !sha.is_empty() && sha.bytes().all(|b| b == b'0')
 }
 
+/// The environment variables that change how git reads every pathspec, so
+/// hk's own would not mean what hk wrote. `git --literal-pathspecs` sets
+/// `GIT_LITERAL_PATHSPECS=1` for all its children, a commit's hooks among
+/// them, and then git takes the magic hk writes (`:(literal)src/a.rs`) as
+/// part of a file name, so no path matches: a stash restore or a `git add`
+/// of fixed files fails.
+const PATHSPEC_MODES: [&str; 4] = [
+    "GIT_LITERAL_PATHSPECS",
+    "GIT_GLOB_PATHSPECS",
+    "GIT_NOGLOB_PATHSPECS",
+    "GIT_ICASE_PATHSPECS",
+];
+
+/// `git ARGS`, with hk's own pathspecs read as hk writes them.
+fn git_expr(args: Vec<OsString>) -> xx::process::XXExpression {
+    PATHSPEC_MODES
+        .iter()
+        .fold(xx::process::cmd("git", args), |cmd, var| cmd.env(var, "0"))
+}
+
+/// A `git` command, with hk's own pathspecs read as hk writes them.
+fn git_command() -> Command {
+    let mut cmd = Command::new("git");
+    for var in PATHSPEC_MODES {
+        cmd.env(var, "0");
+    }
+    cmd
+}
+
 fn git_cmd<I, S>(args: I) -> xx::process::XXExpression
 where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
-    xx::process::cmd("git", args).on_stderr_line(|line| {
+    git_expr(args).on_stderr_line(|line| {
         clx::progress::with_terminal_lock(|| eprintln!("{} {}", style::edim("git"), line))
     })
 }
@@ -52,7 +81,7 @@ where
 {
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
     // Silently ignore stderr output by using an empty handler
-    xx::process::cmd("git", args).on_stderr_line(|_line| {})
+    git_expr(args).on_stderr_line(|_line| {})
 }
 
 /// Files in the git directory that record an operation in progress and that a
@@ -199,7 +228,7 @@ where
 {
     // Don't use git_cmd here because it adds stderr handlers which breaks stdout capture
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
-    let output = xx::process::cmd("git", args).stdout_capture().run()?;
+    let output = git_expr(args).stdout_capture().run()?;
     Ok(output.stdout)
 }
 
@@ -883,6 +912,44 @@ fn worktree_matches_index(path: &std::path::Path) -> bool {
     ])
     .run()
     .is_ok()
+}
+
+/// Whether the worktree file at `path` still has the contents the stash's
+/// index (`<stash_ref>^2`) has there, which are what hk checked out for the
+/// steps.
+fn checkout_matches_stash_index(stash_ref: &str, path: &std::path::Path) -> bool {
+    // `<mode> blob <oid>\t<path>`
+    let Ok(entry) = git_read([
+        OsString::from("ls-tree"),
+        format!("{stash_ref}^2").into(),
+        "--".into(),
+        literal_pathspec(path),
+    ]) else {
+        return false;
+    };
+    let mut fields = entry.split(['\t', ' ']);
+    let (Some(mode), Some(_), Some(indexed)) = (fields.next(), fields.next(), fields.next()) else {
+        return false;
+    };
+    let is_symlink =
+        std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink());
+    // A symlink is stored as its target, not the contents it points to, and
+    // only matches an entry that is a symlink too.
+    if is_symlink {
+        return mode == "120000" && symlink_target_matches(path, indexed);
+    }
+    // Only with `core.symlinks=false` does git check a symlink entry out as a
+    // plain file holding the target. Otherwise a regular file there is a
+    // type change by a step, whatever it holds. git's default is true.
+    if mode == "120000"
+        && git_cmd_silent(["config", "--type=bool", "core.symlinks"])
+            .read()
+            .map_or(true, |value| value.trim() != "false")
+    {
+        return false;
+    }
+    git_read([OsString::from("hash-object"), "--".into(), path.into()])
+        .is_ok_and(|current| current.trim() == indexed)
 }
 
 /// A shell command that restores `path` from `source` in the worktree only.
@@ -1575,7 +1642,7 @@ impl Git {
         // back, and writing the index re-hashes every racily clean entry
         // in the repository, not just the ones in `pathspec`.
         // The output is read as bytes: paths need not be valid UTF-8.
-        let output = xx::process::cmd("git", args)
+        let output = git_expr(args)
             .env("GIT_OPTIONAL_LOCKS", "0")
             .stdout_capture()
             .run()?
@@ -1689,6 +1756,10 @@ impl Git {
         for p in status.unstaged_files.iter() {
             files_to_stash.insert(p.clone());
         }
+        // `unstaged_files` lists only paths that exist. A file deleted from the
+        // worktree is still in the index and would be committed, so stashing
+        // brings it back for the hook to see.
+        files_to_stash.extend(status.unstaged_deleted_files.iter().cloned());
         // An empty intent-to-add file counts as staged, not unstaged. Setting
         // the intent-to-add files aside removes them from the set again.
         files_to_stash.extend(intent_to_add.iter().cloned());
@@ -2080,7 +2151,7 @@ impl Git {
         if let Some(ref ts) = tracked_subset
             && !ts.is_empty()
         {
-            let diff_status = Command::new("git")
+            let diff_status = git_command()
                 .args([
                     "diff",
                     "--quiet",
@@ -2171,8 +2242,10 @@ impl Git {
             stdin.extend_from_slice(p.as_os_str().as_encoded_bytes());
             stdin.push(0);
         }
-        // Record the worktree contents, which `git add` would clean
-        git_cmd(["update-index", "--add", "-z", "--stdin"])
+        // Record the worktree contents, which `git add` would clean. A path
+        // with no file there, such as one staged as added and then deleted,
+        // is recorded as deleted.
+        git_cmd(["update-index", "--add", "--remove", "-z", "--stdin"])
             .env("GIT_INDEX_FILE", &tmp_index)
             .stdin_bytes(stdin)
             .run()
@@ -2560,13 +2633,16 @@ impl Git {
     /// Looks for a pending-stash journal that a hk which was killed left
     /// behind, and puts its stashed changes back or says how to. Never fails
     /// the run, and never touches the journal of a hk that is still running.
-    pub fn recover_pending_stash(&mut self) {
-        if let Err(err) = self.try_recover_pending_stash() {
+    pub fn recover_pending_stash(&mut self, cancel: &tokio_util::sync::CancellationToken) {
+        if let Err(err) = self.try_recover_pending_stash(cancel) {
             warn!("failed to check for stashed changes left by an interrupted hk: {err:?}");
         }
     }
 
-    fn try_recover_pending_stash(&mut self) -> Result<()> {
+    fn try_recover_pending_stash(
+        &mut self,
+        cancel: &tokio_util::sync::CancellationToken,
+    ) -> Result<()> {
         let path = Self::journal_file()?;
         // The usual case, no journal, takes no lock and creates no file
         if !path.try_exists().unwrap_or(true) {
@@ -2592,7 +2668,7 @@ impl Git {
             &lock_path,
             shared_mode,
             timeout,
-            &tokio_util::sync::CancellationToken::new(),
+            cancel,
             || {
                 warn!(
                     "waiting for another hk process to finish stashing before checking for stashed changes an interrupted hk left (lock: {})",
@@ -3031,6 +3107,34 @@ impl Git {
                     // intentionally removed it — do not restore the tracked worktree blob.
                     // (Untracked variants — `git rm --cached` — are handled above.)
                     if staged_deleted_set.contains(&path) {
+                        // A path the stash recorded as deleted from the worktree was
+                        // checked out from the index while steps ran. A step that
+                        // staged its deletion left that checkout on disk, unless it
+                        // wrote something else there, which stays.
+                        if matches!(changes.entry(&path), StashedEntry::Deleted)
+                            && std::fs::symlink_metadata(&path).is_ok()
+                        {
+                            if checkout_matches_stash_index(&stash_ref, &path) {
+                                if let Err(err) = restore_stashed_path(
+                                    &stash_ref,
+                                    path.as_os_str(),
+                                    StashedEntry::Deleted,
+                                ) {
+                                    warn!(
+                                        "failed to remove {} after its deletion was staged: {err:?}",
+                                        display_path(&path)
+                                    );
+                                    restoration_failed = true;
+                                }
+                            } else {
+                                keep_step_output(
+                                    &mut not_restored,
+                                    &path,
+                                    "wrote new contents to {} after staging its deletion",
+                                );
+                                restoration_failed = true;
+                            }
+                        }
                         debug!(
                             "manual-unstash: skipping staged-deleted path={}",
                             display_path(&path)
@@ -3939,7 +4043,7 @@ fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
 }
 
 fn git_rev_exists(rev: &str) -> Result<bool> {
-    let output = Command::new("git")
+    let output = git_command()
         .args(["rev-parse", "--verify", "--quiet", "--end-of-options", rev])
         .output()
         .wrap_err("Failed to run git rev-parse")?;
@@ -3957,7 +4061,7 @@ fn git_rev_exists(rev: &str) -> Result<bool> {
 }
 
 fn git_merge_base(from_ref: &str, to_ref: &str) -> Result<Option<String>> {
-    let output = Command::new("git")
+    let output = git_command()
         .args(["merge-base", "--end-of-options", from_ref, to_ref])
         .output()
         .wrap_err("Failed to run git merge-base")?;
@@ -4014,6 +4118,7 @@ impl GitStatus {
     /// including untracked files when `include_untracked` is set.
     pub fn has_unstaged_changes(&self, include_untracked: bool) -> bool {
         !self.unstaged_files.is_empty()
+            || !self.unstaged_deleted_files.is_empty()
             || self.skipped_unstaged
             || !self.intent_to_add_files.is_empty()
             || (include_untracked && (!self.untracked_files.is_empty() || self.skipped_untracked))

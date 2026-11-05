@@ -59,6 +59,7 @@ class EditorconfigCheckerStep extends Config.Step {
   project_indicators {
     new { file = ".ecrc" }
   }
+  mise_tools = List("editorconfig-checker")
 }
 // Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
 // instance when it is inserted into Mapping<String, Config.Step>.

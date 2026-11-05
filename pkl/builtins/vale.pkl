@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".vale.ini" }
     new { file = "_vale.ini" }
   }
+  mise_tools = List("vale")
 }
 vale = new Config.Step {
   types = List("text")

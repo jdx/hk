@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Nix"
   description = "Nixpkgs formatter"
+  homepage = "https://github.com/nix-community/nixpkgs-fmt"
 }
 nixpkgs_format = new Config.Step {
   glob = "**/*.nix"

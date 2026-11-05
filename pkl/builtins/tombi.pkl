@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "tombi.toml" }
   }
+  mise_tools = List("tombi")
 }
 tombi = new Config.Step {
   glob = "**/*.toml"

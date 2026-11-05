@@ -12,6 +12,7 @@ import "./test/helpers.pkl"
     new { file = ".markdownlint.yml" }
     new { file = ".markdownlintrc" }
   }
+  mise_tools = List("npm:markdownlint-cli")
 }
 markdown_lint = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")

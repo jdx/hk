@@ -1,6 +1,6 @@
 ---
 description: What hk sets running when ye call on it, what the chart-maker's language can read and fetch, how a whole-fleet hook reaches every ship, and what --safe does and does not promise.
-sourceHash: 7ad2904bd36a
+sourceHash: e79e6d02f1d6
 ---
 
 # Security model: the ship's defences
@@ -45,7 +45,7 @@ Three settings change where evaluation gets its input:
 
 ## Global hooks {#global-hooks}
 
-`hk install --global` (Git 2.54 or newer) writes `hook.hk-<event>.command` and `hook.hk-<event>.event` entries to `~/.gitconfig`. Run inside a ship with charts, it rigs that ship's enabled hooks other than `check` and `fix`; run anywhere else, it rigs `commit-msg`, `pre-commit`, `pre-push`, and `prepare-commit-msg`. Each hook runs `hk run <event> --from-hook` using the absolute path of the hk that rigged it; the `pre-commit` hook also passes `--staged`. With `--mise` (or `HK_MISE=1`), Git instead runs hk through mise, as `<mise path> x hk -- hk run <event> --from-hook`, using the absolute path of the mise found on `PATH`.
+`hk install --global` (Git 2.54 or newer) writes `hook.hk-<event>.command` and `hook.hk-<event>.event` entries to your global git config: `~/.gitconfig`, or `~/.config/git/config` when that be the one git uses. Run inside a ship with charts, it rigs that ship's enabled hooks other than `check` and `fix`; run anywhere else, it rigs `commit-msg`, `pre-commit`, `pre-push`, and `prepare-commit-msg`. Each hook runs `hk run <event> --from-hook` using the absolute path of the hk that rigged it; the `pre-commit` hook also passes `--staged`. With `--mise` (or `HK_MISE=1`), Git instead runs hk through mise, as `<mise path> x hk -- hk run <event> --from-hook`, using the absolute path of the mise found on `PATH`.
 
 Git then runs hk for those events in every ship on the machine, the whole fleet:
 

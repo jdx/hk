@@ -8,6 +8,7 @@ import "../Config.pkl"
     new { file = "config/brakeman.yml" }
     new { file = "Gemfile"; contains_regex = #"^\s*gem\s*\(?\s*["']brakeman["']"# }
   }
+  mise_tools = List("gem:brakeman")
 }
 brakeman = new Config.Step {
   types = List("ruby")

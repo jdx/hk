@@ -9,6 +9,7 @@ import "../Config.pkl"
     new { file = "pylintrc" }
     new { file = "pyproject.toml"; contains_regex = #"^[ \t]*\[tool\.pylint[\].]"# }
   }
+  mise_tools = List("pipx:pylint")
 }
 pylint = new Config.Step {
   glob = "**/*.py"

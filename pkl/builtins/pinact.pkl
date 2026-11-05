@@ -150,6 +150,7 @@ class PinactStep extends Config.Step {
     new { file = ".pinact.yaml" }
     new { file = ".pinact.yml" }
   }
+  mise_tools = List("pinact")
 }
 // Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
 // instance when it is inserted into Mapping<String, Config.Step>.

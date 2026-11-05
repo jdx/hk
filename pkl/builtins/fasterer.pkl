@@ -7,6 +7,7 @@ import "../Config.pkl"
   project_indicators {
     new { file = ".fasterer.yml" }
   }
+  mise_tools = List("gem:fasterer")
 }
 fasterer = new Config.Step {
   types = List("ruby")

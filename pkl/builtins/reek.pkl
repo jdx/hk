@@ -8,6 +8,7 @@ import "../Config.pkl"
     new { file = ".reek.yml" }
     new { file = "config.reek" }
   }
+  mise_tools = List("gem:reek")
 }
 reek = new Config.Step {
   types = List("ruby")

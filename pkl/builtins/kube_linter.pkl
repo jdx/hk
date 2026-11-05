@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".kube-linter.yaml" }
     new { file = ".kube-linter.yml" }
   }
+  mise_tools = List("kube-linter")
 }
 // Select plain manifests in conventional directories, not arbitrary YAML such as
 // GitHub workflows. Override glob for other layouts. Helm templates need to be
