@@ -2461,6 +2461,7 @@ impl Git {
                     git_dir: Some(git_dir),
                     head: revision.0,
                     branch: revision.1,
+                    worktree: Some(std::env::current_dir()?.display().to_string()),
                 });
             }
             revision = again;

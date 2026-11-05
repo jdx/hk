@@ -570,6 +570,9 @@ pub struct Origin {
     /// tag of the same name cannot make ambiguous. `None` with a detached
     /// HEAD.
     pub branch: Option<String>,
+    /// The root of the work tree, as `Journal::worktree` records it. Several
+    /// work trees (`GIT_WORK_TREE`) can share one git directory.
+    pub worktree: Option<String>,
 }
 
 /// A stash list entry, as the decision needs it.
@@ -717,6 +720,15 @@ fn origin_mismatch(journal: &Journal, here: &Origin) -> Option<ReportReason> {
     {
         return Some(ReportReason::MismatchedWorktree {
             recorded: recorded.clone(),
+            here: here.clone(),
+        });
+    }
+    // Work trees chosen with `GIT_WORK_TREE` can share one git directory
+    if let Some(here) = &here.worktree
+        && &journal.worktree != here
+    {
+        return Some(ReportReason::MismatchedWorktree {
+            recorded: journal.worktree.clone(),
             here: here.clone(),
         });
     }
@@ -1011,6 +1023,7 @@ mod tests {
             git_dir: Some("/repo/.git".into()),
             head: Some("1111111111111111111111111111111111111111".into()),
             branch: Some("main".into()),
+            worktree: Some("/repo".into()),
         }
     }
 
@@ -1323,6 +1336,24 @@ mod tests {
                 reason: ReportReason::MismatchedWorktree {
                     recorded: "/repo/.git/worktrees/other".into(),
                     here: "/repo/.git".into(),
+                },
+                commits: vec!["new".into()],
+            }
+        );
+    }
+
+    #[test]
+    fn a_journal_from_another_work_tree_of_the_same_git_dir_is_reported() {
+        let mut j = journal();
+        j.entries.push(entry("new"));
+        j.worktree = "/other-tree".into();
+        let stash = [row("new", "On main: hk: 4242-9-0")];
+        assert_eq!(
+            decide(&j, &stash, true, &origin()),
+            Action::Report {
+                reason: ReportReason::MismatchedWorktree {
+                    recorded: "/other-tree".into(),
+                    here: "/repo".into(),
                 },
                 commits: vec!["new".into()],
             }
