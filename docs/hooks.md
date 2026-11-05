@@ -189,6 +189,17 @@ hooks {
 
 The `commit_msg_file` template variable contains the message path. `prepare-commit-msg` also receives `source` and `sha` when Git supplies them. Use that hook to prepare or edit a message before the user’s editor opens.
 
+To restrict scopes, configure the builtin with a `List<String>`:
+
+```pkl
+["conventional-commit"] = (Builtins.check_conventional_commit) {
+  allowed_scopes = List("web", "api")
+}
+```
+
+This accepts `fix(api): fix auth`, `feat(web): add dashboard`, and unscoped messages such as `fix: fix auth`. Other scopes are rejected with a list of allowed values.
+Omit `allowed_scopes` to accept any scope, or set `allowed_scopes = List()` to allow only unscoped commits. Each list entry must be a single scope without commas.
+
 ## Other Git events
 
 hk has dedicated handlers for these events:

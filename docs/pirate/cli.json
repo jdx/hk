@@ -35,6 +35,8 @@
     "- **Effect:** modifies state": "- **Effect:** modifies state (it touches, as well as looks)",
     "- **Effect:** read-only": "- **Effect:** read-only (looks, never touches)",
     "- **`--allowed-types <ALLOWED_TYPES>`** — Comma-separated list of commit types to accept": "- **`--allowed-types <ALLOWED_TYPES>`** — Comma-separated list of commit types to accept",
+    "- **`--allowed-scopes <ALLOWED_SCOPES>`** — Comma-separated list of scopes to accept; unscoped commits are always allowed": "- **`--allowed-scopes <ALLOWED_SCOPES>`** — Accepted scopes, separated by commas; voyages without a scope may always sail",
+    "  By default, any scope is accepted. An empty list allows only unscoped commits.": "  Unless ye say otherwise, any scope is accepted. An empty list lets only unscoped voyages sail.",
     "- **`--assume-in-merge`** — Run the check even when not in a merge": "- **`--assume-in-merge`** — Run the check even when no merge is in progress",
     "- **`--branch <BRANCH>`** — Branch names to protect (default: main, master)": "- **`--branch <BRANCH>`** — Branch names to guard (default: main, master)",
     "- **`--cd <DIRECTORY>`** — Run as if hk was started in this directory": "- **`--cd <DIRECTORY>`** — Run as if hk was started in this directory",

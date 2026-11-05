@@ -7,7 +7,7 @@ description: "Validate a file containing a commit message."
 
 # `hk util check-conventional-commit`
 
-- **Usage:** `hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`
+- **Usage:** `hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] [--allowed-scopes <ALLOWED_SCOPES>] <COMMIT_MSG_FILE>`
 - **Effect:** read-only
 
 Check that a commit message follows the Conventional Commits format
@@ -23,6 +23,10 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
 - **`--allowed-types <ALLOWED_TYPES>`** — Comma-separated list of commit types to accept
 
   **Default:** `build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test`
+
+- **`--allowed-scopes <ALLOWED_SCOPES>`** — Comma-separated list of scopes to accept; unscoped commits are always allowed
+
+  By default, any scope is accepted. An empty list allows only unscoped commits.
 
 - **`-h --help`** — Print help
 

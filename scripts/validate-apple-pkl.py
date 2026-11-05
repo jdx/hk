@@ -40,6 +40,7 @@ SHELL_EXPANSIONS = {
 # These fixtures deliberately exercise Pkl evaluation errors. The migration
 # fixtures import removed v1 shims; the others verify malformed-config errors.
 EXPECTED_FAILURES = {
+    ("commit_msg.bats", "conventional commit builtin rejects comma-containing scope entries"),
     ("config_error_handling.bats", "hk check fails on invalid config"),
     ("config_error_handling.bats", "hk fix fails on invalid config"),
     ("config_error_handling.bats", "hk run fails on invalid config"),
