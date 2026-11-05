@@ -2830,8 +2830,21 @@ impl Git {
                         }
                     }
                 }
-                self.recovery_origin = Some(here);
-                match self.pop_stash(false) {
+                // pop_unstaged_stash checks the origin again just before it
+                // writes; with no unstaged entry it never gets there, so an
+                // intent-to-add entry alone is checked here.
+                let result = if self.stash.is_none()
+                    && Self::origin_now().map_or(true, |now| now != here)
+                {
+                    self.intent_to_add = None;
+                    Err(eyre!(
+                        "HEAD or the branch changed while hk was getting ready to restore the stash, so it restored nothing"
+                    ))
+                } else {
+                    self.recovery_origin = Some(here);
+                    self.pop_stash(false)
+                };
+                match result {
                     Ok(()) => {
                         info!("restored the stashed changes");
                         Ok(true)
@@ -3068,8 +3081,10 @@ impl Git {
                 // checkout in between would land the stash on another branch.
                 // Reading it again before the first write narrows that window.
                 if let Some(expected) = self.recovery_origin.take()
-                    && Self::origin_now()? != expected
+                    && Self::origin_now().map_or(true, |now| now != expected)
                 {
+                    // Leave the intent-to-add entry in the stash as well
+                    self.intent_to_add = None;
                     return Err(eyre!(
                         "HEAD or the branch changed while hk was getting ready to restore the stash, so it restored nothing; your changes are in {stash_label}. Once the checkout you want is back, restore them with `git stash apply {stash_ref}`"
                     ));
