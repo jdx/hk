@@ -969,6 +969,8 @@ pub struct Git {
     journal_declined: bool,
     // The hook being run, for the journal
     hook_name: String,
+    // Where a recovery decided to restore, checked again before it writes
+    recovery_origin: Option<stash_journal::Origin>,
 }
 
 enum StashType {
@@ -1082,6 +1084,7 @@ impl Git {
             journal: None,
             journal_declined: false,
             hook_name: String::new(),
+            recovery_origin: None,
         })
     }
 
@@ -2701,7 +2704,8 @@ impl Git {
             "--untracked-files=normal",
         ])?;
         let clean = !stash_journal::status_has_worktree_changes(&String::from_utf8_lossy(&status));
-        match stash_journal::decide(journal, &stash, clean, &Self::origin_now()?) {
+        let here = Self::origin_now()?;
+        match stash_journal::decide(journal, &stash, clean, &here) {
             Action::Discard(why) => {
                 debug!("removing {}: {why}", path.display());
                 Ok(true)
@@ -2749,6 +2753,7 @@ impl Git {
                         }
                     }
                 }
+                self.recovery_origin = Some(here);
                 match self.pop_stash(false) {
                     Ok(()) => {
                         info!("restored the stashed changes");
@@ -2982,6 +2987,16 @@ impl Git {
                     .map(|p| format!("; stashed edits are backed up at {}", p.display()))
                     .unwrap_or_default();
 
+                // Recovery read the origin before the reads above, and a
+                // checkout in between would land the stash on another branch.
+                // Reading it again before the first write narrows that window.
+                if let Some(expected) = self.recovery_origin.take()
+                    && Self::origin_now()? != expected
+                {
+                    return Err(eyre!(
+                        "HEAD or the branch changed while hk was getting ready to restore the stash, so it restored nothing; your changes are in {stash_label}. Once the checkout you want is back, restore them with `git stash apply {stash_ref}`"
+                    ));
+                }
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
