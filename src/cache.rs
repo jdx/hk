@@ -567,9 +567,9 @@ mod tests {
         std::fs::write(&taken, "someone else's").unwrap();
         let mut names = vec![dir.path().join("entry.free.tmp"), taken.clone()];
 
-        cache
-            .replace_entry_named(&vec![7], |_| names.pop().unwrap())
-            .unwrap_err();
+        let result = cache.replace_entry_named(&vec![7], |_| names.pop().unwrap());
+
+        assert!(result.is_err());
 
         assert_eq!(std::fs::read_to_string(&taken).unwrap(), "someone else's");
         assert!(!dir.path().join("entry.free.tmp").exists());
