@@ -195,23 +195,48 @@ where
 
     fn replace_entry(&self, val: &T) -> Result<()> {
         static NEXT_TEMP_FILE: AtomicU64 = AtomicU64::new(0);
+        self.replace_entry_named(val, |path| {
+            path.with_extension(format!(
+                "{}.{}.tmp",
+                std::process::id(),
+                NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed)
+            ))
+        })
+    }
+
+    /// `temp_name` picks the temporary file's name. A name that is taken (by
+    /// another process sharing the cache directory, or left by a crash) is
+    /// skipped, and its file is never touched: only a file this call created
+    /// is cleaned up.
+    fn replace_entry_named(
+        &self,
+        val: &T,
+        mut temp_name: impl FnMut(&Path) -> PathBuf,
+    ) -> Result<()> {
         let path = &self.cache_file_path;
         let bytes = serde_json::to_vec(val)?;
         if let Some(parent) = path.parent() {
             xx::file::create_dir_all(parent)?;
         }
-        let tmp = path.with_extension(format!(
-            "{}.{}.tmp",
-            std::process::id(),
-            NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed)
-        ));
-        let written = create_temp(path, &tmp)
-            .and_then(|mut file| {
-                use std::io::Write;
-                file.write_all(&bytes)
+        let (tmp, mut file) = (0..100)
+            .find_map(|_| {
+                let tmp = temp_name(path);
+                match create_temp(path, &tmp) {
+                    Ok(file) => Some(Ok((tmp, file))),
+                    Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => None,
+                    Err(err) => Some(Err(err)),
+                }
             })
-            .and_then(|()| keep_mode(path, &tmp))
-            .and_then(|()| rename_over(&tmp, path));
+            .ok_or_else(|| eyre::eyre!("no free temporary file name next to the entry"))??;
+        let written = {
+            use std::io::Write;
+            let result = file.write_all(&bytes);
+            // Closed before the rename, which Windows refuses for an open file
+            drop(file);
+            result
+        }
+        .and_then(|()| keep_mode(path, &tmp))
+        .and_then(|()| rename_over(&tmp, path));
         if written.is_err() {
             let _ = std::fs::remove_file(&tmp);
         }
