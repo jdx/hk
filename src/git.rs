@@ -2448,16 +2448,34 @@ impl Git {
         if git_dir.is_empty() {
             return Err(eyre!("`git rev-parse --absolute-git-dir` printed nothing"));
         }
-        let branch = git_cmd_silent(["symbolic-ref", "--quiet", "--short", "HEAD"])
-            .read()
-            .ok()
-            .map(|out| out.trim().to_string())
-            .filter(|out| !out.is_empty());
-        let head = git_cmd_silent(["rev-parse", "--verify", "--quiet", "HEAD"])
-            .read()
-            .ok()
-            .map(|out| out.trim().to_string())
-            .filter(|out| !out.is_empty());
+        // A checkout can finish between the two reads, which would record the
+        // old commit with the new branch. Two reads that agree are one state.
+        let mut revision = Self::read_revision()?;
+        for _ in 0..5 {
+            let again = Self::read_revision()?;
+            if again == revision {
+                return Ok(stash_journal::Origin {
+                    git_dir: Some(git_dir),
+                    head: revision.0,
+                    branch: revision.1,
+                });
+            }
+            revision = again;
+        }
+        Err(eyre!("HEAD kept changing while hk read it"))
+    }
+
+    /// HEAD's commit and the branch it is on, one read each.
+    fn read_revision() -> Result<(Option<String>, Option<String>)> {
+        let read = |args: &[&str]| {
+            git_cmd_silent(args.iter().copied())
+                .read()
+                .ok()
+                .map(|out| out.trim().to_string())
+                .filter(|out| !out.is_empty())
+        };
+        let branch = read(&["symbolic-ref", "--quiet", "--short", "HEAD"]);
+        let head = read(&["rev-parse", "--verify", "--quiet", "HEAD"]);
         if head.is_none() {
             // Only a branch with no commit yet has no HEAD to read
             let unborn = match &branch {
@@ -2477,11 +2495,7 @@ impl Git {
                 ));
             }
         }
-        Ok(stash_journal::Origin {
-            git_dir: Some(git_dir),
-            head,
-            branch,
-        })
+        Ok((head, branch))
     }
 
     /// The pending-stash journal of this worktree.
