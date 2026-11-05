@@ -741,7 +741,14 @@ fn origin_mismatch(journal: &Journal, here: &Origin) -> Option<ReportReason> {
         (Some(_), None) => true,
         (None, _) => false,
     };
-    if moved_on(&journal.head, &here.head) || moved_on(&journal.branch, &here.branch) {
+    // A journal with a HEAD but no branch was written on a detached HEAD,
+    // which is not any named branch, even one at the same commit.
+    let left_detached_head =
+        journal.head.is_some() && journal.branch.is_none() && here.branch.is_some();
+    if moved_on(&journal.head, &here.head)
+        || moved_on(&journal.branch, &here.branch)
+        || left_detached_head
+    {
         return Some(ReportReason::MismatchedRevision {
             recorded: describe_revision(&journal.head, &journal.branch),
             here: describe_revision(&here.head, &here.branch),
@@ -1397,6 +1404,31 @@ mod tests {
                 other => panic!("expected a report, got {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn a_journal_from_a_detached_head_is_reported_on_a_named_branch_at_the_same_commit() {
+        let mut j = journal();
+        j.entries.push(entry("new"));
+        j.branch = None;
+        let stash = [row("new", "On main: hk: 4242-9-0")];
+        match decide(&j, &stash, true, &origin()) {
+            Action::Report {
+                reason: ReportReason::MismatchedRevision { recorded, here },
+                ..
+            } => {
+                assert_eq!(recorded, "HEAD 111111111111 with a detached HEAD");
+                assert_eq!(here, "HEAD 111111111111 on branch `main`");
+            }
+            other => panic!("expected a report, got {other:?}"),
+        }
+        // Still detached here: nothing moved
+        let mut detached = origin();
+        detached.branch = None;
+        assert_eq!(
+            decide(&j, &stash, true, &detached),
+            Action::Restore(vec![entry("new")])
+        );
     }
 
     #[test]
