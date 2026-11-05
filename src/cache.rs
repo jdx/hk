@@ -312,11 +312,20 @@ fn create_temp(entry: &Path, tmp: &Path) -> std::io::Result<std::fs::File> {
 }
 
 /// The umask can only narrow the mode `create_temp` asked for, so the exact
-/// mode of the entry is restored once the temporary file exists.
+/// mode of the entry is restored once the temporary file exists. The group
+/// is carried over too: the new file otherwise takes the group of the writing
+/// process or the directory, which can lock out the group sharing the cache.
+/// The group goes first, as changing it can clear the setuid and setgid bits.
 #[cfg(unix)]
 fn keep_mode(entry: &Path, tmp: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
     match std::fs::metadata(entry) {
-        Ok(meta) => std::fs::set_permissions(tmp, meta.permissions()),
+        Ok(meta) => {
+            if std::fs::metadata(tmp)?.gid() != meta.gid() {
+                std::os::unix::fs::chown(tmp, None, Some(meta.gid()))?;
+            }
+            std::fs::set_permissions(tmp, meta.permissions())
+        }
         Err(_) => Ok(()),
     }
 }
