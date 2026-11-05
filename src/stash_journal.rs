@@ -566,7 +566,9 @@ pub struct Origin {
     pub git_dir: Option<String>,
     /// The commit HEAD was at. `None` on an unborn branch.
     pub head: Option<String>,
-    /// The branch HEAD was on. `None` with a detached HEAD.
+    /// The full ref of the branch HEAD was on (`refs/heads/main`), which a
+    /// tag of the same name cannot make ambiguous. `None` with a detached
+    /// HEAD.
     pub branch: Option<String>,
 }
 
@@ -743,7 +745,10 @@ fn describe_revision(head: &Option<String>, branch: &Option<String>) -> String {
         None => "an unborn HEAD".to_string(),
     };
     match branch {
-        Some(branch) => format!("{head} on branch `{branch}`"),
+        Some(branch) => format!(
+            "{head} on branch `{}`",
+            branch.strip_prefix("refs/heads/").unwrap_or(branch)
+        ),
         None => format!("{head} with a detached HEAD"),
     }
 }

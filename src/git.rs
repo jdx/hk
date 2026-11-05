@@ -2474,19 +2474,15 @@ impl Git {
                 .map(|out| out.trim().to_string())
                 .filter(|out| !out.is_empty())
         };
-        let branch = read(&["symbolic-ref", "--quiet", "--short", "HEAD"]);
+        // The full ref: `--short` prints `heads/main` once a tag `main` exists
+        let branch = read(&["symbolic-ref", "--quiet", "HEAD"]);
         let head = read(&["rev-parse", "--verify", "--quiet", "HEAD"]);
         if head.is_none() {
             // Only a branch with no commit yet has no HEAD to read
             let unborn = match &branch {
-                Some(branch) => git_cmd_silent([
-                    "show-ref",
-                    "--verify",
-                    "--quiet",
-                    &format!("refs/heads/{branch}"),
-                ])
-                .read()
-                .is_err(),
+                Some(branch) => git_cmd_silent(["show-ref", "--verify", "--quiet", branch])
+                    .read()
+                    .is_err(),
                 None => false,
             };
             if !unborn {
