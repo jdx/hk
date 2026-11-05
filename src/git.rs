@@ -2437,18 +2437,51 @@ impl Git {
     /// is only recovered when it was written here, at this HEAD, on this
     /// branch: the stash entries it names are this worktree's, made from this
     /// commit, and no other worktree's.
-    fn origin_now() -> stash_journal::Origin {
-        let field = |args: &[&str]| {
-            git_read(args.iter().copied())
-                .ok()
-                .map(|out| out.trim().to_string())
-                .filter(|out| !out.is_empty())
-        };
-        stash_journal::Origin {
-            git_dir: field(&["rev-parse", "--absolute-git-dir"]),
-            head: field(&["rev-parse", "--verify", "--quiet", "HEAD"]),
-            branch: field(&["symbolic-ref", "--quiet", "--short", "HEAD"]),
+    ///
+    /// The git directory and HEAD must be readable: a journal without them
+    /// would be recovered anywhere. Only an unborn branch has no HEAD commit,
+    /// and only a detached HEAD has no branch.
+    fn origin_now() -> Result<stash_journal::Origin> {
+        let git_dir = git_read(["rev-parse", "--absolute-git-dir"])?
+            .trim()
+            .to_string();
+        if git_dir.is_empty() {
+            return Err(eyre!("`git rev-parse --absolute-git-dir` printed nothing"));
         }
+        let branch = git_cmd_silent(["symbolic-ref", "--quiet", "--short", "HEAD"])
+            .read()
+            .ok()
+            .map(|out| out.trim().to_string())
+            .filter(|out| !out.is_empty());
+        let head = git_cmd_silent(["rev-parse", "--verify", "--quiet", "HEAD"])
+            .read()
+            .ok()
+            .map(|out| out.trim().to_string())
+            .filter(|out| !out.is_empty());
+        if head.is_none() {
+            // Only a branch with no commit yet has no HEAD to read
+            let unborn = match &branch {
+                Some(branch) => git_cmd_silent([
+                    "show-ref",
+                    "--verify",
+                    "--quiet",
+                    &format!("refs/heads/{branch}"),
+                ])
+                .read()
+                .is_err(),
+                None => false,
+            };
+            if !unborn {
+                return Err(eyre!(
+                    "failed to read HEAD to record where the stash was made"
+                ));
+            }
+        }
+        Ok(stash_journal::Origin {
+            git_dir: Some(git_dir),
+            head,
+            branch,
+        })
     }
 
     /// The pending-stash journal of this worktree.
@@ -2469,7 +2502,7 @@ impl Git {
             let journal = stash_journal::Journal::new(
                 &self.hook_name,
                 &std::env::current_dir()?,
-                Self::origin_now(),
+                Self::origin_now()?,
                 stash_entries()?.into_iter().map(|e| e.commit).collect(),
             );
             stash_journal::OwnedJournal::begin(path, journal, self.stash_lock_shared_mode())
@@ -2658,7 +2691,7 @@ impl Git {
             "--untracked-files=normal",
         ])?;
         let clean = !stash_journal::status_has_worktree_changes(&String::from_utf8_lossy(&status));
-        match stash_journal::decide(journal, &stash, clean, &Self::origin_now()) {
+        match stash_journal::decide(journal, &stash, clean, &Self::origin_now()?) {
             Action::Discard(why) => {
                 debug!("removing {}: {why}", path.display());
                 Ok(true)
