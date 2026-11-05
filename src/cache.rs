@@ -540,6 +540,41 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&tmp).unwrap(), "taken");
     }
 
+    #[test]
+    fn a_write_skips_a_taken_temporary_name_and_leaves_its_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        let taken = dir.path().join("entry.taken.tmp");
+        std::fs::write(&taken, "someone else's").unwrap();
+        let free = dir.path().join("entry.free.tmp");
+        let mut names = vec![free, taken.clone()];
+
+        cache
+            .replace_entry_named(&vec![7], |_| names.pop().unwrap())
+            .unwrap();
+
+        assert_eq!(std::fs::read_to_string(&taken).unwrap(), "someone else's");
+        assert_eq!(cache.parse().unwrap(), vec![7]);
+    }
+
+    #[test]
+    fn a_failed_write_after_a_taken_name_still_leaves_that_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        // The rename fails, so the file this write created is removed
+        std::fs::create_dir(&cache.cache_file_path).unwrap();
+        let taken = dir.path().join("entry.taken.tmp");
+        std::fs::write(&taken, "someone else's").unwrap();
+        let mut names = vec![dir.path().join("entry.free.tmp"), taken.clone()];
+
+        cache
+            .replace_entry_named(&vec![7], |_| names.pop().unwrap())
+            .unwrap_err();
+
+        assert_eq!(std::fs::read_to_string(&taken).unwrap(), "someone else's");
+        assert!(!dir.path().join("entry.free.tmp").exists());
+    }
+
     /// `std` leaves ERROR_SHARING_VIOLATION uncategorized, so it is matched by
     /// its raw code. Only Windows has these failures to retry.
     #[cfg(windows)]
