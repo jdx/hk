@@ -1036,6 +1036,8 @@ pub struct Git {
     journal_declined: bool,
     // The hook being run, for the journal
     hook_name: String,
+    // Where a recovery decided to restore, checked again before it writes
+    recovery_origin: Option<stash_journal::Origin>,
 }
 
 enum StashType {
@@ -1149,6 +1151,7 @@ impl Git {
             journal: None,
             journal_declined: false,
             hook_name: String::new(),
+            recovery_origin: None,
         })
     }
 
@@ -2505,6 +2508,69 @@ impl Git {
         self.hook_name = name.to_string();
     }
 
+    /// Where this run is, as the pending-stash journal records it: the
+    /// worktree's absolute git directory, its HEAD and its branch. A journal
+    /// is only recovered when it was written here, at this HEAD, on this
+    /// branch: the stash entries it names are this worktree's, made from this
+    /// commit, and no other worktree's.
+    ///
+    /// The git directory and HEAD must be readable: a journal without them
+    /// would be recovered anywhere. Only an unborn branch has no HEAD commit,
+    /// and only a detached HEAD has no branch.
+    fn origin_now() -> Result<stash_journal::Origin> {
+        let git_dir = git_read(["rev-parse", "--absolute-git-dir"])?
+            .trim()
+            .to_string();
+        if git_dir.is_empty() {
+            return Err(eyre!("`git rev-parse --absolute-git-dir` printed nothing"));
+        }
+        // A checkout can finish between the two reads, which would record the
+        // old commit with the new branch. Two reads that agree are one state.
+        let mut revision = Self::read_revision()?;
+        for _ in 0..5 {
+            let again = Self::read_revision()?;
+            if again == revision {
+                return Ok(stash_journal::Origin {
+                    git_dir: Some(git_dir),
+                    head: revision.0,
+                    branch: revision.1,
+                    worktree: Some(std::env::current_dir()?.display().to_string()),
+                });
+            }
+            revision = again;
+        }
+        Err(eyre!("HEAD kept changing while hk read it"))
+    }
+
+    /// HEAD's commit and the branch it is on, one read each.
+    fn read_revision() -> Result<(Option<String>, Option<String>)> {
+        let read = |args: &[&str]| {
+            git_cmd_silent(args.iter().copied())
+                .read()
+                .ok()
+                .map(|out| out.trim().to_string())
+                .filter(|out| !out.is_empty())
+        };
+        // The full ref: `--short` prints `heads/main` once a tag `main` exists
+        let branch = read(&["symbolic-ref", "--quiet", "HEAD"]);
+        let head = read(&["rev-parse", "--verify", "--quiet", "HEAD"]);
+        if head.is_none() {
+            // Only a branch with no commit yet has no HEAD to read
+            let unborn = match &branch {
+                Some(branch) => git_cmd_silent(["show-ref", "--verify", "--quiet", branch])
+                    .read()
+                    .is_err(),
+                None => false,
+            };
+            if !unborn {
+                return Err(eyre!(
+                    "failed to read HEAD to record where the stash was made"
+                ));
+            }
+        }
+        Ok((head, branch))
+    }
+
     /// The pending-stash journal of this worktree.
     fn journal_file() -> Result<PathBuf> {
         let dir = git_read(["rev-parse", "--absolute-git-dir"])?;
@@ -2523,6 +2589,7 @@ impl Git {
             let journal = stash_journal::Journal::new(
                 &self.hook_name,
                 &std::env::current_dir()?,
+                Self::origin_now()?,
                 stash_entries()?.into_iter().map(|e| e.commit).collect(),
             );
             stash_journal::OwnedJournal::begin(path, journal, self.stash_lock_shared_mode())
@@ -2714,7 +2781,8 @@ impl Git {
             "--untracked-files=normal",
         ])?;
         let clean = !stash_journal::status_has_worktree_changes(&String::from_utf8_lossy(&status));
-        match stash_journal::decide(journal, &stash, clean) {
+        let here = Self::origin_now()?;
+        match stash_journal::decide(journal, &stash, clean, &here) {
             Action::Discard(why) => {
                 debug!("removing {}: {why}", path.display());
                 Ok(true)
@@ -2762,7 +2830,21 @@ impl Git {
                         }
                     }
                 }
-                match self.pop_stash(false) {
+                // pop_unstaged_stash checks the origin again just before it
+                // writes; with no unstaged entry it never gets there, so an
+                // intent-to-add entry alone is checked here.
+                let result = if self.stash.is_none()
+                    && Self::origin_now().map_or(true, |now| now != here)
+                {
+                    self.intent_to_add = None;
+                    Err(eyre!(
+                        "HEAD or the branch changed while hk was getting ready to restore the stash, so it restored nothing"
+                    ))
+                } else {
+                    self.recovery_origin = Some(here);
+                    self.pop_stash(false)
+                };
+                match result {
                     Ok(()) => {
                         info!("restored the stashed changes");
                         Ok(true)
@@ -2995,6 +3077,18 @@ impl Git {
                     .map(|p| format!("; stashed edits are backed up at {}", p.display()))
                     .unwrap_or_default();
 
+                // Recovery read the origin before the reads above, and a
+                // checkout in between would land the stash on another branch.
+                // Reading it again before the first write narrows that window.
+                if let Some(expected) = self.recovery_origin.take()
+                    && Self::origin_now().map_or(true, |now| now != expected)
+                {
+                    // Leave the intent-to-add entry in the stash as well
+                    self.intent_to_add = None;
+                    return Err(eyre!(
+                        "HEAD or the branch changed while hk was getting ready to restore the stash, so it restored nothing; your changes are in {stash_label}. Once the checkout you want is back, restore them with `git stash apply {stash_ref}`"
+                    ));
+                }
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();

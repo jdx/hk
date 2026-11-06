@@ -550,3 +550,50 @@ shared_repository_journal_is_group_readable() {
 @test "a journal in a group-shared repository is group-readable under umask 077 (shell git)" {
     shared_repository_journal_is_group_readable 0
 }
+
+# The stash a killed run made belongs to the commit and branch that were
+# checked out when it was made. A user who commits the staged work and moves
+# on to another branch leaves the journal pointing at a stash of the old
+# branch: the next run reports it, and this worktree keeps the other branch's
+# contents.
+moved_on_to_another_branch() {
+    local use_libgit2="$1"
+    write_config
+    prepare_repo
+    git branch -m feat/resume-from-session-store
+    HK_LIBGIT2="$use_libgit2" hk run pre-commit >/dev/null 2>&1 &
+    local pid=$!
+    wait_for_step
+    kill -9 "$pid"
+    wait "$pid" || true
+    pkill -f "sleep $SLEEP_MARK\$" || true
+    # The step's marker is not a change of the user's: the worktree was clean
+    # after hk stashed, which is what lets a recovery apply the entry
+    rm -f started
+    local commit
+    commit="$(git for-each-ref --format='%(objectname)' refs/hk/stash)"
+    [ -n "$commit" ]
+    assert_file_exists "$JOURNAL"
+    # The staged content is in the worktree, the unstaged edit in the stash
+    assert_equal "$(cat file.txt)" "staged"
+    # The user commits that and moves on: HEAD is no longer the commit the
+    # stash was made on
+    git switch -c fix/run-command-native-render
+    git commit -qm "the other branch's work"
+    run env HK_LIBGIT2="$use_libgit2" hk check --all
+    # The entry belongs to the branch it was made on: hk names the command
+    # that brings it back and touches neither this worktree nor the entry
+    assert_output --partial "git stash apply $commit"
+    assert_output --partial "belongs to another branch or commit"
+    assert_file_exists "$JOURNAL"
+    assert_equal "$(git for-each-ref --format='%(objectname)' refs/hk/stash)" "$commit"
+    assert_equal "$(cat file.txt)" "staged"
+}
+
+@test "a journal whose stash was made on another branch is reported, never restored (libgit2)" {
+    moved_on_to_another_branch 1
+}
+
+@test "a journal whose stash was made on another branch is reported, never restored (shell git)" {
+    moved_on_to_another_branch 0
+}

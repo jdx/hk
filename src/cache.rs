@@ -195,23 +195,48 @@ where
 
     fn replace_entry(&self, val: &T) -> Result<()> {
         static NEXT_TEMP_FILE: AtomicU64 = AtomicU64::new(0);
+        self.replace_entry_named(val, |path| {
+            path.with_extension(format!(
+                "{}.{}.tmp",
+                std::process::id(),
+                NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed)
+            ))
+        })
+    }
+
+    /// `temp_name` picks the temporary file's name. A name that is taken (by
+    /// another process sharing the cache directory, or left by a crash) is
+    /// skipped, and its file is never touched: only a file this call created
+    /// is cleaned up.
+    fn replace_entry_named(
+        &self,
+        val: &T,
+        mut temp_name: impl FnMut(&Path) -> PathBuf,
+    ) -> Result<()> {
         let path = &self.cache_file_path;
         let bytes = serde_json::to_vec(val)?;
         if let Some(parent) = path.parent() {
             xx::file::create_dir_all(parent)?;
         }
-        let tmp = path.with_extension(format!(
-            "{}.{}.tmp",
-            std::process::id(),
-            NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed)
-        ));
-        let written = create_temp(path, &tmp)
-            .and_then(|mut file| {
-                use std::io::Write;
-                file.write_all(&bytes)
+        let (tmp, mut file) = (0..100)
+            .find_map(|_| {
+                let tmp = temp_name(path);
+                match create_temp(path, &tmp) {
+                    Ok(file) => Some(Ok((tmp, file))),
+                    Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => None,
+                    Err(err) => Some(Err(err)),
+                }
             })
-            .and_then(|()| keep_mode(path, &tmp))
-            .and_then(|()| rename_over(&tmp, path));
+            .ok_or_else(|| eyre::eyre!("no free temporary file name next to the entry"))??;
+        let written = {
+            use std::io::Write;
+            let result = file.write_all(&bytes);
+            // Closed before the rename, which Windows refuses for an open file
+            drop(file);
+            result
+        }
+        .and_then(|()| keep_mode(path, &tmp))
+        .and_then(|()| rename_over(&tmp, path));
         if written.is_err() {
             let _ = std::fs::remove_file(&tmp);
         }
@@ -287,11 +312,20 @@ fn create_temp(entry: &Path, tmp: &Path) -> std::io::Result<std::fs::File> {
 }
 
 /// The umask can only narrow the mode `create_temp` asked for, so the exact
-/// mode of the entry is restored once the temporary file exists.
+/// mode of the entry is restored once the temporary file exists. The group
+/// is carried over too: the new file otherwise takes the group of the writing
+/// process or the directory, which can lock out the group sharing the cache.
+/// The group goes first, as changing it can clear the setuid and setgid bits.
 #[cfg(unix)]
 fn keep_mode(entry: &Path, tmp: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
     match std::fs::metadata(entry) {
-        Ok(meta) => std::fs::set_permissions(tmp, meta.permissions()),
+        Ok(meta) => {
+            if std::fs::metadata(tmp)?.gid() != meta.gid() {
+                std::os::unix::fs::chown(tmp, None, Some(meta.gid()))?;
+            }
+            std::fs::set_permissions(tmp, meta.permissions())
+        }
         Err(_) => Ok(()),
     }
 }
@@ -504,6 +538,41 @@ mod tests {
 
         assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
         assert_eq!(std::fs::read_to_string(&tmp).unwrap(), "taken");
+    }
+
+    #[test]
+    fn a_write_skips_a_taken_temporary_name_and_leaves_its_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        let taken = dir.path().join("entry.taken.tmp");
+        std::fs::write(&taken, "someone else's").unwrap();
+        let free = dir.path().join("entry.free.tmp");
+        let mut names = vec![free, taken.clone()];
+
+        cache
+            .replace_entry_named(&vec![7], |_| names.pop().unwrap())
+            .unwrap();
+
+        assert_eq!(std::fs::read_to_string(&taken).unwrap(), "someone else's");
+        assert_eq!(cache.parse().unwrap(), vec![7]);
+    }
+
+    #[test]
+    fn a_failed_write_after_a_taken_name_still_leaves_that_file_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = entry_in(dir.path());
+        // The rename fails, so the file this write created is removed
+        std::fs::create_dir(&cache.cache_file_path).unwrap();
+        let taken = dir.path().join("entry.taken.tmp");
+        std::fs::write(&taken, "someone else's").unwrap();
+        let mut names = vec![dir.path().join("entry.free.tmp"), taken.clone()];
+
+        let result = cache.replace_entry_named(&vec![7], |_| names.pop().unwrap());
+
+        assert!(result.is_err());
+
+        assert_eq!(std::fs::read_to_string(&taken).unwrap(), "someone else's");
+        assert!(!dir.path().join("entry.free.tmp").exists());
     }
 
     /// `std` leaves ERROR_SHARING_VIOLATION uncategorized, so it is matched by

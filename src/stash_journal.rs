@@ -56,6 +56,18 @@ pub struct Journal {
     pub timestamp: u64,
     pub hook: String,
     pub worktree: String,
+    /// The worktree's git directory, its HEAD and the branch HEAD was on, as
+    /// they were when the journal was written (see [`Origin`]). The stash
+    /// entries a journal records belong to the worktree and the commit that
+    /// made them, so a recovery only acts on a journal written here, at this
+    /// HEAD, on this branch. `None` in journals written by older hk versions
+    /// and where hk cannot read them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
     /// The stash entries that existed before hk pushed its own. Entries hk
     /// created but died before recording are found by their absence here.
     pub stashes_before: Vec<String>,
@@ -64,7 +76,7 @@ pub struct Journal {
 }
 
 impl Journal {
-    pub fn new(hook: &str, worktree: &Path, stashes_before: Vec<String>) -> Self {
+    pub fn new(hook: &str, worktree: &Path, origin: Origin, stashes_before: Vec<String>) -> Self {
         let pid = std::process::id();
         Self {
             version: VERSION,
@@ -77,6 +89,9 @@ impl Journal {
                 .unwrap_or_default(),
             hook: hook.to_string(),
             worktree: worktree.display().to_string(),
+            git_dir: origin.git_dir,
+            head: origin.head,
+            branch: origin.branch,
             stashes_before,
             entries: vec![],
         }
@@ -536,6 +551,31 @@ pub fn remove_file(path: &Path) {
 }
 
 /// A stash list entry, as the decision needs it.
+/// Where a journal was written: the worktree whose git directory holds it, the
+/// HEAD that worktree was at, and the branch HEAD was on. The entries a
+/// journal records were made from that worktree's index and worktree at that
+/// commit, so a recovery applies them only where they were made.
+///
+/// Every field is optional: a journal written by an older hk records none of
+/// them, and hk then judges it the way it did before.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Origin {
+    /// The worktree's absolute git directory, as `git rev-parse
+    /// --absolute-git-dir` reports it. Two linked worktrees of one repository
+    /// have different ones.
+    pub git_dir: Option<String>,
+    /// The commit HEAD was at. `None` on an unborn branch.
+    pub head: Option<String>,
+    /// The full ref of the branch HEAD was on (`refs/heads/main`), which a
+    /// tag of the same name cannot make ambiguous. `None` with a detached
+    /// HEAD.
+    pub branch: Option<String>,
+    /// The root of the work tree, as `Journal::worktree` records it. Several
+    /// work trees (`GIT_WORK_TREE`) can share one git directory.
+    pub worktree: Option<String>,
+}
+
+/// A stash list entry, as the decision needs it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StashRow {
     pub commit: String,
@@ -575,6 +615,11 @@ pub enum ReportReason {
     UnrecordedEntry,
     /// The journal names more than one entry of a kind, which hk never makes.
     Ambiguous,
+    /// The journal was written in another worktree, so the stash it names is
+    /// that worktree's to restore, not this one's.
+    MismatchedWorktree { recorded: String, here: String },
+    /// The journal was written at another HEAD, or on another branch.
+    MismatchedRevision { recorded: String, here: String },
     /// The owner may still be running, in another host or PID namespace.
     UnknownOwner(&'static str),
 }
@@ -632,18 +677,8 @@ pub fn unknown_owner_report(
             ));
         }
     };
-    let mut commits: Vec<String> = journal
-        .entries
-        .iter()
-        .filter(|e| stash.iter().any(|row| row.commit == e.commit))
-        .map(|e| e.commit.clone())
-        .collect();
     let unrecorded = unrecorded_entries(journal, stash);
-    for commit in &unrecorded {
-        if !commits.contains(commit) {
-            commits.push(commit.clone());
-        }
-    }
+    let commits = named_commits(journal, stash, &unrecorded);
     if commits.is_empty() {
         return None;
     }
@@ -658,9 +693,107 @@ pub fn unknown_owner_report(
 }
 
 /// What to do with a journal whose owner is gone. `stash` is the stash list
-/// now, and `worktree_clean` whether the worktree has no change that is not
-/// staged and no untracked file.
-pub fn decide(journal: &Journal, stash: &[StashRow], worktree_clean: bool) -> Action {
+/// The commits a report names: every entry the journal recorded that is still
+/// in the stash, then the unrecorded entries carrying its pid, each once.
+fn named_commits(journal: &Journal, stash: &[StashRow], unrecorded: &[String]) -> Vec<String> {
+    let mut commits: Vec<String> = journal
+        .entries
+        .iter()
+        .filter(|e| stash.iter().any(|row| row.commit == e.commit))
+        .map(|e| e.commit.clone())
+        .collect();
+    for commit in unrecorded {
+        if !commits.contains(commit) {
+            commits.push(commit.clone());
+        }
+    }
+    commits
+}
+
+/// How the journal's origin differs from the worktree this recovery runs in,
+/// worded for the report. `None` when they agree, and when the journal records
+/// too little of itself to tell: those are the journals older hk wrote, judged
+/// the way they always were.
+fn origin_mismatch(journal: &Journal, here: &Origin) -> Option<ReportReason> {
+    if let (Some(recorded), Some(here)) = (&journal.git_dir, &here.git_dir)
+        && recorded != here
+    {
+        return Some(ReportReason::MismatchedWorktree {
+            recorded: recorded.clone(),
+            here: here.clone(),
+        });
+    }
+    // Work trees chosen with `GIT_WORK_TREE` can share one git directory
+    if let Some(here) = &here.worktree
+        && &journal.worktree != here
+    {
+        return Some(ReportReason::MismatchedWorktree {
+            recorded: journal.worktree.clone(),
+            here: here.clone(),
+        });
+    }
+    // A stash is made from one commit's index and worktree, so applying it at
+    // another commit, or on another branch, restores changes that are not this
+    // worktree's. A journal that records neither proves nothing, and is left
+    // to the checks that follow.
+    let moved_on = |recorded: &Option<String>, now: &Option<String>| match (recorded, now) {
+        (Some(recorded), Some(now)) => recorded != now,
+        (Some(_), None) => true,
+        (None, _) => false,
+    };
+    // A journal with a HEAD but no branch was written on a detached HEAD,
+    // which is not any named branch, even one at the same commit.
+    let left_detached_head =
+        journal.head.is_some() && journal.branch.is_none() && here.branch.is_some();
+    if moved_on(&journal.head, &here.head)
+        || moved_on(&journal.branch, &here.branch)
+        || left_detached_head
+    {
+        return Some(ReportReason::MismatchedRevision {
+            recorded: describe_revision(&journal.head, &journal.branch),
+            here: describe_revision(&here.head, &here.branch),
+        });
+    }
+    None
+}
+
+/// `HEAD <commit> on branch <branch>`, for the report.
+fn describe_revision(head: &Option<String>, branch: &Option<String>) -> String {
+    let head = match head {
+        Some(head) => format!("HEAD {}", head.get(..12).unwrap_or(head.as_str())),
+        None => "an unborn HEAD".to_string(),
+    };
+    match branch {
+        Some(branch) => format!(
+            "{head} on branch `{}`",
+            branch.strip_prefix("refs/heads/").unwrap_or(branch)
+        ),
+        None => format!("{head} with a detached HEAD"),
+    }
+}
+
+/// What to do with a journal whose owner is gone. `stash` is the stash list
+/// now, `worktree_clean` whether the worktree has no change that is not staged
+/// and no untracked file, and `here` where this recovery runs.
+///
+/// A journal written in another worktree, or at another HEAD or branch, is
+/// never restored and never dropped: the stash it names is not this worktree's
+/// to put back, and the report says how to. `here` is left untouched.
+pub fn decide(
+    journal: &Journal,
+    stash: &[StashRow],
+    worktree_clean: bool,
+    here: &Origin,
+) -> Action {
+    if let Some(reason) = origin_mismatch(journal, here) {
+        let commits = named_commits(journal, stash, &unrecorded_entries(journal, stash));
+        if commits.is_empty() {
+            // Nothing of the user's is left under this journal: it keeps no
+            // stash pointing at anything
+            return Action::Discard("it was written elsewhere, and its stash entries are gone");
+        }
+        return Action::Report { reason, commits };
+    }
     let present: Vec<JournalEntry> = journal
         .entries
         .iter()
@@ -719,6 +852,12 @@ pub fn report_message(
         ReportReason::Ambiguous => {
             "More than one stash entry is recorded, so hk did not apply them itself.".to_string()
         }
+        ReportReason::MismatchedWorktree { recorded, here } => format!(
+            "It was written in another worktree ({recorded}), and this run is in {here}, so that worktree's stash does not belong here."
+        ),
+        ReportReason::MismatchedRevision { recorded, here } => format!(
+            "Its stash was made at {recorded}, and this worktree is at {here}, so it belongs to another branch or commit."
+        ),
     };
     let commands = commits
         .iter()
@@ -877,8 +1016,21 @@ mod tests {
             timestamp: 1_700_000_000,
             hook: "pre-commit".into(),
             worktree: "/repo".into(),
+            git_dir: Some("/repo/.git".into()),
+            head: Some("1111111111111111111111111111111111111111".into()),
+            branch: Some("main".into()),
             stashes_before: vec!["old".into()],
             entries: vec![],
+        }
+    }
+
+    /// The origin `journal()` records: the same worktree, HEAD and branch.
+    fn origin() -> Origin {
+        Origin {
+            git_dir: Some("/repo/.git".into()),
+            head: Some("1111111111111111111111111111111111111111".into()),
+            branch: Some("main".into()),
+            worktree: Some("/repo".into()),
         }
     }
 
@@ -969,7 +1121,7 @@ mod tests {
         assert!(!text.contains("owner_host"));
         assert_eq!(Journal::parse(&text).unwrap().owner_host, None);
         assert_eq!(
-            Journal::new("h", Path::new("/r"), vec![]).owner_host,
+            Journal::new("h", Path::new("/r"), origin(), vec![]).owner_host,
             host_identity()
         );
         assert!(host_identity().is_some());
@@ -1083,7 +1235,7 @@ mod tests {
     fn nothing_stashed_is_discarded() {
         let stash = [row("old", "On main: something")];
         assert!(matches!(
-            decide(&journal(), &stash, true),
+            decide(&journal(), &stash, true, &origin()),
             Action::Discard(_)
         ));
     }
@@ -1150,7 +1302,7 @@ mod tests {
         j.entries.push(entry("new"));
         let stash = [row("new", "On main: hk: 4242-9-0"), row("old", "x")];
         assert_eq!(
-            decide(&j, &stash, true),
+            decide(&j, &stash, true, &origin()),
             Action::Restore(vec![entry("new")])
         );
     }
@@ -1161,7 +1313,7 @@ mod tests {
         j.entries.push(entry("new"));
         let stash = [row("new", "On main: hk: 4242-9-0")];
         assert_eq!(
-            decide(&j, &stash, false),
+            decide(&j, &stash, false, &origin()),
             Action::Report {
                 reason: ReportReason::DirtyWorktree,
                 commits: vec!["new".into()]
@@ -1173,7 +1325,135 @@ mod tests {
     fn already_restored_entry_is_discarded() {
         let mut j = journal();
         j.entries.push(entry("gone"));
-        assert!(matches!(decide(&j, &[], true), Action::Discard(_)));
+        assert!(matches!(
+            decide(&j, &[], true, &origin()),
+            Action::Discard(_)
+        ));
+    }
+
+    #[test]
+    fn a_journal_from_another_worktree_is_reported_and_nothing_is_restored() {
+        let mut j = journal();
+        j.entries.push(entry("new"));
+        j.git_dir = Some("/repo/.git/worktrees/other".into());
+        let stash = [row("new", "On main: hk: 4242-9-0")];
+        assert_eq!(
+            decide(&j, &stash, true, &origin()),
+            Action::Report {
+                reason: ReportReason::MismatchedWorktree {
+                    recorded: "/repo/.git/worktrees/other".into(),
+                    here: "/repo/.git".into(),
+                },
+                commits: vec!["new".into()],
+            }
+        );
+    }
+
+    #[test]
+    fn a_journal_from_another_work_tree_of_the_same_git_dir_is_reported() {
+        let mut j = journal();
+        j.entries.push(entry("new"));
+        j.worktree = "/other-tree".into();
+        let stash = [row("new", "On main: hk: 4242-9-0")];
+        assert_eq!(
+            decide(&j, &stash, true, &origin()),
+            Action::Report {
+                reason: ReportReason::MismatchedWorktree {
+                    recorded: "/other-tree".into(),
+                    here: "/repo".into(),
+                },
+                commits: vec!["new".into()],
+            }
+        );
+    }
+
+    #[test]
+    fn a_journal_from_another_head_or_branch_is_reported_and_nothing_is_restored() {
+        // Another commit on the same branch, then another branch at the same
+        // commit: either way the stash was made where this worktree is not
+        for (head, branch, recorded) in [
+            (
+                "2222222222222222222222222222222222222222",
+                "main",
+                "HEAD 222222222222 on branch `main`",
+            ),
+            (
+                "1111111111111111111111111111111111111111",
+                "feature/x",
+                "HEAD 111111111111 on branch `feature/x`",
+            ),
+        ] {
+            let mut j = journal();
+            j.entries.push(entry("new"));
+            j.head = Some(head.into());
+            j.branch = Some(branch.into());
+            let stash = [row("new", "On main: hk: 4242-9-0")];
+            match decide(&j, &stash, true, &origin()) {
+                Action::Report {
+                    reason:
+                        ReportReason::MismatchedRevision {
+                            recorded: got,
+                            here,
+                        },
+                    commits,
+                } => {
+                    assert_eq!(got, recorded);
+                    assert_eq!(here, "HEAD 111111111111 on branch `main`");
+                    assert_eq!(commits, vec!["new".to_string()]);
+                }
+                other => panic!("expected a report, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_journal_from_a_detached_head_is_reported_on_a_named_branch_at_the_same_commit() {
+        let mut j = journal();
+        j.entries.push(entry("new"));
+        j.branch = None;
+        let stash = [row("new", "On main: hk: 4242-9-0")];
+        match decide(&j, &stash, true, &origin()) {
+            Action::Report {
+                reason: ReportReason::MismatchedRevision { recorded, here },
+                ..
+            } => {
+                assert_eq!(recorded, "HEAD 111111111111 with a detached HEAD");
+                assert_eq!(here, "HEAD 111111111111 on branch `main`");
+            }
+            other => panic!("expected a report, got {other:?}"),
+        }
+        // Still detached here: nothing moved
+        let mut detached = origin();
+        detached.branch = None;
+        assert_eq!(
+            decide(&j, &stash, true, &detached),
+            Action::Restore(vec![entry("new")])
+        );
+    }
+
+    #[test]
+    fn a_journal_that_records_no_origin_is_decided_as_before() {
+        let mut j = journal();
+        j.git_dir = None;
+        j.head = None;
+        j.branch = None;
+        j.entries.push(entry("new"));
+        let stash = [row("new", "On main: hk: 4242-9-0")];
+        assert_eq!(
+            decide(&j, &stash, true, &origin()),
+            Action::Restore(vec![entry("new")])
+        );
+    }
+
+    #[test]
+    fn a_journal_from_elsewhere_whose_entries_are_gone_stops_reminding() {
+        let mut j = journal();
+        j.entries.push(entry("gone"));
+        j.branch = Some("feature/x".into());
+        assert!(matches!(
+            decide(&j, &[], true, &origin()),
+            Action::Discard(_)
+        ));
     }
 
     #[test]
@@ -1186,7 +1466,7 @@ mod tests {
             row("old", "On main: hk: 4242-1a2b-1"),
         ];
         assert_eq!(
-            decide(&journal(), &stash, true),
+            decide(&journal(), &stash, true, &origin()),
             Action::Report {
                 reason: ReportReason::UnrecordedEntry,
                 commits: vec!["new".into()]
@@ -1200,7 +1480,7 @@ mod tests {
             row("b", "On main: hk: intent-to-add files"),
         ];
         assert_eq!(
-            decide(&j, &stash, true),
+            decide(&j, &stash, true, &origin()),
             Action::Report {
                 reason: ReportReason::UnrecordedEntry,
                 commits: vec!["a".into(), "b".into()]
@@ -1219,7 +1499,7 @@ mod tests {
             let j = journal();
             assert!(j.entries.is_empty());
             assert_eq!(
-                decide(&j, &[row("new", subject)], true),
+                decide(&j, &[row("new", subject)], true, &origin()),
                 Action::Report {
                     reason: ReportReason::UnrecordedEntry,
                     commits: vec!["new".into()]
@@ -1230,7 +1510,7 @@ mod tests {
         // Nothing of this pid's is there: safe to discard
         let stash = [row("x", "On main: hk: 99-1-0"), row("y", "On main: wip")];
         assert!(matches!(
-            decide(&journal(), &stash, true),
+            decide(&journal(), &stash, true, &origin()),
             Action::Discard(_)
         ));
     }
