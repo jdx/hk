@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.12.0](https://github.com/jdx/hk/compare/v2.11.1..v2.12.0) - 2026-11-06
+
+### 🚀 Features
+
+- **(builtins)** validate conventional commit scopes by [@jonahsnider](https://github.com/jonahsnider) in [#1817](https://github.com/jdx/hk/pull/1817)
+
+### 🐛 Bug Fixes
+
+- **(hook)** report the signal when a run is stopped by SIGTERM or SIGHUP by [@jdx](https://github.com/jdx) in [#1814](https://github.com/jdx/hk/pull/1814)
+
+### 🔍 Other Changes
+
+- release weekly instead of daily by [@jdx](https://github.com/jdx) in [#1811](https://github.com/jdx/hk/pull/1811)
+
+### 📦️ Dependency Updates
+
+- update rust crate usage-rs to v7.2.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1810](https://github.com/jdx/hk/pull/1810)
+- update rust crate usage-rs to v7.3.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1818](https://github.com/jdx/hk/pull/1818)
+
+### New Contributors
+
+- @jonahsnider made their first contribution in [#1817](https://github.com/jdx/hk/pull/1817)
+
 ## [2.11.1](https://github.com/jdx/hk/compare/v2.11.0..v2.11.1) - 2026-11-03
 
 ### 🐛 Bug Fixes
