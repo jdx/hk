@@ -17,7 +17,7 @@ The recommended setup is `hk install --global`, which installs hooks once into t
 
 Without `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.
 
-If hk is already configured globally (any `hook.hk-*` entry in the global git config), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.
+If hk is already configured globally (any `hook.hk-*` entry in the global git config), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway. The skip does not apply with `--legacy` or on Git older than 2.54, which cannot read the global hooks: there the local script shims are installed.
 
 ## Flags
 
@@ -29,7 +29,10 @@ If hk is already configured globally (any `hook.hk-*` entry in the global git co
   on this machine gets hk hooks. Requires Git 2.54 or newer. In
   repos without an `hk.pkl`, the installed hook is a silent no-op.
 - **`--legacy`** — Force using the legacy `.git/hooks/` script shims instead of Git
-  2.54+ config-based hooks. Not compatible with `--global`.
+  2.54+ config-based hooks. Installs the shims even when hk is already
+  configured globally, because Git older than 2.54 does not read global
+  hooks. On Git 2.54+ that means hk runs twice per event. Not compatible
+  with `--global`.
 - **`--force`** — With the legacy `.git/hooks/` script shims, replace an existing hook
   that hk did not write, and replace a symlinked hook with a regular
   file (the symlink's target is left alone). By default hk refuses to
