@@ -333,6 +333,36 @@ impl Step {
                 trace!("{self}: {}", file.display());
             }
         }
+        // A check that already passed on the same contents is not run again.
+        // Only a read-only check is keyed: a fixer always runs.
+        let cache_key = if self.cache && job.run_type == RunType::Check && !self.interactive {
+            let key = super::result_cache::key(&super::result_cache::Inputs {
+                step: &self.name,
+                command: &run,
+                dir: &command_dir,
+                env: &rendered_env,
+                shell: self.shell.as_ref().map(|s| s.to_string()),
+                stdin: self.stdin.as_deref(),
+                files: &job.files,
+                cache_inputs: self.cache_inputs.as_deref(),
+            });
+            if let Some(key) = &key
+                && super::result_cache::hit(key)
+            {
+                debug!("{self}: skipping, this check already passed on the same files");
+                job.progress
+                    .as_ref()
+                    .unwrap()
+                    .prop("message", &format!("{message} (passed before, unchanged)"));
+                job.progress.as_ref().unwrap().update();
+                ctx.decrement_job_count();
+                job.status_finished()?;
+                return Ok(());
+            }
+            key
+        } else {
+            None
+        };
         // On Windows, `cmd.exe` has its own quoting rules that collide with
         // Rust's MSVCRT-style argv escaping. `ShellType::Cmd::quote` produces
         // cmd-appropriate quoting for rendered `{{files}}` / `{{workspace_files}}`
@@ -440,6 +470,13 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
+                // A `check_list_files` that exits 0 but lists files is
+                // misconfigured; do not remember it as a pass.
+                if let Some(key) = &cache_key
+                    && !(ran_check_list_files && !result.stdout.trim().is_empty())
+                {
+                    super::result_cache::record(key);
+                }
                 if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
                     ctx.hook_ctx.append_diagnostic_output(
                         &self.name,
