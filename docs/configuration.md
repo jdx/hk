@@ -363,7 +363,7 @@ A `pre-commit` hook often re-runs a check on files that `hk check` just passed. 
 
 The key is a SHA-256 of the hk version, the step name, the rendered command, the working directory, the step's `env`, `shell` and `stdin`, and the contents of each file (not its modification time). Change a file, the command, or the hk version and the check runs again. Only a passing check is recorded, and only checks are skipped: `fix` commands always run, and so do steps without `cache = true`. The default is off.
 
-A check whose result depends on more than its file list, such as `cargo clippy` over a workspace, must declare everything it reads in `cache_inputs`. Those globs (relative to the repository root, files git ignores excluded) replace the job's files in the key, so the check is skipped whenever none of them changed, however a hook selected files:
+A check whose result depends on more than its file list, such as `cargo clippy` over a workspace, must declare everything it reads in `cache_inputs`. Those globs (relative to the repository root, files git ignores excluded) replace the job's files in the key, so the check is skipped whenever none of them changed, however a hook selected files. Globs that match nothing are never cached:
 
 ```pkl
 ["clippy"] {
