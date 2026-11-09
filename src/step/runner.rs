@@ -335,17 +335,24 @@ impl Step {
         }
         // A check that already passed on the same contents is not run again.
         // Only a read-only check is keyed: a fixer always runs.
-        let cache_key = if self.cache && job.run_type == RunType::Check && !self.interactive {
-            let key = super::result_cache::key(&super::result_cache::Inputs {
+        let cache_inputs = || {
+            let stdin = self
+                .stdin
+                .as_ref()
+                .and_then(|stdin| tera::render(stdin, &tctx).ok());
+            super::result_cache::key(&super::result_cache::Inputs {
                 step: &self.name,
                 command: &run,
                 dir: &command_dir,
                 env: &rendered_env,
                 shell: self.shell.as_ref().map(|s| s.to_string()),
-                stdin: self.stdin.as_deref(),
+                stdin: stdin.as_deref(),
                 files: &job.files,
                 cache_inputs: self.cache_inputs.as_deref(),
-            });
+            })
+        };
+        let cache_key = if self.cache && job.run_type == RunType::Check && !self.interactive {
+            let key = cache_inputs();
             if let Some(key) = &key
                 && super::result_cache::hit(key)
             {
@@ -442,7 +449,9 @@ impl Step {
         let reserve_cmd_percent = cfg!(windows)
             && matches!(rendered_command, RenderedCommand::Shell(_))
             && matches!(self.shell_type(), ShellType::Cmd);
-        for (key, value) in super::shell::with_cmd_percent(rendered_env, reserve_cmd_percent) {
+        for (key, value) in
+            super::shell::with_cmd_percent(rendered_env.clone(), reserve_cmd_percent)
+        {
             cmd = cmd.env(key, value);
         }
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
@@ -472,8 +481,11 @@ impl Step {
             Ok(result) => {
                 // A `check_list_files` that exits 0 but lists files is
                 // misconfigured; do not remember it as a pass.
+                // Record only if nothing the check reads changed while it ran
+                // (a parallel step may have written a `cache_inputs` file).
                 if let Some(key) = &cache_key
                     && !(ran_check_list_files && !result.stdout.trim().is_empty())
+                    && cache_inputs().as_ref() == Some(key)
                 {
                     super::result_cache::record(key);
                 }
