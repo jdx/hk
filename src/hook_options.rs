@@ -142,6 +142,18 @@ impl HookOptions {
         }
     }
 
+    /// Hook variables plus `from_ref`/`to_ref`, empty when the run has no range.
+    pub(crate) fn hook_vars_with_refs(&self) -> indexmap::IndexMap<String, serde_json::Value> {
+        let mut vars = self.hook_vars.clone();
+        for (key, val) in [("from_ref", &self.from_ref), ("to_ref", &self.to_ref)] {
+            vars.insert(
+                key.to_string(),
+                serde_json::Value::from(val.as_deref().unwrap_or("")),
+            );
+        }
+        vars
+    }
+
     fn validate(&self) -> Result<()> {
         if self.staged && self.stash.is_some() {
             return Err(eyre::eyre!(

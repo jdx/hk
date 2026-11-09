@@ -37,6 +37,10 @@ impl Context {
         self.ctx.insert(key.into(), val);
     }
 
+    pub fn string(&self, key: &str) -> Option<String> {
+        self.ctx.get(key)?.as_str().map(ToString::to_string)
+    }
+
     pub fn string_list(&self, key: &str) -> Option<Vec<String>> {
         self.ctx.get(key)?.as_array().map(|values| {
             values
