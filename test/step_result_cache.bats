@@ -148,3 +148,13 @@ EOF
     hk fix --all
     assert_equal "$(wc -l < fix.log | tr -d ' ')" 2
 }
+
+@test "cache_inputs that match no files never cache" {
+    write_config 'cache = true
+                cache_inputs = List("*.nomatch")'
+    echo ok > a.txt
+    git add hk.pkl a.txt
+    hk check --all
+    hk check --all
+    assert_equal "$(runs)" 2
+}

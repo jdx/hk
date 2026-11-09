@@ -107,6 +107,10 @@ fn key_result(inputs: &Inputs) -> Result<String> {
         Some(globs) => glob::get_matches(globs, &work_tree_files()?)?,
         None => inputs.files.to_vec(),
     };
+    if inputs.cache_inputs.is_some() && files.is_empty() {
+        // A typo in the globs would otherwise key on nothing and skip forever.
+        eyre::bail!("cache_inputs matched no files");
+    }
     files.sort();
     files.dedup();
     for file in &files {
