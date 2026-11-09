@@ -106,3 +106,38 @@ EOF
     assert_success
     assert_output --partial "env=[..] tpl=[..]"
 }
+
+@test "required HK_FROM_REF counts as set, and plans see from_ref" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["needs"] {
+                required = List("HK_FROM_REF")
+                check = "echo needs-ran"
+            }
+            ["cond"] {
+                condition = "from_ref == 'HEAD~1'"
+                check = "echo cond-ran"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+    git add a.txt
+    git commit -m "second commit"
+
+    run hk check --from-ref HEAD~1
+    assert_success
+    assert_output --partial "needs-ran"
+    assert_output --partial "cond-ran"
+
+    run hk check --plan --from-ref HEAD~1
+    assert_success
+    refute_output --partial "unknown"
+}

@@ -43,7 +43,7 @@ Use `hk run pre-commit --plan` to read the passage plan: the steps and files it 
 
 ### Reference range
 
-Steps can read the references that picked their cargo, for tools that need a base commit rather than a list of files. The `{{from_ref}}` and `{{to_ref}}` template variables (usable in `condition` expressions too) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They stay empty when the voyage has no range, such as a plain `pre-commit`. A step's own `env` can override them.
+Steps can read the references that picked their cargo, for tools that need a base commit rather than a list of files. The `{{from_ref}}` and `{{to_ref}}` template variables (usable in `condition` expressions too) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They stay empty when the run has no range, such as a plain `pre-commit`. A step's own `env` can override them.
 
 ```pkl
 ["eslint"] {
@@ -53,7 +53,7 @@ Steps can read the references that picked their cargo, for tools that need a bas
 }
 ```
 
-With `hk check --from-ref origin/main`, ESLint reports only problems on lines changed since `origin/main`. hk hands over the reference exactly as given; it does not resolve it to a commit or to the merge base it diffs against.
+This assumes [eslint-plugin-diff](https://github.com/paleite/eslint-plugin-diff#readme) is installed and enabled in diff mode in yer ESLint config. With `hk check --from-ref origin/main`, ESLint then reports only problems on lines changed since `origin/main`. hk hands over the reference exactly as given; it does not resolve it to a commit or to the merge base it diffs against.
 
 ## Stowing the hold for a partial voyage {#stashing-and-partial-commits}
 

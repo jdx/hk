@@ -52,7 +52,7 @@ Steps can see the references that picked their files, for tools that need a base
 }
 ```
 
-With `hk check --from-ref origin/main`, ESLint reports only problems on lines changed since `origin/main`. hk passes the reference as given; it does not resolve it to a commit or to the merge base it diffs against.
+This assumes [eslint-plugin-diff](https://github.com/paleite/eslint-plugin-diff#readme) is installed and enabled in diff mode in your ESLint config. With `hk check --from-ref origin/main`, ESLint then reports only problems on lines changed since `origin/main`. hk passes the reference as given; it does not resolve it to a commit or to the merge base it diffs against.
 
 ## Stashing and partial commits
 
