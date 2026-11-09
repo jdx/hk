@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: 9dce5097211f
+sourceHash: cde0ceb7c68e
 ---
 
 # Getting under way
@@ -141,7 +141,7 @@ On Git 2.54+, hk uses Git's configuration-based hooks. On older Git, rigging a s
 
 Global hooks record a path that survives upgrades: the mise shim for a mise-installed hk, or the `hk` on `PATH` that links to the running binary (for example Homebrew's), rather than a versioned install directory. Per-repository hooks call `hk` from `PATH` and append hk's own directory to the end of `PATH`, so they still work when a Git client is started without yer shell's `PATH`. If hk cannot be found at all, the hook fails with exit status 127 and the commit is blocked.
 
-If hk is already rigged across the fleet (installed globally), `hk install` skips the local installation and clears away stale local hk hooks. `--force-local` overrides that, but combining local and global hooks can cause duplicate runs: the pipe may call all hands twice over.
+If hk is already rigged across the fleet (installed globally), `hk install` skips the local installation and clears away stale local hk hooks. `--force-local` overrides that, but combining local and global hooks can cause duplicate runs: the pipe may call all hands twice over. The skip does not hold with `--legacy`, nor when the `git` hk finds first is older than 2.54, for such a Git cannot read global hooks, so hk lays down the script shims instead. With `--legacy` on Git 2.54+, hk answers the call twice for each event that has both a global hook and a shim. If an editor or tool sails with an older Git than the one hk finds, run `hk install --legacy` in each affected repository; a later plain `hk install` on the newer Git hauls those shims ashore.
 
 ::: tip The quartermaster's tools in Git hooks
 On Git 2.54+, the recommended course is `hk install --global --mise`, which launches hooks through `mise x`. The installer writes down where mise lives, so mise must be on `PATH` while ye install, but Git does not need it on its runtime `PATH`. For an installation scoped to one repository, on any supported Git version, use `hk install --mise`; this local launcher does need mise on Git's runtime `PATH`.
