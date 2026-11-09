@@ -12,7 +12,6 @@ teardown() {
 
 # A `check` step that appends a line to runs.log each time it actually runs.
 write_config() {
-    local extra="$1"
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 
@@ -22,12 +21,14 @@ hooks {
             ["lint"] {
                 glob = "*.txt"
                 check = "echo run >> runs.log; ! grep -q bad {{files}}"
-                $extra
+                // EXTRA
             }
         }
     }
 }
 EOF
+    # Substitute the step's extra settings (kept out of the heredoc so it stays valid Pkl).
+    EXTRA="$1" perl -0pi -e 's{// EXTRA}{$ENV{EXTRA}}' hk.pkl
 }
 
 runs() { wc -l < runs.log | tr -d ' '; }
@@ -89,7 +90,7 @@ runs() { wc -l < runs.log | tr -d ' '; }
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 
-local lint = new Config.Step {
+local lint = new Step {
     glob = "*.txt"
     check = "echo run >> runs.log"
     cache = true
