@@ -323,7 +323,7 @@ A `pre-commit` hook often re-runs a check on cargo that `hk check` just passed. 
 
 The key is a SHA-256 of the hk version, the step name, the rendered command, the working directory, the step's `env`, `shell` and `stdin`, and the contents of each file (not its modification time). Change a file, the command, or the hk version and the check runs again. Only a passing check is recorded, and only checks are skipped: `fix` commands always run, and so do steps without `cache = true`. The default is off.
 
-A check whose result depends on more than its file list, such as `cargo clippy` over a workspace, must declare everything it reads in `cache_inputs`. Those globs (relative to the root of the ship, files git ignores excluded) replace the job's files in the key, so the check is skipped whenever none of them changed, however a hook selected the cargo. Globs that match nothing are never cached:
+A check whose result depends on more than its file list, such as `cargo clippy` over a workspace, must declare everything it reads in `cache_inputs`. Those globs (relative to the root of the ship, files git ignores excluded) replace the job's files in the key, so the check is skipped whenever none of them changed, however a hook selected the cargo. If none of the globs match a file, hk does not cache the check. If only some match, the key covers just the files that matched:
 
 ```pkl
 ["clippy"] {
@@ -333,6 +333,8 @@ A check whose result depends on more than its file list, such as `cargo clippy` 
     cache_inputs = List("**/*.rs", "**/Cargo.toml", "Cargo.lock", "mise.toml")
 }
 ```
+
+Both examples assume that tool configuration, tool versions, and other inputs outside the key stay unchanged. If they can change, declare the relevant files in `cache_inputs` and keep installed tool versions aligned with a keyed version pin, or disable caching.
 
 hk does not look up tool versions. List the file that pins them, such as `mise.toml`, in `cache_inputs`. With `cache_inputs` unset, the key covers only the job's files, so a command that reads anything else should not set `cache`.
 
