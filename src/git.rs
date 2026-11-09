@@ -3870,7 +3870,8 @@ fn stash_name_in(entries: &[StashEntry], hash: &str) -> Option<String> {
 /// versions of hk pushed there.
 fn find_stash_ref(hash: &str) -> Option<String> {
     let private = format!("{STASH_REF_PREFIX}{hash}");
-    if git_cmd(["rev-parse", "--verify", "-q", &private])
+    // `show-ref --verify` takes the exact ref, so a same-named tag cannot answer
+    if git_cmd(["show-ref", "--verify", "-s", &private])
         .read()
         .is_ok_and(|resolved| resolved.trim() == hash)
     {
