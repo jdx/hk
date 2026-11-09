@@ -8,16 +8,16 @@
 "github:jdx/tak" = "v0.0.15"
 jq               = "1.8.2"
 lefthook         = "2.2.2"
-node             = "26.12.1"
-"npm:eslint"     = "10.13.0"
+node             = "26.13.0"
+"npm:eslint"     = "10.14.0"
 "npm:prettier"   = "3.9.10"
 "npm:typescript" = "7.0.2"
 pre-commit       = "4.7.0"
-prek             = "0.5.7"
+prek             = "0.5.9"
 # pre-commit is a Python zipapp; without a pinned interpreter it would start
 # through a mise shim, which rewrites PATH for the fixture directory.
 "pipx:black" = "26.10.1"
-"pipx:mypy"  = "2.4.0"
+"pipx:mypy"  = "2.4.1"
 # lefthook's whitespace fixers; pre-commit installs the same package from
 # .pre-commit-config.yaml.
 "pipx:pre-commit-hooks" = "6.0.0"
