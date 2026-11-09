@@ -1753,7 +1753,7 @@
           {
             "name": "legacy",
             "usage": "--legacy",
-            "help": "Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Installs the shims even when hk is already\nconfigured globally, because Git older than 2.54 does not read global\nhooks. On Git 2.54+ that means hk runs twice per event. Not compatible\nwith `--global`.",
+            "help": "Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Installs the shims even when hk is already\nconfigured globally, because Git older than 2.54 does not read global\nhooks. On Git 2.54+, hk then runs twice for each event that has both\na global hook and a shim. Not compatible with `--global`.",
             "help_first_line": "Force using the legacy `.git/hooks/` script shims instead of Git",
             "short": [],
             "long": ["legacy"],

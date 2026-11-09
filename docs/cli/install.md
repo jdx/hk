@@ -31,8 +31,8 @@ If hk is already configured globally (any `hook.hk-*` entry in the global git co
 - **`--legacy`** — Force using the legacy `.git/hooks/` script shims instead of Git
   2.54+ config-based hooks. Installs the shims even when hk is already
   configured globally, because Git older than 2.54 does not read global
-  hooks. On Git 2.54+ that means hk runs twice per event. Not compatible
-  with `--global`.
+  hooks. On Git 2.54+, hk then runs twice for each event that has both
+  a global hook and a shim. Not compatible with `--global`.
 - **`--force`** — With the legacy `.git/hooks/` script shims, replace an existing hook
   that hk did not write, and replace a symlinked hook with a regular
   file (the symlink's target is left alone). By default hk refuses to
