@@ -23,10 +23,13 @@ _install_global_hook() {
 }
 
 @test "hk install skips local install when global hk hook is configured" {
+    if ! git version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=54))}'; then
+        skip "git 2.54+ required: older git ignores global hooks"
+    fi
     _write_hk_pkl
     _install_global_hook
 
-    run hk install --legacy
+    run hk install
     assert_success
     assert_output --partial "skipping local install"
     assert_file_not_exists ".git/hooks/pre-commit"
@@ -34,6 +37,29 @@ _install_global_hook() {
     # No local config-based hook either.
     run git config --local --get hook.hk-pre-commit.command
     assert_failure
+}
+
+@test "hk install --legacy installs shims even when a global hk hook is configured" {
+    _write_hk_pkl
+    _install_global_hook
+
+    run hk install --legacy
+    assert_success
+    refute_output --partial "skipping local install"
+    assert_file_exists ".git/hooks/pre-commit"
+}
+
+@test "hk install installs shims when git is older than 2.54 and a global hk hook is configured" {
+    if git version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=54))}'; then
+        skip "needs git older than 2.54"
+    fi
+    _write_hk_pkl
+    _install_global_hook
+
+    run hk install
+    assert_success
+    refute_output --partial "skipping local install"
+    assert_file_exists ".git/hooks/pre-commit"
 }
 
 @test "hk install installs locally when no global hk hook is set" {
@@ -52,6 +78,9 @@ _install_global_hook() {
 }
 
 @test "hk install cleans up stale local shims when global hk hook is now configured" {
+    if ! git version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=54))}'; then
+        skip "git 2.54+ required: older git ignores global hooks"
+    fi
     _write_hk_pkl
 
     # First, install per-repo with no global config.
@@ -62,7 +91,7 @@ _install_global_hook() {
     # remove the stale local shim so hk doesn't double-fire.
     _install_global_hook
 
-    run hk install --legacy
+    run hk install
     assert_success
     assert_output --partial "removed 1 stale local hook"
     assert_file_not_exists ".git/hooks/pre-commit"
