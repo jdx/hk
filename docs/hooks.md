@@ -40,6 +40,20 @@ For both `hk run pre-commit --all` and `hk check --all`, the resolved stash meth
 
 Use `hk run pre-commit --plan` to inspect selected steps and files before executing them.
 
+### Reference range
+
+Steps can see the references that picked their files, for tools that need a base commit rather than a file list. The `{{from_ref}}` and `{{to_ref}}` template variables (also usable in `condition` expressions) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They are empty when the run has no range, such as a plain `pre-commit`. A step's own `env` can override the variables.
+
+```pkl
+["eslint"] {
+    glob = "*.js"
+    check = "eslint {{files}}"
+    env { ["ESLINT_PLUGIN_DIFF_COMMIT"] = "{{from_ref}}" }
+}
+```
+
+With `hk check --from-ref origin/main`, ESLint reports only problems on lines changed since `origin/main`. hk passes the reference as given; it does not resolve it to a commit or to the merge base it diffs against.
+
 ## Stashing and partial commits
 
 For a pre-commit hook that applies fixes, set both `fix` and `stash`:

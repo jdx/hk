@@ -72,3 +72,37 @@ EOF
     run cat test3.js
     assert_output 'console.log("test3")'
 }
+
+@test "steps see the ref range as templates and HK_FROM_REF/HK_TO_REF" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["refs"] {
+                check = "echo env=[\$HK_FROM_REF..\$HK_TO_REF] tpl=[{{from_ref}}..{{to_ref}}]"
+            }
+            ["override"] {
+                env { ["HK_FROM_REF"] = "custom" }
+                check = "echo override=\$HK_FROM_REF"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+    git add a.txt
+    git commit -m "second commit"
+
+    run hk check --from-ref HEAD~1 --to-ref HEAD
+    assert_success
+    assert_output --partial "env=[HEAD~1..HEAD] tpl=[HEAD~1..HEAD]"
+    assert_output --partial "override=custom"
+
+    run hk check --all
+    assert_success
+    assert_output --partial "env=[..] tpl=[..]"
+}

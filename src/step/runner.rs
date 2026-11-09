@@ -273,11 +273,20 @@ impl Step {
         } else {
             None
         };
-        let rendered_env = self
-            .env
-            .iter()
-            .map(|(key, value)| Ok((key.clone(), tera::render(value, &tctx)?)))
-            .collect::<Result<Vec<_>>>()?;
+        // The ref range is listed first so a step's own `env` can override it.
+        let mut rendered_env = vec![
+            (
+                "HK_FROM_REF".to_string(),
+                tctx.string("from_ref").unwrap_or_default(),
+            ),
+            (
+                "HK_TO_REF".to_string(),
+                tctx.string("to_ref").unwrap_or_default(),
+            ),
+        ];
+        for (key, value) in &self.env {
+            rendered_env.push((key.clone(), tera::render(value, &tctx)?));
+        }
         let child_env = |name: &str| {
             rendered_env
                 .iter()

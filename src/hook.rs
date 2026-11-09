@@ -1532,7 +1532,15 @@ impl Hook {
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
         tctx.insert("hook", &self.name);
-        let expr_ctx = build_expr_ctx(&git_status_for_ctx, &opts.hook_vars);
+        // Empty when the run has no ref range, so templates and `HK_FROM_REF`/
+        // `HK_TO_REF` are always defined.
+        let mut hook_vars = opts.hook_vars;
+        for (key, val) in [("from_ref", &opts.from_ref), ("to_ref", &opts.to_ref)] {
+            let val = val.as_deref().unwrap_or("");
+            tctx.insert(key, val);
+            hook_vars.insert(key.to_string(), serde_json::Value::from(val));
+        }
+        let expr_ctx = build_expr_ctx(&git_status_for_ctx, &hook_vars);
         let hook_ctx = Arc::new(HookContext::new(
             files,
             repo.clone(),

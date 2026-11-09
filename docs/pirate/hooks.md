@@ -41,6 +41,20 @@ For both `hk run pre-commit --all` and `hk check --all`, the resolved stash meth
 
 Use `hk run pre-commit --plan` to read the passage plan: the steps and files it picks, before any of them run.
 
+### Reference range
+
+Steps can read the references that picked their cargo, for tools that need a base commit rather than a list of files. The `{{from_ref}}` and `{{to_ref}}` template variables (usable in `condition` expressions too) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They stay empty when the voyage has no range, such as a plain `pre-commit`. A step's own `env` can override them.
+
+```pkl
+["eslint"] {
+    glob = "*.js"
+    check = "eslint {{files}}"
+    env { ["ESLINT_PLUGIN_DIFF_COMMIT"] = "{{from_ref}}" }
+}
+```
+
+With `hk check --from-ref origin/main`, ESLint reports only problems on lines changed since `origin/main`. hk hands over the reference exactly as given; it does not resolve it to a commit or to the merge base it diffs against.
+
 ## Stowing the hold for a partial voyage {#stashing-and-partial-commits}
 
 For a pre-commit hook that mends the canvas, set both `fix` and `stash`:
@@ -116,6 +130,24 @@ hooks {
 When a fixer changes a file, hk fails the hook, hauling her back to port, and leaves the fixes for ye to review and stage. Then try the commit again. `stage = false` on its own turns off staging without making the hook fail.
 
 For a single run, use `--no-stage` to turn off automatic staging.
+
+## Limit how long a hook runs {#limit-how-long-a-hook-runs}
+
+Fast feedback is the point of a pre-commit hook. To hold her to it, give the hook a `timeout`:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    timeout = "10s"
+    steps = linters
+  }
+}
+```
+
+The limit covers the whole hook, across all of its steps, including time spent waiting for the stash lock. When it passes, hk stops the running steps, brings any stowed changes up from the hold, and fails the hook with `pre-commit: timed out after 10s`, so the commit or push is blocked. Without `timeout`, a hook runs until its steps finish.
+
+Write the value as a number with a unit (`ms`, `s`, `m` or `h`); units can be combined, as in `"1m30s"`.
 
 <span id="hook-behavior"></span>
 
