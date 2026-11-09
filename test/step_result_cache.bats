@@ -113,7 +113,7 @@ EOF
     # The command does not take {{files}}, so it is the same whatever was selected.
     write_config 'cache = true
                 cache_inputs = List("*.txt")'
-    sed -i 's/ {{files}}/ *.txt/' hk.pkl
+    perl -pi -e 's/ \{\{files\}\}/ *.txt/' hk.pkl
     echo ok > a.txt
     echo ok > b.txt
     git add hk.pkl a.txt b.txt
