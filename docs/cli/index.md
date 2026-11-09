@@ -23,7 +23,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 
 **Usage:** `hk [FLAGS] <SUBCOMMAND>`
 
-**Version:** 2.11.1
+**Version:** 2.12.0
 
 ## Global Flags
 
