@@ -172,7 +172,7 @@ url = "https://nodejs.org/dist/v26.13.0/node-v26.13.0-win-x64.zip"
 
 [[tools."npm:eslint"]]
 version = "10.14.0"
-aube = { path = ".mise/locks/npm-eslint/10.14.0", digest = "sha256:4b3d22c8a9676b669493f42aff3cf1b98355588252f5fe9ef8c9ca6bce6dba0f" }
+aube = { path = ".mise/locks/npm-eslint/10.14.0", digest = "sha256:f71549550ecebf6bd847331a265383a0656017605843460bc33ab0142a89438a" }
 backend = "npm:eslint"
 specifiers = ["10.14.0"]
 
