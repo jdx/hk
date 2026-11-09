@@ -3872,9 +3872,10 @@ fn find_stash_ref(hash: &str) -> Option<String> {
     let private = format!("{STASH_REF_PREFIX}{hash}");
     if git_cmd(["rev-parse", "--verify", "-q", &private])
         .read()
-        .is_ok()
+        .is_ok_and(|resolved| resolved.trim() == hash)
     {
-        // A private entry is named by its commit id
+        // A private entry is named by its commit id, and only counts when the
+        // ref still points at that commit
         return Some(hash.to_string());
     }
     stash_entries()
