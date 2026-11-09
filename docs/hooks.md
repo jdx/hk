@@ -42,7 +42,7 @@ Use `hk run pre-commit --plan` to inspect selected steps and files before execut
 
 ### Reference range
 
-Steps can see the references that picked their files, for tools that need a base commit rather than a file list. The `{{from_ref}}` and `{{to_ref}}` template variables (also usable in `condition` expressions) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They are empty when the run has no range, such as a plain `pre-commit`. A step's own `env` can override the variables.
+Steps can see the references that picked their files, for tools that need a base commit rather than a file list. The `{{from_ref}}` and `{{to_ref}}` template variables (also usable in `condition` expressions) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They are empty when the run has no range, such as a plain `pre-commit`. A step's own `env` can override the variables. Like the other hook variables, `{{from_ref}}` and `{{to_ref}}` are inserted as raw text, and Git allows characters such as `;` and `$` in branch names. In a shell command, read `"$HK_FROM_REF"` instead of writing `{{from_ref}}`.
 
 ```pkl
 ["eslint"] {

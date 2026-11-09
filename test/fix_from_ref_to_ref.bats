@@ -140,4 +140,6 @@ EOF
     run hk check --plan --from-ref HEAD~1
     assert_success
     refute_output --partial "unknown"
+    refute_output --regexp "cond.*skip"
+    assert_output --partial "cond"
 }
