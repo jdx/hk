@@ -485,7 +485,7 @@ impl Step {
                 // Record only if nothing the check reads changed while it ran
                 // (a parallel step may have written a `cache_inputs` file).
                 if let Some(key) = &cache_key
-                    && !(ran_check_list_files && !result.stdout.trim().is_empty())
+                    && (!ran_check_list_files || result.stdout.trim().is_empty())
                     && cache_inputs().as_ref() == Some(key)
                 {
                     super::result_cache::record(key);
