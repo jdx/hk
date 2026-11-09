@@ -166,3 +166,30 @@ assert_foreign_push_leaves_hk_entry_alone() {
     assert_line --partial "older-entry"
     assert_equal "$(git stash list | wc -l | tr -d ' ')" "1"
 }
+
+# The race from jdx/hk#1825: `git stash list` dies with `bad revision
+# 'refs/stash'` when another worktree drops the last shared entry while git
+# runs it. hk's entry is still on its private ref, so the restore must not
+# read the failed list as "my entry is gone".
+@test "a failing git stash list does not hide hk's entry on its private ref" {
+    write_config "true"
+    prepare_repo
+    real_git="$(command -v git)"
+    mkdir -p "$TEST_TEMP_DIR/shim"
+    cat <<EOS > "$TEST_TEMP_DIR/shim/git"
+#!/bin/sh
+if [ "\$1" = stash ] && [ "\$2" = list ]; then
+    echo "fatal: bad revision 'refs/stash'" >&2
+    exit 128
+fi
+exec "$real_git" "\$@"
+EOS
+    chmod +x "$TEST_TEMP_DIR/shim/git"
+
+    run env PATH="$TEST_TEMP_DIR/shim:$PATH" HK_LIBGIT2=0 hk run pre-commit
+    assert_success
+
+    assert_equal "$(cat file.txt)" "$(printf 'staged\nunstaged\n')"
+    assert_equal "$(git show :file.txt)" "staged"
+    assert_equal "$(hk_stash_list)" ""
+}

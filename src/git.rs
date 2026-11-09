@@ -3862,7 +3862,21 @@ fn stash_name_in(entries: &[StashEntry], hash: &str) -> Option<String> {
 }
 
 /// The `stash@{n}` name of the stash entry whose commit is `hash`, as of now.
+///
+/// hk's own private ref is checked first, on its own: `git stash list` can
+/// fail while another worktree empties the shared stack (`bad revision
+/// 'refs/stash'`), and that must not hide an entry that is still on its
+/// private ref. The shared stack is only scanned for entries that earlier
+/// versions of hk pushed there.
 fn find_stash_ref(hash: &str) -> Option<String> {
+    let private = format!("{STASH_REF_PREFIX}{hash}");
+    if git_cmd(["rev-parse", "--verify", "-q", &private])
+        .read()
+        .is_ok()
+    {
+        // A private entry is named by its commit id
+        return Some(hash.to_string());
+    }
     stash_entries()
         .ok()
         .and_then(|entries| stash_name_in(&entries, hash))
