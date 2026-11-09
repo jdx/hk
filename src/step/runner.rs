@@ -336,10 +336,11 @@ impl Step {
         // A check that already passed on the same contents is not run again.
         // Only a read-only check is keyed: a fixer always runs.
         let cache_inputs = || {
-            let stdin = self
-                .stdin
-                .as_ref()
-                .and_then(|stdin| tera::render(stdin, &tctx).ok());
+            // A stdin that fails to render is not cached: the run reports the error.
+            let stdin = match &self.stdin {
+                Some(stdin) => Some(tera::render(stdin, &tctx).ok()?),
+                None => None,
+            };
             super::result_cache::key(&super::result_cache::Inputs {
                 step: &self.name,
                 command: &run,
