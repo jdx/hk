@@ -398,6 +398,8 @@ PKL
     git add -A
 
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run black --check "a b/bad.py" good.py
+    echo "DIAG black status=$status output=$output" >&3
     HK_LOG=debug run hk fix --all
     assert_success
     assert_output --partial "DEBUG $ black a b/bad.py"
