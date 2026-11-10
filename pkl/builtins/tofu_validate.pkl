@@ -17,6 +17,7 @@ tofu_validate = new Config.Step {
       "**/.terraform.lock.hcl",
     )
   exclude = "**/.terraform/**"
+  shell = "sh -o errexit -c"
   check = new Config.CommandSpec {
     command =
       """

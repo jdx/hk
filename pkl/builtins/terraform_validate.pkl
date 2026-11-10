@@ -9,6 +9,7 @@ import "../Config.pkl"
 terraform_validate = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tf.json", "**/*.tofu", "**/.terraform.lock.hcl")
   exclude = "**/.terraform/**"
+  shell = "sh -o errexit -c"
   check = new Config.CommandSpec {
     command =
       """
