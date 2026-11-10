@@ -15,8 +15,8 @@ Getting under way for the first time? Follow [getting started](/getting_started)
 A configuration amends hk's [Pkl schema](/pkl_introduction). For one set of lookouts that every hook shares, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -308,6 +308,38 @@ hk parses the combined stdout and stderr of `check` runs. If a hand captured no 
 
 The amended object keeps every property ye don't override. See [builtins](/builtins) for the full crew roster and command details.
 
+### Skip checks that already passed {#cache}
+
+A `pre-commit` hook often re-runs a check on cargo that `hk check` just passed. Set `cache = true` on a step and hk remembers a check that exited 0, then skips that command the next time the same check runs on the same file contents:
+
+```pkl
+["prettier"] {
+    glob = "*.{js,ts}"
+    check = "prettier --check {{files}}"
+    fix = "prettier --write {{files}}"
+    cache = true
+}
+```
+
+The key is a SHA-256 of the hk version, the step name, the rendered command, the working directory, the step's `env`, `shell` and `stdin`, and the contents of each file (not its modification time). Change a file, the command, or the hk version and the check runs again. Only a passing check is recorded, and only checks are skipped: `fix` commands always run, and so do steps without `cache = true`. The default is off.
+
+A check whose result depends on more than its file list, such as `cargo clippy` over a workspace, must declare everything it reads in `cache_inputs`. Those globs (relative to the root of the ship, files git ignores excluded) replace the job's files in the key, so the check is skipped whenever none of them changed, however a hook selected the cargo. If none of the globs match a file, hk does not cache the check. If only some match, the key covers just the files that matched:
+
+```pkl
+["clippy"] {
+    glob = "*.rs"
+    check = "cargo clippy --workspace -- -D warnings"
+    cache = true
+    cache_inputs = List("**/*.rs", "**/Cargo.toml", "Cargo.lock", "mise.toml")
+}
+```
+
+Both examples assume that tool configuration, tool versions, and other inputs outside the key stay unchanged. If they can change, declare the relevant files in `cache_inputs` and keep installed tool versions aligned with a keyed version pin, or disable caching.
+
+hk does not look up tool versions. List the file that pins them, such as `mise.toml`, in `cache_inputs`. With `cache_inputs` unset, the key covers only the job's files, so a command that reads anything else should not set `cache`.
+
+Entries are small files in `HK_CACHE_DIR/results`. They expire after 14 days, at most 2000 are kept, and concurrent hk processes can share them. `HK_CACHE=0` turns the cache off. A skipped step reads "passed before, unchanged" in its progress line.
+
 ### Who hauls first: dependencies and groups {#dependencies-and-groups}
 
 Use `depends` when one hand needs another hand's work done first:
@@ -465,8 +497,8 @@ package {
 ```
 
 ```pkl [hk.pkl]
-amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace
@@ -564,7 +596,7 @@ For scalar settings, a higher layer's value overrides the ones below it. List se
 Use `~/.config/hk/config.pkl` for defaults and extra steps that sail with ye on every project. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
 
 jobs = 4
 fail_fast = false

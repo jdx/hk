@@ -273,11 +273,20 @@ impl Step {
         } else {
             None
         };
-        let rendered_env = self
-            .env
-            .iter()
-            .map(|(key, value)| Ok((key.clone(), tera::render(value, &tctx)?)))
-            .collect::<Result<Vec<_>>>()?;
+        // The ref range is listed first so a step's own `env` can override it.
+        let mut rendered_env = vec![
+            (
+                "HK_FROM_REF".to_string(),
+                tctx.string("from_ref").unwrap_or_default(),
+            ),
+            (
+                "HK_TO_REF".to_string(),
+                tctx.string("to_ref").unwrap_or_default(),
+            ),
+        ];
+        for (key, value) in &self.env {
+            rendered_env.push((key.clone(), tera::render(value, &tctx)?));
+        }
         let child_env = |name: &str| {
             rendered_env
                 .iter()
@@ -333,6 +342,44 @@ impl Step {
                 trace!("{self}: {}", file.display());
             }
         }
+        // A check that already passed on the same contents is not run again.
+        // Only a read-only check is keyed: a fixer always runs.
+        let cache_inputs = || {
+            // A stdin that fails to render is not cached: the run reports the error.
+            let stdin = match &self.stdin {
+                Some(stdin) => Some(tera::render(stdin, &tctx).ok()?),
+                None => None,
+            };
+            super::result_cache::key(&super::result_cache::Inputs {
+                step: &self.name,
+                command: &run,
+                dir: &command_dir,
+                env: &rendered_env,
+                shell: self.shell.as_ref().map(|s| s.to_string()),
+                stdin: stdin.as_deref(),
+                files: &job.files,
+                cache_inputs: self.cache_inputs.as_deref(),
+            })
+        };
+        let cache_key = if self.cache && job.run_type == RunType::Check && !self.interactive {
+            let key = cache_inputs();
+            if let Some(key) = &key
+                && super::result_cache::hit(key)
+            {
+                debug!("{self}: skipping, this check already passed on the same files");
+                job.progress
+                    .as_ref()
+                    .unwrap()
+                    .prop("message", &format!("{message} (passed before, unchanged)"));
+                job.progress.as_ref().unwrap().update();
+                ctx.decrement_job_count();
+                job.status_finished()?;
+                return Ok(());
+            }
+            key
+        } else {
+            None
+        };
         // On Windows, `cmd.exe` has its own quoting rules that collide with
         // Rust's MSVCRT-style argv escaping. `ShellType::Cmd::quote` produces
         // cmd-appropriate quoting for rendered `{{files}}` / `{{workspace_files}}`
@@ -412,7 +459,9 @@ impl Step {
         let reserve_cmd_percent = cfg!(windows)
             && matches!(rendered_command, RenderedCommand::Shell(_))
             && matches!(self.shell_type(), ShellType::Cmd);
-        for (key, value) in super::shell::with_cmd_percent(rendered_env, reserve_cmd_percent) {
+        for (key, value) in
+            super::shell::with_cmd_percent(rendered_env.clone(), reserve_cmd_percent)
+        {
             cmd = cmd.env(key, value);
         }
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
@@ -440,6 +489,16 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
+                // A `check_list_files` that exits 0 but lists files is
+                // misconfigured; do not remember it as a pass.
+                // Record only if nothing the check reads changed while it ran
+                // (a parallel step may have written a `cache_inputs` file).
+                if let Some(key) = &cache_key
+                    && (!ran_check_list_files || result.stdout.trim().is_empty())
+                    && cache_inputs().as_ref() == Some(key)
+                {
+                    super::result_cache::record(key);
+                }
                 if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
                     ctx.hook_ctx.append_diagnostic_output(
                         &self.name,

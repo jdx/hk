@@ -14,8 +14,8 @@ For a first setup, use [getting started](/getting_started). For complete configu
 A configuration amends hk’s [Pkl schema](/pkl_introduction). For a shared set of linters, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -348,6 +348,38 @@ hk parses the combined stdout and stderr of `check` runs. If a step captured no 
 
 The amended object keeps properties you do not override. See [builtins](/builtins) for the catalogue and command details.
 
+### Skip checks that already passed {#cache}
+
+A `pre-commit` hook often re-runs a check on files that `hk check` just passed. Set `cache = true` on a step and hk remembers a check that exited 0, then skips that command the next time the same check runs on the same file contents:
+
+```pkl
+["prettier"] {
+    glob = "*.{js,ts}"
+    check = "prettier --check {{files}}"
+    fix = "prettier --write {{files}}"
+    cache = true
+}
+```
+
+The key is a SHA-256 of the hk version, the step name, the rendered command, the working directory, the step's `env`, `shell` and `stdin`, and the contents of each file (not its modification time). Change a file, the command, or the hk version and the check runs again. Only a passing check is recorded, and only checks are skipped: `fix` commands always run, and so do steps without `cache = true`. The default is off.
+
+A check whose result depends on more than its file list, such as `cargo clippy` over a workspace, must declare everything it reads in `cache_inputs`. Those globs (relative to the repository root, files git ignores excluded) replace the job's files in the key, so the check is skipped whenever none of them changed, however a hook selected files. If none of the globs match a file, hk does not cache the check. If only some match, the key covers just the files that matched:
+
+```pkl
+["clippy"] {
+    glob = "*.rs"
+    check = "cargo clippy --workspace -- -D warnings"
+    cache = true
+    cache_inputs = List("**/*.rs", "**/Cargo.toml", "Cargo.lock", "mise.toml")
+}
+```
+
+Both examples assume that tool configuration, tool versions, and other inputs outside the key stay unchanged. If they can change, declare the relevant files in `cache_inputs` and keep installed tool versions aligned with a keyed version pin, or disable caching.
+
+hk does not look up tool versions. List the file that pins them, such as `mise.toml`, in `cache_inputs`. With `cache_inputs` unset, the key covers only the job's files, so a command that reads anything else should not set `cache`.
+
+Entries are small files in `HK_CACHE_DIR/results`. They expire after 14 days, at most 2000 are kept, and concurrent hk processes can share them. `HK_CACHE=0` turns the cache off. A skipped step reads "passed before, unchanged" in its progress line.
+
 ### Dependencies and groups
 
 Use `depends` when the result of one step is needed by another:
@@ -513,8 +545,8 @@ package {
 ```
 
 ```pkl [hk.pkl]
-amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace
@@ -612,7 +644,7 @@ Higher layers override lower ones for scalar settings. List settings such as `ex
 Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.11.1/hk@2.11.1#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
 
 jobs = 4
 fail_fast = false

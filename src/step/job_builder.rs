@@ -255,7 +255,12 @@ impl Step {
     fn missing_required_env(&self) -> Vec<String> {
         self.required
             .iter()
-            .filter(|e| std::env::var(e).is_err() && !self.env.contains_key(*e))
+            // hk sets these itself for every step, empty when there is no range.
+            .filter(|e| {
+                std::env::var(e).is_err()
+                    && !self.env.contains_key(*e)
+                    && !matches!(e.as_str(), "HK_FROM_REF" | "HK_TO_REF")
+            })
             .cloned()
             .collect()
     }

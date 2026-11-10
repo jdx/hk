@@ -28,7 +28,9 @@ const CORE_GLOBAL_EVENTS: &[&str] = &["commit-msg", "pre-commit", "pre-push", "p
 /// global git config), the per-repo install is skipped — and any stale
 /// local hooks are cleaned up — so the global install remains the
 /// single source of truth and hk doesn't fire twice per event. Pass
-/// `--force-local` to install local hooks anyway.
+/// `--force-local` to install local hooks anyway. The skip does not apply
+/// with `--legacy` or on Git older than 2.54, which cannot read the global
+/// hooks: there the local script shims are installed.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct Install {
@@ -46,7 +48,10 @@ pub struct Install {
     global: bool,
 
     /// Force using the legacy `.git/hooks/` script shims instead of Git
-    /// 2.54+ config-based hooks. Not compatible with `--global`.
+    /// 2.54+ config-based hooks. Installs the shims even when hk is already
+    /// configured globally, because Git older than 2.54 does not read global
+    /// hooks. On Git 2.54+, hk then runs twice for each event that has both
+    /// a global hook and a shim. Not compatible with `--global`.
     #[usage(long, verbatim_doc_comment, conflicts = "--global")]
     legacy: bool,
 
@@ -81,7 +86,14 @@ impl Install {
             return install_global(&events, &command);
         }
 
-        if !self.force_local && has_global_hk_hooks()? {
+        // A global install only helps a git that reads config-based hooks
+        // (2.54+). `--legacy` asks for script shims, and an older git cannot
+        // read the global hooks, so skipping the local install would leave
+        // that git with no hook at all. An unparseable version is not assumed
+        // to be old: keep the skip rather than risk running hk twice.
+        let global_hooks_usable = !self.legacy
+            && git_util::git_version().is_none_or(|(major, minor, _)| (major, minor) >= (2, 54));
+        if !self.force_local && global_hooks_usable && has_global_hk_hooks()? {
             let _config_lock = lock_local_config()?;
             // The global install is the single source of truth; clean up any
             // stale local install so it doesn't double-fire alongside global.

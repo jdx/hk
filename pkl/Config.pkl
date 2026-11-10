@@ -466,6 +466,40 @@ open class Step {
   /// Whether to include symbolic links (default: false)
   allow_symlinks: Boolean = false
 
+  /// Skip this step's check when the same check already passed on exactly the same file contents.
+  ///
+  /// hk records a successful check under a key made from the hk version, the step name, the
+  /// rendered command, the working directory, the step's `env`, `shell` and `stdin`, and a
+  /// SHA-256 of each file's contents (not its modification time). Running the same step again
+  /// with the same key, for example in a `pre-commit` hook right after `hk check`, skips the
+  /// command. Entries live in `HK_CACHE_DIR/results`, expire after 14 days, and at most 2000
+  /// are kept. `HK_CACHE=0` turns the cache off.
+  ///
+  /// Only a check that exits 0 is recorded, and only checks are skipped: a step's `fix`
+  /// command always runs. Defaults to `false`.
+  ///
+  /// Enable it only for a check whose result depends on nothing but the files in its key.
+  /// A check that reads other files (a whole-workspace build or `cargo clippy`, a config file,
+  /// the tool's version) must list them in `cache_inputs`. hk does not look up tool versions;
+  /// list the file that pins them, such as `mise.toml`.
+  ///
+  /// ```pkl
+  /// ["clippy"] {
+  ///     glob = "*.rs"
+  ///     check = "cargo clippy --workspace -- -D warnings"
+  ///     cache = true
+  ///     cache_inputs = List("**/*.rs", "**/Cargo.toml", "Cargo.lock", "mise.toml")
+  /// }
+  /// ```
+  cache: Boolean = false
+
+  /// Globs, relative to the repository root, of every file the check depends on.
+  /// With `cache`, the contents of the files these match replace the contents of the job's
+  /// files in the cache key, so the check is skipped whenever none of them changed. This
+  /// lets a check that does not take `{{files}}` be skipped regardless of which files a hook
+  /// selected. Files that git ignores are not included.
+  cache_inputs: List<String>?
+
   /// A command to run that does not modify files.
   /// This typically is a "check" command like `eslint` or `prettier --check`
   /// that returns a non-zero exit code if there are errors.

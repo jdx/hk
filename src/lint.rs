@@ -99,6 +99,8 @@ const STEP_KEYS: &[&str] = &[
     "exclusive",
     "allow_binary",
     "allow_symlinks",
+    "cache",
+    "cache_inputs",
     "root",
     "hide",
     "tests",

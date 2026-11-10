@@ -856,7 +856,7 @@ impl Hook {
             validate_safe_commands(&groups, self.report.as_ref(), &files, run_type, &skip_steps)?;
         }
 
-        let expr_ctx = build_expr_ctx(&git_status, &opts.hook_vars);
+        let expr_ctx = build_expr_ctx(&git_status, &opts.hook_vars_with_refs());
 
         let mut plan = Plan::new(self.name.clone(), run_type.as_str().to_string())
             .with_profiles(settings.enabled_profiles().iter().cloned().collect());
@@ -1528,11 +1528,17 @@ impl Hook {
         }
         // Enrich Tera and expr contexts with git status for template/condition use
         let git_status_for_ctx = git_status.clone();
+        let hook_vars = opts.hook_vars_with_refs();
         let mut tctx = opts.tctx;
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
         tctx.insert("hook", &self.name);
-        let expr_ctx = build_expr_ctx(&git_status_for_ctx, &opts.hook_vars);
+        // Empty when the run has no ref range, so templates and `HK_FROM_REF`/
+        // `HK_TO_REF` are always defined.
+        for key in ["from_ref", "to_ref"] {
+            tctx.insert(key, hook_vars[key].as_str().unwrap_or(""));
+        }
+        let expr_ctx = build_expr_ctx(&git_status_for_ctx, &hook_vars);
         let hook_ctx = Arc::new(HookContext::new(
             files,
             repo.clone(),

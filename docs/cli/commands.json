@@ -1753,7 +1753,7 @@
           {
             "name": "legacy",
             "usage": "--legacy",
-            "help": "Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Not compatible with `--global`.",
+            "help": "Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Installs the shims even when hk is already\nconfigured globally, because Git older than 2.54 does not read global\nhooks. On Git 2.54+, hk then runs twice for each event that has both\na global hook and a shim. Not compatible with `--global`.",
             "help_first_line": "Force using the legacy `.git/hooks/` script shims instead of Git",
             "short": [],
             "long": ["legacy"],
@@ -1802,7 +1802,7 @@
         "hide": false,
         "args_override_self": true,
         "help": "Set up git hooks to run hk.",
-        "help_long": "Set up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks once into the user's global git config (`~/.gitconfig`, or `~/.config/git/config` when that is the one git uses) so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.\n\nIf hk is already configured globally (any `hook.hk-*` entry in the global git config), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.",
+        "help_long": "Set up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks once into the user's global git config (`~/.gitconfig`, or `~/.config/git/config` when that is the one git uses) so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.\n\nIf hk is already configured globally (any `hook.hk-*` entry in the global git config), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway. The skip does not apply with `--legacy` or on Git older than 2.54, which cannot read the global hooks: there the local script shims are installed.",
         "name": "install",
         "aliases": ["i"],
         "hidden_aliases": [],
@@ -8529,7 +8529,7 @@
     "sources": {},
     "files": []
   },
-  "version": "2.11.1",
+  "version": "2.12.0",
   "usage": "",
   "complete": {
     "directory": {
