@@ -137,8 +137,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Identify the runner's Python for the Bats tool cache key
+        id: bats-python
+        if: runner.os == 'Linux'
+        # uv installs pipx tools against a Python outside the cached directory,
+        # and mise.lock does not pin it. Key on the runner image and its Python
+        # so a different interpreter discards the cache.
+        run: echo "id=${ImageVersion:-unknown}-$(python3 -c 'import sys; print(sys.version.split()[0])')" >> "$GITHUB_OUTPUT"
       # mise-action saves immediately after its own install, before Bats setup
       # installs the builtin tool stubs. Restore those tools before mise runs.
+      # The key includes mise.toml and mise.lock (they pin uv) and the runner's
+      # Python because a pipx tool's install depends on both: a restored entry
+      # from before a bump left black without its package (`No module named
+      # 'black'`). Bump the v2 prefix to discard every entry by hand.
       - name: Restore Bats mise tools
         id: bats-mise-tools
         # The cached macOS gem:rubocop install loses its prism dependency on
@@ -147,7 +158,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
-          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
+          key: bats-mise-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.bats-python.outputs.id }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**', 'mise.toml', 'mise.lock') }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache: false
@@ -214,12 +225,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Identify the runner's Python for the Bats tool cache key
+        id: bats-python
+        if: runner.os == 'Linux'
+        # uv installs pipx tools against a Python outside the cached directory,
+        # and mise.lock does not pin it. Key on the runner image and its Python
+        # so a different interpreter discards the cache.
+        run: echo "id=${ImageVersion:-unknown}-$(python3 -c 'import sys; print(sys.version.split()[0])')" >> "$GITHUB_OUTPUT"
       - name: Restore Bats mise tools
         if: runner.os == 'Linux'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
-          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
+          key: bats-mise-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.bats-python.outputs.id }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**', 'mise.toml', 'mise.lock') }}
       - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache: false
