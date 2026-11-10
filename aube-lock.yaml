@@ -2396,7 +2396,6 @@ packages:
         optional: true
       jsdom:
         optional: true
-      vite: {}
 
   vue@3.5.45:
     resolution: {integrity: sha512-3cvsib8m9c0vB24+MDKsgcW4+Da4xaBl9Z/5Tbm2pmSIsRPxcil4cdXjXlVsmJ2g64XJo5h+IRd7rsdGT9pZaw==}
