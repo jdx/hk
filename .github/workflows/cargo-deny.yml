@@ -36,7 +36,7 @@ jobs:
           if [ "$EVENT_NAME" = "pull_request" ]; then
             deps_changed=false
             changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
-            if printf "%s\n" "$changed" | grep -qE '(^|/)(Cargo\.lock|Cargo\.toml|deny\.toml)$'; then
+            if grep -qE '(^|/)(Cargo\.lock|Cargo\.toml|deny\.toml)$' <<< "$changed"; then
               deps_changed=true
             fi
           fi
