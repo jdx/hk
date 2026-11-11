@@ -1,4 +1,5 @@
-# cargo-deny configuration. CI runs `cargo deny check advisories sources`.
+# cargo-deny configuration. PR CI runs `cargo deny check sources`, plus `advisories`
+# when the dependency graph changes; a daily workflow checks advisories on main.
 # Licenses and duplicate-version bans are intentionally not checked.
 
 [advisories]
