@@ -69,7 +69,7 @@ jobs:
             gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$RUNNER_TEMP/body.md"
           fi
       - name: Send failure email via Resend
-        if: ${{ !cancelled() && steps.deny.outputs.status != '0' }}
+        if: ${{ !cancelled() && steps.deny.outputs.status != '' && steps.deny.outputs.status != '0' }}
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}

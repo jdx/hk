@@ -31,10 +31,12 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -euo pipefail
           deps_changed=true
           if [ "$EVENT_NAME" = "pull_request" ]; then
             deps_changed=false
-            if git diff --name-only "$BASE_SHA...$HEAD_SHA" | grep -qE '(^|/)(Cargo\.lock|Cargo\.toml|deny\.toml)$'; then
+            changed=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+            if printf "%s\n" "$changed" | grep -qE '(^|/)(Cargo\.lock|Cargo\.toml|deny\.toml)$'; then
               deps_changed=true
             fi
           fi
