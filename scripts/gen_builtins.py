@@ -43,6 +43,13 @@ class meta extends Annotation {
 
   /// Project indicators for auto-detection
   project_indicators: Listing<ProjectIndicator>?
+
+  /// mise tools that install the executables the step runs, as `mise use` arguments
+  /// (e.g. `shfmt` or `npm:eslint`). Omitted for steps that need nothing installed.
+  mise_tools: List<String>?
+
+  /// Project or documentation URL for tools mise cannot install
+  homepage: String?
 }
 
 """

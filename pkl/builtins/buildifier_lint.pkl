@@ -11,6 +11,7 @@ import "./test/helpers.pkl"
     new { file = "MODULE.bazel" }
     new { glob = "**/BUILD.bazel" }
   }
+  mise_tools = List("buildifier")
 }
 buildifier_lint = new Config.Step {
   glob =

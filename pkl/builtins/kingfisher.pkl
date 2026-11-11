@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "kingfisher.yaml" }
   }
+  mise_tools = List("kingfisher")
 }
 kingfisher = new Config.Step {
   types = List("text")

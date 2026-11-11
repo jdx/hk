@@ -279,6 +279,13 @@ pub struct Step {
     #[serde(default)]
     pub allow_symlinks: bool,
 
+    /// Skip this step's check when it already passed on the same file contents
+    #[serde(default)]
+    pub cache: bool,
+
+    /// Globs of every file the check depends on, used in place of the job's files for `cache`
+    pub cache_inputs: Option<Vec<String>>,
+
     /// Root directory override
     pub root: Option<PathBuf>,
 
@@ -428,6 +435,14 @@ pub enum DiagnosticFormat {
     CargoJson,
     EslintJson,
     Gcc,
+    GccParen,
+    Rustc,
+    Rustfmt,
+    Stylish,
+    Tsc,
+    Shellcheck,
+    Pyright,
+    Biome,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

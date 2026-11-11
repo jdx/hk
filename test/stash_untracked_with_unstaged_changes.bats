@@ -89,7 +89,7 @@ make_changes() {
         assert_file_executable new/run.sh
         assert_equal "$(readlink link)" u.txt
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
 
         reset_repo
         rm -rf "$BATS_TEST_TMPDIR/orig" "$BATS_TEST_TMPDIR/seen.txt"
@@ -113,10 +113,10 @@ make_changes() {
         run cat f.txt
         assert_output $'base\nunstaged'
         assert_file_not_exists d.txt
-        git restore --source='stash@{0}^3' -- u.txt
+        git restore --source="$(hk_stash_sha)^3" -- u.txt
         cmp u.txt "$BATS_TEST_TMPDIR/orig/u.txt"
 
-        git stash drop -q
+        hk_stash_drop
         reset_repo
         rm -rf "$BATS_TEST_TMPDIR/orig"
     done
@@ -155,7 +155,7 @@ EOF
         cmp new/deep/n.bin "$BATS_TEST_TMPDIR/orig/new/deep/n.bin"
         run cat f.txt
         assert_output $'base\nunstaged'
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
 
         reset_repo
         git reset -q --hard HEAD~1
@@ -182,9 +182,114 @@ EOF
         assert_output a.txt
         run cat u.txt
         assert_output untracked
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
 
         git rm -q --cached ita.txt
         reset_repo
     done
+}
+
+@test "an untracked nested repository is left alone when untracked files are stashed" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["noop"] {
+        check = "true"
+      }
+    }
+  }
+}
+PKL
+    echo base > f.txt
+    git add hk.pkl f.txt
+    git commit -m init
+    git init -q nested
+    git -C nested commit -q --allow-empty -m nested
+    echo unstaged > f.txt
+    echo untracked > u.txt
+    run env HK_STASH_UNTRACKED=true hk run pre-commit
+    assert_success
+    assert_dir_exists nested/.git
+    assert_equal "$(cat u.txt)" "untracked"
+    assert_equal "$(cat f.txt)" "unstaged"
+    assert_equal "$(hk_stash_list)" ""
+}
+
+# When removing the stashed changes from the worktree fails, hk puts back what
+# it had removed and drops its entry, instead of leaving a half-cleaned tree
+# that recovering the entry would apply over itself.
+@test "a failed worktree cleanup is rolled back and leaves no entry" {
+    [ "$(id -u)" != 0 ] || skip "root can remove files from a read-only directory"
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["noop"] {
+        check = "true"
+      }
+    }
+  }
+}
+PKL
+    echo base > f.txt
+    git add hk.pkl f.txt
+    git commit -m init
+    echo unstaged > f.txt
+    # Sorts before ro/a.txt, so it is removed before the removal that fails
+    echo earlier > earlier.txt
+    # An unstaged deletion that the cleanup has already checked out again
+    rm d.txt
+    mkdir ro
+    echo untracked > ro/a.txt
+    chmod 555 ro
+    run env HK_STASH_UNTRACKED=true hk run pre-commit
+    chmod 755 ro
+    assert_failure
+    assert_equal "$(cat earlier.txt)" "earlier"
+    assert_file_not_exists d.txt
+    assert_equal "$(cat f.txt)" "unstaged"
+    assert_equal "$(cat ro/a.txt)" "untracked"
+    assert_equal "$(hk_stash_list)" ""
+}
+
+# The checkout puts a deleted tracked file back before it fails on a later
+# path, so the rollback must delete that file again.
+@test "a failed checkout during cleanup deletes the files it had put back" {
+    [ "$(id -u)" != 0 ] || skip "root can write to a read-only directory"
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps {
+      ["noop"] {
+        check = "true"
+      }
+    }
+  }
+}
+PKL
+    mkdir ro
+    echo base > ro/t.txt
+    echo base > f.txt
+    git add hk.pkl f.txt ro/t.txt
+    git commit -m init
+    # d.txt sorts before ro/t.txt, so the checkout restores it first. An
+    # untracked file makes hk stash the whole worktree, deletions included.
+    rm d.txt
+    echo unstaged > ro/t.txt
+    echo untracked > u.txt
+    chmod 555 ro
+    run env HK_STASH_UNTRACKED=true hk run pre-commit
+    chmod 755 ro
+    assert_failure
+    assert_equal "$(cat u.txt)" "untracked"
+    assert_file_not_exists d.txt
+    assert_equal "$(cat ro/t.txt)" "unstaged"
+    assert_equal "$(hk_stash_list)" ""
 }

@@ -8,6 +8,7 @@ import "../Config.pkl"
     new { file = ".bundler-audit.yml" }
     new { file = "Gemfile"; contains_regex = #"^\s*gem\s*\(?\s*["']bundler-audit["']"# }
   }
+  mise_tools = List("gem:bundler-audit")
 }
 bundle_audit = new Config.Step {
   glob = "**/Gemfile.lock"

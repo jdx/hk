@@ -40,6 +40,20 @@ For both `hk run pre-commit --all` and `hk check --all`, the resolved stash meth
 
 Use `hk run pre-commit --plan` to inspect selected steps and files before executing them.
 
+### Reference range
+
+Steps can see the references that picked their files, for tools that need a base commit rather than a file list. The `{{from_ref}}` and `{{to_ref}}` template variables (also usable in `condition` expressions) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They are empty when the run has no range, such as a plain `pre-commit`. A step's own `env` can override the variables. Like the other hook variables, `{{from_ref}}` and `{{to_ref}}` are inserted as raw text, and Git allows characters such as `;` and `$` in branch names. In a shell command, read `"$HK_FROM_REF"` instead of writing `{{from_ref}}`.
+
+```pkl
+["eslint"] {
+    glob = "*.js"
+    check = "eslint {{files}}"
+    env { ["ESLINT_PLUGIN_DIFF_COMMIT"] = "{{from_ref}}" }
+}
+```
+
+This assumes [eslint-plugin-diff](https://github.com/paleite/eslint-plugin-diff#readme) is installed and enabled in diff mode in your ESLint config. With `hk check --from-ref origin/main`, ESLint then reports only problems on lines changed since `origin/main`. hk passes the reference as given; it does not resolve it to a commit or to the merge base it diffs against.
+
 ## Stashing and partial commits
 
 For a pre-commit hook that applies fixes, set both `fix` and `stash`:
@@ -74,19 +88,21 @@ Files marked with `git add -N` (intent to add) have no staged content, so hk set
 
 ### If restoration fails
 
-Read hk’s error before changing the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git stash list` to understand which changes are present.
+Read hk’s error before changing the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git for-each-ref refs/hk/stash` (hk's stash entries; `git stash list` shows entries older hk versions pushed) to understand which changes are present.
 
 hk keeps backup patches under `<common-git-dir>/hk/patches/` (or `$HK_STATE_DIR/patches/` when set) when Git stashing is used; the `stash_backup_count` setting controls retention. Preserve the reported stash and backup until you have recovered and reviewed your work. Avoid blindly applying a stash again to files that already contain its changes.
 
-While hk has your unstaged changes set aside, it holds a lock file, `hk-stash.lock`, in the repository's common git directory, which linked worktrees share. Two hk processes in one repository, such as hooks in two worktrees, therefore take turns stashing and restoring instead of restoring each other's changes. The one that waits prints a message and fails after [`HK_STASH_LOCK_TIMEOUT`](/environment_variables#hk-stash-lock-timeout) seconds, naming the lock file. The operating system releases the lock if hk is killed.
+hk keeps the stash entry it makes under its own ref, `refs/hk/stash/<commit-id>`, instead of on the `git stash` stack. Linked worktrees share that stack, so a `git stash pop`, `drop` or `push` in another worktree while a hook runs cannot reach hk's entry, and hooks in different worktrees run in parallel. To inspect or recover an entry, use its commit id: `git stash show -p <commit-id>` or `git stash apply <commit-id>`, then `git update-ref -d refs/hk/stash/<commit-id>` once you have recovered it. `git stash list` does not show these entries.
 
-Intent-to-add files are kept in a separate stash entry whose message ends with `(intent-to-add files)`, such as `hk: 4242-1a2b-3 (intent-to-add files)`; hk versions before this one named it `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
+While hk has your unstaged changes set aside, it holds a lock file, `hk-stash.lock`, in the worktree's own git directory (`git rev-parse --git-dir`). Two hk processes in the same worktree, such as two agents committing there, therefore take turns stashing and restoring instead of restoring each other's changes. The one that waits prints a message and fails after [`HK_STASH_LOCK_TIMEOUT`](/environment_variables#hk-stash-lock-timeout) seconds, naming the lock file. The operating system releases the lock if hk is killed.
+
+Intent-to-add files are kept in a separate entry whose message ends with `(intent-to-add files)`, such as `hk: 4242-1a2b-3 (intent-to-add files)`; hk versions before this one named it `hk: intent-to-add files`. To recover them, run `git stash apply <commit-id>` on that entry, then `git add -N` the files again.
 
 ### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
 
 While hk has your unstaged changes stashed, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and deletes it once your changes are back. It records the stash commit ids, the process id, the hook, the time, and the host name and (on Linux) PID namespace it ran in. Every change to it, and every recovery, happens while hk holds a lock on a second file next to it, `hk-pending-stash.lock`, so two hk runs never act on it at once; the operating system releases that lock if hk dies, and hk never deletes the file, which holds no data, so leave it in place (removing it while a run is recovering would let a second run lock a fresh copy and recover the same journal at the same time). In a repository with `core.sharedRepository` set (`group`, `all` or an octal mode), hk gives the journal, its lock file and the temporary file it writes it through the same permissions git gives its own files, whatever the umask, so another account of the group can read a journal a killed run left and recover it; without it the umask applies. A journal hk cannot read (for example without permission) is never taken for absent: hk warns, naming the file, and says to look in `git stash list`.
 
-These are two different locks: `hk-stash.lock` (above, in the common git directory) keeps hk processes from stashing at the same time and is held from before the stash is made until it is restored, while `hk-pending-stash.lock` only guards the journal file. hk takes the stash lock first, then writes the journal, restores your changes, removes the journal and releases the stash lock. Recovery takes the locks in the same order: the stash lock, then the journal lock, and only then does it look at the working tree, so no other hk can stash, restore or recover in between. If the stash lock is not free within `HK_STASH_LOCK_TIMEOUT`, hk prints a warning, leaves the journal untouched and carries on; the next run tries again. A signal while hk is still waiting for the stash lock stops the wait; nothing was stashed, so no journal is written and nothing is restored.
+These are two different locks: `hk-stash.lock` (above, in the worktree's git directory) keeps hk processes from stashing at the same time and is held from before the stash is made until it is restored, while `hk-pending-stash.lock` only guards the journal file. hk takes the stash lock first, then writes the journal, restores your changes, removes the journal and releases the stash lock. Recovery takes the locks in the same order: the stash lock, then the journal lock, and only then does it look at the working tree, so no other hk can stash, restore or recover in between. If the stash lock is not free within `HK_STASH_LOCK_TIMEOUT`, hk prints a warning, leaves the journal untouched and carries on; the next run tries again. A signal while hk is still waiting for the stash lock stops the wait; nothing was stashed, so no journal is written and nothing is restored.
 
 - **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C or Ctrl+Break on Windows): hk stops the running steps, puts your changes back, removes the journal and exits. SIGTERM and SIGHUP exit with `128` plus the signal number (`143` and `129`); Ctrl+C exits with the status the run ended with, `1` for a cancelled run. It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never depends on the terminal: when the terminal is gone (SIGHUP), hk sends its output to the null device, so restoring still works.
 - **Closing the console, logging off or shutting down Windows**: hk handles these like SIGHUP (exit status `129`, output sent to `NUL`) and starts restoring at once. Windows ends the process a few seconds after these events, which can be before the restore finishes. When it is, the journal stays and the next hk run recovers it, as after a crash.
@@ -94,7 +110,7 @@ These are two different locks: `hk-stash.lock` (above, in the common git directo
 
 A process id only means something where it was written. A repository's git directory can be shared by several hosts (on a network file system) or PID namespaces (a repository mounted into a container), which cannot see each other's processes. hk therefore treats the process as gone only when the journal's recorded host name and PID namespace are the current ones and the process is not running. When they differ, when hk cannot read them, or when the journal was written by an older hk that did not record them and its process id is not running here, hk cannot know whether the run is still going. It then restores and drops nothing, prints the `git stash apply <commit-id>` command for each entry the journal names and for each entry named `hk: <pid>-...` after its process id that the journal never recorded (hk stopped between stashing and recording), and says the journal was written elsewhere; if it cannot read the stash list it says to look for those entries with `git stash list`; if that run is still going it finishes and removes its own journal. A journal like this that names no entry still in `git stash list` protects nothing, so hk removes it with a notice and later runs write journals of their own. On macOS and Windows only the host name is compared.
 
-hk reminds you on every run until the stash entry is gone: once you have applied it and dropped it, hk removes the journal itself, or you can delete the file. If another hk's journal is already in place, a run does not write its own and warns that it keeps none; if it is killed, its stash entry stays in `git stash list` as `hk: <pid>-...`. Because a run holds the stash lock from before it stashes until it restores, no other run can recover the older journal in between, so an old stash is never put back over a fixer that is still running.
+hk reminds you on every run until the stash entry is gone: once you have applied it and dropped it, hk removes the journal itself, or you can delete the file. If another hk's journal is already in place, a run does not write its own and warns that it keeps none; if it is killed, its stash entry stays under `refs/hk/stash/` with the message `hk: <pid>-...`. Because a run holds the stash lock from before it stashes until it restores, no other run can recover the older journal in between, so an old stash is never put back over a fixer that is still running.
 
 ## Review fixes before committing
 
@@ -115,6 +131,24 @@ hooks {
 When a fixer changes a file, hk fails the hook and leaves the fixes for you to review and stage. Retry the commit afterward. `stage = false` alone disables staging without requiring the hook to fail.
 
 For a single run, use `--no-stage` to disable automatic staging.
+
+## Limit how long a hook runs
+
+Fast feedback is the point of a pre-commit hook. To enforce it, give the hook a `timeout`:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    timeout = "10s"
+    steps = linters
+  }
+}
+```
+
+The limit covers the whole hook, across all of its steps, including time spent waiting for the stash lock. When it passes, hk stops the running steps, puts any stashed changes back, and fails the hook with `pre-commit: timed out after 10s`, so the commit or push is blocked. Without `timeout`, a hook runs until its steps finish.
+
+Write the value as a number with a unit (`ms`, `s`, `m` or `h`); units can be combined, as in `"1m30s"`.
 
 <span id="hook-behavior"></span>
 
@@ -155,8 +189,8 @@ failure.
 `commit-msg` runs after the message is prepared and before the commit is created. Use the built-in Conventional Commits check:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.7.1/hk@2.7.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.7.1/hk@2.7.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 hooks {
   ["commit-msg"] {
@@ -168,6 +202,17 @@ hooks {
 ```
 
 The `commit_msg_file` template variable contains the message path. `prepare-commit-msg` also receives `source` and `sha` when Git supplies them. Use that hook to prepare or edit a message before the user’s editor opens.
+
+To restrict scopes, configure the builtin with a `List<String>`:
+
+```pkl
+["conventional-commit"] = (Builtins.check_conventional_commit) {
+  allowed_scopes = List("web", "api")
+}
+```
+
+This accepts `fix(api): fix auth`, `feat(web): add dashboard`, and unscoped messages such as `fix: fix auth`. Other scopes are rejected with a list of allowed values.
+Omit `allowed_scopes` to accept any scope, or set `allowed_scopes = List()` to allow only unscoped commits. Each list entry must be a single scope without commas.
 
 ## Other Git events
 

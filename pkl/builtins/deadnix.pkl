@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Nix"
   description = "Scan Nix files for dead code"
+  mise_tools = List("cargo:deadnix")
 }
 deadnix = new Config.Step {
   glob = "**/*.nix"

@@ -97,6 +97,7 @@ jobs:
             --retry 3 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
             -X POST 'https://api.resend.com/emails' \
             -H "Authorization: Bearer ${RESEND_API_KEY}" \
+            -H "Idempotency-Key: hk-deny-advisories-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             -H 'Content-Type: application/json' \
             -d "$payload"
       - name: Fail run

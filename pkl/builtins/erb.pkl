@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "ERB template linter"
+  mise_tools = List("ruby")
 }
 erb = new Config.Step {
   glob = "**/*.erb"

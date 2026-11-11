@@ -1,11 +1,12 @@
 //! A lock that keeps one hk process from stashing while another has stashed.
 //!
-//! Every worktree of a repository shares one stash stack, and hk finds the
-//! entry it made again when it restores. Two hk processes that each stash and
-//! restore at the same time can restore each other's changes or drop the wrong
-//! entry. The in-memory locks of a hook run cannot help, as they live in one
-//! process, so this takes an advisory lock on a file in the repository's
-//! common git directory, which every linked worktree shares.
+//! hk keeps the stash entries it makes under private refs that `git stash`
+//! never touches, so hooks in different linked worktrees do not interfere.
+//! Two hk processes in the same worktree still would: each stashes the
+//! worktree's changes and restores them when it finishes, and a second one
+//! stashing in between would set aside the first one's cleaned tree. The
+//! in-memory locks of a hook run cannot help, as they live in one process, so
+//! this takes an advisory lock on a file in the worktree's own git directory.
 //!
 //! The operating system releases the lock when the holder exits, including
 //! when it is killed, so a crash never leaves it held.

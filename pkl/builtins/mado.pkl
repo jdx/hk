@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "mado.toml" }
     new { file = ".mado.toml" }
   }
+  mise_tools = List("aqua:akiomik/mado")
 }
 mado = new Config.Step {
   types = List("markdown")

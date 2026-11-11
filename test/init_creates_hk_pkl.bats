@@ -130,6 +130,78 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.ansible_lint"
 }
 
+@test "hk init detects pyrightconfig.json" {
+    echo '{}' > pyrightconfig.json
+    run hk init
+    assert_success
+    assert_output --partial "pyright (pyrightconfig.json)"
+    assert_file_contains hk.pkl "Builtins.pyright"
+}
+
+@test "hk init detects [tool.pyright] in pyproject.toml" {
+    echo '[tool.pyright]' > pyproject.toml
+    echo 'typeCheckingMode = "strict"' >> pyproject.toml
+    run hk init
+    assert_success
+    assert_output --partial "pyright (pyproject.toml matches"
+    assert_file_contains hk.pkl "Builtins.pyright"
+}
+
+@test "hk init ignores pyproject.toml without [tool.pyright]" {
+    echo '[project]' > pyproject.toml
+    echo 'name = "pyright-plugin"' >> pyproject.toml
+    run hk init
+    assert_success
+    assert_file_not_contains hk.pkl "Builtins.pyright"
+}
+
+@test "hk init detects .protolint.yaml" {
+    touch .protolint.yaml
+    run hk init
+    assert_success
+    assert_output --partial "protolint (.protolint.yaml)"
+    assert_file_contains hk.pkl "Builtins.protolint"
+}
+
+@test "hk init detects phpstan.neon" {
+    touch phpstan.neon
+    run hk init
+    assert_success
+    assert_output --partial "phpstan (phpstan.neon)"
+    assert_file_contains hk.pkl "Builtins.phpstan"
+}
+
+@test "hk init detects phpstan.dist.neon" {
+    touch phpstan.dist.neon
+    run hk init
+    assert_success
+    assert_output --partial "phpstan (phpstan.dist.neon)"
+    assert_file_contains hk.pkl "Builtins.phpstan"
+}
+
+@test "hk init detects phpstan in composer.json" {
+    echo '{"require-dev": {"phpstan/phpstan": "^2.0"}}' > composer.json
+    run hk init
+    assert_success
+    assert_output --partial "phpstan (composer.json contains phpstan)"
+    assert_file_contains hk.pkl "Builtins.phpstan"
+}
+
+@test "hk init skips phpstan for composer.json without phpstan" {
+    echo '{"require": {"php": "^8.2"}}' > composer.json
+    run hk init
+    assert_success
+    assert_file_not_contains hk.pkl "Builtins.phpstan"
+}
+
+@test "hk init detects osv-scanner.toml" {
+    touch osv-scanner.toml
+    run hk init
+    assert_success
+    assert_output --partial "osv_scanner (osv-scanner.toml)"
+    assert_file_contains hk.pkl "Builtins.osv_scanner"
+}
+
 @test "hk init generates default template when nothing detected" {
     run hk init
     assert_success

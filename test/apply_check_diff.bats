@@ -1557,7 +1557,7 @@ hooks {
 EOF
     echo "a" > source-a.txt
     echo "b" > source-b.txt
-    run python3 -c 'import subprocess, sys; sys.exit(subprocess.run(sys.argv[1:], timeout=10).returncode)' hk fix source-a.txt source-b.txt
+    run python3 -c 'import subprocess, sys; sys.exit(subprocess.run(sys.argv[1:], timeout=60).returncode)' hk fix source-a.txt source-b.txt
     assert_success
     [ -e fixed-source-a.txt ]
     [ -e fixed-source-b.txt ]

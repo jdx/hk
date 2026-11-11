@@ -10,6 +10,7 @@ import "../Config.pkl"
     new { glob = "*.sln" }
     new { glob = "*.slnx" }
   }
+  mise_tools = List("dotnet")
 }
 // Requires the .NET SDK (6+). Uses dotnet's project/solution discovery in the
 // working directory. Set `dir` for a nested solution or standalone project;

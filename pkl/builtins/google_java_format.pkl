@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { glob = "**/*.java" }
   }
+  mise_tools = List("google-java-format")
 }
 google_java_format = new Config.Step {
   glob = "**/*.java"

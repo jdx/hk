@@ -1,0 +1,40 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Python"
+  description = "Static type checker for Python"
+  project_indicators {
+    new { file = "pyrightconfig.json" }
+    new { file = "pyproject.toml"; contains_regex = #"^[ \t]*\[tool\.pyright[\].]"# }
+  }
+}
+pyright = new Config.Step {
+  glob = List("**/*.py", "**/*.pyi", "**/*.pyw")
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("pyright", "{{files}}") }
+    // The CLI keeps no cache on disk, unlike mypy and ty
+    effect = "read"
+  }
+  // Findings are `  path:line:col - error: message`, with the `(rule)` after the last line of the message
+  diagnostic_format = "pyright"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.py" }
+    ["check bad file"] = testMaker.checkFail("x: int = ''", 1)
+    ["check good file"] = testMaker.checkPass("x: str = ''")
+    ["check bad pyw file"] = testMaker.withFilename("test.pyw").checkFail("x: int = ''", 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        "x: int = ''",
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "test.py"
+          line = 1
+          column = 10
+          severity = "error"
+          rule = "reportAssignmentType"
+        }),
+      )
+  }
+}

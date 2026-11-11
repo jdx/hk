@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { glob = "*.typ"; recursive = true }
   }
+  mise_tools = List("tinymist")
 }
 tinymist = new Config.Step {
   glob = "**/*.typ"

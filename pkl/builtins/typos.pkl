@@ -10,6 +10,7 @@ import "./test/helpers.pkl"
     new { file = "_typos.toml" }
     new { file = ".typos.toml" }
   }
+  mise_tools = List("typos")
 }
 typos = new Config.Step {
   types = List("text")

@@ -72,3 +72,78 @@ EOF
     run cat test3.js
     assert_output 'console.log("test3")'
 }
+
+@test "steps see the ref range as templates and HK_FROM_REF/HK_TO_REF" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["refs"] {
+                check = "echo env=[\$HK_FROM_REF..\$HK_TO_REF] tpl=[{{from_ref}}..{{to_ref}}]"
+            }
+            ["override"] {
+                env { ["HK_FROM_REF"] = "custom" }
+                check = "echo override=\$HK_FROM_REF"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+    git add a.txt
+    git commit -m "second commit"
+
+    run hk check --from-ref HEAD~1 --to-ref HEAD
+    assert_success
+    assert_output --partial "env=[HEAD~1..HEAD] tpl=[HEAD~1..HEAD]"
+    assert_output --partial "override=custom"
+
+    run hk check --all
+    assert_success
+    assert_output --partial "env=[..] tpl=[..]"
+}
+
+@test "required HK_FROM_REF counts as set, and plans see from_ref" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["needs"] {
+                required = List("HK_FROM_REF")
+                check = "echo needs-ran"
+            }
+            ["cond"] {
+                condition = "from_ref == 'HEAD~1'"
+                check = "echo cond-ran"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+    git add a.txt
+    git commit -m "second commit"
+
+    run hk check --from-ref HEAD~1
+    assert_success
+    assert_output --partial "needs-ran"
+    assert_output --partial "cond-ran"
+
+    run hk check --plan --from-ref HEAD~1
+    assert_success
+    refute_output --partial "unknown"
+    assert_output --partial "condition evaluated to true"
+    refute_output --partial "condition evaluated to false"
+
+    run hk check --plan
+    assert_success
+    assert_output --partial "condition evaluated to false"
+}

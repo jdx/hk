@@ -9,10 +9,11 @@ teardown() {
     _common_teardown
 }
 
-# Two linked worktrees share one stash stack and one lock file in the common
-# git directory. Each runs a hook whose step records when it starts and ends;
-# the step only runs while that worktree's unstaged changes are stashed, so
-# overlapping records mean overlapping stash phases.
+# Each worktree has its own lock file in its git directory, and hk's stash
+# entries are private to the run that made them, so hooks in different
+# worktrees do not wait for each other. Each runs a hook whose step records
+# when it starts and ends; the step only runs while that worktree's unstaged
+# changes are stashed, so overlapping records mean overlapping stash phases.
 _setup_two_worktrees() {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -43,7 +44,7 @@ PKL
     : > "$HK_TEST_LOG"
 }
 
-@test "stash phases of hooks in two linked worktrees do not overlap" {
+@test "stash phases of hooks in two linked worktrees run in parallel" {
     _setup_two_worktrees
 
     (cd "$WT_DIR/wt-a" && hk run pre-commit >"$WT_DIR/a.out" 2>&1) &
@@ -55,32 +56,53 @@ PKL
 
     run cat "$HK_TEST_LOG"
     assert_success
-    # Each begin is followed by its own end before the other begins.
+    # Both began before either ended: neither waited for the other's stash.
     [ "${#lines[@]}" -eq 4 ]
     [[ "${lines[0]}" == begin\ * ]]
-    [ "${lines[1]}" = "end ${lines[0]#begin }" ]
-    [[ "${lines[2]}" == begin\ * ]]
-    [ "${lines[3]}" = "end ${lines[2]#begin }" ]
-    [ "${lines[0]}" != "${lines[2]}" ]
+    [[ "${lines[1]}" == begin\ * ]]
+    [[ "${lines[2]}" == end\ * ]]
+    [[ "${lines[3]}" == end\ * ]]
 
     # Both restored their own unstaged edit and left no stash entries behind.
     run cat "$WT_DIR/wt-a/file.txt"
     assert_output "unstaged wt-a"
     run cat "$WT_DIR/wt-b/file.txt"
     assert_output "unstaged wt-b"
-    run git stash list
-    assert_output ""
-    # The one that waited said so.
+    assert_equal "$(git -C "$WT_DIR/wt-a" for-each-ref refs/hk/stash)" ""
+    assert_equal "$(git -C "$WT_DIR/wt-b" for-each-ref refs/hk/stash)" ""
     run cat "$WT_DIR/a.out" "$WT_DIR/b.out"
-    assert_output --partial "waiting for another hk process to finish stashing"
-    assert_output --partial "hk-stash.lock"
+    refute_output --partial "waiting for another hk process"
+}
+
+@test "a stash lock held in one worktree does not block another worktree" {
+    _setup_two_worktrees
+    lock="$(git -C "$WT_DIR/wt-b" rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
+    python3 - "$lock" "$WT_DIR/lock-held" <<'PY' &
+import fcntl, sys, time
+f = open(sys.argv[1], "w")
+fcntl.flock(f, fcntl.LOCK_EX)
+open(sys.argv[2], "w").close()
+time.sleep(30)
+PY
+    holder=$!
+    for _ in $(seq 100); do
+        [ -e "$WT_DIR/lock-held" ] && break
+        sleep 0.1
+    done
+    cd "$WT_DIR/wt-a"
+    HK_STASH_LOCK_TIMEOUT=1 run hk run pre-commit
+    kill "$holder"
+    wait "$holder" 2>/dev/null || true
+    assert_success
+    run cat file.txt
+    assert_output "unstaged wt-a"
 }
 
 @test "stash lock wait times out with an error naming the lock file" {
     _setup_two_worktrees
 
     # Hold the lock the way another hk process would.
-    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    lock="$(git -C "$WT_DIR/wt-a" rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
     python3 - "$lock" "$WT_DIR/lock-held" <<'PY' &
 import fcntl, sys, time
 f = open(sys.argv[1], "w")
@@ -114,7 +136,7 @@ PY
 @test "ctrl-c while waiting for the stash lock exits promptly without stashing" {
     _setup_two_worktrees
 
-    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    lock="$(git -C "$WT_DIR/wt-a" rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
     python3 - "$lock" "$WT_DIR/lock-held" <<'PY' &
 import fcntl, sys, time
 f = open(sys.argv[1], "w")
@@ -160,15 +182,14 @@ PY
     refute_output --partial "timed out"
     run cat file.txt
     assert_output "unstaged wt-a"
-    run git stash list
-    assert_output ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "git config hk.stashLockTimeout 0 fails immediately when the lock is held" {
     _setup_two_worktrees
     git config hk.stashLockTimeout 0
 
-    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    lock="$(git -C "$WT_DIR/wt-a" rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
     python3 - "$lock" "$WT_DIR/lock-held" <<'PY' &
 import fcntl, sys, time
 f = open(sys.argv[1], "w")
@@ -202,7 +223,7 @@ PY
 
 @test "a read-only lock file left by another account does not block stashing" {
     _setup_two_worktrees
-    lock="$(git rev-parse --path-format=absolute --git-common-dir)/hk-stash.lock"
+    lock="$(git -C "$WT_DIR/wt-a" rev-parse --path-format=absolute --git-dir)/hk-stash.lock"
     : > "$lock"
     chmod 0444 "$lock"
 

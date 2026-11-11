@@ -56,6 +56,6 @@ hooks {
         [System.IO.File]::ReadAllText("$testDir/crlf.txt") | Should -BeExactly "two`r`n"
         [System.IO.File]::ReadAllText("$testDir/lf.txt") | Should -BeExactly "two`n"
         (git write-tree) | Should -BeExactly $indexBefore
-        (git stash list | Out-String) | Should -BeNullOrEmpty
+        (git for-each-ref refs/hk/stash | Out-String) | Should -BeNullOrEmpty
     }
 }

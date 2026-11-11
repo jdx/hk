@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "taplo.toml" }
     new { file = ".taplo.toml" }
   }
+  mise_tools = List("taplo")
 }
 taplo_format = new Config.Step {
   glob = "**/*.toml"

@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { glob = "*.sh"; recursive = true }
     new { glob = "*.bash"; recursive = true }
   }
+  mise_tools = List("shellharden")
 }
 shellharden = new Config.Step {
   types = List("bash", "sh")

@@ -7,6 +7,7 @@ import "../Config.pkl"
   project_indicators {
     new { file = "package.json" }
   }
+  mise_tools = List("prettier")
 }
 prettier = new Config.Step {
   glob =

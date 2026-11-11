@@ -242,7 +242,7 @@ Number of backup patches to retain per repository under `<common-git-dir>/hk/pat
 
 **Type:** nonnegative integer (seconds) · **Default:** 300
 
-How long to wait for another hk process in the same repository to finish stashing, using the `hk-stash.lock` file in the common git directory that linked worktrees share. On timeout hk fails and names the lock file. Set to `0` to fail at once instead of waiting. Also settable with `git config hk.stashLockTimeout`.
+How long to wait for another hk process in the same worktree to finish stashing, using the `hk-stash.lock` file in the worktree's git directory. Hooks in other linked worktrees do not wait. On timeout hk fails and names the lock file. Set to `0` to fail at once instead of waiting. Also settable with `git config hk.stashLockTimeout`.
 
 ## `HK_STASH_UNTRACKED` {#hk-stash-untracked}
 

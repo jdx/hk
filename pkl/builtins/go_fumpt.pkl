@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Strict Go formatter"
+  mise_tools = List("gofumpt")
 }
 go_fumpt = new Config.Step {
   glob = "**/*.go"

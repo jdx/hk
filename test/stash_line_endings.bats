@@ -37,7 +37,7 @@ check_untouched_file() {
     cmp crlf.txt "$TEST_TEMP_DIR/expected"
     git diff --cached --binary > "$TEST_TEMP_DIR/index-after"
     cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/index-after"
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "git stash restores untouched CRLF file using gitattributes" {
@@ -69,7 +69,7 @@ check_untouched_file() {
 
     cmp large.txt "$TEST_TEMP_DIR/large"
     cmp binary.dat "$TEST_TEMP_DIR/binary"
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "git stash merges fixer and unstaged edits in CRLF worktree form" {
@@ -103,7 +103,7 @@ PKL
     git show :crlf.txt > "$TEST_TEMP_DIR/index"
     printf 'fixed\nunchanged\nlast\n' > "$TEST_TEMP_DIR/expected-index"
     cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/expected-index"
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 @test "git stash retains recovery data when a required checkout filter fails" {
@@ -136,7 +136,7 @@ PKL
     # Failed conversion must leave the checkout intact and retain the stash.
     printf 'one\r\n' > "$TEST_TEMP_DIR/expected"
     cmp crlf.txt "$TEST_TEMP_DIR/expected"
-    git show 'stash@{0}:crlf.txt' > "$TEST_TEMP_DIR/stashed"
+    git show "$(hk_stash_sha):crlf.txt" > "$TEST_TEMP_DIR/stashed"
     printf 'two\n' > "$TEST_TEMP_DIR/expected-stashed"
     cmp "$TEST_TEMP_DIR/stashed" "$TEST_TEMP_DIR/expected-stashed"
 }
@@ -188,7 +188,7 @@ PKL
     printf 'staged\r\n' > "$TEST_TEMP_DIR/expected"
     cmp crlf.txt "$TEST_TEMP_DIR/expected"
     assert_equal "$(git show :crlf.txt)" fixed
-    assert_equal "$(git show 'stash@{0}:crlf.txt')" unstaged
+    assert_equal "$(git show "$(hk_stash_sha):crlf.txt")" unstaged
 }
 
 @test "git stash retains worktree and stash when the base filter fails" {
@@ -224,7 +224,7 @@ PKL
         assert_equal "$(cat history.dat)" 'unstaged text'
         git write-tree > "$TEST_TEMP_DIR/index-after"
         cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/index-after"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
     done
 }
 
@@ -257,7 +257,7 @@ PKL
     cmp file.dat binary.dat
     git show :file.dat > "$TEST_TEMP_DIR/index"
     cmp "$TEST_TEMP_DIR/index" binary.dat
-    assert_equal "$(git show 'stash@{0}:file.dat')" unstaged
+    assert_equal "$(git show "$(hk_stash_sha):file.dat")" unstaged
 }
 
 @test "git stash merge reads colon-prefixed paths literally" {
@@ -295,7 +295,7 @@ SH
     printf 'fixed\nmiddle\nlast\n' > "$TEST_TEMP_DIR/expected-index"
     git show ::file.txt > "$TEST_TEMP_DIR/index"
     cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/expected-index"
-    assert_equal "$(git stash list)" ""
+    assert_equal "$(hk_stash_list)" ""
 }
 
 # A step that leaves a staged non-UTF-8 file alone has no output to merge with
@@ -330,7 +330,7 @@ PKL
         assert_equal "$(cat file.dat)" 'unstaged text'
         git write-tree > "$TEST_TEMP_DIR/index-after"
         cmp "$TEST_TEMP_DIR/index" "$TEST_TEMP_DIR/index-after"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         git checkout -q -- file.dat
     done
 }

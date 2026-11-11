@@ -14,8 +14,8 @@ For a first setup, use [getting started](/getting_started). For complete configu
 A configuration amends hk’s [Pkl schema](/pkl_introduction). For a shared set of linters, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.7.1/hk@2.7.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.7.1/hk@2.7.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -193,7 +193,7 @@ structured command should run through a launcher. Other step behavior, including
 
 ### Shell commands on Windows
 
-On Windows, a string command runs through `cmd.exe` unless the step sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few builtins are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `typos`, and `yq`. `just_format` also needs a POSIX shell, with `xargs`, and `nix_fmt` has no Windows commands. Other builtins run as they are.
+On Windows, a string command runs through `cmd.exe` unless the step sets `shell`. A command that is a plain program with arguments behaves the same there, but POSIX shell syntax such as `$(...)`, `for` loops, `[ ... ]`, `trap`, or `/dev/null` does not. A few builtins are written as POSIX scripts and need a POSIX shell on Windows: `go_fmt`, `go_imports`, `jq`, `pkl`, `terraform_docs`, `terraform_validate`, `terragrunt_hcl_fmt`, `terragrunt_hcl_validate`, `tf_lint`, `tofu_validate`, `typos`, and `yq`. `just_format` also needs a POSIX shell, with `xargs`, and `nix_fmt` has no Windows commands. Other builtins run as they are.
 
 To run one of them, set its `shell` to a POSIX shell, such as the `sh` that comes with Git for Windows. A value that contains quotes groups the quoted words, so a path with spaces can be quoted (on Windows backslashes stay literal, except before a double quote, as in `CommandLineToArgvW`):
 
@@ -310,16 +310,24 @@ If the formatter fails for any file, no patch is printed and hk runs `fix`, whic
 
 `hk check --sarif`, the `diagnostics` arrays in `--format json` and `--format jsonl` output, and the MCP dashboard all show normalized diagnostics: findings with a file, position, severity, message, and rule. hk builds them by parsing the output of a step's `check` command, and it can't guess a tool's output format. A step reports diagnostics only when it sets `diagnostic_format`. Without it the step still runs, fails, and can carry its raw text in the result's `output` field (separate from `diagnostics`; `output_summary` and other step settings decide when it is present), but its `diagnostics` list and its SARIF results are empty. In `--format jsonl` output, the findings are in the final `run_completed` result; each `step_completed` event carries an empty `diagnostics` array.
 
-This applies to builtins too. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. Most builtins don't set it (check a builtin's definition in `pkl/builtins`), so an unchanged builtin step contribute no diagnostics even when they fail. To report diagnostics for one of those, set `diagnostic_format` on your own step, and add the tool's flag for a supported format to its `check` command if you accept the output changing.
+This applies to builtins too. A builtin sets `diagnostic_format` only when the tool's default output is one of the formats below, because hk doesn't add flags that would change what the tool prints. The common linters and type checkers do, including `cargo_clippy`, `cargo_check`, `cargo_fmt`, `rustfmt`, `ruff`, `ty`, `mypy`, `pyright`, `flake8`, `eslint`, `biome`, `stylelint`, `tsc`, `tsserver`, `shellcheck`, `golangci_lint`, `staticcheck` and `actionlint`. Many other builtins don't (check a builtin's definition in `pkl/builtins`), so an unchanged step from one of those contributes no diagnostics even when it fails. To report diagnostics for one of those, set `diagnostic_format` on your own step, and add the tool's flag for a supported format to its `check` command if you accept the output changing.
 
-| `diagnostic_format` | What hk reads                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gcc`               | Lines like `path:line:column: warning: message [rule]`. The severity and the trailing `[rule]` are optional, and lines that follow a diagnostic are added to its message. |
-| `sarif`             | A SARIF 2.1.0 log. Each result becomes a diagnostic, with its rule and help link.                                                                                         |
-| `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                        |
-| `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                 |
+| `diagnostic_format` | What hk reads                                                                                                                                                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gcc`               | Lines like `path:line:column: warning: message [rule]`. The severity and the trailing `[rule]` are optional, and lines that follow a diagnostic are added to its message.                                                                                          |
+| `gcc-paren`         | Lines like `path:line:column: message (rule)`, as golangci-lint and staticcheck print. Lines that follow a diagnostic are a source excerpt and are not added to its message.                                                                                       |
+| `sarif`             | A SARIF 2.1.0 log. Each result becomes a diagnostic, with its rule and help link.                                                                                                                                                                                  |
+| `eslint-json`       | The JSON array that `eslint --format json` prints.                                                                                                                                                                                                                 |
+| `cargo-json`        | The stream that `cargo check --message-format=json` prints. Each `compiler-message` becomes a diagnostic.                                                                                                                                                          |
+| `rustc`             | rustc's default output, an `error[E0308]: message` header and a ` --> path:line:column` line, which cargo, clippy, ty, deno lint and ruff 0.12 or later also print. The rule is the `[code]` (ruff's leading code), or the lint that a `#[warn(lint)]` note names. |
+| `rustfmt`           | The `Diff in path:line:` hunks that `rustfmt --check` and `cargo fmt --check` print. Each hunk becomes a warning whose message holds the diff.                                                                                                                     |
+| `stylish`           | ESLint's default output: a line naming the file, then a `line:column  severity  message  rule` row per finding. stylelint, and yamllint outside GitHub Actions, print the same rows.                                                                                                        |
+| `tsc`               | Lines like `path(line,column): error TS2322: message`, which tsc prints when it isn't writing to a terminal.                                                                                                                                                       |
+| `shellcheck`        | ShellCheck's default output: `In path line N:`, the source line, and a `^-- SC2086 (info): message` marker under it for each finding.                                                                                                                              |
+| `pyright`           | pyright's default output: `path:line:column - error: message` lines, with the `(rule)` at the end of the message's last line.                                                                                                                                      |
+| `biome`             | Biome's default output: a `path:line:column category ━━━` header per finding, then its message after a `×`, `!` or `i` marker.                                                                                                                                     |
 
-hk parses the combined stdout and stderr of `check` runs. If a step captured no `check` output, structured results fall back to the step's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Raw text is reported in the separate `output` field, and `output_summary` and other step settings decide when it is present. Output that can't be parsed usually becomes an entry in the step's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, and the `cargo-json` parser skips valid JSON events that aren't `compiler-message`. This step reports each line of the compiler's `path:line:column: message` output as a diagnostic:
+hk parses the combined stdout and stderr of `check` runs. If a step captured no `check` output, structured results fall back to the step's retained `output`, so a failing `fix` command's output can also be parsed. `diagnostic_tool` sets the tool name recorded on each diagnostic, which defaults to the step name. Raw text is reported in the separate `output` field, and `output_summary` and other step settings decide when it is present. Output that can't be parsed usually becomes an entry in the step's `parse_warnings`, but not always: the `gcc` parser appends an unrecognized line that follows a diagnostic to that diagnostic's message, the `cargo-json` parser skips valid JSON events that aren't `compiler-message`, and the parsers for other tools' default output (every format but `gcc`, `sarif`, `eslint-json` and `cargo-json`) skip the source excerpts, suggestions and summaries around each finding (`rustfmt` keeps each hunk's diff as its message), and report unrecognized lines only when no finding was read, leaving out a tool's success summary. Those parsers ignore terminal color codes. This step reports each line of the compiler's `path:line:column: message` output as a diagnostic:
 
 ```pkl
 ["compiler"] {
@@ -339,6 +347,38 @@ hk parses the combined stdout and stderr of `check` runs. If a step captured no 
 ```
 
 The amended object keeps properties you do not override. See [builtins](/builtins) for the catalogue and command details.
+
+### Skip checks that already passed {#cache}
+
+A `pre-commit` hook often re-runs a check on files that `hk check` just passed. Set `cache = true` on a step and hk remembers a check that exited 0, then skips that command the next time the same check runs on the same file contents:
+
+```pkl
+["prettier"] {
+    glob = "*.{js,ts}"
+    check = "prettier --check {{files}}"
+    fix = "prettier --write {{files}}"
+    cache = true
+}
+```
+
+The key is a SHA-256 of the hk version, the step name, the rendered command, the working directory, the step's `env`, `shell` and `stdin`, and the contents of each file (not its modification time). Change a file, the command, or the hk version and the check runs again. Only a passing check is recorded, and only checks are skipped: `fix` commands always run, and so do steps without `cache = true`. The default is off.
+
+A check whose result depends on more than its file list, such as `cargo clippy` over a workspace, must declare everything it reads in `cache_inputs`. Those globs (relative to the repository root, files git ignores excluded) replace the job's files in the key, so the check is skipped whenever none of them changed, however a hook selected files. If none of the globs match a file, hk does not cache the check. If only some match, the key covers just the files that matched:
+
+```pkl
+["clippy"] {
+    glob = "*.rs"
+    check = "cargo clippy --workspace -- -D warnings"
+    cache = true
+    cache_inputs = List("**/*.rs", "**/Cargo.toml", "Cargo.lock", "mise.toml")
+}
+```
+
+Both examples assume that tool configuration, tool versions, and other inputs outside the key stay unchanged. If they can change, declare the relevant files in `cache_inputs` and keep installed tool versions aligned with a keyed version pin, or disable caching.
+
+hk does not look up tool versions. List the file that pins them, such as `mise.toml`, in `cache_inputs`. With `cache_inputs` unset, the key covers only the job's files, so a command that reads anything else should not set `cache`.
+
+Entries are small files in `HK_CACHE_DIR/results`. They expire after 14 days, at most 2000 are kept, and concurrent hk processes can share them. `HK_CACHE=0` turns the cache off. A skipped step reads "passed before, unchanged" in its progress line.
 
 ### Dependencies and groups
 
@@ -505,8 +545,8 @@ package {
 ```
 
 ```pkl [hk.pkl]
-amends "package://github.com/jdx/hk/releases/download/v2.7.1/hk@2.7.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.7.1/hk@2.7.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace
@@ -604,7 +644,7 @@ Higher layers override lower ones for scalar settings. List settings such as `ex
 Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.7.1/hk@2.7.1#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
 
 jobs = 4
 fail_fast = false

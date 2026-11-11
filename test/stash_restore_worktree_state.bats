@@ -54,7 +54,7 @@ reset_repo() {
         HK_LIBGIT2=$libgit2 run hk run pre-commit
         assert_success
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         reset_repo
     done
 }
@@ -83,10 +83,10 @@ EOF
         # The step's output is intact and the stash still has the file
         run cat u.txt/output
         assert_output output
-        run git show 'stash@{0}^3:u.txt'
+        run git show "$(hk_stash_sha)^3:u.txt"
         assert_output untracked
 
-        git stash drop -q
+        hk_stash_drop
         rm -rf u.txt
         git reset -q --hard
     done
@@ -118,10 +118,10 @@ EOF
         assert_failure
         run cat link
         assert_output output
-        run git cat-file -t 'stash@{0}^3:link'
+        run git cat-file -t "$(hk_stash_sha)^3:link"
         assert_output blob
 
-        git stash drop -q
+        hk_stash_drop
         rm -f link
         git reset -q --hard
     done
@@ -139,7 +139,7 @@ EOF
         HK_LIBGIT2=$libgit2 run hk run pre-commit
         assert_success
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         rm -rf d.txt
         reset_repo
     done
@@ -167,7 +167,7 @@ EOF
         HK_LIBGIT2=$libgit2 run hk run pre-commit
         assert_success
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         reset_repo
     done
 }
@@ -194,7 +194,7 @@ EOF
         HK_LIBGIT2=$libgit2 run hk run pre-commit
         assert_failure
         assert_output --partial "Did not restore u.txt from the stash"
-        assert_output --partial "git restore --source='stash@{0}^3' -- ':(literal)u.txt'"
+        assert_output --partial "git restore --source='$(hk_stash_sha)^3' -- ':(literal)u.txt'"
         # The step's file is kept, and every other stashed change is back
         run cat u.txt
         assert_output step
@@ -202,11 +202,11 @@ EOF
         assert_output other
         assert_file_not_exists d.txt
         # The stash still has the conflicting file, which the hint restores
-        git restore --source='stash@{0}^3' -- u.txt
+        git restore --source="$(hk_stash_sha)^3" -- u.txt
         run cat u.txt
         assert_output mine
 
-        git stash drop -q
+        hk_stash_drop
         reset_repo
     done
 }
@@ -228,7 +228,7 @@ EOF
         HK_LIBGIT2=$libgit2 run hk run pre-commit
         assert_success
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         reset_repo
     done
 }
@@ -261,7 +261,7 @@ EOF
                 assert_success
                 run cat d.txt
                 assert_output $'step\nline1\nline2\nmine3'
-                assert_equal "$(git stash list)" ""
+                assert_equal "$(hk_stash_list)" ""
                 ;;
             *)
                 # The same line: the step's version stays and the stash is kept
@@ -269,10 +269,10 @@ EOF
                 assert_output --partial "a step changed d.txt, which the stash also changed, in the same lines"
                 run cat d.txt
                 assert_output $'line1\nline2\nstep3'
-                git restore --source='stash@{0}' -- d.txt
+                git restore --source="$(hk_stash_sha)" -- d.txt
                 run cat d.txt
                 assert_output $'line1\nline2\nmine3'
-                git stash drop -q
+                hk_stash_drop
                 ;;
             esac
             reset_repo
@@ -318,7 +318,7 @@ EOF
         run cat sub/untracked.txt
         assert_output untracked
 
-        git stash drop -q
+        hk_stash_drop
         reset_repo
     done
 }
@@ -351,7 +351,7 @@ EOF
             # hk leaves the executable bit as the step set it
             run test -x f.txt
             assert_success
-            assert_equal "$(git stash list)" ""
+            assert_equal "$(hk_stash_list)" ""
             chmod -x f.txt
             reset_repo
         done
@@ -402,10 +402,10 @@ EOF
             esac
             # The stash still has the unmerged edits
             rm -f f.txt
-            git restore --source='stash@{0}' -- f.txt
+            git restore --source="$(hk_stash_sha)" -- f.txt
             run cat f.txt
             assert_output $'base\nstaged\nunstaged'
-            git stash drop -q
+            hk_stash_drop
             reset_repo
         done
     done
@@ -422,7 +422,7 @@ EOF
         HK_LIBGIT2=$libgit2 run hk run pre-commit
         assert_success
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         reset_repo
     done
 }
@@ -468,7 +468,7 @@ EOF
             fi
             assert_equal "$(git show :f.txt)" "$index"
             assert_equal "$(cat f.txt)" "$worktree"
-            assert_equal "$(git stash list)" ""
+            assert_equal "$(hk_stash_list)" ""
             # The backup patch has the reverted edit, which `git stash show`
             # would not, since the stash matches HEAD
             run cat "$HK_STATE_DIR"/patches/*.patch
@@ -512,7 +512,7 @@ EOF
         assert_equal "$(cat a.txt)" one
         assert_equal "$(cat sub/b.txt)" one
         assert_equal "$(git show :a.txt)" "$(printf 'one\nstaged')"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         reset_repo
     done
 }

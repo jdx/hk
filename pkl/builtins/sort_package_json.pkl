@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Configuration"
   description = "Sort package.json keys"
+  mise_tools = List("npm:sort-package-json")
 }
 sort_package_json = new Config.Step {
   glob = "**/package.json"

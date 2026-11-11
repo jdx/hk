@@ -46,7 +46,7 @@ EOF
 
     assert_file_exists untracked.txt
 
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 
@@ -134,6 +134,6 @@ EOF
     # No stash happened, so the fixer saw the whole file and restaged it.
     run git diff --cached
     assert_output --partial "+10 unstaged"
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }

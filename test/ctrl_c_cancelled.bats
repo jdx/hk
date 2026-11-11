@@ -157,3 +157,37 @@ EOF2
         assert_output "failed"
     done
 }
+
+@test "SIGTERM reports the signal, not the step that was running" {
+    SLEEPER="30.$$$RANDOM"
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["slow"] { check = "touch started && sleep $SLEEPER" }
+    }
+  }
+}
+EOF2
+    echo test > test.txt
+    git add hk.pkl test.txt
+    git commit -m init
+
+    rm -f started
+    hk check --all >out.txt 2>&1 &
+    HK_PID=$!
+    for _ in $(seq 100); do
+        [ -e started ] && break
+        sleep 0.1
+    done
+    assert_file_exists started
+    kill -TERM "$HK_PID"
+    status=0
+    wait "$HK_PID" || status=$?
+    HK_PID=
+    assert_equal "$status" 143
+    run cat out.txt
+    assert_output --partial "stopped by SIGTERM before the run finished (no step failed); exit 143"
+    refute_output --partial "command was cancelled"
+}

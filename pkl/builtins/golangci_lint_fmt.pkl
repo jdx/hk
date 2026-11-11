@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "go.mod" }
   }
+  mise_tools = List("golangci-lint")
 }
 golangci_lint_fmt = new Config.Step {
   glob = "**/*.go"

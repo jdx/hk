@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = ".gitleaks.toml" }
     new { file = ".betterleaks.toml" }
   }
+  mise_tools = List("betterleaks")
 }
 betterleaks = new Config.Step {
   types = List("text")

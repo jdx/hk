@@ -41,7 +41,7 @@ PKL
     assert_success
     assert_output --partial "100755"
 
-    run git stash list
+    run hk_stash_list
     assert_success
     assert_output ""
 }
@@ -64,7 +64,7 @@ PKL
     assert_success
     assert_output "echo hi"
 
-    run git stash list
+    run hk_stash_list
     assert_success
     assert_output ""
 }
@@ -86,7 +86,7 @@ PKL
     assert_success
     assert_output "untracked"
 
-    run git stash list
+    run hk_stash_list
     assert_success
     assert_output ""
 }

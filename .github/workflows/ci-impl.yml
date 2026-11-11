@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache_save: false
       - name: Validate v2 fixtures with Apple Pkl
@@ -52,11 +52,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache_save: false
       - name: Install JavaScript dependencies
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
+        uses: jdx/workflows/retry@7e4ea6cf326e2b3bb4335f733381af531aaa699d # v1.2.1
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -80,7 +80,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Mount the local mbx store on the Namespace cache volume
@@ -88,7 +88,7 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
           cache-generation: ci-v2
@@ -104,10 +104,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           cache-generation: ci-v2
       - name: Build
@@ -137,8 +137,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Identify the runner's Python for the Bats tool cache key
+        id: bats-python
+        if: runner.os == 'Linux'
+        # uv installs pipx tools against a Python outside the cached directory,
+        # and mise.lock does not pin it. Key on the runner image and its Python
+        # so a different interpreter discards the cache.
+        run: echo "id=${ImageVersion:-unknown}-$(python3 -c 'import sys; print(sys.version.split()[0])')" >> "$GITHUB_OUTPUT"
       # mise-action saves immediately after its own install, before Bats setup
       # installs the builtin tool stubs. Restore those tools before mise runs.
+      # The key includes mise.toml and mise.lock (they pin uv) and the runner's
+      # Python because a pipx tool's install depends on both: a restored entry
+      # from before a bump left black without its package (`No module named
+      # 'black'`). Bump the v2 prefix to discard every entry by hand.
       - name: Restore Bats mise tools
         id: bats-mise-tools
         # The cached macOS gem:rubocop install loses its prism dependency on
@@ -147,8 +158,8 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
-          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+          key: bats-mise-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.bats-python.outputs.id }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**', 'mise.toml', 'mise.lock') }}
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -177,7 +188,7 @@ jobs:
           path: ~/.local/share/mise/installs
           key: ${{ steps.bats-mise-tools.outputs.cache-primary-key }}
       - name: mise run test:bats:libgit2
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
+        uses: jdx/workflows/retry@7e4ea6cf326e2b3bb4335f733381af531aaa699d # v1.2.1
         with:
           # Hosted macOS needs headroom for slow builtin tests. The job limit
           # allows setup and two full attempts at the selected timeout.
@@ -188,7 +199,7 @@ jobs:
       # failure still reports the other configuration before the job fails.
       - name: mise run test:bats:nogit
         if: always()
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
+        uses: jdx/workflows/retry@7e4ea6cf326e2b3bb4335f733381af531aaa699d # v1.2.1
         with:
           timeout_minutes: 10
           max_attempts: 2
@@ -214,13 +225,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Identify the runner's Python for the Bats tool cache key
+        id: bats-python
+        if: runner.os == 'Linux'
+        # uv installs pipx tools against a Python outside the cached directory,
+        # and mise.lock does not pin it. Key on the runner image and its Python
+        # so a different interpreter discards the cache.
+        run: echo "id=${ImageVersion:-unknown}-$(python3 -c 'import sys; print(sys.version.split()[0])')" >> "$GITHUB_OUTPUT"
       - name: Restore Bats mise tools
         if: runner.os == 'Linux'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
-          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+          key: bats-mise-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.bats-python.outputs.id }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**', 'mise.toml', 'mise.lock') }}
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -238,7 +256,7 @@ jobs:
           mise run pkl:gen
           mise run test:bats:setup
       - name: mise run test:bats:nolibgit2
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
+        uses: jdx/workflows/retry@7e4ea6cf326e2b3bb4335f733381af531aaa699d # v1.2.1
         with:
           # Hosted macOS needs headroom for slow builtin tests. The job limit
           # allows setup and two full attempts at the selected timeout.
@@ -281,7 +299,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache_save: false
       - name: Mount the local mbx store on the Namespace cache volume
@@ -289,13 +307,34 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
           cache-generation: ci-v2
       - run: mise x -- aube install
       - name: mise run test:cargo
+        if: ${{ !(inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main') }}
         run: mise run test:cargo
+      # On main the same run goes through jouet so its timing is recorded. The
+      # `jouet-cost` job in ci.yml pushes the timings, so this job needs no write token.
+      # `--display human` streams the output, and the baseline rerun is off so a
+      # failure stays a failure.
+      - name: mise run test:cargo with jouet
+        if: ${{ inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          JOUET_TEST_BASELINE: "off"
+        run: |
+          jouet test --display human --cmd -- mise run test:cargo
+      - name: Bundle jouet timings
+        if: ${{ always() && inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: git bundle create "$RUNNER_TEMP/cost-${{ github.job }}-${{ strategy.job-index }}.bundle" refs/notes/jouet-cost || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() && inputs.trusted && matrix.os == 'ubuntu-latest' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        continue-on-error: true
+        with:
+          name: jouet-cost-${{ github.job }}-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/cost-${{ github.job }}-${{ strategy.job-index }}.bundle
+          if-no-files-found: ignore
       - name: mise run render
         run: mise run render
       - name: assert render produces no diff
@@ -318,7 +357,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache_save: false
       - name: Mount the local mbx store on the Namespace cache volume
@@ -326,7 +365,7 @@ jobs:
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
           cache-generation: ci-v2
@@ -339,10 +378,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
           cache_save: false
-      - uses: jdx/mr-boxington-action@47ce49b32025d93a7a2f4570815afaa2b7092240 # v1.7.2
+      - uses: jdx/mr-boxington-action@88acf2bb50552c7c508cbac13e5f8c576b95b1de # v1.7.3
         with:
           cache-generation: ci-v2
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

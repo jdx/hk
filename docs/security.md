@@ -44,7 +44,7 @@ Three settings change where evaluation gets its input:
 
 ## Global hooks {#global-hooks}
 
-`hk install --global` (Git 2.54 or newer) writes `hook.hk-<event>.command` and `hook.hk-<event>.event` entries to `~/.gitconfig`. Run inside a project with a config, it installs that project's enabled hooks other than `check` and `fix`; run anywhere else, it installs `commit-msg`, `pre-commit`, `pre-push`, and `prepare-commit-msg`. Each hook runs `hk run <event> --from-hook` using the absolute path of the hk that installed it; the `pre-commit` hook also passes `--staged`. With `--mise` (or `HK_MISE=1`), Git instead runs hk through mise, as `<mise path> x hk -- hk run <event> --from-hook`, using the absolute path of the mise found on `PATH`.
+`hk install --global` (Git 2.54 or newer) writes `hook.hk-<event>.command` and `hook.hk-<event>.event` entries to your global git config: `~/.gitconfig`, or `~/.config/git/config` when that is the one git uses. Run inside a project with a config, it installs that project's enabled hooks other than `check` and `fix`; run anywhere else, it installs `commit-msg`, `pre-commit`, `pre-push`, and `prepare-commit-msg`. Each hook runs `hk run <event> --from-hook` using the absolute path of the hk that installed it; the `pre-commit` hook also passes `--staged`. With `--mise` (or `HK_MISE=1`), Git instead runs hk through mise, as `<mise path> x hk -- hk run <event> --from-hook`, using the absolute path of the mise found on `PATH`.
 
 Git then runs hk for those events in every repository on the machine:
 

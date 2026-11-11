@@ -34,6 +34,12 @@ impl From<&str> for PrePushRefs {
     }
 }
 
+/// Message reminding users of proper stdin format to print if a stdin line is invalid.
+const STDIN_FORMAT_REMINDER: &str = concat!(
+    "Pre-push stdin, if provided, must be lines in format `<local ref> <local SHA> <remote ref> <remote SHA>`.\n",
+    "SHAs must be full-length (40 lowercase hexits for SHA-1, 64 for SHA-256)."
+);
+
 /// Check that a string is a valid Git commit long hash (40 or 64 lowercase hexits).
 /// This function is only called against the second and fourth parts of an input line,
 /// which must be full-length hashes (the first and third can be any commit-like expressions).
@@ -54,14 +60,22 @@ enum RejectionReason {
     BothHashesInvalid,
 }
 
-fn format_rejection_reason(reason: RejectionReason) -> &'static str {
+/// Print to stderr a message explaining why a stdin line has been filtered out.
+fn print_stdin_rejection_warning(line: &str, reason: RejectionReason) {
+    let prefix = format!("Ignoring malformed stdin line \"{line}\"");
     match reason {
-        RejectionReason::Empty => "empty",
-        RejectionReason::NotFourParts => "must be four whitespace-separated parts",
-        RejectionReason::FirstHashInvalid => "second part must be 40 or 64 lowercase hexits",
-        RejectionReason::SecondHashInvalid => "fourth part must be 40 or 64 lowercase hexits",
+        RejectionReason::Empty => eprintln!("Ignoring empty stdin line"),
+        RejectionReason::NotFourParts => {
+            eprintln!("{prefix}: must be four whitespace-separated parts")
+        }
+        RejectionReason::FirstHashInvalid => {
+            eprintln!("{prefix}: second part must be 40 or 64 lowercase hexits")
+        }
+        RejectionReason::SecondHashInvalid => {
+            eprintln!("{prefix}: fourth part must be 40 or 64 lowercase hexits")
+        }
         RejectionReason::BothHashesInvalid => {
-            "second and fourth parts must be 40 or 64 lowercase hexits"
+            eprintln!("{prefix}: second and fourth parts must be 40 or 64 lowercase hexits")
         }
     }
 }
@@ -117,32 +131,32 @@ impl PrePush {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input)?;
             self.hook.insert_hook_var("hook_stdin", &input);
+            let mut some_line_is_malformed = false;
             // Note: we deliberately keep deletions (local sha all-zeros) in
             // the list. The downstream EMPTY_REF guard in hook.rs detects
             // `to_ref` of all-zeros and short-circuits to an empty file set
             // — dropping deletions here would route them through
             // `files_between_refs(default_branch, "HEAD")` and lint
             // unrelated files.
-            input
+            let filtered_input = input
                 .lines()
                 .filter(|line| {
                     let result = validate_input_line(line);
                     match result {
                         Ok(()) => true,
                         Err(reason) => {
-                            if reason == RejectionReason::Empty {
-                                // use different format so we don't print "Ignoring malformed line : empty"
-                                eprintln!("Ignoring empty stdin line");
-                            } else {
-                                let reason_str = format_rejection_reason(reason);
-                                eprintln!("Ignoring malformed stdin line \"{line}\": {reason_str}");
-                            }
+                            some_line_is_malformed = true;
+                            print_stdin_rejection_warning(line, reason);
                             false
                         }
                     }
                 })
                 .map(PrePushRefs::from)
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            if some_line_is_malformed {
+                eprintln!("{STDIN_FORMAT_REMINDER}");
+            }
+            filtered_input
         };
         trace!("to_be_updated_refs: {to_be_updated_refs:?}");
 
@@ -310,7 +324,10 @@ mod tests {
     #[test]
     fn test_rejects_line_with_too_many_fields() {
         let line = format!("refs/heads/main {SHA1} refs/heads/main {SHA1} extra");
-        assert!(validate_input_line(&line) == Err(RejectionReason::NotFourParts));
+        assert_eq!(
+            validate_input_line(&line),
+            Err(RejectionReason::NotFourParts)
+        );
     }
 
     #[test]

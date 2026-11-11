@@ -5,6 +5,7 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "mise-en-place's built-in formatter and linter"
+  homepage = "https://mise.jdx.dev/installing-mise.html"
 }
 mise = new Config.Step {
   glob =

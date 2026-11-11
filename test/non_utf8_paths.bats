@@ -189,7 +189,7 @@ EOF
         run cat $'untracked\xfe.txt'
         assert_output untracked
         assert_equal "$(git status --porcelain=v2 -z | od -c)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
 
         git commit -qm "commit $libgit2"
         git checkout -q -- .
@@ -238,7 +238,7 @@ PKL
         HK_LIBGIT2=$libgit2 HK_STASH_UNTRACKED=true run hk run pre-commit
         assert_success
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         git reset -q --hard
     done
 }
@@ -258,7 +258,7 @@ PKL
         HK_LIBGIT2=$libgit2 HK_STASH_UNTRACKED=true run hk run pre-commit
         assert_success
         assert_equal "$(snapshot)" "$before"
-        assert_equal "$(git stash list)" ""
+        assert_equal "$(hk_stash_list)" ""
         git reset -q --hard
         git clean -qfd
     done

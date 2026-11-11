@@ -213,6 +213,35 @@ SCRIPT
     refute_output --partial "noscript"
 }
 
+@test "types: matches zsh startup files by name" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["zsh"] {
+        types = List("zsh")
+        check = "echo {{ files }}"
+      }
+    }
+  }
+}
+EOF
+    git init
+    git add -A
+    git commit -m "init"
+
+    echo "setopt extendedglob" > .zshrc
+    echo "setopt extendedglob" > zshrc.txt
+    git add .zshrc zshrc.txt
+
+    run hk check
+    assert_success
+    assert_output --partial ".zshrc"
+    refute_output --partial "zshrc.txt"
+}
+
 @test "types: OR logic - matches any type" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

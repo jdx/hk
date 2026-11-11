@@ -12,11 +12,11 @@ description: "Remove the installation in the matching scope; this does not delet
 
 Remove hk hooks
 
-Removes hk's hooks from the current git repository, clearing both legacy `.git/hooks/` shims and config-based `hook.*` entries. Pass `--global` to remove them from the user's `~/.gitconfig` instead.
+Removes hk's hooks from the current git repository, clearing both legacy `.git/hooks/` shims and config-based `hook.*` entries. Pass `--global` to remove them from the user's global git config instead.
 
 ## Flags
 
-- **`--global`** — Remove hk hooks from the user's global git config (`~/.gitconfig`).
+- **`--global`** — Remove hk hooks from the user's global git config.
 - **`-h --help`** — Print help
 
 <!-- hk documentation examples -->

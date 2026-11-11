@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Vulnerability scanner"
+  mise_tools = List("go:golang.org/x/vuln/cmd/govulncheck")
 }
 go_vuln_check = new Config.Step {
   glob = "**/*.go"

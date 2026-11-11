@@ -44,6 +44,7 @@ mod job_builder;
 mod output;
 mod process_tree;
 mod progress;
+mod result_cache;
 mod runner;
 mod shell;
 mod types;

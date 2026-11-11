@@ -41,7 +41,7 @@ PKL
     echo 'unstaged change' > tracked.txt
     echo 'untracked content' > untracked.txt
 
-    stash_count_before=$(git stash list | wc -l)
+    stash_count_before=$(hk_stash_list | wc -l)
 
     run hk run pre-commit
     assert_success
@@ -49,7 +49,7 @@ PKL
     refute_output --partial "Stashed unstaged changes"
 
     # No stash should have been left behind
-    stash_count_after=$(git stash list | wc -l)
+    stash_count_after=$(hk_stash_list | wc -l)
     assert_equal "$stash_count_before" "$stash_count_after"
 
     # Working tree must be intact
@@ -91,7 +91,7 @@ PKL
     git mv a.md b.md          # staged rename
     echo 'untracked' > u.md   # untracked file
 
-    stash_count_before=$(git stash list | wc -l)
+    stash_count_before=$(hk_stash_list | wc -l)
 
     # commit-msg fails on purpose, aborting the commit
     run git commit -m 'test'
@@ -99,7 +99,7 @@ PKL
 
     # Even though the commit aborted, the pre-commit hook must not have left a
     # dangling stash or stripped the working tree.
-    stash_count_after=$(git stash list | wc -l)
+    stash_count_after=$(hk_stash_list | wc -l)
     assert_equal "$stash_count_before" "$stash_count_after"
 
     run test -f u.md

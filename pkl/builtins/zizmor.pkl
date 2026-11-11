@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = ".github/workflows" }
   }
+  mise_tools = List("zizmor")
 }
 zizmor = new Config.Step {
   glob =

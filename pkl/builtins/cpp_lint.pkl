@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "CPPLINT.cfg" }
   }
+  mise_tools = List("pipx:cpplint")
 }
 cpp_lint = new Config.Step {
   glob =

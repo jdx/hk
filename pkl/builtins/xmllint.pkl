@@ -4,6 +4,7 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Data Formats"
   description = "XML validator"
+  homepage = "https://gitlab.gnome.org/GNOME/libxml2"
 }
 xmllint = new Config.Step {
   glob = "**/*.xml"

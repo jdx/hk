@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
   project_indicators {
     new { file = "selene.toml" }
   }
+  mise_tools = List("aqua:Kampfkarren/selene/light")
 }
 selene = new Config.Step {
   types = List("lua")

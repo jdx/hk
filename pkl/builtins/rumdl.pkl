@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
     new { file = "rumdl.toml" }
     new { file = ".rumdl.toml" }
   }
+  mise_tools = List("rumdl")
 }
 rumdl = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")

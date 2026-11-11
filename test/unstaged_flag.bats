@@ -43,7 +43,7 @@ EOF
     run cat seen.txt
     assert_output $'tracked.txt\nuntracked.txt'
 
-    run git stash list
+    run hk_stash_list
     assert_output ""
 }
 

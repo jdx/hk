@@ -10,6 +10,7 @@ import "../Config.pkl"
     new { file = ".cmake-format.yml" }
     new { file = ".cmake-format.py" }
   }
+  mise_tools = List("pipx:cmakelang")
 }
 cmake_format = new Config.Step {
   glob = List("**/CMakeLists.txt", "**/*.cmake")

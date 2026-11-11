@@ -16,6 +16,7 @@ import "./test/helpers.pkl"
     new { file = ".yamllint.yaml" }
     new { file = "pyproject.toml"; contains = "[tool.ryl]" }
   }
+  mise_tools = List("aqua:owenlamont/ryl")
 }
 ryl = new Config.Step {
   types = List("yaml")

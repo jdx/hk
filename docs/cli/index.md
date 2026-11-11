@@ -23,7 +23,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 
 **Usage:** `hk [FLAGS] <SUBCOMMAND>`
 
-**Version:** 2.7.1
+**Version:** 2.12.0
 
 ## Global Flags
 
@@ -88,7 +88,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 - [`hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`](/cli/util/check-added-large-files.md)
 - [`hk util check-byte-order-marker [-d --diff] <FILES>…`](/cli/util/check-byte-order-marker.md)
 - [`hk util check-case-conflict <FILES>…`](/cli/util/check-case-conflict.md)
-- [`hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`](/cli/util/check-conventional-commit.md)
+- [`hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] [--allowed-scopes <ALLOWED_SCOPES>] <COMMIT_MSG_FILE>`](/cli/util/check-conventional-commit.md)
 - [`hk util check-executables-have-shebangs <FILES>…`](/cli/util/check-executables-have-shebangs.md)
 - [`hk util check-merge-conflict [--assume-in-merge] <FILES>…`](/cli/util/check-merge-conflict.md)
 - [`hk util check-shebang-scripts-are-executable <FILES>…`](/cli/util/check-shebang-scripts-are-executable.md)

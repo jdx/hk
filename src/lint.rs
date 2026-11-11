@@ -46,6 +46,7 @@ const HOOK_KEYS: &[&str] = &[
     "fail_on_fix",
     "env",
     "report",
+    "timeout",
 ];
 
 const GROUP_KEYS: &[&str] = &[
@@ -98,6 +99,8 @@ const STEP_KEYS: &[&str] = &[
     "exclusive",
     "allow_binary",
     "allow_symlinks",
+    "cache",
+    "cache_inputs",
     "root",
     "hide",
     "tests",

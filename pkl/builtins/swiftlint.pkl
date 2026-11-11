@@ -8,6 +8,7 @@ import "../Config.pkl"
     new { file = ".swiftlint.yml" }
     new { file = ".swiftlint.yaml" }
   }
+  mise_tools = List("swiftlint")
 }
 swiftlint = new Config.Step {
   glob = "**/*.swift"

@@ -40,6 +40,7 @@ SHELL_EXPANSIONS = {
 # These fixtures deliberately exercise Pkl evaluation errors. The migration
 # fixtures import removed v1 shims; the others verify malformed-config errors.
 EXPECTED_FAILURES = {
+    ("commit_msg.bats", "conventional commit builtin rejects comma-containing scope entries"),
     ("config_error_handling.bats", "hk check fails on invalid config"),
     ("config_error_handling.bats", "hk fix fails on invalid config"),
     ("config_error_handling.bats", "hk run fails on invalid config"),
@@ -51,6 +52,7 @@ EXPECTED_FAILURES = {
     ("pkl_config_errors.bats", "pkl file with syntax errors shows original error"),
     ("pkl_config_errors.bats", "syntax error in hk.pkl reports file, line and column once"),
     ("pkl_config_errors.bats", "syntax error in an imported file is blamed on that file"),
+    ("hook_timeout.bats", "hook timeout rejects values without a unit"),
     ("top_level_exclude.bats", "top-level exclude - invalid regex fails validation"),
     ("validate.bats", "validate warns about a misspelled property"),
     ("validate.bats", "validate names the step for an invalid exclude regex"),

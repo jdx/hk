@@ -32,7 +32,19 @@ class Command {
 }
 
 typealias CommandEffect = "read" | "write" | "destructive"
-typealias DiagnosticFormat = "sarif" | "cargo-json" | "eslint-json" | "gcc"
+typealias DiagnosticFormat =
+  "sarif"
+    | "cargo-json"
+    | "eslint-json"
+    | "gcc"
+    | "gcc-paren"
+    | "rustc"
+    | "rustfmt"
+    | "stylish"
+    | "tsc"
+    | "shellcheck"
+    | "pyright"
+    | "biome"
 
 /// A command paired with its declared effect on user or project state.
 /// Commands that do not use CommandSpec remain valid and have an unknown effect.
@@ -305,6 +317,24 @@ class Hook {
   /// ```
   fail_on_fix: Boolean = false
 
+  /// Default: no limit
+  ///
+  /// The longest the whole hook may run, across all of its steps. When the limit passes, hk
+  /// stops the running steps, restores any stashed changes, and fails the hook with a message
+  /// naming the timeout.
+  ///
+  /// Write it as a number with a unit (`ms`, `s`, `m`, `h`); units can be combined, as in `"1m30s"`.
+  ///
+  /// ```pkl
+  /// hooks {
+  ///   ["pre-commit"] {
+  ///     timeout = "10s"
+  ///     steps = linters
+  ///   }
+  /// }
+  /// ```
+  timeout: String(matches(Regex(#"(\d+(ms|s|m|h))+"#)))?
+
   /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
   ///
   /// A plain string or `Script` has an unknown effect, so `--safe` refuses to run the hook.
@@ -407,7 +437,8 @@ open class Step {
   /// Types are detected using:
   /// 1. File extension (e.g., `.py` → `python`)
   /// 2. Shebang line (e.g., `#!/usr/bin/env python3` → `python`)
-  /// 3. Special filenames (e.g., `Dockerfile` → `dockerfile`)
+  /// 3. Special filenames (e.g., `Dockerfile` → `dockerfile`; zsh startup files such as
+  ///    `.zshrc` → `shell`, `zsh`)
   /// 4. Content/magic number detection for binary files
   types: List<String>?
 
@@ -434,6 +465,40 @@ open class Step {
 
   /// Whether to include symbolic links (default: false)
   allow_symlinks: Boolean = false
+
+  /// Skip this step's check when the same check already passed on exactly the same file contents.
+  ///
+  /// hk records a successful check under a key made from the hk version, the step name, the
+  /// rendered command, the working directory, the step's `env`, `shell` and `stdin`, and a
+  /// SHA-256 of each file's contents (not its modification time). Running the same step again
+  /// with the same key, for example in a `pre-commit` hook right after `hk check`, skips the
+  /// command. Entries live in `HK_CACHE_DIR/results`, expire after 14 days, and at most 2000
+  /// are kept. `HK_CACHE=0` turns the cache off.
+  ///
+  /// Only a check that exits 0 is recorded, and only checks are skipped: a step's `fix`
+  /// command always runs. Defaults to `false`.
+  ///
+  /// Enable it only for a check whose result depends on nothing but the files in its key.
+  /// A check that reads other files (a whole-workspace build or `cargo clippy`, a config file,
+  /// the tool's version) must list them in `cache_inputs`. hk does not look up tool versions;
+  /// list the file that pins them, such as `mise.toml`.
+  ///
+  /// ```pkl
+  /// ["clippy"] {
+  ///     glob = "*.rs"
+  ///     check = "cargo clippy --workspace -- -D warnings"
+  ///     cache = true
+  ///     cache_inputs = List("**/*.rs", "**/Cargo.toml", "Cargo.lock", "mise.toml")
+  /// }
+  /// ```
+  cache: Boolean = false
+
+  /// Globs, relative to the repository root, of every file the check depends on.
+  /// With `cache`, the contents of the files these match replace the contents of the job's
+  /// files in the cache key, so the check is skipped whenever none of them changed. This
+  /// lets a check that does not take `{{files}}` be skipped regardless of which files a hook
+  /// selected. Files that git ignores are not included.
+  cache_inputs: List<String>?
 
   /// A command to run that does not modify files.
   /// This typically is a "check" command like `eslint` or `prettier --check`
@@ -1021,9 +1086,18 @@ open class Step {
   /// the command must print one of these formats itself:
   ///
   /// - `gcc`: `path:line:column: [severity:] message [rule]` lines
+  /// - `gcc-paren`: `path:line:column: message (rule)` lines, as golangci-lint and staticcheck print
   /// - `sarif`: a SARIF 2.1.0 log
   /// - `eslint-json`: the output of `eslint --format json`
   /// - `cargo-json`: the output of `cargo check --message-format=json`
+  /// - `rustc`: rustc's default output (`error[E0308]: message` then ` --> path:line:column`), as
+  ///   cargo, clippy, ty and ruff print
+  /// - `rustfmt`: the `Diff in path:line:` hunks that `rustfmt --check` and `cargo fmt --check` print
+  /// - `stylish`: ESLint's default `stylish` output, which stylelint and yamllint also print
+  /// - `tsc`: `path(line,column): error TS2322: message` lines
+  /// - `shellcheck`: ShellCheck's default `In path line N:` blocks
+  /// - `pyright`: pyright's default `path:line:column - error: message (rule)` lines
+  /// - `biome`: Biome's default `path:line:column category ━━━` blocks
   ///
   /// When the step sets `dir` (including `dir = "{{workspace}}"`), the tool prints paths relative
   /// to that directory. hk rebases them onto the repository root, so SARIF, JSON and MCP
