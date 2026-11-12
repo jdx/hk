@@ -19,7 +19,7 @@ amends "$PKL_PATH/Config.pkl"
 hooks {
   ["pre-commit"] {
     fix = true
-    stash = "$1"
+    stash = "none"
     steps {
       ["trim"] {
         glob = "*.txt"
@@ -38,7 +38,7 @@ PKL
 }
 
 @test "pre-commit (stash=none) warns when a fixer stages unstaged hunks" {
-    _partially_staged_fix none
+    _partially_staged_fix
     run hk run pre-commit
     assert_success
     assert_output --partial "staged notes.txt with the unstaged changes it had before the hook ran"
@@ -46,9 +46,9 @@ PKL
     assert_output --partial "+E"
 }
 
-@test "pre-commit (stash=git) does not warn" {
-    _partially_staged_fix git
-    run hk run pre-commit
+@test "pre-commit (--stash git) does not warn" {
+    _partially_staged_fix
+    run hk run pre-commit --stash git
     assert_success
     refute_output --partial "unstaged changes it had before the hook ran"
     run git diff --cached
