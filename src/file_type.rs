@@ -121,7 +121,10 @@ fn shebang_interpreter(line: &str) -> &str {
 }
 
 /// The interpreter a shebang line names, plus the arguments after it.
-fn shebang_command(line: &str) -> (&str, Vec<&str>) {
+///
+/// Under `env -S` the arguments have the quotes and escapes env removes
+/// decoded; a direct shebang passes them as written.
+fn shebang_command(line: &str) -> (&str, Vec<String>) {
     fn base_name(program: &str) -> &str {
         // A quoted command line such as `'python3 -u'` runs its first word
         let program = program.trim_matches(['"', '\'']);
@@ -133,8 +136,9 @@ fn shebang_command(line: &str) -> (&str, Vec<&str>) {
     let mut tokens = shebang_words(text);
     let program = base_name(tokens.next().unwrap_or(""));
     if program != "env" {
-        return (program, tokens.collect());
+        return (program, tokens.map(String::from).collect());
     }
+    let mut split = false;
     // The text glued to `-S` is the start of the command line env splits.
     let mut pending = None;
     loop {
@@ -147,6 +151,7 @@ fn shebang_command(line: &str) -> (&str, Vec<&str>) {
             if has_invalid_env_escape(text) {
                 return ("", Vec::new());
             }
+            split = true;
             pending = Some(command).filter(|command| !command.is_empty());
         } else if token.starts_with('-') {
             // These options take the next token as their argument.
@@ -154,21 +159,118 @@ fn shebang_command(line: &str) -> (&str, Vec<&str>) {
                 tokens.next();
             }
         } else if !is_env_assignment(token) {
-            return (base_name(token), tokens.collect());
+            let args = tokens
+                .map(|arg| {
+                    if split {
+                        decode_env_word(arg)
+                    } else {
+                        arg.to_string()
+                    }
+                })
+                .collect();
+            return (base_name(token), args);
         }
     }
 }
 
-/// Whether the arguments after `uv` are `uv run ... --script`, which runs a
-/// file as a PEP 723 Python script. `uv run` alone can run any command, so it
-/// gets no language tag.
-fn is_uv_run_script(args: &[&str]) -> bool {
-    let Some(run) = args.iter().position(|arg| *arg == "run") else {
-        return false;
-    };
-    args[run + 1..]
-        .iter()
-        .any(|arg| matches!(*arg, "--script" | "-s"))
+/// Removes the quotes and backslash escapes `env -S` strips from a word.
+fn decode_env_word(word: &str) -> String {
+    let mut out = String::new();
+    let mut quote = None;
+    let mut chars = word.chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (Some('\''), '\\') | (None | Some('"'), '\\') => match chars.next() {
+                Some('_') if quote.is_none() => out.push(' '),
+                Some(next) => out.push(next),
+                None => {}
+            },
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Whether the arguments after `uv` are `uv [options] run [options] --script`,
+/// which runs a file as a PEP 723 Python script. Options end at the command
+/// `uv run` launches or at `--`, so `uv run ruby -s` is not a uv script. `uv run`
+/// alone can run any command, so it gets no language tag.
+fn is_uv_run_script(args: &[String]) -> bool {
+    // Options that take the next argument as their value
+    const VALUE_OPTIONS: &[&str] = &[
+        "--directory",
+        "--project",
+        "--config-file",
+        "--cache-dir",
+        "--color",
+        "--python-preference",
+        "--python-downloads",
+        "--with",
+        "--with-editable",
+        "--with-requirements",
+        "--env-file",
+        "--extra",
+        "--group",
+        "--no-group",
+        "--only-group",
+        "--package",
+        "--python",
+        "-p",
+        "--index",
+        "--default-index",
+        "--index-url",
+        "-i",
+        "--extra-index-url",
+        "--find-links",
+        "-f",
+        "--constraints",
+        "-c",
+        "--overrides",
+        "--exclude-newer",
+        "--index-strategy",
+        "--keyring-provider",
+        "--resolution",
+        "--prerelease",
+        "--fork-strategy",
+        "--link-mode",
+        "--upgrade-package",
+        "-P",
+        "--reinstall-package",
+        "--refresh-package",
+        "--no-binary-package",
+        "--no-build-package",
+        "--torch-backend",
+        "--exclude-newer-package",
+        "--allow-insecure-host",
+        "--refresh-package",
+        "-C",
+        "--config-setting",
+        "--build-constraints",
+    ];
+    let mut args = args.iter().map(String::as_str);
+    let mut seen_run = false;
+    let mut script = false;
+    while let Some(arg) = args.next() {
+        if arg == "--" || !arg.starts_with('-') {
+            if seen_run {
+                break;
+            }
+            if arg == "run" {
+                seen_run = true;
+                continue;
+            }
+            // Not `run`: another uv command, or an unknown option's value
+            return false;
+        }
+        if seen_run && matches!(arg, "--script" | "-s") {
+            script = true;
+        } else if VALUE_OPTIONS.contains(&arg) {
+            args.next();
+        }
+    }
+    seen_run && script
 }
 
 /// Splits `text` at whitespace outside quotes, as env does for `-S`, so that
@@ -858,6 +960,9 @@ mod tests {
             ),
             ("#!/usr/bin/env -S uv run --python 3.12 --script", "python"),
             ("#!/usr/bin/env -Suv run --script", "python"),
+            ("#!/usr/bin/env -S uv run '--script'", "python"),
+            ("#!/usr/bin/env -S uv run \"--script\"", "python"),
+            ("#!/usr/bin/env -S uv run --with 'a b' --script", "python"),
             (
                 "#!/usr/bin/env -S node --experimental-strip-types",
                 "javascript",
@@ -879,6 +984,10 @@ mod tests {
             "#!/usr/bin/env -S uv run --with rich ruby",
             "#!/usr/bin/env -S uv --script",
             "#!/usr/bin/env -S uv tool run ruff",
+            "#!/usr/bin/env -S uv run ruby -s",
+            "#!/usr/bin/env -S uv run -- ruby -s",
+            "#!/usr/bin/env -S uv run --script-ish",
+            "#!/usr/bin/uv run '--script'",
         ] {
             let mut file = NamedTempFile::new().unwrap();
             file.write_all(format!("{shebang}\nbody\n").as_bytes())
