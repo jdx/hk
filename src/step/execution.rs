@@ -956,6 +956,15 @@ impl Step {
                     .stage(&hook_ctx.git, git, &mut filtered, |git, paths| {
                         git.add(paths)?;
                         hook_ctx.add_files(paths, &[]);
+                        // Removed once warned: the add staged those changes,
+                        // so a later fixer of the same file has none to warn about.
+                        let mut unstaged = hook_ctx.initial_unstaged.lock().unwrap();
+                        for path in paths.iter().filter(|p| unstaged.remove(*p)) {
+                            warn!(
+                                "staged {} with the unstaged changes it had before the hook ran; set `stash = \"git\"` on the hook to keep them out",
+                                path.display()
+                            );
+                        }
                         Ok(())
                     })
                     .await?;

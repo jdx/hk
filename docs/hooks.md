@@ -82,6 +82,8 @@ Linters still operate on whole files. Staging one hunk does not restrict a forma
 
 A hook defaults to `"none"`, with one exception: when the configuration has top-level `steps` (the setup `hk init` creates), hk fills in `"git"` for `pre-commit`, including a `pre-commit` hook you define explicitly without a `stash` setting. Set `stash = "none"` on the hook to leave unstaged work in place. Override a run with `--stash` or [`HK_STASH`](/environment_variables#hk-stash).
 
+Without stashing, fixers run on the working tree, so staging a fix also stages the unstaged changes in that file. hk warns when this happens.
+
 Untracked files are included in stashing by default. `HK_STASH_UNTRACKED=0` also disables their discovery, which can help very large worktrees but changes file selection.
 
 Files marked with `git add -N` (intent to add) have no staged content, so hk sets them aside as well, even with `HK_STASH_UNTRACKED=0`. Steps do not receive them, and afterward hk restores them and marks them intent-to-add again.
