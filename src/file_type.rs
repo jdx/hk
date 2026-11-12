@@ -115,7 +115,13 @@ pub fn matches_types(path: &Path, type_filters: &[String]) -> bool {
 /// the command: `#!/usr/bin/env -S python3 -u`, `#!/usr/bin/env FOO=1 python3`,
 /// and `#! /usr/bin/env\tpython3` all run `python3`. Whitespace between the
 /// shebang and the program, and tabs between arguments, are allowed.
+#[cfg(test)]
 fn shebang_interpreter(line: &str) -> &str {
+    shebang_command(line).0
+}
+
+/// The interpreter a shebang line names, plus the arguments after it.
+fn shebang_command(line: &str) -> (&str, Vec<&str>) {
     fn base_name(program: &str) -> &str {
         // A quoted command line such as `'python3 -u'` runs its first word
         let program = program.trim_matches(['"', '\'']);
@@ -127,19 +133,19 @@ fn shebang_interpreter(line: &str) -> &str {
     let mut tokens = shebang_words(text);
     let program = base_name(tokens.next().unwrap_or(""));
     if program != "env" {
-        return program;
+        return (program, tokens.collect());
     }
     // The text glued to `-S` is the start of the command line env splits.
     let mut pending = None;
     loop {
         let Some(token) = pending.take().or_else(|| tokens.next()) else {
-            return "";
+            return ("", Vec::new());
         };
         if let Some(command) = split_string_command(token) {
             // GNU env refuses to run a script whose `-S` string has an escape
             // it does not know, so the script has no interpreter to type by.
             if has_invalid_env_escape(text) {
-                return "";
+                return ("", Vec::new());
             }
             pending = Some(command).filter(|command| !command.is_empty());
         } else if token.starts_with('-') {
@@ -148,9 +154,21 @@ fn shebang_interpreter(line: &str) -> &str {
                 tokens.next();
             }
         } else if !is_env_assignment(token) {
-            return base_name(token);
+            return (base_name(token), tokens.collect());
         }
     }
+}
+
+/// Whether the arguments after `uv` are `uv run ... --script`, which runs a
+/// file as a PEP 723 Python script. `uv run` alone can run any command, so it
+/// gets no language tag.
+fn is_uv_run_script(args: &[&str]) -> bool {
+    let Some(run) = args.iter().position(|arg| *arg == "run") else {
+        return false;
+    };
+    args[run + 1..]
+        .iter()
+        .any(|arg| matches!(*arg, "--script" | "-s"))
 }
 
 /// Splits `text` at whitespace outside quotes, as env does for `-S`, so that
@@ -288,10 +306,11 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
     let mut types = HashSet::new();
     types.insert("text".to_string());
 
-    let interpreter = shebang_interpreter(&first_line);
+    let (interpreter, args) = shebang_command(&first_line);
 
     let tags: &[&str] = match interpreter_family(interpreter) {
         "python" => &["python"],
+        "uv" if is_uv_run_script(&args) => &["python"],
         "node" => &["javascript", "node"],
         // The shebang names the runtime, not the language: these run both
         // JavaScript and TypeScript, so they get no `javascript`/`typescript` tag
@@ -831,6 +850,14 @@ mod tests {
             ("#!/usr/bin/env -S deno run --allow-net", "deno"),
             ("#!/usr/bin/env bun", "bun"),
             ("#!/usr/bin/env -S bun --hot", "bun"),
+            ("#!/usr/bin/env -S uv run --script", "python"),
+            ("#!/usr/bin/env -S uv run -s", "python"),
+            (
+                "#!/usr/bin/env -S uv --quiet run --with rich --script",
+                "python",
+            ),
+            ("#!/usr/bin/env -S uv run --python 3.12 --script", "python"),
+            ("#!/usr/bin/env -Suv run --script", "python"),
             (
                 "#!/usr/bin/env -S node --experimental-strip-types",
                 "javascript",
@@ -841,6 +868,23 @@ mod tests {
                 .unwrap();
             let types = detect_shebang(file.path()).unwrap();
             assert!(types.contains(tag), "{shebang:?}: {types:?}");
+        }
+    }
+
+    #[test]
+    fn uv_shebangs_without_script_have_no_language_tag() {
+        for shebang in [
+            "#!/usr/bin/env uv",
+            "#!/usr/bin/env -S uv run",
+            "#!/usr/bin/env -S uv run --with rich ruby",
+            "#!/usr/bin/env -S uv --script",
+            "#!/usr/bin/env -S uv tool run ruff",
+        ] {
+            let mut file = NamedTempFile::new().unwrap();
+            file.write_all(format!("{shebang}\nbody\n").as_bytes())
+                .unwrap();
+            let types = detect_shebang(file.path()).unwrap();
+            assert!(!types.contains("python"), "{shebang:?}: {types:?}");
         }
     }
 
