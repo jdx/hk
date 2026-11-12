@@ -115,7 +115,16 @@ pub fn matches_types(path: &Path, type_filters: &[String]) -> bool {
 /// the command: `#!/usr/bin/env -S python3 -u`, `#!/usr/bin/env FOO=1 python3`,
 /// and `#! /usr/bin/env\tpython3` all run `python3`. Whitespace between the
 /// shebang and the program, and tabs between arguments, are allowed.
-fn shebang_interpreter(line: &str) -> &str {
+#[cfg(test)]
+fn shebang_interpreter(line: &str) -> String {
+    shebang_command(line).0
+}
+
+/// The interpreter a shebang line names, plus the arguments after it.
+///
+/// Under `env -S` the arguments have the quotes and escapes env removes
+/// decoded; a direct shebang passes them as written.
+fn shebang_command(line: &str) -> (String, Vec<String>) {
     fn base_name(program: &str) -> &str {
         // A quoted command line such as `'python3 -u'` runs its first word
         let program = program.trim_matches(['"', '\'']);
@@ -127,20 +136,27 @@ fn shebang_interpreter(line: &str) -> &str {
     let mut tokens = shebang_words(text);
     let program = base_name(tokens.next().unwrap_or(""));
     if program != "env" {
-        return program;
+        return (program.to_string(), tokens.map(String::from).collect());
     }
+    let mut split = false;
     // The text glued to `-S` is the start of the command line env splits.
     let mut pending = None;
     loop {
         let Some(token) = pending.take().or_else(|| tokens.next()) else {
-            return "";
+            return (String::new(), Vec::new());
         };
         if let Some(command) = split_string_command(token) {
             // GNU env refuses to run a script whose `-S` string has an escape
             // it does not know, so the script has no interpreter to type by.
             if has_invalid_env_escape(text) {
-                return "";
+                return (String::new(), Vec::new());
             }
+            // An unquoted `\_` separates the words env splits
+            let expanded = expand_env_separators(text);
+            if expanded != text {
+                return shebang_command(&expanded);
+            }
+            split = true;
             pending = Some(command).filter(|command| !command.is_empty());
         } else if token.starts_with('-') {
             // These options take the next token as their argument.
@@ -148,9 +164,153 @@ fn shebang_interpreter(line: &str) -> &str {
                 tokens.next();
             }
         } else if !is_env_assignment(token) {
-            return base_name(token);
+            let args = tokens
+                .map(|arg| {
+                    if split {
+                        decode_env_word(arg)
+                    } else {
+                        arg.to_string()
+                    }
+                })
+                .collect();
+            return (base_name(token).to_string(), args);
         }
     }
+}
+
+/// Replaces each `\_` outside quotes with a space: `env -S` splits there.
+fn expand_env_separators(text: &str) -> String {
+    let mut out = String::new();
+    let mut quote = None;
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            _ => {}
+        }
+        if c == '\\' {
+            match chars.next() {
+                Some('_') if quote.is_none() => out.push(' '),
+                Some(next) => {
+                    out.push(c);
+                    out.push(next);
+                }
+                None => out.push(c),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Removes the quotes and backslash escapes `env -S` strips from a word.
+fn decode_env_word(word: &str) -> String {
+    let mut out = String::new();
+    let mut quote = None;
+    let mut chars = word.chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            (Some('\''), '\\') | (None | Some('"'), '\\') => match chars.next() {
+                Some('_') if quote.is_none() => out.push(' '),
+                Some(next) => out.push(next),
+                None => {}
+            },
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Whether the arguments after `uv` are `uv [options] run [options] --script`,
+/// which runs a file as a PEP 723 Python script. Options end at the command
+/// `uv run` launches or at `--`, so `uv run ruby -s` is not a uv script. `uv run`
+/// alone can run any command, so it gets no language tag.
+fn is_uv_run_script(args: &[String]) -> bool {
+    // Options that take the next argument as their value
+    const VALUE_OPTIONS: &[&str] = &[
+        "--allow-insecure-host",
+        "--build-constraints",
+        "--cache-dir",
+        "--color",
+        "--config-file",
+        "--config-setting",
+        "--config-settings-package",
+        "--constraints",
+        "--default-index",
+        "--directory",
+        "--env-file",
+        "--exclude-newer",
+        "--exclude-newer-package",
+        "--extra",
+        "--extra-index-url",
+        "--find-links",
+        "--fork-strategy",
+        "--group",
+        "--index",
+        "--index-strategy",
+        "--index-url",
+        "--keyring-provider",
+        "--link-mode",
+        "--no-binary-package",
+        "--no-build-isolation-package",
+        "--no-build-package",
+        "--no-editable-package",
+        "--no-extra",
+        "--no-group",
+        "--no-sources-package",
+        "--only-group",
+        "--overrides",
+        "--package",
+        "--prerelease",
+        "--prerelease-package",
+        "--project",
+        "--python",
+        "--python-downloads",
+        "--python-platform",
+        "--python-preference",
+        "--refresh-package",
+        "--reinstall-package",
+        "--resolution",
+        "--torch-backend",
+        "--upgrade-group",
+        "--upgrade-package",
+        "--with",
+        "--with-editable",
+        "--with-requirements",
+        "-C",
+        "-P",
+        "-c",
+        "-f",
+        "-i",
+        "-p",
+        "-w",
+    ];
+    let mut args = args.iter().map(String::as_str);
+    let mut seen_run = false;
+    let mut script = false;
+    while let Some(arg) = args.next() {
+        if arg == "--" || !arg.starts_with('-') {
+            if seen_run {
+                break;
+            }
+            if arg == "run" {
+                seen_run = true;
+                continue;
+            }
+            // Not `run`: another uv command, or an unknown option's value
+            return false;
+        }
+        if seen_run && matches!(arg, "--script" | "-s") {
+            script = true;
+        } else if VALUE_OPTIONS.contains(&arg) {
+            args.next();
+        }
+    }
+    seen_run && script
 }
 
 /// Splits `text` at whitespace outside quotes, as env does for `-S`, so that
@@ -288,10 +448,11 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
     let mut types = HashSet::new();
     types.insert("text".to_string());
 
-    let interpreter = shebang_interpreter(&first_line);
+    let (interpreter, args) = shebang_command(&first_line);
 
-    let tags: &[&str] = match interpreter_family(interpreter) {
+    let tags: &[&str] = match interpreter_family(&interpreter) {
         "python" => &["python"],
+        "uv" if is_uv_run_script(&args) => &["python"],
         "node" => &["javascript", "node"],
         // The shebang names the runtime, not the language: these run both
         // JavaScript and TypeScript, so they get no `javascript`/`typescript` tag
@@ -831,6 +992,22 @@ mod tests {
             ("#!/usr/bin/env -S deno run --allow-net", "deno"),
             ("#!/usr/bin/env bun", "bun"),
             ("#!/usr/bin/env -S bun --hot", "bun"),
+            ("#!/usr/bin/env -S uv run --script", "python"),
+            ("#!/usr/bin/env -S uv run -s", "python"),
+            (
+                "#!/usr/bin/env -S uv --quiet run --with rich --script",
+                "python",
+            ),
+            ("#!/usr/bin/env -S uv run --python 3.12 --script", "python"),
+            (
+                "#!/usr/bin/env -S uv run --python-platform x86_64-unknown-linux-gnu --no-extra dev --script",
+                "python",
+            ),
+            ("#!/usr/bin/env -Suv run --script", "python"),
+            ("#!/usr/bin/env -S uv\\_run\\_--script", "python"),
+            ("#!/usr/bin/env -S uv run '--script'", "python"),
+            ("#!/usr/bin/env -S uv run \"--script\"", "python"),
+            ("#!/usr/bin/env -S uv run --with 'a b' --script", "python"),
             (
                 "#!/usr/bin/env -S node --experimental-strip-types",
                 "javascript",
@@ -841,6 +1018,27 @@ mod tests {
                 .unwrap();
             let types = detect_shebang(file.path()).unwrap();
             assert!(types.contains(tag), "{shebang:?}: {types:?}");
+        }
+    }
+
+    #[test]
+    fn uv_shebangs_without_script_have_no_language_tag() {
+        for shebang in [
+            "#!/usr/bin/env uv",
+            "#!/usr/bin/env -S uv run",
+            "#!/usr/bin/env -S uv run --with rich ruby",
+            "#!/usr/bin/env -S uv --script",
+            "#!/usr/bin/env -S uv tool run ruff",
+            "#!/usr/bin/env -S uv run ruby -s",
+            "#!/usr/bin/env -S uv run -- ruby -s",
+            "#!/usr/bin/env -S uv run --script-ish",
+            "#!/usr/bin/uv run '--script'",
+        ] {
+            let mut file = NamedTempFile::new().unwrap();
+            file.write_all(format!("{shebang}\nbody\n").as_bytes())
+                .unwrap();
+            let types = detect_shebang(file.path()).unwrap();
+            assert!(!types.contains("python"), "{shebang:?}: {types:?}");
         }
     }
 
