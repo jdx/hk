@@ -116,7 +116,7 @@ pub fn matches_types(path: &Path, type_filters: &[String]) -> bool {
 /// and `#! /usr/bin/env\tpython3` all run `python3`. Whitespace between the
 /// shebang and the program, and tabs between arguments, are allowed.
 #[cfg(test)]
-fn shebang_interpreter(line: &str) -> &str {
+fn shebang_interpreter(line: &str) -> String {
     shebang_command(line).0
 }
 
@@ -124,7 +124,7 @@ fn shebang_interpreter(line: &str) -> &str {
 ///
 /// Under `env -S` the arguments have the quotes and escapes env removes
 /// decoded; a direct shebang passes them as written.
-fn shebang_command(line: &str) -> (&str, Vec<String>) {
+fn shebang_command(line: &str) -> (String, Vec<String>) {
     fn base_name(program: &str) -> &str {
         // A quoted command line such as `'python3 -u'` runs its first word
         let program = program.trim_matches(['"', '\'']);
@@ -136,20 +136,25 @@ fn shebang_command(line: &str) -> (&str, Vec<String>) {
     let mut tokens = shebang_words(text);
     let program = base_name(tokens.next().unwrap_or(""));
     if program != "env" {
-        return (program, tokens.map(String::from).collect());
+        return (program.to_string(), tokens.map(String::from).collect());
     }
     let mut split = false;
     // The text glued to `-S` is the start of the command line env splits.
     let mut pending = None;
     loop {
         let Some(token) = pending.take().or_else(|| tokens.next()) else {
-            return ("", Vec::new());
+            return (String::new(), Vec::new());
         };
         if let Some(command) = split_string_command(token) {
             // GNU env refuses to run a script whose `-S` string has an escape
             // it does not know, so the script has no interpreter to type by.
             if has_invalid_env_escape(text) {
-                return ("", Vec::new());
+                return (String::new(), Vec::new());
+            }
+            // An unquoted `\_` separates the words env splits
+            let expanded = expand_env_separators(text);
+            if expanded != text {
+                return shebang_command(&expanded);
             }
             split = true;
             pending = Some(command).filter(|command| !command.is_empty());
@@ -168,9 +173,36 @@ fn shebang_command(line: &str) -> (&str, Vec<String>) {
                     }
                 })
                 .collect();
-            return (base_name(token), args);
+            return (base_name(token).to_string(), args);
         }
     }
+}
+
+/// Replaces each `\_` outside quotes with a space: `env -S` splits there.
+fn expand_env_separators(text: &str) -> String {
+    let mut out = String::new();
+    let mut quote = None;
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (None, '"' | '\'') => quote = Some(c),
+            _ => {}
+        }
+        if c == '\\' {
+            match chars.next() {
+                Some('_') if quote.is_none() => out.push(' '),
+                Some(next) => {
+                    out.push(c);
+                    out.push(next);
+                }
+                None => out.push(c),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Removes the quotes and backslash escapes `env -S` strips from a word.
@@ -418,7 +450,7 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
 
     let (interpreter, args) = shebang_command(&first_line);
 
-    let tags: &[&str] = match interpreter_family(interpreter) {
+    let tags: &[&str] = match interpreter_family(&interpreter) {
         "python" => &["python"],
         "uv" if is_uv_run_script(&args) => &["python"],
         "node" => &["javascript", "node"],
@@ -972,6 +1004,7 @@ mod tests {
                 "python",
             ),
             ("#!/usr/bin/env -Suv run --script", "python"),
+            ("#!/usr/bin/env -S uv\\_run\\_--script", "python"),
             ("#!/usr/bin/env -S uv run '--script'", "python"),
             ("#!/usr/bin/env -S uv run \"--script\"", "python"),
             ("#!/usr/bin/env -S uv run --with 'a b' --script", "python"),
