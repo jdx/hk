@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: 28e6daa40452
+sourceHash: 4999b67c72c5
 ---
 
 # Git hooks and stowing the hold
@@ -36,7 +36,7 @@ For both `hk run pre-commit --all` and `hk check --all`, the resolved stash meth
 `HK_STASH_UNTRACKED=0` stops hk discovering untracked files or stowing them in the hold. Setting it to `1` allows discovery and stashing, but still leaves untracked files out of `--all` when stashing is on.
 
 ::: warning Mind ye: staged paths are not staged contents
-`--staged` does not stow unstaged changes in the hold. If a file carries both staged and unstaged edits, the command sees its working-tree contents, dock cargo and all. Use a hook set up with stashing when the staged version must be kept apart on its own.
+`--staged` does not stow unstaged changes in the hold. If a file carries both staged and unstaged edits, the command sees its working-tree contents, dock cargo and all. Use a hook set up with stashing when the staged version must be kept apart on its own. The one exception is the Git hook that `hk install --global` rigs across the whole fleet, which passes `--staged --from-hook`: it follows the hook's own `stash` setting and pays no heed to `HK_STASH`, so a partial voyage stays partial.
 :::
 
 Use `hk run pre-commit --plan` to read the passage plan: the steps and files it picks, before any of them run.
@@ -89,19 +89,21 @@ Files marked with `git add -N` (intent to add) have no staged content, so hk set
 
 ### If the stowed work won't come up {#if-restoration-fails}
 
-Read hk's error before ye change the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git stash list` to see which changes are present.
+Read hk's error before ye change the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git for-each-ref refs/hk/stash` (hk's own stash entries; `git stash list` shows the entries older hk versions pushed) to see which changes are present.
 
 hk keeps backup patches under `<common-git-dir>/hk/patches/` (or `$HK_STATE_DIR/patches/` when set) when Git stashing is used; the `stash_backup_count` setting controls how many it keeps. Keep the stash and backup hk reports until ye have recovered and reviewed yer work. Don't blindly apply a stash again to files that already carry its changes.
 
-While hk has yer unstaged changes stowed, it holds a lock file, `hk-stash.lock`, in the repository's common git directory, which linked worktrees share. Two hk processes in one repository, such as hooks in two worktrees, therefore take turns stowing and restoring instead of hauling up each other's cargo. The one that waits prints a message and gives up after [`HK_STASH_LOCK_TIMEOUT`](/environment_variables#hk-stash-lock-timeout) seconds, naming the lock file. The operating system drops the lock if hk is sunk.
+hk stows the stash entry it makes under its own ref, `refs/hk/stash/<commit-id>`, instead of on the `git stash` stack. Linked worktrees share that stack, so a `git stash pop`, `drop` or `push` in another worktree while a hook runs cannot reach hk's entry, and hooks in different worktrees haul at once. To inspect or recover an entry, use its commit id: `git stash show -p <commit-id>` or `git stash apply <commit-id>`, then `git update-ref -d refs/hk/stash/<commit-id>` once ye have it back. `git stash list` does not show these entries, aye.
 
-Intent-to-add files are kept in a separate stash entry whose message ends with `(intent-to-add files)`, such as `hk: 4242-1a2b-3 (intent-to-add files)`; hk versions before this one named it `hk: intent-to-add files`. To recover them, run `git stash apply` on that entry, then `git add -N` the files again.
+While hk has yer unstaged changes stowed, it holds a lock file, `hk-stash.lock`, in the worktree's own git directory (`git rev-parse --git-dir`). Two hk processes in the same worktree, such as two clockwork hands setting sail there, therefore take turns stowing and restoring instead of hauling up each other's cargo. The one that waits prints a message and gives up after [`HK_STASH_LOCK_TIMEOUT`](/environment_variables#hk-stash-lock-timeout) seconds, naming the lock file. The operating system drops the lock if hk is sunk.
+
+Intent-to-add files are kept in a separate stash entry whose message ends with `(intent-to-add files)`, such as `hk: 4242-1a2b-3 (intent-to-add files)`; hk versions before this one named it `hk: intent-to-add files`. To recover them, run `git stash apply <commit-id>` on that entry, then `git add -N` the files again.
 
 ### If hk is stopped mid-run {#if-hk-is-stopped-mid-run}
 
 While hk has yer unstaged changes stowed in the hold, it keeps a small journal named `hk-pending-stash` in the repository's git directory (`git rev-parse --git-dir`, so each linked worktree has its own). hk writes it before it touches the working tree and strikes it once yer changes are back up. It records the stash commit ids, the process id, the hook, the time, and the host name and (on Linux) PID namespace it sailed in. Every change to it, and every recovery, happens while hk holds a lock on a second file beside it, `hk-pending-stash.lock`, so two hk runs never lay hands on it at once; the operating system lets go of that lock if hk dies, and hk never strikes the file, which holds no data, so leave it where it lies (removing it while a run is recovering would let a second run lock a fresh copy and recover the same journal at the same time). In a repository with `core.sharedRepository` set (`group`, `all` or an octal mode), hk gives the journal, its lock file and the temporary file it writes it through the same permissions git gives its own files, whatever the umask, so another account of the group can read a journal a killed run left and recover it; without it the umask applies. A journal hk cannot read (without permission, say) is never taken for absent: hk warns, naming the file, and bids ye look in `git stash list`.
 
-These be two different locks: `hk-stash.lock` (above, in the common git directory) keeps hk processes from stowing at the same time and is held from before the hold is filled until it is emptied again, while `hk-pending-stash.lock` only guards the journal file. hk takes the stash lock first, then writes the journal, brings yer changes back up, strikes the journal and lets go of the stash lock. Recovery takes the locks in the same order: the stash lock, then the journal lock, and only then does it look at the working tree, so no other hk can stow, restore or recover in between. If the stash lock is not free within `HK_STASH_LOCK_TIMEOUT`, hk prints a warning, leaves the journal untouched and sails on; the next run tries again. A signal while hk is still waiting for the stash lock ends the wait; nothing was stowed, so no journal is written and nothing is brought back up.
+These be two different locks: `hk-stash.lock` (above, in the worktree's git directory) keeps hk processes from stowing at the same time and is held from before the hold is filled until it is emptied again, while `hk-pending-stash.lock` only guards the journal file. hk takes the stash lock first, then writes the journal, brings yer changes back up, strikes the journal and lets go of the stash lock. Recovery takes the locks in the same order: the stash lock, then the journal lock, and only then does it look at the working tree, so no other hk can stow, restore or recover in between. If the stash lock is not free within `HK_STASH_LOCK_TIMEOUT`, hk prints a warning, leaves the journal untouched and sails on; the next run tries again. A signal while hk is still waiting for the stash lock ends the wait; nothing was stowed, so no journal is written and nothing is brought back up.
 
 - **SIGINT, SIGTERM, SIGHUP** (and Ctrl+C or Ctrl+Break on Windows): hk stops the running hands, brings yer changes back up, removes the journal and exits. SIGTERM and SIGHUP exit with `128` plus the signal number (`143` and `129`); Ctrl+C exits with the status the run ended with, `1` for a cancelled run. It gives itself 10 seconds; sending the same signal twice exits at once. Restoring never depends on the terminal: when the terminal is lost overboard (SIGHUP), hk sends its output to the null device, so the restoring carries on.
 - **Closing the console, logging off or shutting down Windows**: hk handles these like SIGHUP (exit status `129`, output sent to `NUL`) and starts restoring at once. Windows ends the process a few seconds after these events, which can be before the restore finishes. When it is, the journal stays and the next hk run recovers it, as after a crash.
@@ -109,11 +111,11 @@ These be two different locks: `hk-stash.lock` (above, in the common git director
 
 A process id only means something where it was written. A repository's git directory can be shared by several hosts (on a network file system) or PID namespaces (a repository mounted into a container), which cannot see each other's processes. hk therefore treats the process as gone only when the journal's recorded host name and PID namespace are the current ones and the process is not running. When they differ, when hk cannot read them, or when the journal was written by an older hk that did not record them and its process id is not running here, hk cannot know whether the run is still afloat. It then restores and drops nothing, prints the `git stash apply <commit-id>` command for each entry the journal names and for each entry named `hk: <pid>-...` after its process id that the journal never recorded (hk stopped between stowing and recording), and says the journal was written elsewhere; if it cannot read the hold's list it bids ye look for those entries with `git stash list`; if that run is still afloat it finishes and strikes its own journal. A journal like this that names no entry still in `git stash list` guards nothing, so hk strikes it with a notice and later runs write journals of their own. On macOS and Windows only the host name is compared.
 
-hk reminds ye on every run until the stash entry is gone: once ye have applied it and dropped it, hk removes the journal itself, or ye can delete the file. If another hk's journal is already in place, a run does not write its own and warns that it keeps none; if it is sunk, its stash entry stays in `git stash list` as `hk: <pid>-...`. Because a run holds the stash lock from before it stows until it restores, no other run can recover the older journal in between, so an old stash is never put back over a hand that is still at work.
+hk reminds ye on every run until the stash entry is gone: once ye have applied it and dropped it, hk removes the journal itself, or ye can delete the file. If another hk's journal is already in place, a run does not write its own and warns that it keeps none; if it is sunk, its stash entry stays under `refs/hk/stash/` with the message `hk: <pid>-...`. Because a run holds the stash lock from before it stows until it restores, no other run can recover the older journal in between, so an old stash is never put back over a hand that is still at work.
 
 ## Look over the mending before ye set sail {#review-fixes-before-committing}
 
-The generated pre-commit hook automatically stages the fixes that apply, so ye skip the "fail, git add, and commit again" dance. To mend the canvas but stop the voyage for review:
+The generated pre-commit hook automatically stages the fixes that apply. To mend the canvas but stop the voyage for review:
 
 ```pkl
 hooks {
@@ -130,6 +132,24 @@ hooks {
 When a fixer changes a file, hk fails the hook, hauling her back to port, and leaves the fixes for ye to review and stage. Then try the commit again. `stage = false` on its own turns off staging without making the hook fail.
 
 For a single run, use `--no-stage` to turn off automatic staging.
+
+## Keep the hook to a watch {#limit-how-long-a-hook-runs}
+
+Quick word from the lookouts is the whole point of a pre-commit hook. To hold the crew to it, give the hook a `timeout`:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    timeout = "10s"
+    steps = linters
+  }
+}
+```
+
+The limit covers the whole hook, across all of its hands, including time spent waiting for the stash lock. When it runs out, hk stops the running hands, brings any stowed changes back up from the hold, and fails the hook with `pre-commit: timed out after 10s`, so the commit or push is blocked and hauled back to port. Without `timeout`, a hook runs until its hands are done.
+
+Write the value as a number with a unit (`ms`, `s`, `m` or `h`); units can be combined, as in `"1m30s"`.
 
 <span id="hook-behavior"></span>
 
