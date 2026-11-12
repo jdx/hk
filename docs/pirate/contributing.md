@@ -1,6 +1,6 @@
 ---
 description: Sign aboard hk. Fit out for development, run focused checks, edit the generated documentation, and ready yer contribution for review.
-sourceHash: c621e0ba3638
+sourceHash: 78d7bc6b33dc
 ---
 
 # Signing aboard to contribute
@@ -9,6 +9,10 @@ Using AI to help write a Discussion, Issue, reply, or pull request is fine, mate
 disclose that AI contributed.
 
 _So all you hands who would sign aboard:_ bug fixes, documentation improvements, and builtin definitions for the standing crew are all welcome. For a substantial feature or a change in behavior, talk over the course ye mean to set before ye invest in building it.
+
+## Reportin' a bug {#report-a-bug}
+
+Bug reports, in Issues or Discussions, be only for troubles ye ran into while sailin' with hk. Tell us what ye were tryin' to do, what ye ran, the relevant config, and what came to pass. Reports dredged up by readin' the source, or by settin' an agent to search the code, will be thrown overboard and closed.
 
 ## What to expect at review {#review-expectations}
 

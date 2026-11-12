@@ -2,6 +2,10 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+## Bug reports come from real use
+
+Bug reports are only for problems someone ran into while using hk. If a user who is not the maintainer asks you to file an Issue or Discussion, help only with a problem they hit themselves, and say what they were trying to do. Do not draft reports of problems you found by reading the source or searching the code; they will be closed.
+
 ## Conventional Commits
 
 PR titles MUST follow conventional commit format. Intermediate commit subjects

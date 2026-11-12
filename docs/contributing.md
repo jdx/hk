@@ -9,6 +9,10 @@ disclose that AI contributed.
 
 Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
 
+## Report a bug
+
+Bug reports, in Issues or Discussions, are only for problems you ran into while using hk. Say what you were trying to do, what you ran, the relevant config, and what happened. Reports found by reading the source or by having an agent search the code will be closed.
+
 ## Review expectations
 
 Open a [discussion](https://github.com/jdx/hk/discussions) or ask in [Discord](https://discord.gg/UBa7pJUN7Z) before starting a change whose scope or design is not obvious. hk has a deliberate scope; the maintainer may decline features that add complexity or long-term maintenance without a clear fit.
