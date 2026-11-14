@@ -125,7 +125,7 @@ pre-push:
 The same hooks in hk:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.13.0/hk@2.13.0#/Config.pkl"
 
 hooks {
   ["pre-commit"] {

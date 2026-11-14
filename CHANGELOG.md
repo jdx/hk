@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.13.0](https://github.com/jdx/hk/compare/v2.12.0..v2.13.0) - 2026-11-14
+
+### 🚀 Features
+
+- **(run)** expose --from-ref/--to-ref to steps by [@jdx](https://github.com/jdx) in [#1830](https://github.com/jdx/hk/pull/1830)
+- **(step)** skip a check that already passed on the same file contents by [@jdx](https://github.com/jdx) in [#1835](https://github.com/jdx/hk/pull/1835)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** run terraform_validate and tofu_validate on Windows by [@jdx](https://github.com/jdx) in [#1839](https://github.com/jdx/hk/pull/1839)
+- **(builtins)** detect uv run --script shebangs as Python by [@jdx](https://github.com/jdx) in [#1847](https://github.com/jdx/hk/pull/1847)
+
+### 📚 Documentation
+
+- bring the pirate hooks guide up to date with stash refs and hook timeouts by [@jdx](https://github.com/jdx) in [#1845](https://github.com/jdx/hk/pull/1845)
+- only accept bug reports from real use by [@jdx](https://github.com/jdx) in [28ca043](https://github.com/jdx/hk/commit/28ca04383503b2119b876a47c195656854deb8af)
+
+### 🛡️ Security
+
+- **(ci)** stop cargo-deny advisories from blocking unrelated PRs by [@jdx](https://github.com/jdx) in [#1842](https://github.com/jdx/hk/pull/1842)
+
+### 🔍 Other Changes
+
+- **(ci)** migrate lock workflows to GitHub App client IDs by [@jdx](https://github.com/jdx) in [#1849](https://github.com/jdx/hk/pull/1849)
+- key the bats tool cache on mise.toml and mise.lock by [@jdx](https://github.com/jdx) in [#1841](https://github.com/jdx/hk/pull/1841)
+- email when the docs build fails on the default branch by [@jdx](https://github.com/jdx) in [#1848](https://github.com/jdx/hk/pull/1848)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action action to v5.2.6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1831](https://github.com/jdx/hk/pull/1831)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1832](https://github.com/jdx/hk/pull/1832)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1834](https://github.com/jdx/hk/pull/1834)
+- update dependency uv to v0.13.7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1837](https://github.com/jdx/hk/pull/1837)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1838](https://github.com/jdx/hk/pull/1838)
+
 ## [2.12.0](https://github.com/jdx/hk/compare/v2.11.1..v2.12.0) - 2026-11-09
 
 ### 🚀 Features
@@ -10,6 +45,7 @@
 
 - **(hook)** report the signal when a run is stopped by SIGTERM or SIGHUP by [@jdx](https://github.com/jdx) in [#1814](https://github.com/jdx/hk/pull/1814)
 - **(install)** install script shims with --legacy when hooks are configured globally by [@jdx](https://github.com/jdx) in [#1828](https://github.com/jdx/hk/pull/1828)
+- **(stash)** restore hk's stash entry when git stash list fails by [@jdx](https://github.com/jdx) in [#1827](https://github.com/jdx/hk/pull/1827)
 
 ### 🛡️ Security
 
