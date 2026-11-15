@@ -270,7 +270,7 @@ EOF
 
     run hk validate
     assert_failure
-    assert_output --partial "Opening parenthesis without closing parenthesis"
+    assert_output --partial "Unclosed group"
 }
 
 @test "top-level exclude - applies to absolute file arguments" {
