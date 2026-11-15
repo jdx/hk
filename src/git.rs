@@ -49,9 +49,39 @@ const PATHSPEC_MODES: [&str; 4] = [
 
 /// `git ARGS`, with hk's own pathspecs read as hk writes them.
 fn git_expr(args: Vec<OsString>) -> xx::process::XXExpression {
-    PATHSPEC_MODES
+    let cmd = PATHSPEC_MODES
         .iter()
-        .fold(xx::process::cmd("git", args), |cmd, var| cmd.env(var, "0"))
+        .fold(xx::process::cmd("git", args), |cmd, var| cmd.env(var, "0"));
+    if RECOVERING.load(std::sync::atomic::Ordering::SeqCst) {
+        cmd.env(RECOVERING_ENV, "1")
+    } else {
+        cmd
+    }
+}
+
+/// Set in the environment of the git commands hk runs while it recovers a
+/// stash an interrupted hk left, holding the stash lock. A git hook those
+/// commands trigger (`post-checkout` for `git restore`) starts a nested hk,
+/// which sees this and skips its own recovery check instead of waiting for
+/// the lock its parent holds.
+const RECOVERING_ENV: &str = "HK_RECOVERING_STASH";
+
+/// True while this process recovers an interrupted stash.
+static RECOVERING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+struct RecoveringGuard;
+
+impl RecoveringGuard {
+    fn new() -> Self {
+        RECOVERING.store(true, std::sync::atomic::Ordering::SeqCst);
+        Self
+    }
+}
+
+impl Drop for RecoveringGuard {
+    fn drop(&mut self) {
+        RECOVERING.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 /// A `git` command, with hk's own pathspecs read as hk writes them.
@@ -2576,6 +2606,12 @@ impl Git {
         &mut self,
         cancel: &tokio_util::sync::CancellationToken,
     ) -> Result<()> {
+        // A nested hk, started by a git hook of a command the recovering hk
+        // runs, would wait for the lock that hk holds
+        if std::env::var_os(RECOVERING_ENV).is_some() {
+            debug!("{RECOVERING_ENV} is set; the parent hk is recovering stashed changes");
+            return Ok(());
+        }
         let path = Self::journal_file()?;
         // The usual case, no journal, takes no lock and creates no file
         if !path.try_exists().unwrap_or(true) {
@@ -2618,6 +2654,7 @@ impl Git {
                 return Ok(());
             }
         };
+        let _recovering = RecoveringGuard::new();
         // Everything below happens under the journal lock, so that no other
         // hk creates, recovers or deletes the journal meanwhile. Nothing is
         // moved or renamed: the journal stays at its path until the changes
