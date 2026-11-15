@@ -58,6 +58,7 @@ PKL
     export HK_STASH_LOCK_TIMEOUT=60
     start=$SECONDS
     run git commit -q -m two
+    assert_success
     elapsed=$((SECONDS - start))
     echo "$output"
     [ "$elapsed" -lt 30 ]
