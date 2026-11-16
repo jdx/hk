@@ -29,7 +29,7 @@ jobs:
           ref: main
           persist-credentials: false
       - name: Install cargo-deny
-        uses: taiki-e/install-action@51cd0b8c0499559d9a4d75c0f5c67bec3a894ec8 # v2.75.28
+        uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cargo-deny
       - name: Check advisories
