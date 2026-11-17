@@ -20,7 +20,7 @@ export const BUILTINS: readonly string[] = Object.freeze([
   "erb", "err_check", "eslint", "fasterer", "fix_smart_quotes", "flake8", "forbid_submodules",
   "ghalint_action", "ghalint_workflow", "gitleaks", "go_fix", "go_fmt", "go_fumpt", "go_imports", "go_lines",
   "go_sec", "go_vet", "go_vuln_check", "golangci_lint", "golangci_lint_fmt", "gomod_tidy",
-  "google_java_format", "hadolint", "harper", "harper_commit_message", "hclfmt", "hk_test", "isort", "jq",
+  "google_java_format", "hadolint", "harper", "harper_commit_message", "hclfmt", "hk_test", "hk_validate", "isort", "jq",
   "just_format", "kingfisher", "knip", "ktlint", "kube_linter", "kubeconform", "ls_lint", "luacheck", "lychee",
   "lychee_extended", "mado", "markdown_lint", "mdschema", "mise", "mise_config_dir", "mix_compile", "mix_fmt", "mix_test",
   "mixed_line_ending", "mypy", "newlines", "nil", "nix_fmt", "nixf_diagnose", "nixpkgs_format",
