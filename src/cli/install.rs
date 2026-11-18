@@ -369,7 +369,7 @@ fn global_hook_command(use_mise: bool) -> Result<OsString> {
     if use_mise {
         let mise = xx::file::which("mise")
             .ok_or_else(|| eyre::eyre!("could not find mise on PATH for global hook install"))?;
-        Ok(mise_hook_command(&mise))
+        Ok(global_mise_launcher(&mise))
     } else {
         let hk = stable_hk_path(&std::env::current_exe()?, std::env::var_os("PATH"));
         Ok(hk_hook_command(&hk))
@@ -397,6 +397,24 @@ fn hook_events(config: &Config) -> Vec<String> {
 
 fn hk_hook_command(hk: &Path) -> OsString {
     shell_path_for_command(hk)
+}
+
+/// The global `--mise` hook command. `mise x` puts the pinned tools on `PATH`
+/// but not mise itself, so steps that run `mise run ...` would fail when Git
+/// starts without mise on `PATH` (GUI clients, IDEs). Append mise's directory
+/// after the tool paths so it never shadows a pinned tool.
+fn global_mise_launcher(mise: &Path) -> OsString {
+    let command = mise_hook_command(mise);
+    match mise.parent().filter(|dir| dir.is_absolute()) {
+        Some(dir) => {
+            let mut with = OsString::from(r#"PATH="$PATH":"#);
+            with.push(shell_path_for_command(dir));
+            with.push(" ");
+            with.push(command);
+            with
+        }
+        None => command,
+    }
 }
 
 fn mise_hook_command(mise: &Path) -> OsString {
@@ -929,6 +947,16 @@ mod tests {
         assert_eq!(
             mise_hook_command(Path::new("/opt/homebrew/bin/mise")).to_string_lossy(),
             "/opt/homebrew/bin/mise x hk -- hk"
+        );
+    }
+
+    // `/opt/...` is not an absolute path on Windows, so the fallback is skipped there.
+    #[cfg(unix)]
+    #[test]
+    fn global_mise_launcher_appends_mise_dir_to_path() {
+        assert_eq!(
+            global_mise_launcher(Path::new("/opt/homebrew/bin/mise")).to_string_lossy(),
+            r#"PATH="$PATH":/opt/homebrew/bin /opt/homebrew/bin/mise x hk -- hk"#
         );
     }
 
