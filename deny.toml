@@ -6,6 +6,10 @@
 # RustSec advisory database
 db-urls = ["https://github.com/rustsec/advisory-db"]
 # Yanked releases are reported but do not fail the check.
+ignore = [
+  { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained - all versions affected, no safe upgrade available; transitive via expr-lang (chrono-tz), rmcp and schemars" },
+  { id = "RUSTSEC-2026-0555", reason = "chrono-tz unmaintained - transitive via expr-lang, no safe upgrade available" },
+]
 yanked = "warn"
 
 [sources]
