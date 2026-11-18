@@ -1,0 +1,100 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Bun's built-in code formatter (Prettier compatible)"
+  project_indicators {
+    new { file = "bunfig.toml" }
+    new { file = "bun.lock" }
+    new { file = "bun.lockb" }
+  }
+  mise_tools = List("bun")
+}
+bun_fmt = new Config.Step {
+  // Supported languages: https://bun.sh/docs/format
+  glob =
+    List(
+      // JS/TS
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.mts",
+      "**/*.cts",
+      // React
+      "**/*.jsx",
+      "**/*.tsx",
+      "**/*.mdx",
+      // Frontend Frameworks
+      "**/*.vue",
+      "**/*.svelte",
+      // JSON
+      "**/*.json",
+      "**/*.jsonc",
+      "**/*.json5",
+      // YAML
+      "**/*.yaml",
+      "**/*.yml",
+      // TOML
+      "**/*.toml",
+      // Markdown
+      "**/*.md",
+      "**/*.markdown",
+      // HTML
+      "**/*.html",
+      "**/*.htm",
+      // CSS
+      "**/*.css",
+      "**/*.scss",
+      "**/*.less",
+      // GraphQL
+      "**/*.graphql",
+      "**/*.gql",
+      // Handlebars
+      "**/*.handlebars",
+      "**/*.hbs",
+    )
+  // Given explicit paths, bun fmt still formats lockfiles it would skip when scanning a directory.
+  exclude = List("**/package-lock.json", "**/pnpm-lock.yaml")
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("bun", "fmt", "--check", "--no-script", "{{files}}")
+    }
+    effect = "read"
+  }
+  // `bun fmt --stdin-filepath` prints the formatted file without writing it.
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List(
+          "hk",
+          "util",
+          "format-diff",
+          "{{files}}",
+          "--",
+          "bun",
+          "fmt",
+          "--no-script",
+          "--stdin-filepath",
+          "{}",
+        )
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("bun", "fmt", "--no-script", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "foo.ts" }
+    local const bad = "const x:number=42"
+    local const good = "const x: number = 42;\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
