@@ -56,6 +56,8 @@ bun_fmt = new Config.Step {
       "**/*.handlebars",
       "**/*.hbs",
     )
+  // Given explicit paths, bun fmt still formats lockfiles it would skip when scanning a directory.
+  exclude = List("**/package-lock.json", "**/pnpm-lock.yaml")
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("bun", "fmt", "--check", "--no-script", "{{files}}")
@@ -66,7 +68,18 @@ bun_fmt = new Config.Step {
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv =
-        List("hk", "util", "format-diff", "{{files}}", "--", "bun", "fmt", "--stdin-filepath", "{}")
+        List(
+          "hk",
+          "util",
+          "format-diff",
+          "{{files}}",
+          "--",
+          "bun",
+          "fmt",
+          "--no-script",
+          "--stdin-filepath",
+          "{}",
+        )
     }
     effect = "read"
   }
