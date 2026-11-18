@@ -8,7 +8,7 @@
 "github:jdx/tak" = "v0.0.15"
 jq               = "1.8.2"
 lefthook         = "2.2.2"
-node             = "26.13.0"
+node             = "26.13.1"
 "npm:eslint"     = "10.14.0"
 "npm:prettier"   = "3.9.10"
 "npm:typescript" = "7.0.2"
