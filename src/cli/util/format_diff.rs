@@ -157,6 +157,12 @@ async fn format_file(file: &PathBuf, command: &[String], stdin: bool) -> Outcome
     if formatted == original {
         return Outcome::Unchanged;
     }
+    // Formatters such as `tofu fmt -` turn empty input into a lone newline,
+    // yet leave an empty file alone when given its path. Patching it would
+    // make `hk fix` change a file the formatter itself accepts.
+    if original.is_empty() && formatted.trim().is_empty() {
+        return Outcome::Unchanged;
+    }
     Outcome::Changed(crate::diff::render_unified_diff(
         &original, &formatted, &path, &path,
     ))

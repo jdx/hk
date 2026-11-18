@@ -35,6 +35,20 @@ teardown() {
     refute_output
 }
 
+@test "util format-diff leaves an empty file alone when the formatter prints a newline for it" {
+    cat <<'SCRIPT' > newline.sh
+#!/bin/sh
+input=$(cat)
+if [ -z "$input" ]; then echo; else printf '%s\n' "$input"; fi
+SCRIPT
+    chmod +x newline.sh
+    : > a.txt
+
+    run hk util format-diff a.txt -- ./newline.sh
+    assert_success
+    refute_output
+}
+
 @test "util format-diff replaces {} with the file's path" {
     cat <<'SCRIPT' > path.sh
 #!/bin/sh
