@@ -721,7 +721,9 @@ fn restore_stashed_path(
     };
     let mut pathspec = OsString::from(":(literal)");
     pathspec.push(name);
-    // Writes the worktree only, with the stashed file mode
+    // Writes the worktree only, with the stashed file mode. `git restore` runs
+    // the post-checkout hook, so `HK=0` keeps the launcher hk installed from
+    // starting a nested hk inside this one's stash window.
     git_cmd([
         OsString::from("restore"),
         format!("--source={source}").into(),
@@ -729,6 +731,7 @@ fn restore_stashed_path(
         "--".into(),
         pathspec,
     ])
+    .env("HK", "0")
     .run()?;
     Ok(())
 }
