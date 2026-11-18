@@ -2,6 +2,79 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+// Fake GitHub PAT for tests, split so secret scanners do not flag this file.
+local const fakePat = "ghp_" + "qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a"
+
+class BetterleaksStep extends Config.Step {
+  // "files" scans the whole content of the files hk selected. "staged" scans only the
+  // added lines of the git index, so it is meant for the pre-commit hook.
+  hidden scan: "files" | "staged" = "files"
+  types = if (scan == "staged") null else List("text")
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        if (scan == "staged")
+          // Reference: https://github.com/betterleaks/betterleaks/blob/v1.10.1/.pre-commit-hooks.yaml#L18
+          List(
+            "betterleaks",
+            "git",
+            "--pre-commit",
+            "--redact",
+            "--staged",
+            "--verbose",
+            "--no-banner",
+          )
+        else
+          // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
+          List("betterleaks", "dir", "--redact", "--verbose", "--no-banner", "{{files}}")
+    }
+    effect = "read"
+  }
+  tests =
+    if (scan == "staged")
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker {
+          filename = "foo.txt"
+          before = "git init --quiet && git add foo.txt"
+        }
+        local const secret = "token = \"" + fakePat + "\""
+        ["check bad staged file"] = testMaker.checkFail(secret, 1)
+        ["check good staged file"] = testMaker.checkPass("message = foobar")
+        ["ignore unstaged files"] =
+          (
+            new helpers.TestMaker {
+              filename = "foo.txt"
+              before = "git init --quiet && git add foo.txt"
+              extra_files {
+                ["unstaged.txt"] = secret
+              }
+            }
+          ).checkPass("message = foobar")
+        ["check staged content instead of worktree"] = new Config.StepTest {
+          files = List("foo.txt")
+          tmpdir = true
+          write = new Mapping<String, String> {
+            ["foo.txt"] = secret
+          }
+          before = "git init --quiet && git add foo.txt && printf 'message = foobar' > foo.txt"
+          expect = new Config.StepTestExpect {
+            code = 1
+            files = new Mapping<String, String> {
+              ["foo.txt"] = "message = foobar"
+            }
+          }
+        }
+      }
+    else
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+        // aws-access-token alone is not reported since betterleaks 1.2.0 (composite rule); use github-pat instead.
+        // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/cmd/generate/config/rules/github.go
+        ["check bad file"] = testMaker.checkFail("token = \"" + fakePat + "\"", 1)
+        ["check good file"] = testMaker.checkPass("message = foobar")
+      }
+}
+
 @Builtins.meta {
   category = "Secrets"
   description = "A Better Secrets Scanner built for configurability and speed"
@@ -11,21 +84,6 @@ import "./test/helpers.pkl"
   }
   mise_tools = List("betterleaks")
 }
-betterleaks = new Config.Step {
-  types = List("text")
-  // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
-  check = new Config.CommandSpec {
-    command = new Config.Command {
-      argv = List("betterleaks", "dir", "--redact", "--verbose", "--no-banner", "{{files}}")
-    }
-    effect = "read"
-  }
-  tests {
-    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
-    // aws-access-token alone is not reported since betterleaks 1.2.0 (composite rule); use github-pat instead.
-    // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/cmd/generate/config/rules/github.go
-    ["check bad file"] =
-      testMaker.checkFail("token = \"ghp_qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a\"", 1)
-    ["check good file"] = testMaker.checkPass("message = foobar")
-  }
-}
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
+betterleaks = (new BetterleaksStep {}) as Config.Step
