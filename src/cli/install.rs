@@ -950,6 +950,8 @@ mod tests {
         );
     }
 
+    // `/opt/...` is not an absolute path on Windows, so the fallback is skipped there.
+    #[cfg(unix)]
     #[test]
     fn global_mise_launcher_appends_mise_dir_to_path() {
         assert_eq!(

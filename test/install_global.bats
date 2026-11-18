@@ -198,7 +198,7 @@ EOF
 exec mise run hello
 EOF
     chmod +x "$TEST_TEMP_DIR/hkbin/hk"
-    run env PATH="$TEST_TEMP_DIR/hkbin:/usr/bin:/bin" sh -c "$command" hook-shim
+    run env PATH="$TEST_TEMP_DIR/hkbin" /bin/sh -c "$command" hook-shim
     assert_success
     assert_output --partial "mise reachable"
 }
