@@ -1,0 +1,16 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Validate hk.pkl and fail on warnings"
+}
+hk_validate = new Config.Step {
+  // See: src/config.rs `project_config_search_paths()`
+  glob = List("hk.pkl", ".config/hk.pkl")
+  check = new Config.CommandSpec {
+    command = "hk validate --deny-warnings"
+    effect = "read"
+  }
+  // No tests here. They would duplicate the existing `hk validate` tests.
+}
