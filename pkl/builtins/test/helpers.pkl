@@ -83,3 +83,75 @@ class TestMaker {
     filename = newFilename
   }
 }
+
+/// Tests for a secret scanner's `scan = "commits"` mode, which scans every commit in the run's ref
+/// range. `secret` is a string the scanner reports and `failCode` is its exit code on findings.
+function commitScanTests(secret: String, failCode: Int): Mapping<String, Config.StepTest> =
+  let (
+    init =
+      "git init --quiet -b main && git config user.email t@example.com && git config user.name t && git config commit.gpgsign false"
+  )
+  let (commit = (msg: String) -> "git add -A && git commit --quiet --allow-empty -m " + msg)
+  let (addSecret = "printf '%s\\n' '" + secret + "' > s.txt")
+  let (base = init + " && printf base > a.txt && " + commit.apply("base"))
+    new Mapping<String, Config.StepTest> {
+      ["commits: secret added then removed in range"] = new Config.StepTest {
+        tmpdir = true
+        before =
+          base
+            + " && "
+            + addSecret
+            + " && "
+            + commit.apply("add")
+            + " && git rm --quiet s.txt && "
+            + commit.apply("remove")
+        from_ref = "HEAD~2"
+        expect { code = failCode }
+      }
+      ["commits: clean range"] = new Config.StepTest {
+        tmpdir = true
+        before = base + " && printf more > b.txt && " + commit.apply("more")
+        from_ref = "HEAD~1"
+      }
+      ["commits: to_ref defaults to HEAD"] = new Config.StepTest {
+        tmpdir = true
+        before = base + " && " + addSecret + " && " + commit.apply("add")
+        from_ref = "HEAD~1"
+        expect { code = failCode }
+      }
+      ["commits: secret before from_ref is ignored"] = new Config.StepTest {
+        tmpdir = true
+        before =
+          base
+            + " && "
+            + addSecret
+            + " && "
+            + commit.apply("add")
+            + " && git rm --quiet s.txt && "
+            + commit.apply("remove")
+            + " && printf more > b.txt && "
+            + commit.apply("more")
+        from_ref = "HEAD~1"
+      }
+      ["commits: secret after to_ref is ignored"] = new Config.StepTest {
+        tmpdir = true
+        before =
+          base
+            + " && printf more > b.txt && "
+            + commit.apply("more")
+            + " && "
+            + addSecret
+            + " && "
+            + commit.apply("add")
+        from_ref = "HEAD~2"
+        to_ref = "HEAD~1"
+      }
+      ["commits: no ref range fails"] = new Config.StepTest {
+        tmpdir = true
+        before = base
+        expect {
+          code = 1
+          stderr = "needs a ref range"
+        }
+      }
+    }

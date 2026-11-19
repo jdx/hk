@@ -147,3 +147,71 @@ EOF
     assert_success
     assert_output --partial "condition evaluated to false"
 }
+
+@test "requires_ref_range fails a step without a range and runs it with one" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["scan"] {
+                requires_ref_range = true
+                check = "echo scan-ran range=[{{from_ref}}..{{to_ref}}]"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+    git add a.txt
+    git commit -m "second commit"
+
+    run hk check
+    assert_failure
+    assert_output --partial "scan: needs a ref range (pre-push, --from-ref, or --pr)"
+    refute_output --partial "scan-ran"
+
+    run hk check --from-ref HEAD~1 --to-ref HEAD
+    assert_success
+    assert_output --partial "scan-ran range=[HEAD~1..HEAD]"
+
+    # With only a start, the range ends at HEAD.
+    run hk check --from-ref HEAD~1
+    assert_success
+    assert_output --partial "scan-ran range=[HEAD~1..HEAD]"
+}
+
+@test "a pre-push hook blocks a secret that a later commit removes" {
+    command -v gitleaks >/dev/null || PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+    ["pre-push"] {
+        steps {
+            ["gitleaks"] = (Builtins.gitleaks) { scan = "commits" }
+        }
+    }
+}
+EOF
+    git init --bare "$BATS_TEST_TMPDIR/remote.git"
+    git init
+    git remote add origin "$BATS_TEST_TMPDIR/remote.git"
+    git add hk.pkl
+    git commit -m "initial commit"
+    git push origin HEAD:main
+    hk install
+    echo "awsToken = AKIALALEMEL33243OLIA" > s.txt # gitleaks:allow (public test fixture)
+    git add s.txt
+    git commit -m "add secret"
+    git rm s.txt
+    git commit -m "remove secret"
+
+    run git push origin HEAD:main
+    assert_failure
+    run git --git-dir="$BATS_TEST_TMPDIR/remote.git" rev-parse --verify main
+    refute_output "$(git rev-parse HEAD)"
+}

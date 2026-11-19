@@ -232,6 +232,19 @@ impl Step {
             }
         }
 
+        if self.requires_ref_range
+            && ctx
+                .hook_ctx
+                .tctx
+                .string("from_ref")
+                .is_none_or(|from| from.is_empty())
+        {
+            return Err(eyre::eyre!(
+                "{}: needs a ref range (pre-push, --from-ref, or --pr)",
+                self.name
+            ));
+        }
+
         let files = ctx.hook_ctx.files();
         let mut jobs = self.build_step_jobs_shared(
             &files,

@@ -27,6 +27,10 @@ pub struct StepTest {
     pub before: Option<String>,
     /// Command to run after the main command, before evaluating expectations
     pub after: Option<String>,
+    /// Start of the ref range, passed to the step as `{{from_ref}}` like a real run does
+    pub from_ref: Option<String>,
+    /// End of the ref range, passed as `{{to_ref}}`. Defaults to `HEAD` when `from_ref` is set.
+    pub to_ref: Option<String>,
     /// Whether to run in a temporary directory
     /// If true, always use a sandbox; if false, always use repo root
     /// If None, auto-detect based on whether files reference {{tmp}}

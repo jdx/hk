@@ -82,6 +82,32 @@ PKL
 }
 
 # bats test_tags=git-backend-independent
+@test "secret scanners scan every commit in the ref range with scan = commits" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["gitleaks"] = (Builtins.gitleaks) { scan = "commits" }
+      ["betterleaks"] = (Builtins.betterleaks) { scan = "commits" }
+      ["trufflehog"] = (Builtins.trufflehog) { scan = "commits" }
+      ["kingfisher"] = (Builtins.kingfisher) { scan = "commits" }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test
+    assert_success
+    for step in gitleaks betterleaks trufflehog kingfisher; do
+        assert_output --partial "ok - $step :: commits: secret added then removed in range"
+        assert_output --partial "ok - $step :: commits: no ref range fails"
+    done
+}
+
+# bats test_tags=git-backend-independent
 @test "editorconfig-checker builtin tests run with editorconfig-checker v4" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"

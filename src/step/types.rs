@@ -240,6 +240,10 @@ pub struct Step {
     /// Expression that must evaluate to true for step to run
     pub step_condition: Option<String>,
 
+    /// Fail the step, without running its command, when the run has no ref range
+    #[serde(default)]
+    pub requires_ref_range: bool,
+
     /// Run check command before fix to identify files needing changes. See
     /// [`Step::check_first`] for the effective value.
     #[serde(default)]

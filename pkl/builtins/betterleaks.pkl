@@ -2,6 +2,46 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+class BetterleaksStep extends Config.Step {
+  // Select whether to scan the given files or every commit in the run's ref range (`pre-push`,
+  // `--from-ref`, or `--pr`). `"commits"` catches a secret that a later commit removes.
+  hidden scan: "files" | "commits" = "files"
+  // No `types` filter in `commits` mode: a range whose commits add and remove a file has no
+  // changed files, and hk would skip the step with "no files to run".
+  types = if (scan == "files") List("text") else null
+  requires_ref_range = scan == "commits"
+  // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        if (scan == "commits")
+          List(
+            "betterleaks",
+            "git",
+            "--redact",
+            "--verbose",
+            "--no-banner",
+            "--log-opts={{from_ref}}..{{to_ref}}",
+          )
+        else
+          List("betterleaks", "dir", "--redact", "--verbose", "--no-banner", "{{files}}")
+    }
+    effect = "read"
+  }
+  tests =
+    if (scan == "commits")
+      helpers.commitScanTests("token = \"ghp_qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a\"", 1) // gitleaks:allow (public test fixture)
+    else
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+        // aws-access-token alone is not reported since betterleaks 1.2.0 (composite rule); use github-pat instead.
+        // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/cmd/generate/config/rules/github.go
+        ["check bad file"] =
+          testMaker.checkFail("token = \"ghp_qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a\"", 1) // gitleaks:allow (public test fixture)
+        ["check good file"] = testMaker.checkPass("message = foobar")
+      }
+}
+
 @Builtins.meta {
   category = "Secrets"
   description = "A Better Secrets Scanner built for configurability and speed"
@@ -11,21 +51,6 @@ import "./test/helpers.pkl"
   }
   mise_tools = List("betterleaks")
 }
-betterleaks = new Config.Step {
-  types = List("text")
-  // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
-  check = new Config.CommandSpec {
-    command = new Config.Command {
-      argv = List("betterleaks", "dir", "--redact", "--verbose", "--no-banner", "{{files}}")
-    }
-    effect = "read"
-  }
-  tests {
-    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
-    // aws-access-token alone is not reported since betterleaks 1.2.0 (composite rule); use github-pat instead.
-    // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/cmd/generate/config/rules/github.go
-    ["check bad file"] =
-      testMaker.checkFail("token = \"ghp_qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a\"", 1)
-    ["check good file"] = testMaker.checkPass("message = foobar")
-  }
-}
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
+betterleaks = (new BetterleaksStep {}) as Config.Step
