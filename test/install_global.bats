@@ -107,6 +107,7 @@ EOF
     run git config --global --get hook.hk-pre-commit.command
     assert_success
     assert_output --partial '~/bin/mise x hk -- hk run pre-commit --from-hook --staged'
+    assert_output --partial 'PATH="$PATH":~/bin '
     refute_output --partial '"$@"'
     refute_output --partial '|| mise x -- hk run'
 
@@ -167,4 +168,37 @@ EOF
     assert_output --partial 'removed hk hooks from ~/.gitconfig'
     run git config --file "$HOME/.gitconfig" --get hook.hk-pre-commit.command
     assert_failure
+}
+
+@test "hk install --global --mise lets steps call mise under a minimal PATH" {
+    require_git_2_54
+
+    mkdir "$TEST_TEMP_DIR/bin"
+    # Stand-in mise: `x hk -- CMD...` runs CMD; anything else proves mise resolved.
+    cat >"$TEST_TEMP_DIR/bin/mise" <<'EOF'
+#!/bin/sh
+if [ "$1" = "x" ]; then
+    shift 3
+    exec "$@"
+fi
+echo "mise reachable"
+EOF
+    chmod +x "$TEST_TEMP_DIR/bin/mise"
+    PATH="$TEST_TEMP_DIR/bin:$PATH"
+
+    run hk install --global --mise
+    assert_success
+
+    command="$(git config --global --get hook.hk-pre-commit.command)"
+    # Run the launcher as Git would, without mise's directory on PATH, with a
+    # stand-in `hk` that calls `mise` the way a step does.
+    mkdir "$TEST_TEMP_DIR/hkbin"
+    cat >"$TEST_TEMP_DIR/hkbin/hk" <<'EOF'
+#!/bin/sh
+exec mise run hello
+EOF
+    chmod +x "$TEST_TEMP_DIR/hkbin/hk"
+    run env PATH="$TEST_TEMP_DIR/hkbin" /bin/sh -c "$command" hook-shim
+    assert_success
+    assert_output --partial "mise reachable"
 }

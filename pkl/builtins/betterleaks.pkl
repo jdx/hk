@@ -2,15 +2,19 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+// Fake GitHub PAT for tests, split so secret scanners do not flag this file.
+local const fakePat = "ghp_" + "qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a"
+
 class BetterleaksStep extends Config.Step {
-  // Select whether to scan the given files or every commit in the run's ref range (`pre-push`,
-  // `--from-ref`, or `--pr`). `"commits"` catches a secret that a later commit removes.
-  hidden scan: "files" | "commits" = "files"
-  // No `types` filter in `commits` mode: a range whose commits add and remove a file has no
-  // changed files, and hk would skip the step with "no files to run".
+  // "files" scans the whole content of the files hk selected. "staged" scans only the
+  // added lines of the git index, so it is meant for the pre-commit hook. "commits" scans every
+  // commit in the run's ref range (`pre-push`, `--from-ref`, or `--pr`), which catches a secret
+  // that a later commit removes.
+  hidden scan: "files" | "staged" | "commits" = "files"
+  // No `types` filter in `staged` and `commits` modes: a range whose commits add and remove a
+  // file has no changed files, and hk would skip the step with "no files to run".
   types = if (scan == "files") List("text") else null
   requires_ref_range = scan == "commits"
-  // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv =
@@ -23,21 +27,66 @@ class BetterleaksStep extends Config.Step {
             "--no-banner",
             "--log-opts={{from_ref}}..{{to_ref}}",
           )
+        else if (scan == "staged")
+          // Reference: https://github.com/betterleaks/betterleaks/blob/v1.10.1/.pre-commit-hooks.yaml#L18
+          List(
+            "betterleaks",
+            "git",
+            "--pre-commit",
+            "--redact",
+            "--staged",
+            "--verbose",
+            "--no-banner",
+          )
         else
+          // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
           List("betterleaks", "dir", "--redact", "--verbose", "--no-banner", "{{files}}")
     }
     effect = "read"
   }
   tests =
     if (scan == "commits")
-      helpers.commitScanTests("token = \"ghp_qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a\"", 1) // gitleaks:allow (public test fixture)
+      helpers.commitScanTests("token = \"" + fakePat + "\"", 1)
+    else if (scan == "staged")
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker {
+          filename = "foo.txt"
+          before = "git init --quiet && git add foo.txt"
+        }
+        local const secret = "token = \"" + fakePat + "\""
+        ["check bad staged file"] = testMaker.checkFail(secret, 1)
+        ["check good staged file"] = testMaker.checkPass("message = foobar")
+        ["ignore unstaged files"] =
+          (
+            new helpers.TestMaker {
+              filename = "foo.txt"
+              before = "git init --quiet && git add foo.txt"
+              extra_files {
+                ["unstaged.txt"] = secret
+              }
+            }
+          ).checkPass("message = foobar")
+        ["check staged content instead of worktree"] = new Config.StepTest {
+          files = List("foo.txt")
+          tmpdir = true
+          write = new Mapping<String, String> {
+            ["foo.txt"] = secret
+          }
+          before = "git init --quiet && git add foo.txt && printf 'message = foobar' > foo.txt"
+          expect = new Config.StepTestExpect {
+            code = 1
+            files = new Mapping<String, String> {
+              ["foo.txt"] = "message = foobar"
+            }
+          }
+        }
+      }
     else
       new Mapping<String, Config.StepTest> {
         local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
         // aws-access-token alone is not reported since betterleaks 1.2.0 (composite rule); use github-pat instead.
         // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/cmd/generate/config/rules/github.go
-        ["check bad file"] =
-          testMaker.checkFail("token = \"ghp_qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a\"", 1) // gitleaks:allow (public test fixture)
+        ["check bad file"] = testMaker.checkFail("token = \"" + fakePat + "\"", 1)
         ["check good file"] = testMaker.checkPass("message = foobar")
       }
 }

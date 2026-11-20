@@ -567,22 +567,22 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Run main command
 
-    let (mut stdout, mut stderr, mut code, combined) =
-        if step.requires_ref_range && from_ref.is_empty() {
-            // A real run fails the step without running its command.
-            let message = format!(
-                "{}: needs a ref range (pre-push, --from-ref, or --pr)",
-                step.name
-            );
-            (String::new(), message.clone(), 1, message)
-        } else {
-            execute_cmd_combined(step, &tctx, &base_dir, test, &run, &step.stdin).await?
-        };
+    let missing_range = step.requires_ref_range && from_ref.is_empty();
+    let (mut stdout, mut stderr, mut code, combined) = if missing_range {
+        // A real run fails the step without running its command.
+        let message = format!(
+            "{}: needs a ref range (pre-push, --from-ref, or --pr)",
+            step.name
+        );
+        (String::new(), message.clone(), 1, message)
+    } else {
+        execute_cmd_combined(step, &tctx, &base_dir, test, &run, &step.stdin).await?
+    };
 
     // A diff test applies the patch as fix mode would, but a patch that
     // doesn't apply fails the test instead of falling back to `fix`.
     let mut diff_reason = None;
-    if matches!(test.run, RunKind::Diff) && code != 0 {
+    if !missing_range && matches!(test.run, RunKind::Diff) && code != 0 {
         if step.apply_diff_output(&stdout, base_dir.to_str())? {
             code = 0;
             if step.check_after_diff

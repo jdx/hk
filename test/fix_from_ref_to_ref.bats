@@ -184,8 +184,33 @@ EOF
     assert_output --partial "scan-ran range=[HEAD~1..HEAD]"
 }
 
+@test "requires_ref_range does not fail a skipped step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["scan"] {
+                requires_ref_range = true
+                check = "echo scan-ran"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+
+    run hk check --skip-step scan
+    assert_success
+    refute_output --partial "needs a ref range"
+    refute_output --partial "scan-ran"
+}
+
 @test "a pre-push hook blocks a secret that a later commit removes" {
-    command -v gitleaks >/dev/null || PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl" as Builtins
@@ -204,6 +229,11 @@ EOF
     git commit -m "initial commit"
     git push origin HEAD:main
     hk install
+    echo clean > clean.txt
+    git add clean.txt
+    git commit -m "clean commit"
+    run git push origin HEAD:main
+    assert_success
     echo "awsToken = AKIALALEMEL33243OLIA" > s.txt # gitleaks:allow (public test fixture)
     git add s.txt
     git commit -m "add secret"
@@ -212,6 +242,7 @@ EOF
 
     run git push origin HEAD:main
     assert_failure
+    assert_output --partial "leaks found: 1"
     run git --git-dir="$BATS_TEST_TMPDIR/remote.git" rev-parse --verify main
     refute_output "$(git rev-parse HEAD)"
 }

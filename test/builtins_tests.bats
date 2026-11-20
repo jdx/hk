@@ -82,6 +82,28 @@ PKL
 }
 
 # bats test_tags=git-backend-independent
+@test "betterleaks staged option tests run" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["betterleaks"] = (Builtins.betterleaks) {
+        scan = "staged"
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step betterleaks
+    assert_success
+    assert_output --partial "ok - betterleaks :: check bad staged file"
+}
+
+# bats test_tags=git-backend-independent
 @test "secret scanners scan every commit in the ref range with scan = commits" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
