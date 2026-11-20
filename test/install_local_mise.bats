@@ -9,14 +9,15 @@ teardown() {
     _common_teardown
 }
 
-# A stand-in mise (`x hk -- CMD...` runs CMD; anything else proves mise
+# A stand-in mise (`x -- CMD...` runs CMD; anything else proves mise
 # resolved) and a stand-in hk that calls `mise` the way a step does.
 _stub_mise_and_hk() {
     mkdir "$TEST_TEMP_DIR/bin" "$TEST_TEMP_DIR/hkbin"
     cat >"$TEST_TEMP_DIR/bin/mise" <<'EOF'
 #!/bin/sh
 if [ "$1" = "x" ]; then
-    shift 3
+    while [ "$1" != "--" ]; do shift; done
+    shift
     exec "$@"
 fi
 echo "mise reachable"

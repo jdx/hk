@@ -350,7 +350,13 @@ fn is_executable_file(path: &Path) -> bool {
 fn local_hook_command(use_mise: bool) -> OsString {
     if use_mise {
         match find_mise() {
-            Some(mise) => mise_hook_command(&mise),
+            // Unlike the global launcher, keep `mise x -- hk` (no tool named)
+            // so every pinned tool is installed on demand, as before.
+            Some(mise) => {
+                let mut command = shell_path_for_command(&mise);
+                command.push(" x -- hk");
+                command
+            }
             // Without a resolvable mise, rely on it being on Git's `PATH`.
             None => OsString::from("mise x -- hk"),
         }
