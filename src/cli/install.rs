@@ -309,17 +309,26 @@ pub(crate) fn global_hooks_config_file() -> String {
 /// The first executable `mise` on `PATH`, as an absolute path. A relative
 /// `PATH` entry is resolved against the current directory, since Git runs the
 /// hook from elsewhere; symlinks are left alone so the path stays stable.
+#[cfg(windows)]
+const MISE_FILE_NAMES: &[&str] = &["mise.exe", "mise.cmd", "mise.bat", "mise"];
+#[cfg(not(windows))]
+const MISE_FILE_NAMES: &[&str] = &["mise"];
+
 fn find_mise() -> Option<PathBuf> {
     find_mise_in(&std::env::var_os("PATH")?, std::env::current_dir().ok())
 }
 
 fn find_mise_in(path: &OsStr, cwd: Option<PathBuf>) -> Option<PathBuf> {
     std::env::split_paths(path).find_map(|dir| {
-        let mut candidate = dir.join("mise");
-        if !candidate.is_absolute() {
-            candidate = cwd.as_ref()?.join(candidate);
-        }
-        is_executable_file(&candidate).then_some(candidate)
+        let dir = if dir.is_absolute() {
+            dir
+        } else {
+            cwd.as_ref()?.join(dir)
+        };
+        MISE_FILE_NAMES
+            .iter()
+            .map(|name| dir.join(name))
+            .find(|candidate| is_executable_file(candidate))
     })
 }
 
@@ -1106,6 +1115,7 @@ mod tests {
         content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run")
     }
 
+    #[cfg(unix)]
     #[test]
     fn find_mise_skips_non_executables_and_makes_relative_paths_absolute() {
         use std::os::unix::fs::PermissionsExt;
