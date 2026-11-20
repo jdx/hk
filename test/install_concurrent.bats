@@ -40,7 +40,7 @@ EOF
 
         run git config --local --get-all hook.hk-pre-commit.command
         assert_success
-        assert_output 'test "${HK:-1}" = "0" || mise x -- hk run pre-commit --from-hook'
+        assert_output --regexp '^test "\$\{HK:-1\}" = "0" \|\| PATH="\$PATH":.* x -- hk run pre-commit --from-hook$'
 
         run git config --local --get-all hook.hk-pre-commit.event
         assert_success

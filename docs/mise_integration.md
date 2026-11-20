@@ -49,8 +49,10 @@ separately in each repository:
 hk install --mise
 ```
 
-The local launcher also uses `mise x`, but it requires Git to find mise on its
-runtime `PATH`. Developers do not need an activated shell for either launcher.
+The local launcher also uses `mise x` and records mise’s executable path the
+same way, so mise must be on `PATH` during installation but Git does not need
+to find it at hook runtime. Developers do not need an activated shell for
+either launcher.
 
 Use one installation scope at a time. When moving a repository from a local
 installation to the recommended global installation, remove the local hooks

@@ -1,6 +1,6 @@
 ---
 description: Let mise, the ship's quartermaster, provision hk and yer linter versions, environment variables, and the running of Git hooks.
-sourceHash: 6720d9670753
+sourceHash: 4a1b32576a18
 ---
 
 # mise integration: the quartermaster
@@ -45,7 +45,7 @@ To rig one ship at a time instead (a repository-scoped setup, on any supported G
 hk install --mise
 ```
 
-The local launcher uses `mise x` too, but it needs Git to find mise on its `PATH` at the moment the hook runs. With either launcher, no sailor needs an activated shell.
+The local launcher uses `mise x` too and writes down where mise lives in the same way, so mise must be on `PATH` while ye install, but Git need not find it when the hook runs. With either launcher, no sailor needs an activated shell.
 
 Use one installation scope at a time. When moving a ship from a local installation to the recommended global one, take the local hooks down first:
 

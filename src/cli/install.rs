@@ -163,6 +163,14 @@ impl Install {
             let shim_fallback = path_fallback
                 .as_deref()
                 .filter(|dir| dir.to_str().is_some());
+            // The same goes for the command itself, which holds mise's path
+            // under `--mise`: keep the bare launcher rather than write a
+            // lossy path that would break every hook.
+            let (command, shim_fallback) = if command.to_str().is_some() {
+                (command, shim_fallback)
+            } else {
+                (OsString::from("mise x -- hk"), None)
+            };
             install_local_shims(&events, &command, shim_fallback, self.force)
         }
     }
@@ -298,9 +306,60 @@ pub(crate) fn global_hooks_config_file() -> String {
         .unwrap_or_else(|| "the global git config".to_string())
 }
 
+/// The first executable `mise` on `PATH`, as an absolute path. A relative
+/// `PATH` entry is resolved against the current directory, since Git runs the
+/// hook from elsewhere; symlinks are left alone so the path stays stable.
+#[cfg(windows)]
+const MISE_FILE_NAMES: &[&str] = &["mise.exe", "mise.cmd", "mise.bat", "mise"];
+#[cfg(not(windows))]
+const MISE_FILE_NAMES: &[&str] = &["mise"];
+
+fn find_mise() -> Option<PathBuf> {
+    find_mise_in(&std::env::var_os("PATH")?, std::env::current_dir().ok())
+}
+
+fn find_mise_in(path: &OsStr, cwd: Option<PathBuf>) -> Option<PathBuf> {
+    std::env::split_paths(path).find_map(|dir| {
+        let dir = if dir.is_absolute() {
+            dir
+        } else {
+            cwd.as_ref()?.join(dir)
+        };
+        MISE_FILE_NAMES
+            .iter()
+            .map(|name| dir.join(name))
+            .find(|candidate| is_executable_file(candidate))
+    })
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        meta.is_file() && meta.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        meta.is_file()
+    }
+}
+
 fn local_hook_command(use_mise: bool) -> OsString {
     if use_mise {
-        OsString::from("mise x -- hk")
+        match find_mise() {
+            // Unlike the global launcher, keep `mise x -- hk` (no tool named)
+            // so every pinned tool is installed on demand, as before.
+            Some(mise) => {
+                let mut command = shell_path_for_command(&mise);
+                command.push(" x -- hk");
+                command
+            }
+            // Without a resolvable mise, rely on it being on Git's `PATH`.
+            None => OsString::from("mise x -- hk"),
+        }
     } else {
         OsString::from("hk")
     }
@@ -309,11 +368,14 @@ fn local_hook_command(use_mise: bool) -> OsString {
 /// The directory hook commands append to `PATH` so a bare `hk` still resolves
 /// when Git is launched with a minimal `PATH` (GUI Git clients, IDEs), where
 /// the user's shell `PATH` is not present. It is appended, so an `hk` the
-/// environment already provides keeps priority. `None` with `--mise`, where
-/// mise is the launcher.
+/// environment already provides keeps priority. With `--mise` it is mise's
+/// directory: the launcher runs mise by absolute path, and steps that call
+/// `mise` need it on `PATH` too.
 fn local_path_fallback(use_mise: bool) -> Option<PathBuf> {
     if use_mise {
-        return None;
+        return find_mise()
+            .and_then(|mise| mise.parent().map(Path::to_path_buf))
+            .filter(|dir| dir.is_absolute());
     }
     let exe = std::env::current_exe().ok()?;
     let hk = stable_hk_path(&exe, std::env::var_os("PATH"));
@@ -367,7 +429,7 @@ fn mise_shim_for(exe: &Path) -> Option<PathBuf> {
 
 fn global_hook_command(use_mise: bool) -> Result<OsString> {
     if use_mise {
-        let mise = xx::file::which("mise")
+        let mise = find_mise()
             .ok_or_else(|| eyre::eyre!("could not find mise on PATH for global hook install"))?;
         Ok(global_mise_launcher(&mise))
     } else {
@@ -1059,9 +1121,32 @@ mod tests {
         content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run")
     }
 
+    #[cfg(unix)]
     #[test]
-    fn local_mise_command_keeps_existing_behavior() {
-        assert_eq!(local_hook_command(true), OsString::from("mise x -- hk"));
+    fn find_mise_skips_non_executables_and_makes_relative_paths_absolute() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let plain = root.path().join("plain");
+        let exec = root.path().join("exec");
+        std::fs::create_dir_all(&plain).unwrap();
+        std::fs::create_dir_all(&exec).unwrap();
+        std::fs::write(plain.join("mise"), "").unwrap();
+        std::fs::write(exec.join("mise"), "").unwrap();
+        std::fs::set_permissions(exec.join("mise"), std::fs::Permissions::from_mode(0o755))
+            .unwrap();
+        let path = std::env::join_paths([&plain, &exec]).unwrap();
+        let found = find_mise_in(&path, None);
+        assert_eq!(found, Some(exec.join("mise")));
+
+        let relative = std::env::join_paths(["plain", "exec"]).unwrap();
+        assert_eq!(
+            find_mise_in(&relative, Some(root.path().to_path_buf())),
+            Some(root.path().join("exec/mise"))
+        );
+    }
+
+    #[test]
+    fn local_plain_command_is_bare_hk() {
         assert_eq!(local_hook_command(false), OsString::from("hk"));
     }
 

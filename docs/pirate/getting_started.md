@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: cde0ceb7c68e
+sourceHash: 043e8752c6d6
 ---
 
 # Getting under way
@@ -144,7 +144,7 @@ Global hooks record a path that survives upgrades: the mise shim for a mise-inst
 If hk is already rigged across the fleet (installed globally), `hk install` skips the local installation and clears away stale local hk hooks. `--force-local` overrides that, but combining local and global hooks can cause duplicate runs: the pipe may call all hands twice over. The skip does not hold with `--legacy`, nor when the `git` hk finds first is older than 2.54, for such a Git cannot read global hooks, so hk lays down the script shims instead. With `--legacy` on Git 2.54+, hk answers the call twice for each event that has both a global hook and a shim. If an editor or tool sails with an older Git than the one hk finds, run `hk install --legacy` in each affected repository; a later plain `hk install` on the newer Git hauls those shims ashore.
 
 ::: tip The quartermaster's tools in Git hooks
-On Git 2.54+, the recommended course is `hk install --global --mise`, which launches hooks through `mise x`. The installer writes down where mise lives, so mise must be on `PATH` while ye install, but Git does not need it on its runtime `PATH`. For an installation scoped to one repository, on any supported Git version, use `hk install --mise`; this local launcher does need mise on Git's runtime `PATH`.
+On Git 2.54+, the recommended course is `hk install --global --mise`, which launches hooks through `mise x`. The installer writes down where mise lives, so mise must be on `PATH` while ye install, but Git does not need it on its runtime `PATH`. For an installation scoped to one repository, on any supported Git version, use `hk install --mise`; it writes down mise's path the same way.
 :::
 
 Commit `hk.pkl` so all yer shipmates sail by the same charts. Installing the hooks is local to each developer's machine or clone.
