@@ -209,6 +209,38 @@ EOF
     refute_output --partial "scan-ran"
 }
 
+@test "requires_ref_range does not fail a step whose condition or profile skips it" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["cond"] {
+                requires_ref_range = true
+                condition = "false"
+                check = "echo cond-ran"
+            }
+            ["prof"] {
+                requires_ref_range = true
+                condition = "true"
+                profiles = List("security")
+                check = "echo prof-ran"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+
+    run hk check
+    assert_success
+    refute_output --partial "needs a ref range"
+    refute_output --partial "-ran"
+}
+
 @test "a pre-push hook blocks a secret that a later commit removes" {
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
     cat <<EOF > hk.pkl

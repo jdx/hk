@@ -249,21 +249,6 @@ impl Step {
                 })
                 .flatten(),
         )?;
-        // Checked once the jobs exist, so a step that is skipped (`--skip-step`,
-        // `HK_SKIP_STEPS`, a profile, a missing `required` env) does not fail.
-        if self.requires_ref_range
-            && jobs.iter().any(|job| job.skip_reason.is_none())
-            && ctx
-                .hook_ctx
-                .tctx
-                .string("from_ref")
-                .is_none_or(|from| from.is_empty())
-        {
-            return Err(eyre::eyre!(
-                "{}: needs a ref range (pre-push, --from-ref, or --pr)",
-                self.name
-            ));
-        }
         // When this hook stages fixes with the default `stage`, a step that can
         // list or diff the files it would change checks first if any of its
         // files has unstaged changes, so only files it changed are fixed and
