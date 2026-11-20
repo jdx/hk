@@ -1,6 +1,6 @@
 ---
 description: Troubleshooting in foul weather. Diagnose hands that never turn out, charts that read wrong, missing tools, hook failures, and slow passages.
-sourceHash: a4165d00eb0a
+sourceHash: d8608b57686f
 ---
 
 # Troubleshooting: riding out foul weather
@@ -56,7 +56,7 @@ HK_CACHE=0 HK_LOG=debug hk validate
 
 The standing crew don't bring their own tools: builtins do not install linters. Check that the named executable is aboard the environment that runs hk.
 
-If it works in yer terminal but fails from Git or an editor, use the recommended `hk install --global --mise` on Git 2.54+. mise must be on `PATH` while ye install; the global launcher writes down its path, so Git need not find mise at runtime. For a repository-scoped installation on any supported Git version, use `hk install --mise`; this local launcher needs mise on Git's `PATH` at runtime. For language package dependencies, expose the package's executable directory. See [mise, the quartermaster](/mise_integration).
+If it works in yer terminal but fails from Git or an editor, use the recommended `hk install --global --mise` on Git 2.54+. mise must be on `PATH` while ye install; the global launcher writes down its path, so Git need not find mise at runtime. For a repository-scoped installation on any supported Git version, use `hk install --mise`; it writes down mise's path the same way. For language package dependencies, expose the package's executable directory. See [mise, the quartermaster](/mise_integration).
 
 ## The hook stays silent, or pipes twice {#a-hook-does-not-fire-or-fires-twice}
 
