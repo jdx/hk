@@ -413,3 +413,21 @@ assert_stash_none_leaves_intent_to_add_alone() {
 @test "stash=none leaves an intent-to-add file out of the step's files with the git CLI" {
     assert_stash_none_leaves_intent_to_add_alone 0
 }
+
+@test "hk check still selects an empty intent-to-add file" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] { steps { ["a"] { check = "echo checking {{files}}" } } }
+}
+PKL
+    commit_initial_files
+    : > empty.txt
+    git add -N empty.txt
+    printf 'new\n' > full.txt
+    git add -N full.txt
+
+    run hk check
+    assert_success
+    assert_output --partial "checking empty.txt full.txt"
+}

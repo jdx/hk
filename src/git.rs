@@ -4113,6 +4113,10 @@ impl GitStatus {
         for path in &self.intent_to_add_files {
             self.staged_files.remove(path);
             self.staged_added_files.remove(path);
+            // An empty file reads as added to the index with nothing changed
+            // since, so it would otherwise fall out of every list and a
+            // check of changed files would skip it.
+            self.unstaged_files.insert(path.clone());
         }
     }
 
