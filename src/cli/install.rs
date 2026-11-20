@@ -300,7 +300,11 @@ pub(crate) fn global_hooks_config_file() -> String {
 
 fn local_hook_command(use_mise: bool) -> OsString {
     if use_mise {
-        OsString::from("mise x -- hk")
+        match xx::file::which("mise") {
+            Some(mise) => mise_hook_command(&mise),
+            // Without a resolvable mise, rely on it being on Git's `PATH`.
+            None => OsString::from("mise x -- hk"),
+        }
     } else {
         OsString::from("hk")
     }
@@ -309,11 +313,14 @@ fn local_hook_command(use_mise: bool) -> OsString {
 /// The directory hook commands append to `PATH` so a bare `hk` still resolves
 /// when Git is launched with a minimal `PATH` (GUI Git clients, IDEs), where
 /// the user's shell `PATH` is not present. It is appended, so an `hk` the
-/// environment already provides keeps priority. `None` with `--mise`, where
-/// mise is the launcher.
+/// environment already provides keeps priority. With `--mise` it is mise's
+/// directory: the launcher runs mise by absolute path, and steps that call
+/// `mise` need it on `PATH` too.
 fn local_path_fallback(use_mise: bool) -> Option<PathBuf> {
     if use_mise {
-        return None;
+        return xx::file::which("mise")
+            .and_then(|mise| mise.parent().map(Path::to_path_buf))
+            .filter(|dir| dir.is_absolute());
     }
     let exe = std::env::current_exe().ok()?;
     let hk = stable_hk_path(&exe, std::env::var_os("PATH"));
@@ -1060,8 +1067,7 @@ mod tests {
     }
 
     #[test]
-    fn local_mise_command_keeps_existing_behavior() {
-        assert_eq!(local_hook_command(true), OsString::from("mise x -- hk"));
+    fn local_plain_command_is_bare_hk() {
         assert_eq!(local_hook_command(false), OsString::from("hk"));
     }
 
