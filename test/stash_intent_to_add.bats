@@ -381,3 +381,53 @@ PKL
     run hk_stash_list
     assert_output ""
 }
+
+# With stash = "none" nothing sets an intent-to-add file aside, so the status
+# alone must keep it out of the files steps are given (#1881).
+assert_stash_none_leaves_intent_to_add_alone() {
+    local use_libgit2="$1"
+    write_config none
+    commit_initial_files
+    HK_LIBGIT2="$use_libgit2" hk install
+    printf 'later\n' > new.txt
+    git add -N new.txt
+    printf 'staged v2\n' > staged.txt
+    git add staged.txt
+
+    HK_LIBGIT2="$use_libgit2" run git commit -m "change staged.txt"
+    assert_success
+    run git show --name-only --format= HEAD
+    assert_output "staged.txt"
+    run git status --porcelain
+    assert_output " A new.txt"
+    run cat new.txt
+    assert_output "later"
+    run cat "$SEEN/files"
+    assert_output "staged.txt"
+}
+
+@test "stash=none leaves an intent-to-add file out of the step's files with libgit2" {
+    assert_stash_none_leaves_intent_to_add_alone 1
+}
+
+@test "stash=none leaves an intent-to-add file out of the step's files with the git CLI" {
+    assert_stash_none_leaves_intent_to_add_alone 0
+}
+
+@test "hk check still selects an empty intent-to-add file" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] { steps { ["a"] { check = "echo checking {{files}}" } } }
+}
+PKL
+    commit_initial_files
+    : > empty.txt
+    git add -N empty.txt
+    printf 'new\n' > full.txt
+    git add -N full.txt
+
+    run hk check
+    assert_success
+    assert_output --partial "checking empty.txt full.txt"
+}

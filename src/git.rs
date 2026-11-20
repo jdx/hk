@@ -1531,6 +1531,7 @@ impl Git {
         } else {
             GitStatus::from_entries(entries)
         };
+        status.exclude_intent_to_add_from_staged();
         status.set_skipped(&skipped);
         warn_skipped_paths(&skipped);
         Ok(status)
@@ -4100,6 +4101,23 @@ impl GitStatus {
             || self.skipped_unstaged
             || !self.intent_to_add_files.is_empty()
             || (include_untracked && (!self.untracked_files.is_empty() || self.skipped_untracked))
+    }
+
+    /// Stops listing intent-to-add files as staged.
+    ///
+    /// libgit2 reports `git add -N` as an addition to the index, but a commit
+    /// leaves such a file out. Steps that run on staged files must not be given
+    /// it, or a fixer would change it and the hook would add it to the commit.
+    /// The status read through the git CLI never lists it as staged.
+    pub fn exclude_intent_to_add_from_staged(&mut self) {
+        for path in &self.intent_to_add_files {
+            self.staged_files.remove(path);
+            self.staged_added_files.remove(path);
+            // An empty file reads as added to the index with nothing changed
+            // since, so it would otherwise fall out of every list and a
+            // check of changed files would skip it.
+            self.unstaged_files.insert(path.clone());
+        }
     }
 
     fn set_skipped(&mut self, skipped: &SkippedPaths) {
