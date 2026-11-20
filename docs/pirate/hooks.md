@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: 4999b67c72c5
+sourceHash: 81c84115625f
 ---
 
 # Git hooks and stowing the hold
@@ -54,6 +54,24 @@ Steps can read the references that picked their cargo, for tools that need a bas
 ```
 
 This assumes [eslint-plugin-diff](https://github.com/paleite/eslint-plugin-diff#readme) is installed and enabled in diff mode in yer ESLint config. With `hk check --from-ref origin/main`, ESLint then reports only problems on lines changed since `origin/main`. hk hands over the reference exactly as given; it does not resolve it to a commit or to the merge base it diffs against.
+
+When `to_ref` is empty and only `--from-ref` is given, the range ends at `HEAD`, so `{{to_ref}}` and `HK_TO_REF` are `HEAD`.
+
+### Inspecting every pushed voyage for secrets {#scanning-every-pushed-commit-for-secrets}
+
+A scan of the cargo or of the tip misses a secret that one voyage loads and a later voyage strikes out, because the push still carries the first voyage. The lookouts `gitleaks`, `betterleaks`, `trufflehog`, and `kingfisher` take `scan = "commits"` to inspect every voyage in the run's range:
+
+```pkl
+hooks {
+    ["pre-push"] {
+        steps {
+            ["gitleaks"] = (Builtins.gitleaks) { scan = "commits" }
+        }
+    }
+}
+```
+
+A push that loads a credential in one voyage and strikes it out in the next now fails, and so does `hk check --from-ref origin/main`. These hands set `requires_ref_range = true`, so a run with no range, such as `hk check` or a `pre-commit` hook, fails the hand with `gitleaks: needs a ref range (pre-push, --from-ref, or --pr)` instead of passing without inspecting a thing. Use `requires_ref_range` on yer own hand when its command needs `{{from_ref}}` and `{{to_ref}}`. In this mode the lookouts read voyages rather than cargo, so they ignore `types` and run even when the range changes no files. The default `scan` of each builtin is unchanged. This mode is tested with kingfisher 2.18.1.
 
 ## Stowing the hold for a partial voyage {#stashing-and-partial-commits}
 
