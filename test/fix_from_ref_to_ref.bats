@@ -147,3 +147,134 @@ EOF
     assert_success
     assert_output --partial "condition evaluated to false"
 }
+
+@test "requires_ref_range fails a step without a range and runs it with one" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["scan"] {
+                requires_ref_range = true
+                check = "echo scan-ran range=[{{from_ref}}..{{to_ref}}]"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+    git add a.txt
+    git commit -m "second commit"
+
+    run hk check
+    assert_failure
+    assert_output --partial "scan: needs a ref range (pre-push, --from-ref, or --pr)"
+    refute_output --partial "scan-ran"
+
+    run hk check --from-ref HEAD~1 --to-ref HEAD
+    assert_success
+    assert_output --partial "scan-ran range=[HEAD~1..HEAD]"
+
+    # With only a start, the range ends at HEAD.
+    run hk check --from-ref HEAD~1
+    assert_success
+    assert_output --partial "scan-ran range=[HEAD~1..HEAD]"
+}
+
+@test "requires_ref_range does not fail a skipped step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["scan"] {
+                requires_ref_range = true
+                check = "echo scan-ran"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+
+    run hk check --skip-step scan
+    assert_success
+    refute_output --partial "needs a ref range"
+    refute_output --partial "scan-ran"
+}
+
+@test "requires_ref_range does not fail a step whose condition or profile skips it" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["cond"] {
+                requires_ref_range = true
+                condition = "false"
+                check = "echo cond-ran"
+            }
+            ["prof"] {
+                requires_ref_range = true
+                condition = "true"
+                profiles = List("security")
+                check = "echo prof-ran"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+    echo a > a.txt
+
+    run hk check
+    assert_success
+    refute_output --partial "needs a ref range"
+    refute_output --partial "-ran"
+}
+
+@test "a pre-push hook blocks a secret that a later commit removes" {
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+    ["pre-push"] {
+        steps {
+            ["gitleaks"] = (Builtins.gitleaks) { scan = "commits" }
+        }
+    }
+}
+EOF
+    git init --bare "$BATS_TEST_TMPDIR/remote.git"
+    git init
+    git remote add origin "$BATS_TEST_TMPDIR/remote.git"
+    git add hk.pkl
+    git commit -m "initial commit"
+    git push origin HEAD:main
+    hk install
+    echo clean > clean.txt
+    git add clean.txt
+    git commit -m "clean commit"
+    run git push origin HEAD:main
+    assert_success
+    echo "awsToken = AKIALALEMEL33243OLIA" > s.txt # gitleaks:allow (public test fixture)
+    git add s.txt
+    git commit -m "add secret"
+    git rm s.txt
+    git commit -m "remove secret"
+
+    run git push origin HEAD:main
+    assert_failure
+    assert_output --partial "leaks found: 1"
+    run git --git-dir="$BATS_TEST_TMPDIR/remote.git" rev-parse --verify main
+    refute_output "$(git rev-parse HEAD)"
+}

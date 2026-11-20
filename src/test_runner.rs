@@ -89,6 +89,12 @@ async fn execute_cmd_combined(
         runner = runner.stdin_string(rendered_stdin);
     }
     runner = runner.current_dir(base_dir);
+    for key in ["from_ref", "to_ref"] {
+        runner = runner.env(
+            format!("HK_{}", key.to_ascii_uppercase()),
+            tctx.string(key).unwrap_or_default(),
+        );
+    }
     for (k, v) in rendered_step_env {
         runner = runner.env(k, v);
     }
@@ -419,6 +425,16 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .unwrap_or_else(|_| tmp.path().to_path_buf());
     let mut tctx = crate::tera::Context::default();
     tctx.insert("tmp", &sandbox.display().to_string());
+    // Like a real run, empty when there is no range, and `HEAD` ends a range
+    // that only has a start.
+    let from_ref = test.from_ref.clone().unwrap_or_default();
+    let to_ref = match (&test.to_ref, from_ref.is_empty()) {
+        (Some(to), _) => to.clone(),
+        (None, false) => "HEAD".to_string(),
+        (None, true) => String::new(),
+    };
+    tctx.insert("from_ref", &from_ref);
+    tctx.insert("to_ref", &to_ref);
 
     let rendered_write: IndexMap<PathBuf, &String> = test
         .write
@@ -551,13 +567,22 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Run main command
 
-    let (mut stdout, mut stderr, mut code, combined) =
-        execute_cmd_combined(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
+    let missing_range = step.requires_ref_range && from_ref.is_empty();
+    let (mut stdout, mut stderr, mut code, combined) = if missing_range {
+        // A real run fails the step without running its command.
+        let message = format!(
+            "{}: needs a ref range (pre-push, --from-ref, or --pr)",
+            step.name
+        );
+        (String::new(), message.clone(), 1, message)
+    } else {
+        execute_cmd_combined(step, &tctx, &base_dir, test, &run, &step.stdin).await?
+    };
 
     // A diff test applies the patch as fix mode would, but a patch that
     // doesn't apply fails the test instead of falling back to `fix`.
     let mut diff_reason = None;
-    if matches!(test.run, RunKind::Diff) && code != 0 {
+    if !missing_range && matches!(test.run, RunKind::Diff) && code != 0 {
         if step.apply_diff_output(&stdout, base_dir.to_str())? {
             code = 0;
             if step.check_after_diff

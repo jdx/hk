@@ -7,13 +7,27 @@ local const fakePat = "ghp_" + "qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a
 
 class BetterleaksStep extends Config.Step {
   // "files" scans the whole content of the files hk selected. "staged" scans only the
-  // added lines of the git index, so it is meant for the pre-commit hook.
-  hidden scan: "files" | "staged" = "files"
-  types = if (scan == "staged") null else List("text")
+  // added lines of the git index, so it is meant for the pre-commit hook. "commits" scans every
+  // commit in the run's ref range (`pre-push`, `--from-ref`, or `--pr`), which catches a secret
+  // that a later commit removes.
+  hidden scan: "files" | "staged" | "commits" = "files"
+  // No `types` filter in `staged` and `commits` modes: a range whose commits add and remove a
+  // file has no changed files, and hk would skip the step with "no files to run".
+  types = if (scan == "files") List("text") else null
+  requires_ref_range = scan == "commits"
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv =
-        if (scan == "staged")
+        if (scan == "commits")
+          List(
+            "betterleaks",
+            "git",
+            "--redact",
+            "--verbose",
+            "--no-banner",
+            "--log-opts={{from_ref}}..{{to_ref}}",
+          )
+        else if (scan == "staged")
           // Reference: https://github.com/betterleaks/betterleaks/blob/v1.10.1/.pre-commit-hooks.yaml#L18
           List(
             "betterleaks",
@@ -31,7 +45,9 @@ class BetterleaksStep extends Config.Step {
     effect = "read"
   }
   tests =
-    if (scan == "staged")
+    if (scan == "commits")
+      helpers.commitScanTests("token = \"" + fakePat + "\"", 1)
+    else if (scan == "staged")
       new Mapping<String, Config.StepTest> {
         local const testMaker = new helpers.TestMaker {
           filename = "foo.txt"

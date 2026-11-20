@@ -143,13 +143,16 @@ impl HookOptions {
     }
 
     /// Hook variables plus `from_ref`/`to_ref`, empty when the run has no range.
+    /// `to_ref` is `HEAD` when only `from_ref` is set.
     pub(crate) fn hook_vars_with_refs(&self) -> indexmap::IndexMap<String, serde_json::Value> {
         let mut vars = self.hook_vars.clone();
-        for (key, val) in [("from_ref", &self.from_ref), ("to_ref", &self.to_ref)] {
-            vars.insert(
-                key.to_string(),
-                serde_json::Value::from(val.as_deref().unwrap_or("")),
-            );
+        // A range with only a start ends at HEAD, as `files_between_refs` does.
+        let to_ref = self
+            .to_ref
+            .as_deref()
+            .or(self.from_ref.is_some().then_some("HEAD"));
+        for (key, val) in [("from_ref", self.from_ref.as_deref()), ("to_ref", to_ref)] {
+            vars.insert(key.to_string(), serde_json::Value::from(val.unwrap_or("")));
         }
         vars
     }

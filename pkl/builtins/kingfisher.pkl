@@ -2,6 +2,57 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+class KingfisherStep extends Config.Step {
+  // Select whether to scan the given files or every commit in the run's ref range (`pre-push`,
+  // `--from-ref`, or `--pr`). `"commits"` catches a secret that a later commit removes.
+  hidden scan: "files" | "commits" = "files"
+  // No `types` filter in `commits` mode: a range whose commits add and remove a file has no
+  // changed files, and hk would skip the step with "no files to run".
+  types = if (scan == "files") List("text") else null
+  requires_ref_range = scan == "commits"
+  // Reference: https://github.com/mongodb/kingfisher/blob/v2.18.1/.pre-commit-hooks.yaml
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        if (scan == "commits")
+          List(
+            "kingfisher",
+            "scan",
+            ".",
+            "--since-commit",
+            "{{from_ref}}",
+            "--branch",
+            "{{to_ref}}",
+            "--no-update-check",
+            "--no-validate",
+            "--quiet",
+          )
+        else
+          List("kingfisher", "scan", "{{files}}", "--no-update-check", "--no-validate", "--quiet")
+    }
+    effect = "read"
+  }
+  tests =
+    if (scan == "commits")
+      helpers.commitScanTests(
+        "token = \"xoxb-229090314224-691247287811-FAKE5lrl" + "R3O9eYVKf4eKpras\"",
+        200,
+      )
+    else
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+        // Findings exit with code 200 (205 when validation is enabled and a secret is live).
+        // Reference: https://github.com/mongodb/kingfisher/blob/v2.18.1/testdata/slack_tokens.properties
+        // The token is split so secret-scanning push protection does not match the literal.
+        ["check bad file"] =
+          testMaker.checkFail(
+            "token = \"xoxb-229090314224-691247287811-FAKE5lrl" + "R3O9eYVKf4eKpras\"", // gitleaks:allow (fake test token)
+            200,
+          )
+        ["check good file"] = testMaker.checkPass("message = foobar")
+      }
+}
+
 @Builtins.meta {
   category = "Secrets"
   description = "Secret scanner with live validation and 1,000+ rules"
@@ -10,26 +61,6 @@ import "./test/helpers.pkl"
   }
   mise_tools = List("kingfisher")
 }
-kingfisher = new Config.Step {
-  types = List("text")
-  // Reference: https://github.com/mongodb/kingfisher/blob/v1.109.0/.pre-commit-hooks.yaml
-  check = new Config.CommandSpec {
-    command = new Config.Command {
-      argv =
-        List("kingfisher", "scan", "{{files}}", "--no-update-check", "--no-validate", "--quiet")
-    }
-    effect = "read"
-  }
-  tests {
-    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
-    // Findings exit with code 200 (205 when validation is enabled and a secret is live).
-    // Reference: https://github.com/mongodb/kingfisher/blob/v1.109.0/testdata/slack_tokens.properties
-    // The token is split so secret-scanning push protection does not match the literal.
-    ["check bad file"] =
-      testMaker.checkFail(
-        "token = \"xoxb-229090314224-691247287811-FAKE5lrl" + "R3O9eYVKf4eKpras\"",
-        200,
-      )
-    ["check good file"] = testMaker.checkPass("message = foobar")
-  }
-}
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
+kingfisher = (new KingfisherStep {}) as Config.Step

@@ -89,6 +89,7 @@ const STEP_KEYS: &[&str] = &[
     "dir",
     "condition",
     "step_condition",
+    "requires_ref_range",
     "check_first",
     "batch",
     "batch_min_files",

@@ -159,6 +159,20 @@ impl Step {
             self.mark_skipped(ctx, &reason)?;
             return Ok(());
         }
+        // Checked once every skip has been ruled out (`--skip-step`, profiles,
+        // conditions), so a step that does not run never fails for lack of a range.
+        if self.requires_ref_range
+            && ctx
+                .hook_ctx
+                .tctx
+                .string("from_ref")
+                .is_none_or(|from| from.is_empty())
+        {
+            return Err(eyre::eyre!(
+                "{}: needs a ref range (pre-push, --from-ref, or --pr)",
+                self.name
+            ));
+        }
         job.progress = Some(job.build_progress(ctx));
         // Every command starts with fresh file locks and shared diff access,
         // including a fallback fixer or the check after applying a diff.

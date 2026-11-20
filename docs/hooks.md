@@ -54,6 +54,24 @@ Steps can see the references that picked their files, for tools that need a base
 
 This assumes [eslint-plugin-diff](https://github.com/paleite/eslint-plugin-diff#readme) is installed and enabled in diff mode in your ESLint config. With `hk check --from-ref origin/main`, ESLint then reports only problems on lines changed since `origin/main`. hk passes the reference as given; it does not resolve it to a commit or to the merge base it diffs against.
 
+When `to_ref` is empty and only `--from-ref` is given, the range ends at `HEAD`, so `{{to_ref}}` and `HK_TO_REF` are `HEAD`.
+
+### Scanning every pushed commit for secrets
+
+A scan of the files or the tip misses a secret that one commit adds and a later commit removes, because the push still sends the first commit. The secret scanners `gitleaks`, `betterleaks`, `trufflehog`, and `kingfisher` take `scan = "commits"` to scan every commit in the run's range:
+
+```pkl
+hooks {
+    ["pre-push"] {
+        steps {
+            ["gitleaks"] = (Builtins.gitleaks) { scan = "commits" }
+        }
+    }
+}
+```
+
+A push that adds a credential in one commit and removes it in the next now fails, and so does `hk check --from-ref origin/main`. These steps set `requires_ref_range = true`, so a run with no range, such as `hk check` or a `pre-commit` hook, fails the step with `gitleaks: needs a ref range (pre-push, --from-ref, or --pr)` instead of passing without scanning. Use `requires_ref_range` on your own step when its command needs `{{from_ref}}` and `{{to_ref}}`. In this mode the scanners read commits rather than files, so they ignore `types` and run even when the range changes no files. The default `scan` of each builtin is unchanged. This mode is tested with kingfisher 2.18.1.
+
 ## Stashing and partial commits
 
 For a pre-commit hook that applies fixes, set both `fix` and `stash`:

@@ -1032,6 +1032,25 @@ open class Step {
 
   /// Default: `false`
   ///
+  /// If true, the step fails without running its command when the run has no ref range, that is,
+  /// when `from_ref` is empty. A run has a range under `pre-push`, `--from-ref`, or `--pr`.
+  ///
+  /// Use it for a command that reads `{{from_ref}}` and `{{to_ref}}` and does the wrong thing
+  /// without them. `step_condition = "from_ref != ''"` skips the step instead, so a step placed in
+  /// a hook that has no range, such as `pre-commit`, would pass without running.
+  ///
+  /// ```pkl
+  /// local linters = new Mapping {
+  ///     ["scan-commits"] {
+  ///         requires_ref_range = true
+  ///         check = new Config.Command { argv = List("gitleaks", "git", "--log-opts={{from_ref}}..{{to_ref}}") }
+  ///     }
+  /// }
+  /// ```
+  requires_ref_range: Boolean = false
+
+  /// Default: `false`
+  ///
   /// If true, the step will be hidden from output.
   ///
   /// ```pkl
@@ -1241,6 +1260,14 @@ class StepTest {
 
   /// Command to run after the main command, before expectations (cleanup or extra verification)
   after: String?
+
+  /// Start of the ref range, passed to the step as `{{from_ref}}` and `HK_FROM_REF` like a real
+  /// run does. Without it, `from_ref` is empty and a step with `requires_ref_range` fails.
+  from_ref: String?
+
+  /// End of the ref range, passed as `{{to_ref}}` and `HK_TO_REF`. Defaults to `HEAD` when
+  /// `from_ref` is set.
+  to_ref: String?
 
   /// Whether to run in a temporary directory sandbox
   /// If true, always use a sandbox; if false, always use repo root
