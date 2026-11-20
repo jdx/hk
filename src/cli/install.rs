@@ -163,6 +163,14 @@ impl Install {
             let shim_fallback = path_fallback
                 .as_deref()
                 .filter(|dir| dir.to_str().is_some());
+            // The same goes for the command itself, which holds mise's path
+            // under `--mise`: keep the bare launcher rather than write a
+            // lossy path that would break every hook.
+            let (command, shim_fallback) = if command.to_str().is_some() {
+                (command, shim_fallback)
+            } else {
+                (OsString::from("mise x -- hk"), None)
+            };
             install_local_shims(&events, &command, shim_fallback, self.force)
         }
     }
