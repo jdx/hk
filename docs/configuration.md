@@ -268,6 +268,21 @@ therefore resolves to the wrong path. hk reports it as a missing working
 directory rather than failing obscurely; use a literal `dir` in subprojects for
 now.
 
+### Git environment variables in steps {#git-env}
+
+When hk runs from a git hook, steps inherit the environment git gives the hook, including `GIT_DIR`. A step with `dir` also gets `GIT_WORK_TREE` set to the repository root, so git commands run from the subdirectory still find the work tree.
+
+Because `GIT_DIR` points at the repository being committed or pushed, a `git init` in a step, such as `git -C "$tmp" init` in a test that builds a scratch repository, re-initializes that repository instead of creating a new one. In a linked worktree, that config is shared with the main checkout and every other worktree, so the damage reaches all of them. Plain git hooks behave the same way. Clear the repository-local variables before running git on another repository:
+
+```pkl
+["scratch-repo-test"] {
+    check = """
+    unset $(git rev-parse --local-env-vars)
+    git -C "$tmp" init -q
+    """
+}
+```
+
 ### Focus checks on failing files
 
 For tools whose detailed `check` output cannot identify failing files in a machine-readable form, set `check_failed_files = true` and provide either `check_list_files` or `check_diff`:
