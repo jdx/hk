@@ -273,7 +273,7 @@ working directory rather than failing in some murky way; for now, use a literal
 
 ### What the hands see of Git: Git environment variables in steps {#git-env}
 
-When hk sails from a git hook, the hands inherit the environment git gives the hook, `GIT_DIR` among it. A hand with `dir` also gets `GIT_WORK_TREE` set to the root of the ship, so git commands run from that directory still find the work tree. hk sets it only when the root of the ship holds a `.git` entry and `GIT_WORK_TREE` is not already set; otherwise it leaves it unset.
+When hk sails from a git hook, the hands inherit the environment git gives the hook, `GIT_DIR` among it. A hand with `dir` also gets `GIT_WORK_TREE` set to the root of the ship, so git commands run from that directory still find the work tree. hk sets it only when the root of the ship holds a `.git` entry and `GIT_WORK_TREE` is not already set; otherwise hk does not set it, and an existing value is kept.
 
 Mind this, matey: `GIT_DIR` points at the ship being committed or pushed, so a `git init` in a hand, such as `git -C "$tmp" init` in a test that builds a scratch repository, re-initializes that very ship instead of launching a new one. In a linked worktree that config is shared with the main checkout and every other worktree, so the damage reaches them all. Plain git hooks behave the same way. Clear the repository-local variables before running git on another ship:
 
