@@ -436,9 +436,15 @@ impl Step {
         }
         // Git invokes hooks from the work-tree root, so GIT_DIR alone is
         // sufficient until hk scopes a step to a subdirectory. Make the root
-        // explicit only in the child process, keeping the temporary index from
-        // GIT_INDEX_FILE without mutating the environment shared by workers.
-        if std::env::var_os("GIT_DIR").is_some() && std::env::var_os("GIT_WORK_TREE").is_none() {
+        // explicit only in the child process for such scoped steps, keeping the
+        // temporary index from GIT_INDEX_FILE without mutating the environment
+        // shared by workers. Unscoped steps keep the environment git gave the
+        // hook: with GIT_WORK_TREE set, a `git init` elsewhere in a step would
+        // re-initialize the repository at GIT_DIR and write core.worktree.
+        if rendered_dir.is_some()
+            && std::env::var_os("GIT_DIR").is_some()
+            && std::env::var_os("GIT_WORK_TREE").is_none()
+        {
             let root = std::env::current_dir()?;
             if root.join(".git").exists() {
                 cmd = cmd.env("GIT_WORK_TREE", root);

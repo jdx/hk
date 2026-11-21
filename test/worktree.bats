@@ -127,6 +127,33 @@ EOF
     assert_success
 }
 
+@test "unscoped hook step does not get GIT_WORK_TREE, so git init elsewhere leaves core.worktree unset" {
+    cd "$WORKTREE_DIR"
+    mkdir -p "$TEST_TEMP_DIR/scratch"
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["scratch-init"] {
+                check = "test -z \"\$GIT_WORK_TREE\" && git -C \"$TEST_TEMP_DIR/scratch\" init -q"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "add hk config"
+    hk install
+
+    echo "modified" > file.txt
+    run git commit -am "trigger hook"
+    assert_success
+    run git -C "$TEST_TEMP_DIR/src/proj" config --get core.worktree
+    assert_failure
+}
+
 @test "hk run pre-commit works in a git worktree" {
     cd "$WORKTREE_DIR"
 
