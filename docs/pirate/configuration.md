@@ -62,6 +62,41 @@ hooks {
 
 Without top-level steps, hk does not rig the three default hooks. The example above declares only `check` and `pre-commit`; declare a `fix` hook too if ye want `hk fix`. Typed mappings already in yer charts, such as `local linters = new Mapping<String, Step> { ... }` and `steps = linters`, are still supported.
 
+### Loading generated cargo aboard: staging generated files {#staging-generated-files}
+
+Hook-level `stage` calls up loading cargo aboard for a hook; step-level `stage` filters which
+paths hk adds after a fix. They solve different problems. Loading aboard is called up by
+default for `pre-commit`, but not for manual `hk fix` or custom hooks. A hand's
+`stage` list does not call it up by itself. When set, it is the allowlist:
+include both the changed inputs ye want on the voyage and any generated outputs that
+lie outside the hand's input file list.
+
+For example, a dependency checker can read a changed manifest but regenerate a
+repository-wide snapshot that lies outside its input file list:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["dependency-snapshot"] {
+        glob = List("package.json")
+        fix = "dependency-checker --fix {{files}}"
+        stage = List("package.json", ".github/dependency-snapshot.json")
+      }
+    }
+  }
+}
+```
+
+The `pre-commit` hook calls up loading aboard, and the hand's allowlist includes
+both the manifest edit and the generated snapshot. When `fail_on_fix` is not
+`true`, call up loading aboard for a custom hook with `stage = true` or for a manual
+run with `hk fix --stage`. When `fail_on_fix = true`, hk does not load fix
+output aboard. Better to declare generated outputs on the hand than to run
+`git add` inside the command. Newly created outputs also depend on untracked-file
+discovery: setting [`HK_STASH_UNTRACKED`](/environment_variables#hk-stash-untracked)
+to `false` stands that discovery down, so the generated file may not get loaded aboard.
+
 ### Where hk looks for the charts {#config-file-paths}
 
 hk starts in the current directory and climbs upward, like a hand going up the rigging. At each directory it checks these paths in order and takes the first one it finds:
@@ -235,6 +270,21 @@ relative to the repo root, never to a subproject. So a subproject config that
 sets a templated `dir` resolves to the wrong path. hk reports it as a missing
 working directory rather than failing in some murky way; for now, use a literal
 `dir` in subprojects.
+
+### What the hands see of Git: Git environment variables in steps {#git-env}
+
+When hk sails from a git hook, the hands inherit the environment git gives the hook, `GIT_DIR` among it. A hand with `dir` also gets `GIT_WORK_TREE` set to the root of the ship, so git commands run from that directory still find the work tree.
+
+Mind this, matey: `GIT_DIR` points at the ship being committed or pushed, so a `git init` in a hand, such as `git -C "$tmp" init` in a test that builds a scratch repository, re-initializes that very ship instead of launching a new one. In a linked worktree that config is shared with the main checkout and every other worktree, so the damage reaches them all. Plain git hooks behave the same way. Clear the repository-local variables before running git on another ship:
+
+```pkl
+["scratch-repo-test"] {
+    check = """
+    unset $(git rev-parse --local-env-vars)
+    git -C "$tmp" init -q
+    """
+}
+```
 
 ### Focus the lookouts on failing files {#focus-checks-on-failing-files}
 
