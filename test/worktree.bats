@@ -127,6 +127,32 @@ EOF
     assert_success
 }
 
+@test "unscoped hook step does not inherit GIT_WORK_TREE" {
+    cd "$WORKTREE_DIR"
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["no-work-tree"] {
+                check = "test -z \"\${GIT_WORK_TREE-}\""
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "add hk config"
+    hk install
+
+    echo "modified" > file.txt
+    run git commit -am "test unscoped step env"
+    assert_success
+    run git -C "$TEST_TEMP_DIR/src/proj" config --get core.worktree
+    assert_failure
+}
+
 @test "hk run pre-commit works in a git worktree" {
     cd "$WORKTREE_DIR"
 
