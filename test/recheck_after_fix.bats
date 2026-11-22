@@ -199,3 +199,32 @@ EOF
     assert_equal "$(cat b.txt)" "$(printf 'ok\nBAD')"
     assert_equal "$(_lint_runs)" 2
 }
+
+@test "with fail_fast, a stale check that never runs again is not reported as passed" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+fail_fast = true
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["one"] { glob = "*.txt"; exclusive = true; check = "! grep -l BAD {{files}}" }
+            ["two"] { glob = "*.txt"; exclusive = true; check = "! grep -l BAD {{files}}" }
+            ["fmt"] {
+                glob = "*.txt"
+                fix = "for f in {{files}}; do echo BAD >> \"\$f\"; done"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -qm "initial commit"
+    echo ok > a.txt
+    git add a.txt
+
+    run bash -c "hk --format json fix 2>/dev/null"
+    assert_failure
+    run jq -r '.steps[] | "\(.name) \(.status)"' <<<"$output"
+    assert_output "$(printf 'one failed\ntwo cancelled\nfmt passed')"
+}

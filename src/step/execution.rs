@@ -215,11 +215,18 @@ pub(crate) async fn recheck_stale_checks(
         .collect();
     groups.push(by_step.into_values().collect());
     let mut result = Ok(());
-    for group in groups.into_iter().filter(|group| !group.is_empty()) {
+    let mut groups = groups.into_iter().filter(|group| !group.is_empty());
+    for group in groups.by_ref() {
         result = result.and(recheck_group(hook_ctx, group, fail_fast).await);
         if fail_fast && result.is_err() {
             break;
         }
+    }
+    // A fix made the first pass of these stale, and they never ran again, so
+    // they did not pass: report them as cancelled, like steps that never ran.
+    let mut finished = hook_ctx.finished_steps.lock().unwrap();
+    for jobs in groups.flatten() {
+        finished.remove(&jobs[0].step.name);
     }
     result
 }
