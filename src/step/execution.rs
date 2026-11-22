@@ -178,8 +178,8 @@ async fn wait_for_dependency(
 /// fix changed one of its files (see [`crate::passed_checks`]), so the run
 /// fails if the fixed files no longer pass.
 ///
-/// Each stale job runs on the same files as before. The checks run in
-/// parallel, as steps do, and report like the steps they belong to.
+/// Each stale job runs on the same files as before, in the hook's step groups
+/// and their order, and reports like the step it belongs to.
 pub(crate) async fn recheck_stale_checks(
     hook_ctx: &Arc<crate::hook::HookContext>,
     fail_fast: bool,
@@ -200,13 +200,44 @@ pub(crate) async fn recheck_stale_checks(
         job.recheck_after = Some(fixers);
         by_step.entry(job.step.name.clone()).or_default().push(job);
     }
-    let steps: Vec<Arc<Step>> = by_step.values().map(|jobs| jobs[0].step.clone()).collect();
+    // Keep the hook's groups and their order, so an exclusive step still runs
+    // alone, and steps in a group run together as they did the first time.
+    let mut groups: Vec<Vec<Vec<crate::step_job::StepJob>>> = hook_ctx
+        .groups
+        .iter()
+        .map(|group| {
+            group
+                .steps
+                .values()
+                .filter_map(|step| by_step.shift_remove(&step.name))
+                .collect()
+        })
+        .collect();
+    groups.push(by_step.into_values().collect());
+    let mut result = Ok(());
+    for group in groups.into_iter().filter(|group| !group.is_empty()) {
+        result = result.and(recheck_group(hook_ctx, group, fail_fast).await);
+        if fail_fast && result.is_err() {
+            break;
+        }
+    }
+    result
+}
+
+/// Run the stale checks of one step group again, each step's jobs together.
+/// A step waits for the steps it depends on among them, as in the first run.
+async fn recheck_group(
+    hook_ctx: &Arc<crate::hook::HookContext>,
+    group: Vec<Vec<crate::step_job::StepJob>>,
+    fail_fast: bool,
+) -> Result<()> {
+    let steps: Vec<Arc<Step>> = group.iter().map(|jobs| jobs[0].step.clone()).collect();
     let depends = Arc::new(StepDepends::new(
         &steps.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
     ));
     let batch_jobs = Arc::new(crate::step::SharedBatchJobs::new(steps.clone()));
     let mut set = tokio::task::JoinSet::new();
-    for (step, jobs) in steps.into_iter().zip(by_step.into_values()) {
+    for (step, jobs) in steps.into_iter().zip(group) {
         let ctx = Arc::new(StepContext {
             step: step.clone(),
             hook_ctx: hook_ctx.clone(),
@@ -225,10 +256,17 @@ pub(crate) async fn recheck_stale_checks(
             .insert(step.name.clone(), ctx.clone());
         let hook_ctx = hook_ctx.clone();
         set.spawn(async move {
-            let result = step
-                .clone()
-                .recheck_jobs(ctx.clone(), jobs, fail_fast)
-                .await;
+            let result = async {
+                for dep in &step.depends {
+                    wait_for_dependency(&ctx.depends, dep, &hook_ctx.failed).await?;
+                }
+                step.clone()
+                    .recheck_jobs(ctx.clone(), jobs, fail_fast)
+                    .await
+            }
+            .await;
+            // However the step ended, the steps waiting for it can go on.
+            let _ = ctx.depends.mark_done(&step.name);
             hook_ctx
                 .step_contexts
                 .lock()
@@ -531,6 +569,13 @@ impl Step {
                                     // Files the output names outside this job, which it
                                     // holds no locks on.
                                     let names_other_files = !extras.is_empty();
+                                    // A patch can change these, and a check may
+                                    // already have passed on them.
+                                    let root = std::env::current_dir()?.canonicalize()?;
+                                    let other_files: Vec<PathBuf> = extras
+                                        .iter()
+                                        .map(|f| f.strip_prefix(&root).unwrap_or(f).to_path_buf())
+                                        .collect();
                                     for f in extras {
                                         warn!(
                                             "{step}: file in check output not found in original files: {}",
@@ -641,6 +686,13 @@ impl Step {
                                         let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
                                         let applied = {
                                             let _diff_guard = job.lock_diff(&ctx).await?;
+                                            // The job's own files are watched while
+                                            // it holds their locks; watch the others
+                                            // the patch changes.
+                                            let _watch = ctx
+                                                .hook_ctx
+                                                .passed_checks
+                                                .watch(&step.name, &other_files);
                                             step.apply_diff_output(stdout, dir.as_deref())
                                         };
                                         match applied {
