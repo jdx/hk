@@ -35,6 +35,9 @@ pub struct StepJob {
     /// Set while `check` runs again after a patch applied, for a step with
     /// `check_after_diff`.
     pub rechecking_after_diff: bool,
+    /// The steps whose fixes made this job's earlier pass stale, while the
+    /// job checks their files again.
+    pub recheck_after: Option<String>,
 
     pub status: StepJobStatus,
 }
@@ -68,6 +71,7 @@ impl StepJob {
             semaphore: None,
             diff_needs_write_locks: false,
             rechecking_after_diff: false,
+            recheck_after: None,
         }
     }
 
@@ -233,7 +237,17 @@ impl StepJob {
         // Wait for file locks and a job slot before taking shared access, so
         // a waiting command cannot hold up an active patch transaction.
         let command_guard = ctx.hook_ctx.diff_lock.clone().read_owned().await;
-        self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore, command_guard));
+        // A fixer may change files that a check already passed on. A check
+        // holding write locks for its caches is not watched.
+        let watch = (self.takes_write_locks() && !self.only_checks_in_fix_run())
+            .then(|| {
+                ctx.hook_ctx
+                    .passed_checks
+                    .watch(&self.step.name, &self.files)
+            })
+            .flatten();
+        self.status =
+            StepJobStatus::Started(StepLocks::new(watch, flocks, semaphore, command_guard));
         Ok(true)
     }
 
@@ -323,6 +337,18 @@ impl StepJob {
                 .is_some_and(|check| check.effect() == Some(CommandEffect::Read))
     }
 
+    /// Whether this job, in fix mode, only checks its files: its step has no
+    /// `fix` and no `check_diff` to apply, so fix mode runs its `check`. When
+    /// it passes, a later fixer can still change the files; see
+    /// [`crate::passed_checks`].
+    pub fn only_checks_in_fix_run(&self) -> bool {
+        self.requested_run_type == RunType::Fix
+            && self.run_type == RunType::Fix
+            && !self.check_first
+            && self.step.fix.is_none()
+            && !self.step.applies_check_diff()
+    }
+
     /// Whether this job is rerunning a read-only `check` after applying a
     /// patch (`check_after_diff`), which only needs read locks.
     fn rechecks_under_read_locks(&self) -> bool {
@@ -371,6 +397,7 @@ impl Clone for StepJob {
             semaphore: None,
             diff_needs_write_locks: self.diff_needs_write_locks,
             rechecking_after_diff: self.rechecking_after_diff,
+            recheck_after: self.recheck_after.clone(),
         }
     }
 }

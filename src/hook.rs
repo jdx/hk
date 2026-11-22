@@ -363,6 +363,8 @@ pub struct HookContext {
     pub initial_unstaged: StdMutex<BTreeSet<PathBuf>>,
     /// Files steps have queued for staging under `git`; see `Step::stage_files`.
     pub stage_queue: StageQueue,
+    /// Checks that passed in a fix run, rerun if a fixer changes their files.
+    pub passed_checks: Arc<crate::passed_checks::PassedChecks>,
 }
 
 impl HookContext {
@@ -423,6 +425,7 @@ impl HookContext {
             initial_untracked,
             initial_unstaged: StdMutex::new(initial_unstaged),
             stage_queue: StageQueue::default(),
+            passed_checks: Default::default(),
         }
     }
 
@@ -1705,6 +1708,11 @@ impl Hook {
             if fail_fast && result.is_err() {
                 break;
             }
+        }
+        // A check that passed before another step's fix changed its files
+        // says nothing about the fixed contents: check them again.
+        if result.is_ok() && matches!(run_type, RunType::Fix) && !hook_ctx.failed.is_cancelled() {
+            result = crate::step::recheck_stale_checks(&hook_ctx, fail_fast).await;
         }
         settle_timeout(&mut result);
         // When fail_on_fix is enabled, fail if fix commands actually modified files.

@@ -181,6 +181,8 @@ Steps run concurrently, up to the job limit, unless coordination requires them t
 
 Locks prevent simultaneous writes; they do not choose the final style when tools disagree. Configure compatible rules or declare an explicit dependency.
 
+In a fix run, a step that only checks can pass before another step fixes the same file. When a fix changes the contents of a file that a check already passed, hk runs that check again on the same files after every step has finished, and the run fails if the fixed file no longer passes. The progress line shows the second run as `(again, fmt changed its files)`. To check each file once, after its fixes, add `depends` on the fixer to the check step.
+
 ## Allowing a step to fail
 
 Set `allow_failure = true` on a step to run it and report a non-zero command

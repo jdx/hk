@@ -1,9 +1,13 @@
 use crate::file_rw_locks::Flocks;
+use crate::passed_checks::WriteWatch;
 use tokio::sync::{OwnedRwLockReadGuard, OwnedSemaphorePermit};
 
 #[allow(unused)]
 #[derive(Debug)]
 pub struct StepLocks {
+    /// Declared first so it is dropped, comparing the files it watches, before
+    /// the file locks are released.
+    watch: Option<WriteWatch>,
     flocks: Flocks,
     semaphore: OwnedSemaphorePermit,
     command_guard: Option<OwnedRwLockReadGuard<()>>,
@@ -11,11 +15,13 @@ pub struct StepLocks {
 
 impl StepLocks {
     pub fn new(
+        watch: Option<WriteWatch>,
         flocks: Flocks,
         semaphore: OwnedSemaphorePermit,
         command_guard: OwnedRwLockReadGuard<()>,
     ) -> Self {
         Self {
+            watch,
             flocks,
             semaphore,
             command_guard: Some(command_guard),

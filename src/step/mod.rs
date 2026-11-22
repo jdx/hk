@@ -51,6 +51,7 @@ mod types;
 
 // Re-export public API
 pub(crate) use command::argv_runner;
+pub(crate) use execution::recheck_stale_checks;
 pub use expr_env::{EXPR_CTX, eval_condition};
 pub(crate) use job_builder::SharedBatchJobs;
 pub(crate) use process_tree::cancel_running_steps;

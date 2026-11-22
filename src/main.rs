@@ -32,6 +32,7 @@ mod logger;
 mod merge;
 mod mise_env;
 mod par;
+mod passed_checks;
 mod plan;
 mod settings;
 mod shutdown;

@@ -348,6 +348,10 @@ impl Step {
             pattern_display,
             run_for_display
         );
+        let raw_message = match &job.recheck_after {
+            Some(fixers) => format!("{raw_message} (again, {fixers} changed its files)"),
+            None => raw_message,
+        };
         let message = truncate_progress_message(&raw_message, MAX_PROGRESS_MESSAGE_CHARS);
         job.progress.as_ref().unwrap().prop("message", &message);
         job.progress.as_ref().unwrap().update();
@@ -386,6 +390,7 @@ impl Step {
                     .unwrap()
                     .prop("message", &format!("{message} (passed before, unchanged)"));
                 job.progress.as_ref().unwrap().update();
+                self.record_passed_check(ctx, job);
                 ctx.decrement_job_count();
                 job.status_finished()?;
                 return Ok(());
@@ -560,6 +565,7 @@ impl Step {
                     &result.combined_output,
                     false, // not a failure
                 );
+                self.record_passed_check(ctx, job);
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
@@ -745,6 +751,16 @@ impl Step {
             self.exclusive = true;
         }
         Ok(())
+    }
+
+    /// Remember a check that passed in a fix run, while `job` still holds its
+    /// file locks, so a fixer that changes its files afterwards sends it
+    /// through again. A job that is already checking again is not recorded:
+    /// the hook reruns stale checks once.
+    fn record_passed_check(&self, ctx: &StepContext, job: &StepJob) {
+        if job.only_checks_in_fix_run() && job.recheck_after.is_none() {
+            ctx.hook_ctx.passed_checks.record(job);
+        }
     }
 
     /// Get the command to run for the given run type.
