@@ -1,0 +1,66 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Keeps lines between keep-sorted start and end comments sorted"
+  mise_tools = List("aqua:google/keep-sorted")
+}
+keep_sorted = new Config.Step {
+  // keep-sorted only touches lines between `keep-sorted start` and `keep-sorted end` comments,
+  // so it can run on every text file.
+  types = List("text")
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("keep-sorted", "--mode", "lint", "{{files}}") }
+    effect = "read"
+  }
+  // Given `-`, keep-sorted prints the sorted file without writing it.
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("hk", "util", "format-diff", "{{files}}", "--", "keep-sorted", "-")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("keep-sorted", "--mode", "fix", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "list.py" }
+    local const bad =
+      """
+      deps = [
+          # keep-sorted start
+          "requests",
+          "attrs",
+          # keep-sorted end
+      ]
+
+      """
+    local const good =
+      """
+      deps = [
+          # keep-sorted start
+          "attrs",
+          "requests",
+          # keep-sorted end
+      ]
+
+      """
+    local const unmarked =
+      """
+      deps = [
+          "requests",
+          "attrs",
+      ]
+
+      """
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["check ignores unmarked lines"] = testMaker.checkPass(unmarked)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
