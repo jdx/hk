@@ -6,6 +6,7 @@ lockfile_version = 2
 version = "0.0.15"
 backend = "github:jdx/tak"
 specifiers = ["v0.0.15"]
+unsupported_platforms = ["macos-x64"]
 
 [tools."github:jdx/tak"."platforms.linux-arm64"]
 checksum = "sha256:fe7b14ea8ee0b7d97c23b2258dea7a90f888e010c391eff1006339f4b4ac4305"
@@ -208,6 +209,7 @@ uv = { path = ".mise/locks/pipx-pre-commit-hooks/6.0.0", digest = "sha256:387739
 version = "4.7.0"
 backend = "aqua:pre-commit/pre-commit"
 specifiers = ["4.7.0"]
+unsupported_platforms = ["windows-x64"]
 
 [tools.pre-commit."platforms.linux-arm64"]
 checksum = "sha256:393488513aed286d7a5a978a1fe79b2f5a8802927242a2d241ff10c1a8e8c885"
