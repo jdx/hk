@@ -30,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0 # Not needed if lastUpdated is not enabled
           persist-credentials: false
-      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
