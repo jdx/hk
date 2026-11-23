@@ -9,8 +9,8 @@ import "../Config.pkl"
 cspell_commit_message = new Config.Step {
   // The commit-msg hook sees git's comment lines and, with `git commit --verbose`, the diff below
   // the scissors line. Blank the comments (keeping line numbers) and drop the diff so only the
-  // message is checked. The comment marker is git's `core.commentString` or `core.commentChar`
-  // (default `#`); with `auto`, a line starting with any marker git may pick counts as a comment.
+  // message is checked. The comment marker is whichever of `core.commentString` and
+  // `core.commentChar` git reads last, as git does (default `#`); with `auto`, a line starting with any marker git may pick counts as a comment.
   // The message is filtered before cspell starts, so a read error fails the step. cspell reads it
   // as `COMMIT_EDITMSG`, so `ignorePaths` such as `.git` don't skip it.
   check = new Config.CommandSpec {
@@ -20,7 +20,8 @@ cspell_commit_message = new Config.Step {
           "sh",
           "-c",
           #"""
-          marker=$(git config core.commentString || git config core.commentChar) || marker='#'
+          marker=$(git config --get-regexp '^core\.comment(char|string)$' | tail -n 1 | cut -d ' ' -f 2-)
+          [ -n "$marker" ] || marker='#'
           msg=$(HK_COMMENT_MARKER="$marker" awk '
             BEGIN {
               marker = ENVIRON["HK_COMMENT_MARKER"]

@@ -79,3 +79,16 @@ MSG
     assert_failure
     assert_output --partial "missing message.txt"
 }
+
+@test "cspell_commit_message uses the comment marker git reads last" {
+    git config --global core.commentString '%'
+    git config core.commentChar ';'
+    printf 'fix: correct the parser\n; zzqxbranch\n' > "commit message.txt"
+    run hk run commit-msg "commit message.txt"
+    assert_success
+
+    git config --unset core.commentChar
+    printf 'fix: correct the parser\n%% zzqxbranch\n' > "commit message.txt"
+    run hk run commit-msg "commit message.txt"
+    assert_success
+}
