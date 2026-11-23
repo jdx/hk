@@ -660,6 +660,7 @@ impl Config {
         union_lists(&mut self.skip_steps, hkrc.skip_steps);
         self.default_branch = self.default_branch.take().or(hkrc.default_branch);
         self.min_hk_version = self.min_hk_version.take().or(hkrc.min_hk_version);
+        self.recheck_after_fix = self.recheck_after_fix.or(hkrc.recheck_after_fix);
         self.stash_backup_count = self.stash_backup_count.or(hkrc.stash_backup_count);
         self.terminal_progress = self.terminal_progress.or(hkrc.terminal_progress);
         self.walk_ignore = self.walk_ignore.or(hkrc.walk_ignore);
@@ -1078,6 +1079,7 @@ impl Config {
             ("hide_warnings", self.hide_warnings.is_some()),
             ("jobs", self.jobs.is_some()),
             ("profiles", self.profiles.is_some()),
+            ("recheck_after_fix", self.recheck_after_fix.is_some()),
             ("skip_hooks", self.skip_hooks.is_some()),
             ("stage", self.stage.is_some()),
             ("stash_backup_count", self.stash_backup_count.is_some()),
@@ -1548,6 +1550,7 @@ pub struct Config {
     pub exclude: Option<Exclude>,
     pub stage: Option<bool>,
     pub profiles: Option<Vec<String>>,
+    pub recheck_after_fix: Option<bool>,
     pub skip_hooks: Option<Vec<String>>,
     pub skip_steps: Option<Vec<String>>,
     pub stash_backup_count: Option<usize>,

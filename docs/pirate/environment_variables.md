@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: b0e22d127612
+sourceHash: b2a11bc42526
 ---
 
 # Standing orders (environment variables)
@@ -207,6 +207,12 @@ The built-in pklr evaluator sends its boats ashore, package and module downloads
 **Type:** comma-separated profile names · **Unless ye say otherwise:** empty
 
 Call up watches (profiles) such as `slow` or `types`. Put `!` in front of a name to stand that watch down. It answers to `HK_PROFILES` too. A step requires all of its positive profiles to be called up. For example: `HK_PROFILE=ci,slow hk check --all`.
+
+## `HK_RECHECK_AFTER_FIX` {#hk-recheck-after-fix}
+
+**Type:** boolean · **Unless ye say otherwise:** false
+
+In fix runs, send a lookout over the cargo again when a later sailmaker's mend changes files it already passed, and fail if they no longer pass muster. `recheck_after_fix` in `hk.pkl` or `hk.recheckAfterFix` in Git config hoists it too. See [Hooks](/hooks).
 
 ## `HK_SKIP_HOOK` {#hk-skip-hook}
 

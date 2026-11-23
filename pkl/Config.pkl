@@ -223,6 +223,12 @@ stash_backup_count: UInt?
 /// ```
 subprojects: List<String>?
 
+/// In fix runs, run a check again when a later step's fix changes files it
+/// already passed on, and fail if they no longer pass.
+///
+/// Default: false
+recheck_after_fix: Boolean?
+
 /// Enables or disables reporting progress via OSC sequences to compatible terminals.
 terminal_progress: Boolean?
 

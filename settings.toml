@@ -438,6 +438,20 @@ docs = """
 Include untracked files when stashing. Disabling `HK_STASH_UNTRACKED` also skips untracked-file discovery, so those files are absent from status-based reports and normal `--all` selection.
 """
 
+[recheck_after_fix]
+type = "bool"
+default = false
+sources.env = ["HK_RECHECK_AFTER_FIX"]
+sources.git = ["hk.recheckAfterFix"]
+sources.pkl = ["recheck_after_fix"]
+docs = """
+In fix runs, run a check again when a later step's fix changes files it already passed on.
+
+Steps run in parallel, so a check can pass on a file before a fixer rewrites it. When enabled, hk compares the contents of those files before and after each fixer writes them, and once every step has finished it runs each check whose files changed again on the same files, keeping the order of the first run. The run fails if the fixed files no longer pass.
+
+Off by default: tracking the files costs time in every fix run. Ordering a check after the fixers it shares files with, with `depends`, avoids the stale pass without it.
+"""
+
 [stash_backup_count]
 type = "usize"
 default = 20

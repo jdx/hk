@@ -15,6 +15,7 @@ use crate::hook::SkipReason;
 use crate::step_context::StepContext;
 use crate::step_job::StepJobStatus;
 use crate::{Result, glob, tera};
+use eyre::WrapErr;
 use indexmap::IndexSet;
 use itertools::Itertools;
 use std::collections::{BTreeSet, HashSet};
@@ -171,6 +172,156 @@ async fn wait_for_dependency(
         return Err(ensembler::Error::Cancelled.into());
     }
     Ok(())
+}
+
+/// Run again every check that passed in this fix run before another step's
+/// fix changed one of its files (see [`crate::passed_checks`]), so the run
+/// fails if the fixed files no longer pass.
+///
+/// Each stale job runs on the same files as before, in the hook's step groups
+/// and their order, and reports like the step it belongs to.
+pub(crate) async fn recheck_stale_checks(
+    hook_ctx: &Arc<crate::hook::HookContext>,
+    fail_fast: bool,
+) -> Result<()> {
+    let stale = hook_ctx.passed_checks.take_stale();
+    if stale.is_empty() {
+        return Ok(());
+    }
+    let mut by_step: indexmap::IndexMap<String, Vec<crate::step_job::StepJob>> =
+        indexmap::IndexMap::new();
+    for check in stale {
+        let mut job = check.job;
+        let fixers = check.changed_by.iter().join(", ");
+        debug!(
+            "{}: checking again after {fixers} changed its files",
+            job.step
+        );
+        job.recheck_after = Some(fixers);
+        by_step.entry(job.step.name.clone()).or_default().push(job);
+    }
+    // Keep the hook's groups and their order, so an exclusive step still runs
+    // alone, and steps in a group run together as they did the first time.
+    let mut groups: Vec<Vec<Vec<crate::step_job::StepJob>>> = hook_ctx
+        .groups
+        .iter()
+        .map(|group| {
+            group
+                .steps
+                .values()
+                .filter_map(|step| by_step.shift_remove(&step.name))
+                .collect()
+        })
+        .collect();
+    groups.push(by_step.into_values().collect());
+    let mut result = Ok(());
+    let mut groups = groups.into_iter().filter(|group| !group.is_empty());
+    for group in groups.by_ref() {
+        result = result.and(recheck_group(hook_ctx, group, fail_fast).await);
+        if fail_fast && result.is_err() {
+            break;
+        }
+    }
+    // A fix made the first pass of these stale, and they never ran again, so
+    // they did not pass: report them as cancelled, like steps that never ran.
+    let mut finished = hook_ctx.finished_steps.lock().unwrap();
+    for jobs in groups.flatten() {
+        finished.remove(&jobs[0].step.name);
+    }
+    result
+}
+
+/// Run the stale checks of one step group again, each step's jobs together.
+/// A step waits for the steps it depends on among them, as in the first run.
+async fn recheck_group(
+    hook_ctx: &Arc<crate::hook::HookContext>,
+    group: Vec<Vec<crate::step_job::StepJob>>,
+    fail_fast: bool,
+) -> Result<()> {
+    let steps: Vec<Arc<Step>> = group.iter().map(|jobs| jobs[0].step.clone()).collect();
+    let depends = Arc::new(StepDepends::new(
+        &steps.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
+    ));
+    let batch_jobs = Arc::new(crate::step::SharedBatchJobs::new(steps.clone()));
+    let mut set = tokio::task::JoinSet::new();
+    for (step, jobs) in steps.into_iter().zip(group) {
+        let ctx = Arc::new(StepContext {
+            step: step.clone(),
+            hook_ctx: hook_ctx.clone(),
+            depends: depends.clone(),
+            batch_jobs: batch_jobs.clone(),
+            progress: step.build_step_progress(),
+            files_added: Default::default(),
+            jobs_remaining: Default::default(),
+            jobs_total: Default::default(),
+            status: Default::default(),
+        });
+        hook_ctx
+            .step_contexts
+            .lock()
+            .unwrap()
+            .insert(step.name.clone(), ctx.clone());
+        let hook_ctx = hook_ctx.clone();
+        set.spawn(async move {
+            let result = async {
+                for dep in &step.depends {
+                    wait_for_dependency(&ctx.depends, dep, &hook_ctx.failed).await?;
+                }
+                step.clone()
+                    .recheck_jobs(ctx.clone(), jobs, fail_fast)
+                    .await
+            }
+            .await;
+            // However the step ended, the steps waiting for it can go on.
+            let _ = ctx.depends.mark_done(&step.name);
+            hook_ctx
+                .step_contexts
+                .lock()
+                .unwrap()
+                .shift_remove(&step.name);
+            let failure_allowed = match &result {
+                Err(err) if crate::error::is_command_failure(err) => {
+                    step.failure_is_allowed(&hook_ctx.expr_ctx())?
+                }
+                _ => false,
+            };
+            if let Err(err) = &result {
+                ctx.status_error(err);
+            }
+            if failure_allowed {
+                hook_ctx.mark_step_failure_allowed(&step.name);
+                Ok(())
+            } else {
+                result
+            }
+        });
+    }
+    let mut result = Ok(());
+    while let Some(res) = set.join_next().await {
+        match res {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => {
+                if hook_ctx
+                    .fail_fast_aborted
+                    .load(std::sync::atomic::Ordering::SeqCst)
+                    && crate::error::is_cancellation(&err)
+                {
+                    continue;
+                }
+                if fail_fast && !crate::step_group::cancelled_by_user(hook_ctx) {
+                    crate::step_group::abort_running_steps(hook_ctx).await;
+                    return Err(err);
+                }
+                if result.is_ok() {
+                    result = Err(err);
+                } else {
+                    result = result.wrap_err(err);
+                }
+            }
+            Err(e) => std::panic::resume_unwind(e.into_panic()),
+        }
+    }
+    result
 }
 
 /// Default stage pattern for steps with fix commands when staging is enabled.
@@ -425,6 +576,13 @@ impl Step {
                                     // Files the output names outside this job, which it
                                     // holds no locks on.
                                     let names_other_files = !extras.is_empty();
+                                    // A patch can change these, and a check may
+                                    // already have passed on them.
+                                    let root = std::env::current_dir()?.canonicalize()?;
+                                    let other_files: Vec<PathBuf> = extras
+                                        .iter()
+                                        .map(|f| f.strip_prefix(&root).unwrap_or(f).to_path_buf())
+                                        .collect();
                                     for f in extras {
                                         warn!(
                                             "{step}: file in check output not found in original files: {}",
@@ -535,6 +693,13 @@ impl Step {
                                         let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
                                         let applied = {
                                             let _diff_guard = job.lock_diff(&ctx).await?;
+                                            // The job's own files are watched while
+                                            // it holds their locks; watch the others
+                                            // the patch changes.
+                                            let _watch = ctx
+                                                .hook_ctx
+                                                .passed_checks
+                                                .watch(&step.name, &other_files);
                                             step.apply_diff_output(stdout, dir.as_deref())
                                         };
                                         match applied {
@@ -716,6 +881,69 @@ impl Step {
             ctx.depends.mark_done(&self.name)?;
         }
         Ok(())
+    }
+
+    /// Run `jobs`, checks of this step that went stale, again under `ctx`, a
+    /// context of their own. See [`recheck_stale_checks`].
+    async fn recheck_jobs(
+        self: Arc<Self>,
+        ctx: Arc<StepContext>,
+        jobs: Vec<crate::step_job::StepJob>,
+        fail_fast: bool,
+    ) -> Result<()> {
+        ctx.set_jobs_total(jobs.len());
+        ctx.hook_ctx.inc_total_jobs(jobs.len());
+        let mut set = tokio::task::JoinSet::new();
+        for mut job in jobs {
+            let ctx = ctx.clone();
+            let step = self.clone();
+            set.spawn(async move {
+                let result = step.run(&ctx, &mut job).await;
+                if let Err(err) = &result {
+                    job.status_error(&ctx, err).await?;
+                }
+                ctx.hook_ctx.inc_completed_jobs(1);
+                result
+            });
+        }
+        let failure_allowed = |err: &eyre::Report| {
+            crate::error::is_command_failure(err)
+                && self
+                    .failure_is_allowed(&ctx.hook_ctx.expr_ctx())
+                    .unwrap_or(false)
+        };
+        let joined = join_jobs(
+            set,
+            &ctx.hook_ctx.failed,
+            CANCELLED_JOBS_GRACE,
+            failure_allowed,
+            |err| {
+                if !crate::step_group::is_cancelled_run_error(&ctx.hook_ctx, err) {
+                    ctx.status_error(err);
+                }
+                (fail_fast
+                    && !failure_allowed(err)
+                    && !crate::step_group::cancelled_by_user(&ctx.hook_ctx))
+                .then(|| crate::step_group::abort_running_steps(&ctx.hook_ctx))
+            },
+        )
+        .await;
+        match crate::step_group::settle_joined_jobs(&ctx.hook_ctx, joined, failure_allowed) {
+            Ok(Some(_)) => {
+                ctx.status_finished();
+                Ok(())
+            }
+            Ok(None) => {
+                ctx.status_aborted();
+                Ok(())
+            }
+            Err(err) => {
+                if crate::error::is_cancellation(&err) {
+                    ctx.status_aborted();
+                }
+                Err(err)
+            }
+        }
     }
 
     /// Wait for dependent steps to complete before running this step.

@@ -208,6 +208,12 @@ The built-in pklr evaluator sends package and module downloads through a proxy. 
 
 Enable profiles such as `slow` or `types`. Prefix a name with `!` to disable it. `HK_PROFILES` is also accepted. A step requires all of its positive profiles. Example: `HK_PROFILE=ci,slow hk check --all`.
 
+## `HK_RECHECK_AFTER_FIX` {#hk-recheck-after-fix}
+
+**Type:** boolean · **Default:** false
+
+In fix runs, run a check again when a later step's fix changes files it already passed on, and fail if they no longer pass. Also set by `recheck_after_fix` in `hk.pkl` or `hk.recheckAfterFix` in Git config. See [Hooks](/hooks).
+
 ## `HK_SKIP_HOOK` {#hk-skip-hook}
 
 **Type:** comma-separated hook names · **Default:** empty
