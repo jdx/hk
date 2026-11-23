@@ -365,6 +365,9 @@ pub struct HookContext {
     pub stage_queue: StageQueue,
     /// Checks that passed in a fix run, rerun if a fixer changes their files.
     pub passed_checks: Arc<crate::passed_checks::PassedChecks>,
+    /// Whether to record passed checks at all (the `recheck_after_fix`
+    /// setting). With nothing recorded, no fixer's files are watched.
+    pub recheck_after_fix: bool,
 }
 
 impl HookContext {
@@ -426,6 +429,7 @@ impl HookContext {
             initial_unstaged: StdMutex::new(initial_unstaged),
             stage_queue: StageQueue::default(),
             passed_checks: Default::default(),
+            recheck_after_fix: settings.recheck_after_fix,
         }
     }
 

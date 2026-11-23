@@ -758,7 +758,10 @@ impl Step {
     /// through again. A job that is already checking again is not recorded:
     /// the hook reruns stale checks once.
     fn record_passed_check(&self, ctx: &StepContext, job: &StepJob) {
-        if job.only_checks_in_fix_run() && job.recheck_after.is_none() {
+        if ctx.hook_ctx.recheck_after_fix
+            && job.only_checks_in_fix_run()
+            && job.recheck_after.is_none()
+        {
             ctx.hook_ctx.passed_checks.record(job);
         }
     }

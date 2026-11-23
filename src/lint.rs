@@ -28,6 +28,7 @@ const CONFIG_KEYS: &[&str] = &[
     "exclude",
     "stage",
     "profiles",
+    "recheck_after_fix",
     "skip_hooks",
     "skip_steps",
     "stash_backup_count",

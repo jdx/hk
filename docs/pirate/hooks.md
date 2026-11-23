@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: 5a1f9e6a895d
+sourceHash: 83a4c32b765e
 ---
 
 # Git hooks and stowing the hold
@@ -182,7 +182,7 @@ All hands haul at once, up to the job limit, unless coordination makes some of t
 
 Locks stop two hands writing the same file at once; they don't choose the final style when tools disagree. Configure rules that agree, or declare an explicit dependency.
 
-In a fix run, a lookout can pass the cargo before a sailmaker mends the same file. When a mend changes the contents of a file a lookout already passed, hk sends that lookout over the same files again once every hand is done, keeping the order of the first run (groups, `exclusive` and `depends`), and the run fails if the mended file no longer passes. The progress line marks the second look `(again, fmt changed its files)`. To inspect each file once, after its mending, add `depends` on the sailmaker to the lookout's step.
+In a fix run, a lookout can pass the cargo before a sailmaker mends the same file. To inspect each file once, after its mending, add `depends` on the sailmaker to the lookout's step. To catch the ones ye haven't ordered, set `recheck_after_fix = true` in `hk.pkl` (or `HK_RECHECK_AFTER_FIX=1`). It stays furled by default, for it reads every file a sailmaker touches before and after the mend. With it hoisted, when a mend changes the contents of a file a lookout already passed, hk sends that lookout over the same files again once every hand is done, keeping the order of the first run (groups, `exclusive` and `depends`), and the run fails if the mended file no longer passes. The progress line marks the second look `(again, fmt changed its files)`.
 
 ## Letting a hand fail {#allowing-a-step-to-fail}
 

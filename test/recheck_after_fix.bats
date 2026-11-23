@@ -12,6 +12,7 @@ teardown() {
 _config() {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+recheck_after_fix = true
 local linters = new Mapping<String, Step> {
     ["lint"] {
         glob = "*.txt"
@@ -80,6 +81,21 @@ _lint_runs() {
     assert_equal "$(_lint_runs)" 1
 }
 
+@test "checks do not run again unless recheck_after_fix is on" {
+    _config 'BAD\\n'
+    echo ok > a.txt
+    git add a.txt
+
+    HK_RECHECK_AFTER_FIX=0 hk fix
+    assert_equal "$(_lint_runs)" 1
+    sed -i.bak '/^recheck_after_fix/d' hk.pkl
+    echo ok > a.txt
+    git add a.txt
+    rm "$BATS_TEST_TMPDIR/lint-runs"
+    hk fix
+    assert_equal "$(_lint_runs)" 1
+}
+
 @test "hk check does not run checks twice" {
     _config 'BAD\\n'
     echo ok > a.txt
@@ -94,6 +110,7 @@ _lint_runs() {
     # their second runs apart.
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+recheck_after_fix = true
 hooks {
     ["fix"] {
         fix = true
@@ -128,6 +145,7 @@ EOF
 @test "exclusive checks run again one at a time" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+recheck_after_fix = true
 hooks {
     ["fix"] {
         fix = true
@@ -170,6 +188,7 @@ SCRIPT
     chmod +x patch-b.sh
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+recheck_after_fix = true
 hooks {
     ["fix"] {
         fix = true
@@ -203,6 +222,7 @@ EOF
 @test "with fail_fast, a stale check that never runs again is not reported as passed" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+recheck_after_fix = true
 fail_fast = true
 hooks {
     ["fix"] {
