@@ -1,0 +1,65 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Spell checker for code and text"
+  project_indicators {
+    new { file = "cspell.json" }
+    new { file = ".cspell.json" }
+    new { file = "cspell.jsonc" }
+    new { file = ".cspell.jsonc" }
+    new { file = "cspell.yaml" }
+    new { file = ".cspell.yaml" }
+    new { file = "cspell.yml" }
+    new { file = ".cspell.yml" }
+    new { file = "cspell.config.json" }
+    new { file = "cspell.config.jsonc" }
+    new { file = "cspell.config.yaml" }
+    new { file = "cspell.config.yml" }
+    new { file = "cspell.config.js" }
+    new { file = "cspell.config.cjs" }
+    new { file = "cspell.config.mjs" }
+    new { file = "cspell.config.toml" }
+  }
+  mise_tools = List("cspell")
+}
+cspell = new Config.Step {
+  types = List("text")
+  // `--file` takes literal paths, where positional arguments are globs. cspell still skips files
+  // its config's `ignorePaths` excludes; `--no-must-find-files` lets a batch of only those pass.
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List(
+          "cspell",
+          "lint",
+          "--no-progress",
+          "--no-summary",
+          "--no-must-find-files",
+          "--file",
+          "{{files}}",
+        )
+    }
+    effect = "read"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "notes.md"
+      extra_files { ["cspell.json"] = #"{"ignorePaths": ["excluded.md"], "words": ["hkrc"]}"# }
+    }
+    local const invalidConfig = new helpers.TestMaker {
+      filename = "notes.md"
+      extra_files { ["cspell.json"] = "{invalid" }
+    }
+    ["check bad file"] = testMaker.checkFail("This sentence is mispeled.\n", 1)
+    ["check good file"] = testMaker.checkPass("This sentence is spelled correctly.\n")
+    ["check accepts config words"] = testMaker.checkPass("Edit the hkrc file.\n")
+    ["check respects config ignorePaths"] =
+      testMaker.withFilename("excluded.md").checkPass("This sentence is mispeled.\n")
+    ["check glob characters in filename"] =
+      testMaker.withFilename("notes[1].md").checkFail("This sentence is mispeled.\n", 1)
+    ["check rejects invalid config"] = invalidConfig.checkFail("Correct.\n", 1)
+  }
+}

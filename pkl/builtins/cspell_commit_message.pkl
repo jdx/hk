@@ -1,0 +1,30 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Spell checker for commit message"
+  mise_tools = List("cspell")
+}
+cspell_commit_message = new Config.Step {
+  // The commit-msg hook sees git's `#` comment lines and, with `git commit --verbose`, the diff
+  // below the scissors line. Blank the comments (keeping line numbers) and drop the diff so only
+  // the message is checked. cspell reads it as `COMMIT_EDITMSG`, so `ignorePaths` such as `.git`
+  // don't skip it.
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List(
+          "sh",
+          "-c",
+          #"""
+          sed -e '/^# -\{24\} >8 -\{24\}$/,$d' -e 's/^#.*//' "$1" \
+            | cspell lint --no-progress --no-summary stdin://COMMIT_EDITMSG
+          """#,
+          "sh",
+          "{{commit_msg_file}}",
+        )
+    }
+    effect = "read"
+  }
+}

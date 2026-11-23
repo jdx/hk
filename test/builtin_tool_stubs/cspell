@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "10.5.2"
+tool = "npm:cspell"
