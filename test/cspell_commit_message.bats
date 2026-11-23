@@ -92,3 +92,25 @@ MSG
     run hk run commit-msg "commit message.txt"
     assert_success
 }
+
+@test "cspell_commit_message with core.commentChar=auto skips only the marker git chose" {
+    git config core.commentChar auto
+    cat <<'MSG' > "commit message.txt"
+fix: correct the parser
+
+# On branch zzqxbranch
+MSG
+    run hk run commit-msg "commit message.txt"
+    assert_success
+
+    cat <<'MSG' > "commit message.txt"
+fix: correct the parser
+
+@ corect the parser
+# On branch zzqxbranch
+MSG
+    run hk run commit-msg "commit message.txt"
+    assert_failure
+    assert_output --partial "Unknown word (corect)"
+    refute_output --partial "zzqxbranch"
+}

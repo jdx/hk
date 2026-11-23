@@ -10,7 +10,10 @@ cspell_commit_message = new Config.Step {
   // The commit-msg hook sees git's comment lines and, with `git commit --verbose`, the diff below
   // the scissors line. Blank the comments (keeping line numbers) and drop the diff so only the
   // message is checked. The comment marker is whichever of `core.commentString` and
-  // `core.commentChar` git reads last, as git does (default `#`); with `auto`, a line starting with any marker git may pick counts as a comment.
+  // `core.commentChar` git reads last, as git does (default `#`). With `auto`, git picks a marker
+  // the message doesn't use, so the step reads it from the scissors line or, without one, from
+  // the comment block git appends last; when the last line has no candidate marker, nothing is
+  // treated as a comment.
   // The message is filtered before cspell starts, so a read error fails the step. cspell reads it
   // as `COMMIT_EDITMSG`, so `ignorePaths` such as `.git` don't skip it.
   check = new Config.CommandSpec {
@@ -26,19 +29,28 @@ cspell_commit_message = new Config.Step {
             BEGIN {
               marker = ENVIRON["HK_COMMENT_MARKER"]
               auto = marker == "auto"
+              candidates = "#;@!$%^&|:"
               cut = " ------------------------ >8 ------------------------"
             }
-            function comment_prefix(line) {
-              if (auto) return index("#;@!$%^&|:", substr(line, 1, 1)) > 0 ? substr(line, 1, 1) : ""
-              return substr(line, 1, length(marker)) == marker ? marker : ""
+            # With auto, the first pass finds the marker git chose.
+            NR == FNR {
+              if (auto && !found) {
+                c = substr($0, 1, 1)
+                if (c != "" && index(candidates, c) && $0 == c cut) { chosen = c; found = 1 }
+                else if ($0 ~ /[^ \t\r]/) last = c
+              }
+              next
+            }
+            FNR == 1 && auto {
+              if (!found && last != "" && index(candidates, last)) chosen = last
+              marker = chosen
             }
             {
-              prefix = comment_prefix($0)
-              if (prefix == "") { print; next }
-              if ($0 == prefix cut) exit
+              if (marker == "" || substr($0, 1, length(marker)) != marker) { print; next }
+              if ($0 == marker cut) exit
               print ""
             }
-          ' "$1") || exit
+          ' "$1" "$1") || exit
           printf '%s\n' "$msg" | cspell lint --no-progress --no-summary stdin://COMMIT_EDITMSG
           """#,
           "sh",
