@@ -39,3 +39,43 @@ MSG
     run hk run commit-msg "commit message.txt"
     assert_success
 }
+
+@test "cspell_commit_message uses git's core.commentChar" {
+    git config core.commentChar ';'
+    cat <<'MSG' > "commit message.txt"
+fix: correct the parser
+
+; On branch zzqxbranch
+; ------------------------ >8 ------------------------
+diff --git a/zzqx.rs b/zzqx.rs
++let qqzzxx = 1;
+MSG
+    run hk run commit-msg "commit message.txt"
+    assert_success
+
+    printf 'fix: corect the parser\n; zzqxbranch\n' > "commit message.txt"
+    run hk run commit-msg "commit message.txt"
+    assert_failure
+    assert_output --partial "Unknown word (corect)"
+    refute_output --partial "zzqxbranch"
+}
+
+@test "cspell_commit_message treats any candidate marker as a comment with core.commentChar=auto" {
+    git config core.commentChar auto
+    cat <<'MSG' > "commit message.txt"
+fix: correct the parser
+
+@ On branch zzqxbranch
+@ ------------------------ >8 ------------------------
+diff --git a/zzqx.rs b/zzqx.rs
++let qqzzxx = 1;
+MSG
+    run hk run commit-msg "commit message.txt"
+    assert_success
+}
+
+@test "cspell_commit_message fails when the message file can't be read" {
+    run hk run commit-msg "missing message.txt"
+    assert_failure
+    assert_output --partial "missing message.txt"
+}

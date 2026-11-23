@@ -7,10 +7,12 @@ import "../Config.pkl"
   mise_tools = List("cspell")
 }
 cspell_commit_message = new Config.Step {
-  // The commit-msg hook sees git's `#` comment lines and, with `git commit --verbose`, the diff
-  // below the scissors line. Blank the comments (keeping line numbers) and drop the diff so only
-  // the message is checked. cspell reads it as `COMMIT_EDITMSG`, so `ignorePaths` such as `.git`
-  // don't skip it.
+  // The commit-msg hook sees git's comment lines and, with `git commit --verbose`, the diff below
+  // the scissors line. Blank the comments (keeping line numbers) and drop the diff so only the
+  // message is checked. The comment marker is git's `core.commentString` or `core.commentChar`
+  // (default `#`); with `auto`, a line starting with any marker git may pick counts as a comment.
+  // The message is filtered before cspell starts, so a read error fails the step. cspell reads it
+  // as `COMMIT_EDITMSG`, so `ignorePaths` such as `.git` don't skip it.
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv =
@@ -18,8 +20,25 @@ cspell_commit_message = new Config.Step {
           "sh",
           "-c",
           #"""
-          sed -e '/^# -\{24\} >8 -\{24\}$/,$d' -e 's/^#.*//' "$1" \
-            | cspell lint --no-progress --no-summary stdin://COMMIT_EDITMSG
+          marker=$(git config core.commentString || git config core.commentChar) || marker='#'
+          msg=$(HK_COMMENT_MARKER="$marker" awk '
+            BEGIN {
+              marker = ENVIRON["HK_COMMENT_MARKER"]
+              auto = marker == "auto"
+              cut = " ------------------------ >8 ------------------------"
+            }
+            function comment_prefix(line) {
+              if (auto) return index("#;@!$%^&|:", substr(line, 1, 1)) > 0 ? substr(line, 1, 1) : ""
+              return substr(line, 1, length(marker)) == marker ? marker : ""
+            }
+            {
+              prefix = comment_prefix($0)
+              if (prefix == "") { print; next }
+              if ($0 == prefix cut) exit
+              print ""
+            }
+          ' "$1") || exit
+          printf '%s\n' "$msg" | cspell lint --no-progress --no-summary stdin://COMMIT_EDITMSG
           """#,
           "sh",
           "{{commit_msg_file}}",
