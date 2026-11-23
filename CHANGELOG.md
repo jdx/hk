@@ -1,6 +1,51 @@
 # Changelog
 
-## [2.13.0](https://github.com/jdx/hk/compare/v2.12.0..v2.13.0) - 2026-11-15
+## [2.14.0](https://github.com/jdx/hk/compare/v2.13.0..v2.14.0) - 2026-11-23
+
+### 🚀 Features
+
+- **(builtins)** add hk_validate builtin to fail on config warnings by [@jdx](https://github.com/jdx) in [#1862](https://github.com/jdx/hk/pull/1862)
+- **(builtins)** report ox_lint findings as diagnostics by [@jdx](https://github.com/jdx) in [#1871](https://github.com/jdx/hk/pull/1871)
+- **(builtins)** add bun_fmt formatter by [@jdx](https://github.com/jdx) in [#1870](https://github.com/jdx/hk/pull/1870)
+- **(builtins)** add scan = "staged" option to betterleaks by [@jdx](https://github.com/jdx) in [#1878](https://github.com/jdx/hk/pull/1878)
+- **(builtins)** scan every pushed commit for secrets with scan = "commits" by [@jdx](https://github.com/jdx) in [#1880](https://github.com/jdx/hk/pull/1880)
+- **(step)** add recheck_after_fix to rerun checks a later fix changed by [@jdx](https://github.com/jdx) in [#1891](https://github.com/jdx/hk/pull/1891)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** keep empty files empty when fixing with tofu, terraform and other stdin formatters by [@jdx](https://github.com/jdx) in [#1874](https://github.com/jdx/hk/pull/1874)
+- **(install)** let steps call mise from the global --mise launcher by [@jdx](https://github.com/jdx) in [#1875](https://github.com/jdx/hk/pull/1875)
+- **(install)** start the per-repo --mise launcher without mise on PATH by [@jdx](https://github.com/jdx) in [#1883](https://github.com/jdx/hk/pull/1883)
+- **(stash)** stop a nested hk from waiting on the stash lock during stash recovery by [@jdx](https://github.com/jdx) in [#1852](https://github.com/jdx/hk/pull/1852)
+- **(stash)** stop a stash restore from starting a nested hk through post-checkout by [@jdx](https://github.com/jdx) in [#1869](https://github.com/jdx/hk/pull/1869)
+- **(stash)** keep intent-to-add files out of the commit with stash = "none" by [@jdx](https://github.com/jdx) in [#1884](https://github.com/jdx/hk/pull/1884)
+- **(step)** stop adding GIT_WORK_TREE to steps without a dir by [@jdx](https://github.com/jdx) in [#1889](https://github.com/jdx/hk/pull/1889)
+
+### 🛡️ Security
+
+- **(deps)** update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1854](https://github.com/jdx/hk/pull/1854)
+- **(deps)** update dependency jouet to v0.0.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1859](https://github.com/jdx/hk/pull/1859)
+
+### 🔍 Other Changes
+
+- **(deps)** update url to 2.5.9 by [@jdx](https://github.com/jdx) in [#1893](https://github.com/jdx/hk/pull/1893)
+- **(entire)** remove trail runners by [@jdx](https://github.com/jdx) in [8cfa90f](https://github.com/jdx/hk/commit/8cfa90f29acabe83d544ce7e904d86fa1d7c80ad)
+- remove the pull_request_target workflows by [@jdx](https://github.com/jdx) in [#1876](https://github.com/jdx/hk/pull/1876)
+
+### 📦️ Dependency Updates
+
+- update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1853](https://github.com/jdx/hk/pull/1853)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1856](https://github.com/jdx/hk/pull/1856)
+- update dependency jsdom to v31 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1855](https://github.com/jdx/hk/pull/1855)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1860](https://github.com/jdx/hk/pull/1860)
+- ignore unmaintained chrono advisories in cargo-deny by [@jdx](https://github.com/jdx) in [#1868](https://github.com/jdx/hk/pull/1868)
+- update rust crate pklr to v6.0.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1858](https://github.com/jdx/hk/pull/1858)
+- update mise tools by [@renovate[bot]](https://github.com/renovate[bot]) in [#1895](https://github.com/jdx/hk/pull/1895)
+- update github actions by [@renovate[bot]](https://github.com/renovate[bot]) in [#1894](https://github.com/jdx/hk/pull/1894)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1896](https://github.com/jdx/hk/pull/1896)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1899](https://github.com/jdx/hk/pull/1899)
+
+## [2.13.0](https://github.com/jdx/hk/compare/v2.12.0..v2.13.0) - 2026-11-16
 
 ### 🚀 Features
 
