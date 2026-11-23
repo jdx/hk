@@ -676,6 +676,9 @@ aube = { path = ".mise/locks/oxfmt/0.79.0", digest = "sha256:1fb57357074535b1bf9
 backend = "npm:oxfmt"
 specifiers = ["latest"]
 
+[tools.oxfmt.provenance]
+repository = "github.com/oxc-project/oxc"
+
 [[tools.pkl]]
 version = "0.33.1"
 backend = "aqua:apple/pkl"
