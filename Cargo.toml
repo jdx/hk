@@ -25,6 +25,7 @@ version = "2.14.0"
 name = "generate-docs"
 path = "bin/generate_docs.rs"
 
+# TODO: move pklr back to a crates.io release once jdx/pklr#495 (external readers) ships.
 [dependencies]
 arc-swap           = "1"
 chrono             = "0.4"
@@ -49,7 +50,6 @@ log                = "0.4"
 memchr             = "2"
 mimalloc           = "0.1"
 once_cell          = "1"
-# TODO: back to a crates.io release once jdx/pklr#495 (external readers) ships.
 pklr               = { git = "https://github.com/jdx/pklr", branch = "feat/external-readers", default-features = false, features = ["reqwest", "package-zip", "miette-diagnostics", "external-readers"] }
 regex              = "1"
 rmcp               = { version = "3.1.2", features = ["transport-io"] }
