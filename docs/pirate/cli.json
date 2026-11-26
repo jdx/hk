@@ -357,6 +357,16 @@
     "migrate/pre-commit.md": {
       "- **`-f --force`** — Overwrite existing hk.pkl file": "- **`-f --force`** — Overwrite an existing hk.pkl file; the old charts are written over"
     },
+    "read.md": {
+      "description: \"Let pkl and editors read `hk:` modules from the installed hk. pkl starts this command itself.\"": "description: \"Let pkl and editors read `hk:` modules from the hk aboard this machine. pkl hails this call itself.\"",
+      "Serve hk's Pkl modules to pkl as an external module reader": "Hand hk's Pkl modules to pkl as an external module reader",
+      "pkl starts this command to read `hk:` modules, so a config can `amends \"hk:/Config.pkl\"` and `import \"hk:/Builtins.pkl\"` and get the modules of the installed hk instead of a pinned package. It speaks Pkl's external reader protocol on stdin and stdout and is not meant to be run by hand. Register it in a PklProject:": "pkl hails this call to read `hk:` modules, so yer charts can `amends \"hk:/Config.pkl\"` and `import \"hk:/Builtins.pkl\"` and get the modules of the hk aboard instead of a pinned package, with no boat sent ashore. It speaks Pkl's external reader protocol on stdin and stdout and isn't meant to be hailed by hand. Enter it in a PklProject:",
+      "    evaluatorSettings {": "    evaluatorSettings {",
+      "      externalModuleReaders {": "      externalModuleReaders {",
+      "        [\"hk\"] { executable = \"hk\"; arguments { \"read\" } }": "        [\"hk\"] { executable = \"hk\"; arguments { \"read\" } }",
+      "or pass `--external-module-reader hk='hk read'` to `pkl eval`.": "or hand `--external-module-reader hk='hk read'` to `pkl eval`.",
+      "Let pkl and editors read `hk:` modules from the installed hk. pkl starts this command itself.": "Let pkl and editors read `hk:` modules from the hk aboard this machine. pkl hails this call itself."
+    },
     "util.md": {
       "- **Effect:** read-only": "- **Effect:** read-only for this call itself, which only lists the lesser calls. Some of them mend the cargo in place. `format-diff` and `sarif-diff` run whatever command ye hand them, so they do whatever that command does; the others' pages each give their own effect."
     }
