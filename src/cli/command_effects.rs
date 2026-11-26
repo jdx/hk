@@ -40,6 +40,8 @@ pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
     ("install", Write),
     ("migrate", Read),
     ("migrate pre-commit", Write),
+    // Serves modules embedded in hk to pkl over stdio.
+    ("read", Read),
     ("sponsors", Read),
     // Deletes hook files from .git/hooks, which may not be exactly what was
     // there before hk was installed.

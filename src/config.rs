@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
+use crate::pkl_modules::EMBEDDED_PKL_PACKAGE;
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail, eyre};
 
@@ -1124,11 +1125,6 @@ fn get_http_proxy() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// The pkl package for this version, staged by `build/embed_pkl_package.rs`.
-/// Empty when the pkl sources were not generated.
-static EMBEDDED_PKL_PACKAGE: &[u8] =
-    include_bytes!(concat!(std::env!("OUT_DIR"), "/hk_pkl_package.zip"));
-
 /// The release archive URL `hk init` writes into `hk.pkl` for this version.
 fn embedded_pkl_package_url() -> String {
     let version = version::version();
@@ -1153,7 +1149,9 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
         .http_client(client)
         .http_rewrites(http_rewrites)
         .package_cache_dir(env::HK_PKL_CACHE_DIR.clone())
-        .offline(*env::HK_PKL_OFFLINE);
+        .offline(*env::HK_PKL_OFFLINE)
+        // `amends "hk:/Config.pkl"` reads the modules of this hk.
+        .module_reader(crate::pkl_modules::SCHEME, crate::pkl_modules::pklr_reader);
     // A config pinning this version then needs no network on a cold cache; any
     // other version keys a different URL and is fetched as usual.
     if *env::HK_PKL_EMBEDDED && !EMBEDDED_PKL_PACKAGE.is_empty() {

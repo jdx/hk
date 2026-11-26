@@ -14,5 +14,7 @@ yanked = "warn"
 
 [sources]
 allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
+# pklr is pinned to a branch until jdx/pklr#495 is released.
+allow-git        = ["https://github.com/jdx/pklr"]
 unknown-git      = "deny"
 unknown-registry = "deny"

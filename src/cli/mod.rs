@@ -19,6 +19,7 @@ mod init;
 mod install;
 mod mcp;
 mod migrate;
+mod read;
 mod run;
 mod sponsors;
 mod test;
@@ -148,6 +149,7 @@ enum Commands {
     Install(Box<install::Install>),
     Mcp(Box<mcp::Mcp>),
     Migrate(Box<migrate::Migrate>),
+    Read(Box<read::Read>),
     #[usage(alias = "r")]
     Run(Box<run::Run>),
     Sponsors(Box<sponsors::Sponsors>),
@@ -315,6 +317,7 @@ async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
             | Commands::Init(_)
             | Commands::Mcp(_)
             | Commands::Migrate(_)
+            | Commands::Read(_)
             | Commands::Completion(_)
             | Commands::Sponsors(_)
             | Commands::Usage(_)
@@ -343,6 +346,7 @@ async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
         Commands::Install(cmd) => cmd.run().await,
         Commands::Mcp(cmd) => cmd.run().await,
         Commands::Migrate(cmd) => cmd.run().await,
+        Commands::Read(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,
         Commands::Sponsors(cmd) => cmd.run().await,
         Commands::Uninstall(cmd) => cmd.run().await,
