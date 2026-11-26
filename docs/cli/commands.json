@@ -2010,6 +2010,38 @@
         "examples": [],
         "headings": []
       },
+      "read": {
+        "full_cmd": ["read"],
+        "usage": "read",
+        "subcommands": {},
+        "args": [],
+        "flags": [
+          {
+            "name": "help",
+            "usage": "-h --help",
+            "help": "Print help",
+            "help_first_line": "Print help",
+            "short": ["h"],
+            "long": ["help"],
+            "hide": false,
+            "global": false,
+            "action": "help",
+            "builtin": true
+          }
+        ],
+        "mounts": [],
+        "effect": "read",
+        "unknown_flags": null,
+        "hide": false,
+        "args_override_self": true,
+        "help": "Serve hk's Pkl modules to pkl as an external module reader",
+        "help_long": "Serve hk's Pkl modules to pkl as an external module reader\n\npkl starts this command to read `hk:` modules, so a config can `amends \"hk:/Config.pkl\"` and `import \"hk:/Builtins.pkl\"` and get the modules of the installed hk instead of a pinned package. It speaks Pkl's external reader protocol on stdin and stdout and is not meant to be run by hand. Register it in a PklProject:\n\n    evaluatorSettings {\n      externalModuleReaders {\n        [\"hk\"] { executable = \"hk\"; arguments { \"read\" } }\n      }\n    }\n\nor pass `--external-module-reader hk='hk read'` to `pkl eval`.",
+        "name": "read",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": [],
+        "headings": []
+      },
       "run": {
         "full_cmd": ["run"],
         "usage": "run [FLAGS] [FILES]… <SUBCOMMAND>",
