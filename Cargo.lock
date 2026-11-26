@@ -1837,7 +1837,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 [[package]]
 name = "pklr"
 version = "6.0.4"
-source = "git+https://github.com/jdx/pklr?branch=feat%2Fexternal-readers#a91c2e1b0a03744633c29b709a8b3a94bfb02061"
+source = "git+https://github.com/jdx/pklr?branch=feat%2Fexternal-readers#41555de47bb46a631843f0ccb3d987e5c1f417fb"
 dependencies = [
  "fancy-regex",
  "indexmap 2.14.2",
@@ -3740,7 +3740,7 @@ dependencies = [
  "indexmap 2.14.2",
  "libc",
  "memchr",
- "nix 0.31.4",
+ "nix 0.30.1",
  "typed-path",
  "windows-sys 0.61.2",
  "zeroize",
