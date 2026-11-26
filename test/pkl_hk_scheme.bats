@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
+    bats_require_minimum_version 1.5.0
     load 'test_helper/common_setup'
     _common_setup
     # The hk: modules only matter when the config is actually evaluated.
@@ -73,6 +74,12 @@ PKL
 
 @test "hk read exits when stdin closes" {
     run hk read </dev/null
+    assert_success
+    assert_output ""
+}
+
+@test "hk read writes nothing to stdout with tracing on" {
+    HK_TRACE=json run --separate-stderr hk read </dev/null
     assert_success
     assert_output ""
 }

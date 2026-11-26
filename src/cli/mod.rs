@@ -238,6 +238,12 @@ async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
     if let Some(cd) = &args.cd {
         return reexec_for_cd(cd).map(Some);
     }
+    // pkl reads only protocol messages from `hk read`'s stdout, so it starts
+    // before logging or tracing can write anything there.
+    if let Commands::Read(cmd) = &args.command {
+        cmd.run().await?;
+        return Ok(None);
+    }
 
     let output_format = args.command.output_format().unwrap_or(args.format);
 
@@ -317,7 +323,6 @@ async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
             | Commands::Init(_)
             | Commands::Mcp(_)
             | Commands::Migrate(_)
-            | Commands::Read(_)
             | Commands::Completion(_)
             | Commands::Sponsors(_)
             | Commands::Usage(_)
@@ -346,7 +351,7 @@ async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
         Commands::Install(cmd) => cmd.run().await,
         Commands::Mcp(cmd) => cmd.run().await,
         Commands::Migrate(cmd) => cmd.run().await,
-        Commands::Read(cmd) => cmd.run().await,
+        Commands::Read(_) => unreachable!("hk read is served before logging starts"),
         Commands::Run(cmd) => cmd.run().await,
         Commands::Sponsors(cmd) => cmd.run().await,
         Commands::Uninstall(cmd) => cmd.run().await,
