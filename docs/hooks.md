@@ -252,6 +252,8 @@ hk has dedicated handlers for these events:
 
 Dedicated handlers also expose their raw arguments as `hook_args`. See the [run reference](/cli/run) for argument details. Custom hooks can be invoked by name; hooks without a dedicated handler receive an empty `hook_args` value.
 
+`hk run pre-push` reads git's ref lines from stdin only when stdin is not a terminal and `--from-ref` or `--to-ref` is missing. With both flags, it does not read stdin, so `hook_stdin` is empty and an open but idle stdin does not delay the run.
+
 These variables are also available in `condition` and `step_condition` expressions. For example, to run a `post-checkout` step only on branch checkouts and report it as skipped on file checkouts:
 
 ```pkl

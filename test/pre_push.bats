@@ -336,3 +336,32 @@ EOF
     assert_output --partial "Pre-push stdin, if provided"
     refute_output --partial "panicked"
 }
+
+@test "pre-push does not wait on open stdin when --from-ref and --to-ref are given" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF2
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+
+    # Hold stdin open without writing to it, like an editor or agent shell.
+    mkfifo stdin.fifo
+    sleep 30 > stdin.fifo &
+    local writer=$!
+    local start=$SECONDS
+    run hk run pre-push --from-ref HEAD~1 --to-ref HEAD < stdin.fifo
+    local elapsed=$((SECONDS - start))
+    kill "$writer" 2>/dev/null || true
+
+    assert_success
+    assert_output --partial "hk.pkl"
+    # Reading stdin to the end would take the full 30 seconds.
+    [ "$elapsed" -lt 15 ]
+}

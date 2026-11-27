@@ -124,7 +124,12 @@ impl PrePush {
                 self.url.as_deref().unwrap_or("")
             ),
         );
-        let to_be_updated_refs = if std::io::stdin().is_terminal() {
+        // git's ref lines are only used to fill in refs the user did not give.
+        // When both are given, don't read stdin: a pipe that stays open (an
+        // editor or agent shell, a CI step, a wrapper script) would block the
+        // run until it closes.
+        let refs_given = self.hook.from_ref.is_some() && self.hook.to_ref.is_some();
+        let to_be_updated_refs = if refs_given || std::io::stdin().is_terminal() {
             self.hook.insert_hook_var("hook_stdin", "");
             vec![]
         } else {
