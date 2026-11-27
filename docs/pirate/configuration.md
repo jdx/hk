@@ -26,6 +26,34 @@ steps {
 
 `pre-commit` mends the staged files while yer unstaged work is stowed safe in the hold. The `check` and `fix` hooks give ye the local commands. Mind: they be hooks, not individual steps.
 
+### Sail with hk's own charts: `hk:` URIs {#hk-scheme}
+
+Instead of pinning a release, a configuration can import the modules of the very hk that reads it:
+
+```pkl
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
+```
+
+hk carries these charts in its own hold (the binary), so there be no version to bump and nothing to fetch from shore. Each builtin can be had on its own too, for example `hk:/builtins/prettier.pkl`. A configuration that uses `hk:` needs an hk newer than 2.14.0, and every shipmate gets the schema of the hk they have aboard; pin a `package://` URL when the schema must not shift with the installed hk.
+
+The `pkl` CLI and editors that run Pkl (through pkl-lsp) read `hk:` modules by calling [`hk read`](/cli/read) aboard as an external module reader. Register it in a `PklProject` beside `hk.pkl`:
+
+```pkl
+amends "pkl:Project"
+
+evaluatorSettings {
+  externalModuleReaders {
+    ["hk"] {
+      executable = "hk"
+      arguments { "read" }
+    }
+  }
+}
+```
+
+or hail it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself needs neither, matey.
+
 ### Hooks that come rigged by default {#hook-defaults}
 
 Top-level `steps` is optional. When it isn't empty, it rigs the `check`, `fix`, and `pre-commit` hooks. `check`
