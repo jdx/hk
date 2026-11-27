@@ -316,6 +316,8 @@ impl HookOptions {
                 .unwrap_or_else(|| repo.default_branch().unwrap_or_else(|_| "main".to_string()));
             self.from_ref = Some(default_branch);
             self.to_ref = Some("HEAD".to_string());
+            // `--pr` is one range, replacing any a multi-ref pre-push found.
+            self.ref_ranges.clear();
         }
         // Validate --json. Skip when the user passed --trace (or has
         // HK_TRACE/HK_JSON set) — in that case the global --json flag

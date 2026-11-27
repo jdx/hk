@@ -436,3 +436,18 @@ EOF2
     assert_failure
     assert_output --partial "scan-commits: needs a single ref range"
 }
+
+@test "pre-push --pr uses the default branch range over pushed refs" {
+    export NO_COLOR=1
+    setup_multi_ref_push
+    a=$(git rev-parse feat-a)
+    b=$(git rev-parse feat-b)
+    zero=0000000000000000000000000000000000000000
+
+    run hk run pre-push --pr origin <<<"refs/heads/feat-a $a refs/heads/feat-a $zero
+refs/heads/feat-b $b refs/heads/feat-b $zero"
+
+    assert_failure
+    assert_output --partial "CHECKED: b.txt"
+    refute_output --partial "CHECKED: a.txt"
+}
