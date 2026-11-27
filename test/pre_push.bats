@@ -336,3 +336,147 @@ EOF
     assert_output --partial "Pre-push stdin, if provided"
     refute_output --partial "panicked"
 }
+
+# Two branches off main: feat-a changes a.txt cleanly, feat-b puts BAD in b.txt.
+setup_multi_ref_push() {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["check-txt"] {
+                glob = "**/*.txt"
+                check = "printf 'CHECKED: %s\\\\n' {{files}}; ! grep -q BAD {{files}}"
+            }
+        }
+    }
+}
+EOF2
+    echo "init-a" > a.txt
+    echo "init-b" > b.txt
+    git add hk.pkl a.txt b.txt
+    git commit -m "init"
+    git push origin main
+    git remote set-head origin --auto
+
+    git checkout -b old-branch
+    echo "old" > a.txt
+    git commit -am "old"
+    git push origin old-branch
+
+    git checkout main
+    git checkout -b feat-a
+    echo "ok-a" > a.txt
+    git commit -am "good a"
+
+    git checkout main
+    git checkout -b feat-b
+    echo "BAD" > b.txt
+    git commit -am "bad b"
+    # Steps read the working tree, so leave the failing branch checked out.
+    hk install --legacy
+}
+
+@test "pre-push checks files from every pushed branch" {
+    export NO_COLOR=1
+    setup_multi_ref_push
+
+    run git push origin feat-a feat-b
+
+    assert_failure
+    assert_output --partial "CHECKED: a.txt"
+    assert_output --partial "CHECKED: b.txt"
+    run git ls-remote --exit-code origin refs/heads/feat-b
+    assert_failure
+}
+
+@test "pre-push checks updated refs pushed with a deletion" {
+    export NO_COLOR=1
+    setup_multi_ref_push
+
+    run git push origin :old-branch feat-b
+
+    assert_failure
+    assert_output --partial "CHECKED: b.txt"
+    run git ls-remote --exit-code origin refs/heads/old-branch
+    assert_success
+}
+
+@test "pre-push of only a deletion selects no files" {
+    export NO_COLOR=1
+    setup_multi_ref_push
+
+    run git push origin :old-branch
+
+    assert_success
+    refute_output --partial "CHECKED:"
+    run git ls-remote --exit-code origin refs/heads/old-branch
+    assert_failure
+}
+
+@test "pre-push fails a step needing one ref range when several refs are pushed" {
+    export NO_COLOR=1
+    setup_multi_ref_push
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["scan-commits"] {
+                requires_ref_range = true
+                check = "echo scanning"
+            }
+        }
+    }
+}
+EOF2
+
+    run git push origin feat-a feat-b
+
+    assert_failure
+    assert_output --partial "scan-commits: needs a single ref range"
+}
+
+@test "pre-push --pr uses the default branch range over pushed refs" {
+    export NO_COLOR=1
+    setup_multi_ref_push
+    a=$(git rev-parse feat-a)
+    b=$(git rev-parse feat-b)
+    zero=0000000000000000000000000000000000000000
+
+    run hk run pre-push --pr origin <<<"refs/heads/feat-a $a refs/heads/feat-a $zero
+refs/heads/feat-b $b refs/heads/feat-b $zero"
+
+    assert_failure
+    assert_output --partial "CHECKED: b.txt"
+    refute_output --partial "CHECKED: a.txt"
+}
+
+@test "pre-push does not wait on open stdin when --from-ref and --to-ref are given" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF2
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+
+    # Hold stdin open without writing to it, like an editor or agent shell.
+    mkfifo stdin.fifo
+    sleep 30 > stdin.fifo &
+    local writer=$!
+    local start=$SECONDS
+    run hk run pre-push --from-ref HEAD~1 --to-ref HEAD < stdin.fifo
+    local elapsed=$((SECONDS - start))
+    kill "$writer" 2>/dev/null || true
+
+    assert_success
+    assert_output --partial "hk.pkl"
+    # Reading stdin to the end would take the full 30 seconds.
+    [ "$elapsed" -lt 15 ]
+}

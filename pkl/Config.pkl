@@ -1039,7 +1039,8 @@ open class Step {
   /// Default: `false`
   ///
   /// If true, the step fails without running its command when the run has no ref range, that is,
-  /// when `from_ref` is empty. A run has a range under `pre-push`, `--from-ref`, or `--pr`.
+  /// when `from_ref` is empty. A run has a range under `pre-push`, `--from-ref`, or `--pr`. It also
+  /// fails when a push updates several refs, which no single range covers; push them one at a time.
   ///
   /// Use it for a command that reads `{{from_ref}}` and `{{to_ref}}` and does the wrong thing
   /// without them. `step_condition = "from_ref != ''"` skips the step instead, so a step placed in
