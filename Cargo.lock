@@ -1837,7 +1837,7 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 [[package]]
 name = "pklr"
 version = "6.0.4"
-source = "git+https://github.com/jdx/pklr?rev=4fafee27fefac0a567add635891cf4cc0f18c37f#4fafee27fefac0a567add635891cf4cc0f18c37f"
+source = "git+https://github.com/jdx/pklr?rev=71f96ba7eb5f353110815b0b29d04ccb742d98c2#71f96ba7eb5f353110815b0b29d04ccb742d98c2"
 dependencies = [
  "fancy-regex",
  "indexmap 2.14.2",
