@@ -1,6 +1,6 @@
 ---
 description: Translate a lefthook.yml into hk.pkl by hand, with a map of options, placeholders, and commands, and the differences in behavior to check before ye sail.
-sourceHash: d087f7d49f9b
+sourceHash: 48baa536feeb
 ---
 
 # Changing ships from lefthook
@@ -125,7 +125,7 @@ pre-push:
 The same hooks in hk:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
 hooks {
   ["pre-commit"] {

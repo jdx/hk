@@ -12,8 +12,8 @@ Builtins are reusable Pkl step definitions for linters, formatters, and hk’s o
 ## Use a builtin
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
 
 hooks {
   ["check"] {
@@ -27,7 +27,7 @@ hooks {
 
 `Builtins.oxfmt` is the Pkl property name. The step name, `"oxfmt"`, is your label for selecting the step in commands such as `hk check --step oxfmt`.
 
-Keep the schema and Builtins imports on the same version. The catalogue below describes the version of the source used to build this website; an older pinned package may differ.
+`hk:/Builtins.pkl` provides the builtins of the installed hk. The catalogue below describes the version of the source used to build this website, so an older hk or an older [pinned package](/configuration#hk-scheme) may differ.
 
 ## Customize a builtin
 

@@ -19,6 +19,8 @@ for pkl_file in docs/public/*.pkl; do
     sed \
         -e "s|package://github.com/jdx/hk/releases/download/[^\"]*#/Config.pkl|$PWD/pkl/Config.pkl|" \
         -e "s|package://github.com/jdx/hk/releases/download/[^\"]*#/Builtins.pkl|$PWD/pkl/Builtins.pkl|" \
+        -e "s|hk:/Config.pkl|$PWD/pkl/Config.pkl|" \
+        -e "s|hk:/Builtins.pkl|$PWD/pkl/Builtins.pkl|" \
         "$pkl_file" > "$local_example"
     pkl eval --format json "$local_example" >/dev/null
     echo "Validated $pkl_file and its documentation include"

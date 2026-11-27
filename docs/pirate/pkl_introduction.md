@@ -1,6 +1,6 @@
 ---
 description: Learn the Pkl ye need to draw hk's charts, muster the same hands across hooks, and find out why the charts won't evaluate.
-sourceHash: c57a31617e07
+sourceHash: 2cac755c9ba3
 ---
 
 # Pkl essentials for the chart room
@@ -14,13 +14,13 @@ Pkl evaluates the charts. Then hk runs the commands those charts set down.
 Every ship's configuration should amend hk's base schema, the base chart every set of charts is drawn over:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
 ```
 
 `amends` supplies the properties and classes ye're allowed, such as `Step`, `Hook`, and `Group`. `import` brings another module aboard under its own name, here `Builtins`.
 
-Keep both package URLs on the same version. Changing the hk executable does not rewrite the pinned imports in `hk.pkl`; they stay where ye pinned them.
+`hk:` modules come from the hk that reads the configuration, so when ye upgrade hk, the schema comes along. To pin a release instead, or for editor help through pkl-lsp, see [hk's own charts, or charts pinned to a voyage](/configuration#hk-scheme).
 
 ## Values and local variables {#values-and-local-variables}
 
@@ -154,7 +154,7 @@ This is a local amendment of an existing project configuration: yer own marks on
 its path relative to the module doing the importing.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
 import* "generated/*.pkl" as generated
 
@@ -174,7 +174,7 @@ add or remove step definitions, signing hands on and off, without editing `hk.pk
 
 ```pkl
 // generated/oxfmt.pkl
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+import "hk:/Config.pkl"
 
 STEPS: Mapping<String, Config.Step> = new {
   ["oxfmt"] {

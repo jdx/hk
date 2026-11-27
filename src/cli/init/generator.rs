@@ -1,17 +1,18 @@
 use crate::builtins::BuiltinMeta;
 
+/// The imports every generated config starts with. `hk:` modules come from the
+/// hk that evaluates the config, so there is no version to pin or bump.
+const HEADER: &str = r#"amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
+// Using a coding agent? See https://hk.jdx.dev/agents
+"#;
+
 /// Generate hk.pkl content based on selected builtins and hooks
-pub fn generate_pkl(builtins: &[&BuiltinMeta], hooks: &[String], version: &str) -> String {
+pub fn generate_pkl(builtins: &[&BuiltinMeta], hooks: &[String]) -> String {
     let mut output = String::new();
 
-    // Header with package import
-    output.push_str(&format!(
-        r#"amends "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl"
-// Using a coding agent? See https://hk.jdx.dev/agents
-
-"#
-    ));
+    output.push_str(HEADER);
+    output.push('\n');
 
     // Generate linters section (always define, even if empty)
     output.push_str("local linters = new Mapping {\n");
@@ -62,12 +63,9 @@ import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/B
 }
 
 /// Generate a simple default template for when nothing is detected
-pub fn generate_default_template(version: &str) -> String {
+pub fn generate_default_template() -> String {
     format!(
-        r#"amends "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl"
-// Using a coding agent? See https://hk.jdx.dev/agents
-
+        r#"{HEADER}
 steps {{
     // Add linters here. Examples:
     // ["prettier"] = Builtins.prettier
@@ -92,7 +90,7 @@ mod tests {
     #[test]
     fn test_generate_pkl_empty() {
         let hooks = vec![];
-        let pkl = generate_pkl(&[], &hooks, "1.34.0");
+        let pkl = generate_pkl(&[], &hooks);
         assert!(pkl.contains("amends"));
         assert!(pkl.contains("hooks"));
         assert!(pkl.contains("[\"pre-commit\"]"));
@@ -104,7 +102,7 @@ mod tests {
         let prettier = BUILTINS_META.iter().find(|b| b.name == "prettier").unwrap();
         let builtins = vec![prettier];
         let hooks = vec!["pre-commit".to_string()];
-        let pkl = generate_pkl(&builtins, &hooks, "1.34.0");
+        let pkl = generate_pkl(&builtins, &hooks);
 
         assert!(pkl.contains("Builtins.prettier"));
         assert!(pkl.contains("steps = linters"));
@@ -114,7 +112,7 @@ mod tests {
     #[test]
     fn test_generate_pkl_with_builtin_options() {
         let gitleaks = BUILTINS_META.iter().find(|b| b.name == "gitleaks").unwrap();
-        let pkl = generate_pkl(&[gitleaks], &["pre-commit".to_string()], "1.34.0");
+        let pkl = generate_pkl(&[gitleaks], &["pre-commit".to_string()]);
 
         assert!(pkl.contains("Builtins.gitleaks"));
     }
@@ -141,24 +139,21 @@ mod tests {
             .iter()
             .find(|b| b.name == "editorconfig_checker")
             .unwrap();
-        let pkl = generate_pkl(&[ec], &["pre-commit".to_string()], "1.34.0");
+        let pkl = generate_pkl(&[ec], &["pre-commit".to_string()]);
         assert!(pkl.contains("[\"editorconfig_checker\"] = Builtins.editorconfig_checker"));
     }
 
     #[test]
     fn test_default_template() {
-        let template = generate_default_template("1.34.0");
-        assert!(template.contains("v1.34.0"));
+        let template = generate_default_template();
+        assert!(template.starts_with("amends \"hk:/Config.pkl\"\n"));
         assert!(template.contains("// Add linters here"));
     }
 
     #[test]
     fn test_agent_docs_link_follows_imports() {
-        let version = "test-version";
-        let expected = format!(
-            "import \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl\"\n// Using a coding agent? See https://hk.jdx.dev/agents"
-        );
-        assert!(generate_pkl(&[], &[], version).contains(&expected));
-        assert!(generate_default_template(version).contains(&expected));
+        let expected = "import \"hk:/Builtins.pkl\"\n// Using a coding agent? See https://hk.jdx.dev/agents\n\n";
+        assert!(generate_pkl(&[], &[]).contains(expected));
+        assert!(generate_default_template().contains(expected));
     }
 }

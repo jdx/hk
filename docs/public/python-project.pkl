@@ -1,7 +1,7 @@
 /// Ruff linting and formatting, with optional mypy checks.
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+import "hk:/Builtins.pkl"
 
 steps {
   ["ruff"] = Builtins.ruff

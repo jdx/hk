@@ -1375,8 +1375,9 @@ fn missing_amends_error(path: &Path) -> eyre::Report {
     eyre::eyre!(
         "Missing 'amends' declaration in {}. \n\n\
         Your hk.pkl file should start with one of:\n\
-        • amends \"pkl/Config.pkl\" (if vendored)\n\
-        • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\" (for released versions)\n\n\
+        • amends \"hk:/Config.pkl\" (the modules of the installed hk)\n\
+        • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\" (a pinned release)\n\
+        • amends \"pkl/Config.pkl\" (if vendored)\n\n\
         See https://github.com/jdx/hk for more information.",
         path.display()
     )
@@ -1388,8 +1389,9 @@ fn invalid_module_uri_error(path: &Path) -> eyre::Report {
         "Invalid module URI in {}. \n\n\
         Make sure your 'amends' declaration uses a valid path or package URL.\n\
         Examples:\n\
-        • amends \"pkl/Config.pkl\" (if vendored)\n\
-        • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\"",
+        • amends \"hk:/Config.pkl\"\n\
+        • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\"\n\
+        • amends \"pkl/Config.pkl\" (if vendored)",
         path.display()
     )
 }

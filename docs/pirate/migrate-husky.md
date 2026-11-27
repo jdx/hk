@@ -1,6 +1,6 @@
 ---
 description: Replace husky and lint-staged with hk by hand, with a map of hooks, globs, and commands, and the differences in behavior to check before ye sail.
-sourceHash: 7c3e2fc91908
+sourceHash: f6f8d16c2eb6
 ---
 
 # Changing ships from husky and lint-staged
@@ -96,7 +96,7 @@ npm test
 The same hooks in hk:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
 hooks {
   ["pre-commit"] {

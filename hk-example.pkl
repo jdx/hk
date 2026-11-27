@@ -1,6 +1,6 @@
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+import "hk:/Builtins.pkl"
 
 local linters = new Mapping {
   // some linters are built into hk

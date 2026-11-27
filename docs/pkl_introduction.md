@@ -13,13 +13,13 @@ Pkl evaluates configuration. hk then runs the commands that configuration define
 Every project configuration should amend hk’s base schema:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
 ```
 
 `amends` supplies the allowed properties and classes, such as `Step`, `Hook`, and `Group`. `import` makes another module available under its name, here `Builtins`.
 
-Keep both package URLs on the same version. Changing the hk executable does not rewrite pinned imports in `hk.pkl`.
+`hk:` modules come from the hk that evaluates the configuration, so upgrading hk upgrades the schema. To pin a release instead, or for editor support through pkl-lsp, see [`hk:` modules and pinned packages](/configuration#hk-scheme).
 
 ## Values and local variables
 
@@ -151,7 +151,7 @@ This is a local amendment of an existing project configuration. Save it as `hk.l
 its path relative to the importing module.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
 import* "generated/*.pkl" as generated
 
@@ -171,7 +171,7 @@ add or remove step definitions without editing `hk.pkl`:
 
 ```pkl
 // generated/oxfmt.pkl
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+import "hk:/Config.pkl"
 
 STEPS: Mapping<String, Config.Step> = new {
   ["oxfmt"] {

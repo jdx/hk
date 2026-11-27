@@ -14,8 +14,8 @@ For a first setup, use [getting started](/getting_started). For complete configu
 A configuration amends hk’s [Pkl schema](/pkl_introduction). For a shared set of linters, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -25,18 +25,20 @@ steps {
 
 `pre-commit` applies fixes to staged files while unstaged work is saved. The `check` and `fix` hooks provide the local commands. They are hooks, not individual steps.
 
-### Load hk’s modules with `hk:` URIs {#hk-scheme}
+### `hk:` modules and pinned packages {#hk-scheme}
 
-Instead of pinning a release, a configuration can import the modules of the hk that evaluates it:
+`hk:/Config.pkl` and `hk:/Builtins.pkl` are the modules of the hk that evaluates the configuration. hk serves them from its own binary, so there is no version to bump and nothing to download, and upgrading hk upgrades the schema. Each builtin is also available on its own, for example `hk:/builtins/prettier.pkl`. A configuration that uses `hk:` needs an hk newer than 2.14.0.
+
+Import a release by its `package://` URL instead when the schema must not change with the installed hk, when your editor uses pkl-lsp, or when plain `pkl` reads the file without hk. pkl-lsp (0.9.0 and earlier) does not resolve `hk:` imports, so completion and type checking in the editor need a `package://` URL:
 
 ```pkl
-amends "hk:/Config.pkl"
-import "hk:/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
 ```
 
-hk serves these from its own binary, so there is no version to bump and nothing to download. Each builtin is also available on its own, for example `hk:/builtins/prettier.pkl`. A configuration that uses `hk:` needs an hk newer than 2.14.0, and every teammate gets the schema of the hk they have installed; pin a `package://` URL when the schema must not change with the installed hk.
+Keep both package URLs on the same version. Changing the hk executable does not rewrite pinned imports.
 
-The `pkl` CLI reads `hk:` modules by starting [`hk read`](/cli/read) as an external module reader. Register it in a `PklProject` next to `hk.pkl`:
+The `pkl` CLI can also read `hk:` modules, by starting [`hk read`](/cli/read) as an external module reader. Register it in a `PklProject` next to `hk.pkl`:
 
 ```pkl
 amends "pkl:Project"
@@ -51,7 +53,7 @@ evaluatorSettings {
 }
 ```
 
-or pass it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself does not need either. Editors that use pkl-lsp (0.9.0 and earlier) do not resolve `hk:` imports, so keep a `package://` URL if you rely on completion and type checking in the editor.
+or pass it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself does not need either.
 
 ### Hook defaults {#hook-defaults}
 
@@ -599,7 +601,7 @@ steps {
 }
 ```
 
-Import hk’s schema by its full `package://` URL, as above. hk’s evaluator does not resolve Pkl project dependencies, so the `@name/…` import form that a `dependencies` block provides fails with `Import not found`.
+In a shared package, import hk’s schema by its full `package://` URL, as above, so every repository that adopts the package gets the same schema whatever hk it has installed. hk’s evaluator does not resolve Pkl project dependencies, so the `@name/…` import form that a `dependencies` block provides fails with `Import not found`.
 
 Build the package with the Pkl CLI and upload both files it writes, `acme-hk@1.0.0` and `acme-hk@1.0.0.zip`, to the paths in `baseUri` and `packageZipUrl`:
 
@@ -689,7 +691,7 @@ Higher layers override lower ones for scalar settings. List settings such as `ex
 Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
 jobs = 4
 fail_fast = false
