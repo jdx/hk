@@ -368,6 +368,9 @@ pub struct HookContext {
     /// Whether to record passed checks at all (the `recheck_after_fix`
     /// setting). With nothing recorded, no fixer's files are watched.
     pub recheck_after_fix: bool,
+    /// The ranges of a `pre-push` that updates more than one ref, which a
+    /// step needing one ref range cannot scan with a single command.
+    pub ref_ranges: Vec<(String, String)>,
 }
 
 impl HookContext {
@@ -430,6 +433,7 @@ impl HookContext {
             stage_queue: StageQueue::default(),
             passed_checks: Default::default(),
             recheck_after_fix: settings.recheck_after_fix,
+            ref_ranges: Vec::new(),
         }
     }
 
@@ -1536,6 +1540,7 @@ impl Hook {
         // Enrich Tera and expr contexts with git status for template/condition use
         let git_status_for_ctx = git_status.clone();
         let hook_vars = opts.hook_vars_with_refs();
+        let ref_ranges = opts.ref_ranges.clone();
         let mut tctx = opts.tctx;
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
@@ -1546,7 +1551,7 @@ impl Hook {
             tctx.insert(key, hook_vars[key].as_str().unwrap_or(""));
         }
         let expr_ctx = build_expr_ctx(&git_status_for_ctx, &hook_vars);
-        let hook_ctx = Arc::new(HookContext::new(
+        let mut hook_ctx = HookContext::new(
             files,
             repo.clone(),
             groups,
@@ -1559,7 +1564,9 @@ impl Hook {
             git_status.untracked_files.clone(),
             // Narrowed below to what the stash actually sets aside.
             git_status.unstaged_files.clone(),
-        ));
+        );
+        hook_ctx.ref_ranges = ref_ranges;
+        let hook_ctx = Arc::new(hook_ctx);
 
         crate::shutdown::watch(hook_ctx.failed.clone());
 
@@ -2157,6 +2164,17 @@ impl Hook {
                 .chain(git_status.untracked_files.iter())
                 .cloned()
                 .collect()
+        } else if opts.ref_ranges.len() > 1 {
+            file_progress.prop(
+                "message",
+                &format!("Fetching files from {} pushed refs", opts.ref_ranges.len()),
+            );
+            let repo = repo.lock().await;
+            let mut files = BTreeSet::new();
+            for (from, to) in &opts.ref_ranges {
+                files.extend(repo.files_between_refs(from, Some(to))?);
+            }
+            files
         } else if let Some(from) = &opts.from_ref {
             if opts.to_ref.as_deref().map(crate::git::is_zero_sha) == Some(true) {
                 file_progress.prop("message", "No files to compare for remote branch deletion");

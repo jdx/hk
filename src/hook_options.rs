@@ -131,6 +131,11 @@ pub(crate) struct HookOptions {
     /// repo-relative paths. Glob excludes arrive through `Settings::exclude`.
     #[usage(skip)]
     pub exclude_regexes: Vec<String>,
+    /// Every `(from, to)` range of a `pre-push` that updates more than one
+    /// ref. Files are selected from all of them; `from_ref`/`to_ref` hold the
+    /// first. Empty for a run with a single range or none.
+    #[usage(skip)]
+    pub ref_ranges: Vec<(String, String)>,
 }
 
 impl HookOptions {

@@ -173,6 +173,18 @@ impl Step {
                 self.name
             ));
         }
+        if self.requires_ref_range && ctx.hook_ctx.ref_ranges.len() > 1 {
+            let ranges = ctx
+                .hook_ctx
+                .ref_ranges
+                .iter()
+                .map(|(from, to)| format!("{from}..{to}"))
+                .join(", ");
+            return Err(eyre::eyre!(
+                "{}: needs a single ref range, but this push updates several ({ranges}); push the refs one at a time",
+                self.name
+            ));
+        }
         job.progress = Some(job.build_progress(ctx));
         // Every command starts with fresh file locks and shared diff access,
         // including a fallback fixer or the check after applying a diff.
