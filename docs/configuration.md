@@ -36,7 +36,7 @@ import "hk:/Builtins.pkl"
 
 hk serves these from its own binary, so there is no version to bump and nothing to download. Each builtin is also available on its own, for example `hk:/builtins/prettier.pkl`. A configuration that uses `hk:` needs an hk newer than 2.14.0, and every teammate gets the schema of the hk they have installed; pin a `package://` URL when the schema must not change with the installed hk.
 
-The `pkl` CLI and editors that run Pkl (through pkl-lsp) read `hk:` modules by starting [`hk read`](/cli/read) as an external module reader. Register it in a `PklProject` next to `hk.pkl`:
+The `pkl` CLI reads `hk:` modules by starting [`hk read`](/cli/read) as an external module reader. Register it in a `PklProject` next to `hk.pkl`:
 
 ```pkl
 amends "pkl:Project"
@@ -51,7 +51,7 @@ evaluatorSettings {
 }
 ```
 
-or pass it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself does not need either.
+or pass it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself does not need either. Editors that use pkl-lsp (0.9.0 and earlier) do not resolve `hk:` imports, so keep a `package://` URL if you rely on completion and type checking in the editor.
 
 ### Hook defaults {#hook-defaults}
 

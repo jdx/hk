@@ -55,7 +55,7 @@ EXAMPLES = {
     "validate": ("Evaluate the selected configuration without running its linter commands.",
                  "hk validate\nHK_FILE=./hk.local.pkl hk validate"),
     "version": ("Print the installed version for diagnostics or a bug report.", "hk version"),
-    "read": ("Let pkl and editors read `hk:` modules from the installed hk. pkl starts this command itself.",
+    "read": ("Let pkl read `hk:` modules from the installed hk. pkl starts this command itself.",
              "pkl eval --external-module-reader 'hk=hk read' hk.pkl"),
     "sponsors": ("List the sponsors supporting hk and related open source tools.", "hk sponsors"),
     "migrate": ("Convert a pre-commit configuration, then review the generated file and tool requirements.",

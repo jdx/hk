@@ -3,8 +3,8 @@
 //! A config can `amends "hk:/Config.pkl"` and `import "hk:/Builtins.pkl"`
 //! instead of pinning a versioned `package://` URL: the modules come from the
 //! hk that evaluates the config. hk serves them to its own evaluator directly,
-//! and to `pkl` (the CLI, and editors through pkl-lsp) through `hk read`,
-//! which speaks Pkl's external reader protocol.
+//! and to the `pkl` CLI through `hk read`, which speaks Pkl's external
+//! reader protocol.
 //!
 //! The URIs are hierarchical (`hk:/builtins/prettier.pkl`) because the
 //! modules import each other with relative URIs, which Pkl cannot resolve

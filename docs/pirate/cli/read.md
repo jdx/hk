@@ -1,6 +1,6 @@
 ---
 title: "hk read"
-description: "Let pkl and editors read `hk:` modules from the hk aboard this machine. pkl hails this call itself."
+description: "Let pkl read `hk:` modules from the hk aboard this machine. pkl hails this call itself."
 sourceHash: 966f931258fc
 ---
 
@@ -31,7 +31,7 @@ or hand `--external-module-reader hk='hk read'` to `pkl eval`.
 
 ## Tales from the deck {#examples}
 
-Let pkl and editors read `hk:` modules from the hk aboard this machine. pkl hails this call itself.
+Let pkl read `hk:` modules from the hk aboard this machine. pkl hails this call itself.
 
 ```sh
 pkl eval --external-module-reader 'hk=hk read' hk.pkl

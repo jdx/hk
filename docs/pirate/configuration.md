@@ -37,7 +37,7 @@ import "hk:/Builtins.pkl"
 
 hk carries these charts in its own hold (the binary), so there be no version to bump and nothing to fetch from shore. Each builtin can be had on its own too, for example `hk:/builtins/prettier.pkl`. A configuration that uses `hk:` needs an hk newer than 2.14.0, and every shipmate gets the schema of the hk they have aboard; pin a `package://` URL when the schema must not shift with the installed hk.
 
-The `pkl` CLI and editors that run Pkl (through pkl-lsp) read `hk:` modules by calling [`hk read`](/cli/read) aboard as an external module reader. Register it in a `PklProject` beside `hk.pkl`:
+The `pkl` CLI reads `hk:` modules by calling [`hk read`](/cli/read) aboard as an external module reader. Register it in a `PklProject` beside `hk.pkl`:
 
 ```pkl
 amends "pkl:Project"
@@ -52,7 +52,7 @@ evaluatorSettings {
 }
 ```
 
-or hail it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself needs neither, matey.
+or hail it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself needs neither, matey. Editors that use pkl-lsp (0.9.0 and earlier) can't find `hk:` imports, so keep a `package://` URL aboard if ye rely on completion and type checking in the editor.
 
 ### Hooks that come rigged by default {#hook-defaults}
 
