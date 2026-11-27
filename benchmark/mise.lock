@@ -193,11 +193,13 @@ specifiers = ["7.0.2"]
 version = "26.10.1"
 backend = "pipx:black"
 specifiers = ["26.10.1"]
+uv = { path = ".mise/locks/pipx-black/26.10.1", digest = "sha256:ada8794fdd35132c34e24ea7171feec5b628215c06af799f815a541f3fdd6e69" }
 
 [[tools."pipx:mypy"]]
 version = "2.4.1"
 backend = "pipx:mypy"
 specifiers = ["2.4.1"]
+uv = { path = ".mise/locks/pipx-mypy/2.4.1", digest = "sha256:92304979b34c936b83782be7c6119066836b3dcc92638d37fe583ba937035c7e" }
 
 [[tools."pipx:pre-commit-hooks"]]
 version = "6.0.0"
