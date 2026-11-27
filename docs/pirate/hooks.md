@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: 83a4c32b765e
+sourceHash: 35f9808f4005
 ---
 
 # Git hooks and stowing the hold
@@ -252,6 +252,8 @@ hk answers these Git events with dedicated handlers:
 | `post-commit`        | No arguments of its own                                   |
 
 Dedicated handlers also hand over their raw arguments as `hook_args`. See the [run reference](/cli/run) for the details of each argument. Custom hooks can be called by name; hooks without a dedicated handler get an empty `hook_args` value.
+
+`hk run pre-push` reads Git's ref lines from stdin only when stdin is not a terminal and `--from-ref` or `--to-ref` is missing. Give it both flags and it leaves stdin be: `hook_stdin` stays empty, and an open but idle stdin won't keep the crew waitin' at the dock.
 
 These variables are also on hand in `condition` and `step_condition` expressions. For example, to run a `post-checkout` step only on branch checkouts, and report it as skipped on file checkouts:
 
