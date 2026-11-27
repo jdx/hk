@@ -1,6 +1,6 @@
 ---
 description: Rig yer Git hooks, learn how hk picks the staged cargo, and command the fixes, the stowing of the hold, and the order the hands work in.
-sourceHash: 35f9808f4005
+sourceHash: deeeb4508f6e
 ---
 
 # Git hooks and stowing the hold
@@ -43,7 +43,7 @@ Use `hk run pre-commit --plan` to read the passage plan: the steps and files it 
 
 ### Reference range
 
-Steps can read the references that picked their cargo, for tools that need a base commit rather than a list of files. The `{{from_ref}}` and `{{to_ref}}` template variables (usable in `condition` expressions too) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They stay empty when the run has no range, such as a plain `pre-commit`. A step's own `env` can override them. Like the other hook variables, `{{from_ref}}` and `{{to_ref}}` are inserted as raw text, and Git allows characters such as `;` and `$` in branch names. In a shell command, read `"$HK_FROM_REF"` instead of writing `{{from_ref}}`.
+Steps can read the references that picked their cargo, for tools that need a base commit rather than a list of files. The `{{from_ref}}` and `{{to_ref}}` template variables (usable in `condition` expressions too) and the `HK_FROM_REF` and `HK_TO_REF` environment variables hold the values from `--from-ref`, `--to-ref`, `--pr`, or the `pre-push` hook. They stay empty when the run has no range, such as a plain `pre-commit`. A push that sends several refs at once, such as `git push origin feat-a feat-b`, picks the cargo changed on every one of them, and `from_ref` and `to_ref` hold the first range. Deleted refs add no cargo. A step's own `env` can override them. Like the other hook variables, `{{from_ref}}` and `{{to_ref}}` are inserted as raw text, and Git allows characters such as `;` and `$` in branch names. In a shell command, read `"$HK_FROM_REF"` instead of writing `{{from_ref}}`.
 
 ```pkl
 ["eslint"] {

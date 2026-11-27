@@ -165,57 +165,85 @@ impl PrePush {
         };
         trace!("to_be_updated_refs: {to_be_updated_refs:?}");
 
-        self.hook.from_ref = Some(match &self.hook.from_ref {
-            Some(to_ref) => to_ref.clone(),
-            None if !to_be_updated_refs.is_empty()
-                && !is_zero_sha(&to_be_updated_refs[0].from.1) =>
-            {
-                to_be_updated_refs[0].from.1.clone()
+        let remote = self.remote.as_deref().unwrap_or("origin");
+        // Deletions (local sha all-zeros) have nothing to check. Every other
+        // ref line is a range of its own, and all of them must be checked.
+        let updates = to_be_updated_refs
+            .iter()
+            .filter(|refs| !is_zero_sha(&refs.to.1))
+            .collect::<Vec<_>>();
+        let mut fallback = None;
+        if self.hook.from_ref.is_none() && self.hook.to_ref.is_none() && updates.len() > 1 {
+            let mut ranges = Vec::with_capacity(updates.len());
+            for refs in updates {
+                ranges.push((range_start(refs, remote, &mut fallback)?, refs.to.1.clone()));
             }
-            None => {
-                // Either no refs were provided on stdin, or the first ref is
-                // a new-branch push (remote sha is all-zeros). Fall back to
-                // the remote-tracking branch if it exists, then to the
-                // repository's default branch on the target remote.
-                let remote = self.remote.as_deref().unwrap_or("origin");
-                let repo = Git::new()?; // TODO: remove this extra repo creation
-                if let Some(rb) = repo.matching_remote_branch(remote)? {
-                    rb
-                } else if remote == "origin" {
-                    repo.resolve_default_branch()
-                } else {
-                    // resolve_default_branch is internally hardcoded to
-                    // origin, so for a non-origin remote strip the known
-                    // origin prefix and rebind onto the actual remote.
-                    // Use strip_prefix (not rsplit) so multi-segment branch
-                    // names like "release/v1" are preserved intact.
-                    let default = repo.resolve_default_branch();
-                    let bare = default
-                        .strip_prefix("refs/remotes/origin/")
-                        .or_else(|| default.strip_prefix("origin/"))
-                        .unwrap_or(&default);
-                    format!("refs/remotes/{remote}/{bare}")
-                }
+            self.hook.from_ref = Some(ranges[0].0.clone());
+            self.hook.to_ref = Some(ranges[0].1.clone());
+            self.hook.ref_ranges = ranges;
+        } else {
+            // A push of deletions only keeps its first line, so the zero
+            // `to_ref` short-circuits to an empty file set in hook.rs rather
+            // than diffing the default branch against HEAD.
+            let primary = updates.first().copied().or(to_be_updated_refs.first());
+            if self.hook.from_ref.is_none() {
+                self.hook.from_ref = Some(match primary {
+                    Some(refs) => range_start(refs, remote, &mut fallback)?,
+                    None => fallback_base(remote)?,
+                });
             }
-        });
-        self.hook.to_ref = Some(
-            self.hook
-                .to_ref
-                .clone()
-                .or(if !to_be_updated_refs.is_empty() {
-                    Some(to_be_updated_refs[0].to.1.clone())
-                } else {
-                    None
-                })
-                .unwrap_or("HEAD".to_string()),
-        );
+            if self.hook.to_ref.is_none() {
+                self.hook.to_ref = Some(
+                    primary
+                        .map(|refs| refs.to.1.clone())
+                        .unwrap_or("HEAD".to_string()),
+                );
+            }
+        }
         debug!(
-            "from_ref: {}, to_ref: {}",
+            "from_ref: {}, to_ref: {}, ref_ranges: {:?}",
             self.hook.from_ref.as_ref().unwrap(),
-            self.hook.to_ref.as_ref().unwrap()
+            self.hook.to_ref.as_ref().unwrap(),
+            self.hook.ref_ranges
         );
 
         self.hook.run("pre-push").await
+    }
+}
+
+/// The start of the range a pushed ref adds to the remote: the remote's
+/// current sha, or for a new remote ref, a base from `fallback_base`.
+fn range_start(refs: &PrePushRefs, remote: &str, fallback: &mut Option<String>) -> Result<String> {
+    if !is_zero_sha(&refs.from.1) {
+        return Ok(refs.from.1.clone());
+    }
+    if fallback.is_none() {
+        *fallback = Some(fallback_base(remote)?);
+    }
+    Ok(fallback.clone().unwrap())
+}
+
+/// The base for a ref the remote does not have yet, or for a run without
+/// stdin refs: the remote-tracking branch if it exists, then the repository's
+/// default branch on the target remote.
+fn fallback_base(remote: &str) -> Result<String> {
+    let repo = Git::new()?;
+    if let Some(rb) = repo.matching_remote_branch(remote)? {
+        Ok(rb)
+    } else if remote == "origin" {
+        Ok(repo.resolve_default_branch())
+    } else {
+        // resolve_default_branch is internally hardcoded to
+        // origin, so for a non-origin remote strip the known
+        // origin prefix and rebind onto the actual remote.
+        // Use strip_prefix (not rsplit) so multi-segment branch
+        // names like "release/v1" are preserved intact.
+        let default = repo.resolve_default_branch();
+        let bare = default
+            .strip_prefix("refs/remotes/origin/")
+            .or_else(|| default.strip_prefix("origin/"))
+            .unwrap_or(&default);
+        Ok(format!("refs/remotes/{remote}/{bare}"))
     }
 }
 
