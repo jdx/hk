@@ -35,6 +35,8 @@ const gh_actions_lock = new Config.Step {
     )
   // gh-actions-lock always reads every workflow, so it runs once for the whole repository.
   stage = List(".github/workflows/*.y*ml", ".github/workflows/actions.lock")
+  // The fix is a POSIX script, which cmd.exe would not run on Windows.
+  shell = "sh -o errexit -c"
   check = new Config.CommandSpec {
     command = "gh-actions-lock --verify-local"
     effect = "read"
@@ -105,8 +107,62 @@ const gh_actions_lock = new Config.Step {
       """
     ["check complete lockfile"] = testMaker.checkPass(lockfile)
     ["check workflow missing from lockfile"] = testMaker.checkFail(otherWorkflowOnly, 1)
-    // Offline: the check passes, so the fix never calls GitHub
-    ["fix complete lockfile"] = testMaker.fixPass(lockfile, lockfile)
+    // These tests replace gh-actions-lock with a script, so they need no network.
+    // The only directories on PATH are the script's and the system's.
+    local const fakePath = "bin:/usr/bin:/bin"
+    // The lockfile is complete, so the fix must not ask GitHub to resolve it
+    ["fix complete lockfile skips GitHub"] = new Config.StepTest {
+      run = "fix"
+      tmpdir = true
+      before = "chmod +x bin/gh-actions-lock"
+      env {
+        ["PATH"] = fakePath
+      }
+      write {
+        [".github/workflows/ci.yml"] = workflow
+        [".github/workflows/actions.lock"] = lockfile
+        ["bin/gh-actions-lock"] =
+          """
+          #!/bin/sh
+          case "$*" in *--verify-local*) exit 0 ;; esac
+          echo "unexpected call to resolve the lockfile: $*" >&2
+          exit 1
+
+          """
+      }
+      expect {
+        files {
+          [".github/workflows/actions.lock"] = lockfile
+        }
+      }
+    }
+    // gh-actions-lock exits 0 without writing when GitHub cannot be reached; the fix must fail
+    ["fix fails when nothing is resolved"] = new Config.StepTest {
+      run = "fix"
+      tmpdir = true
+      before = "chmod +x bin/gh-actions-lock"
+      env {
+        ["PATH"] = fakePath
+      }
+      write {
+        [".github/workflows/ci.yml"] = workflow
+        [".github/workflows/actions.lock"] = otherWorkflowOnly
+        ["bin/gh-actions-lock"] =
+          """
+          #!/bin/sh
+          case "$*" in *--verify-local*) echo "missing pins" >&2; exit 1 ;; esac
+          echo "Nothing was written"
+          exit 0
+
+          """
+      }
+      expect {
+        code = 1
+        files {
+          [".github/workflows/actions.lock"] = otherWorkflowOnly
+        }
+      }
+    }
     // Calls the GitHub API. A full semver tag is not narrowed, so the workflow is unchanged.
     ["fix creates missing lockfile"] = new Config.StepTest {
       run = "fix"
