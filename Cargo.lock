@@ -564,9 +564,9 @@ dependencies = [
 
 [[package]]
 name = "ensembler"
-version = "1.1.6"
+version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d1e0243be323a30974bfffd1ac9567099f31d7601958d731b76ec0f2606b542"
+checksum = "e4d85d9f68f231146fcdb38651d748eed97ed1e000d1b1181a46c8928941eb06"
 dependencies = [
  "aho-corasick",
  "clx",
@@ -574,7 +574,7 @@ dependencies = [
  "indexmap 2.14.2",
  "indicatif",
  "log",
- "nix 0.31.4",
+ "nix 0.32.0",
  "terminal_size",
  "thiserror",
  "tokio",
@@ -1848,9 +1848,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pklr"
-version = "6.0.4"
+version = "6.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f8dedf03a9842de030475d65078a0c06be5ee7fef23ec3d677120a2b7e5e7be"
+checksum = "09ac966edf2e3ba070df9620d9472f5462bf9f0fcaad388f1f0ffdbabc1a9bea"
 dependencies = [
  "fancy-regex",
  "indexmap 2.14.2",
@@ -3734,7 +3734,7 @@ dependencies = [
  "indexmap 2.14.2",
  "libc",
  "memchr",
- "nix 0.32.0",
+ "nix 0.30.1",
  "typed-path",
  "windows-sys 0.61.2",
  "zeroize",
