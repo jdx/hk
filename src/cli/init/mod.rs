@@ -111,7 +111,10 @@ impl Init {
         let builtins = picker::pick_builtins(detections)?;
 
         if builtins.is_empty() {
-            return Ok((generator::generate_default_template(), false));
+            return Ok((
+                generator::generate_default_template(&crate::pkl_modules::import_root()),
+                false,
+            ));
         }
 
         // Let user pick hooks
@@ -124,20 +127,23 @@ impl Init {
             hooks
         };
 
-        Ok((generator::generate_pkl(&builtins, &hooks), true))
+        Ok((
+            generator::generate_pkl(&builtins, &hooks, &crate::pkl_modules::import_root()),
+            true,
+        ))
     }
 
     fn run_auto(&self, detections: &[detector::Detection]) -> String {
         if detections.is_empty() {
             // No detections - use default template
-            return generator::generate_default_template();
+            return generator::generate_default_template(&crate::pkl_modules::import_root());
         }
 
         // Use detected builtins with default hooks
         let builtins: Vec<_> = detections.iter().map(|d| d.builtin).collect();
         let hooks: Vec<String> = DEFAULT_HOOKS.iter().map(|s| s.to_string()).collect();
 
-        generator::generate_pkl(&builtins, &hooks)
+        generator::generate_pkl(&builtins, &hooks, &crate::pkl_modules::import_root())
     }
 
     fn write_mise_toml(&self) -> Result<()> {

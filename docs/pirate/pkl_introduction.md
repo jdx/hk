@@ -1,6 +1,6 @@
 ---
 description: Learn the Pkl ye need to draw hk's charts, muster the same hands across hooks, and find out why the charts won't evaluate.
-sourceHash: 2cac755c9ba3
+sourceHash: c5067c0c1418
 ---
 
 # Pkl essentials for the chart room
@@ -216,8 +216,10 @@ Validation fails on charts hk cannot sail, such as a dependency cycle between st
 If ye have the Pkl CLI on hand, look over the evaluated module with:
 
 ```sh
-pkl eval --format json hk.pkl
+pkl eval --external-module-reader 'hk=hk read' --format json hk.pkl
 ```
+
+The `--external-module-reader` option lets `pkl` load `hk:` imports through [`hk read`](/cli/read). Charts that import `package://` URLs don't need it.
 
 For features beyond these examples, steer by the [Pkl language reference](https://pkl-lang.org/main/current/language-reference/index.html).
 

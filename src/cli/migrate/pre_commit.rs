@@ -450,7 +450,8 @@ impl PreCommit {
     }
 
     fn render(&self, migration: &Migration, runner: &str) -> String {
-        let root = self.hk_pkl_root.as_deref().unwrap_or("hk:");
+        let default_root = crate::pkl_modules::import_root();
+        let root = self.hk_pkl_root.as_deref().unwrap_or(&default_root);
         let root = root.trim_end_matches('/');
 
         let mut out = String::new();

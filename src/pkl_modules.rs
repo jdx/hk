@@ -24,6 +24,18 @@ pub const SCHEME: &str = "hk";
 pub static EMBEDDED_PKL_PACKAGE: &[u8] =
     include_bytes!(concat!(std::env!("OUT_DIR"), "/hk_pkl_package.zip"));
 
+/// The root that generated configs import hk's modules from: `hk:` when this
+/// hk carries its modules, or else the package URL of this hk's release, which
+/// hk downloads.
+pub fn import_root() -> String {
+    if EMBEDDED_PKL_PACKAGE.is_empty() {
+        let version = crate::version::version();
+        format!("package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#")
+    } else {
+        format!("{SCHEME}:")
+    }
+}
+
 /// The modules of the embedded package, by their path in it
 /// (`builtins/prettier.pkl`), or why they are unavailable.
 static MODULES: LazyLock<Result<HashMap<String, String>, String>> =

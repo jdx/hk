@@ -213,8 +213,10 @@ Validation fails on configs hk cannot run, such as a dependency cycle between st
 If the Pkl CLI is installed, inspect the evaluated module with:
 
 ```sh
-pkl eval --format json hk.pkl
+pkl eval --external-module-reader 'hk=hk read' --format json hk.pkl
 ```
+
+The `--external-module-reader` option lets `pkl` load `hk:` imports through [`hk read`](/cli/read). A configuration that imports `package://` URLs does not need it.
 
 Use the [Pkl language reference](https://pkl-lang.org/main/current/language-reference/index.html) for features beyond these examples.
 
