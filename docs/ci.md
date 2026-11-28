@@ -36,7 +36,7 @@ mise exec -- hk check --all
 
 If your linters are project dependencies, also run the package manager’s install command and expose its executable directory to hk. The [mise integration guide](/mise_integration) shows a Node.js example.
 
-Pin tool versions in the project so local and CI runs use the same rules. Keep hk’s Pkl package imports versioned as well.
+Pin tool versions in the project, hk included, so local and CI runs use the same rules. `hk:` imports follow the installed hk.
 
 ## Check a branch’s changes
 

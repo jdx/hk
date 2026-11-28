@@ -15,8 +15,8 @@ Getting under way for the first time? Follow [getting started](/getting_started)
 A configuration amends hk's [Pkl schema](/pkl_introduction). For one set of lookouts that every hook shares, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -25,6 +25,36 @@ steps {
 ```
 
 `pre-commit` mends the staged files while yer unstaged work is stowed safe in the hold. The `check` and `fix` hooks give ye the local commands. Mind: they be hooks, not individual steps.
+
+### hk's own charts, or charts pinned to a voyage {#hk-scheme}
+
+`hk:/Config.pkl` and `hk:/Builtins.pkl` be the charts of the very hk that reads yer configuration. hk carries them in its own hold (the binary), so there be no version to bump and nothing to fetch from shore, and when ye upgrade hk, the schema comes along. Each builtin can be had on its own too, for example `hk:/builtins/prettier.pkl`. A configuration that uses `hk:` needs an hk newer than 2.14.0.
+
+Import a release by its `package://` URL instead when the schema must not shift with the installed hk, when yer editor uses pkl-lsp, or when plain `pkl` reads the file without hk aboard. pkl-lsp (0.9.0 and earlier) can't find `hk:` imports, so completion and type checking in the editor need a `package://` URL:
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+```
+
+Keep both package URLs on the same version. Changing the hk executable does not rewrite pinned imports; they stay where ye pinned them.
+
+The `pkl` CLI can read `hk:` modules too, by calling [`hk read`](/cli/read) aboard as an external module reader. Register it in a `PklProject` beside `hk.pkl`:
+
+```pkl
+amends "pkl:Project"
+
+evaluatorSettings {
+  externalModuleReaders {
+    ["hk"] {
+      executable = "hk"
+      arguments { "read" }
+    }
+  }
+}
+```
+
+or hail it on the command line: `pkl eval --external-module-reader 'hk=hk read' hk.pkl`. hk itself needs neither, matey.
 
 ### Hooks that come rigged by default {#hook-defaults}
 
@@ -558,7 +588,7 @@ steps {
 }
 ```
 
-Import hk's schema by its full `package://` URL, as above. hk's evaluator does not resolve Pkl project dependencies, so the `@name/…` import form that a `dependencies` block provides fails with `Import not found`.
+In a shared package, import hk's schema by its full `package://` URL, as above, so every ship that adopts the package sails by the same schema, whatever hk it has aboard. hk's evaluator does not resolve Pkl project dependencies, so the `@name/…` import form that a `dependencies` block provides fails with `Import not found`.
 
 Build the package with the Pkl CLI and upload both files it writes, `acme-hk@1.0.0` and `acme-hk@1.0.0.zip`, to the paths in `baseUri` and `packageZipUrl`:
 
@@ -648,7 +678,7 @@ For scalar settings, a higher layer's value overrides the ones below it. List se
 Use `~/.config/hk/config.pkl` for defaults and extra steps that sail with ye on every project. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
 jobs = 4
 fail_fast = false

@@ -1,6 +1,6 @@
 ---
 description: Let mise, the ship's quartermaster, provision hk and yer linter versions, environment variables, and the running of Git hooks.
-sourceHash: 4a1b32576a18
+sourceHash: 2581270c0dab
 ---
 
 # mise integration: the quartermaster
@@ -76,7 +76,7 @@ Look over the tools and tasks it drew up. A `mise.toml` that's already aboard is
 Use a task when a check earns its keep outside Git hooks too:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
+amends "hk:/Config.pkl"
 
 hooks {
   ["check"] {

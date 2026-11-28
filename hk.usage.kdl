@@ -386,6 +386,22 @@ Defaults to pre-commit when only pre-commit is on PATH, otherwise prek.
         flag "-h --help" help="Print help" action=help builtin=#true
     }
 }
+cmd read help="Serve hk's Pkl modules to pkl as an external module reader" effect=read {
+    long_help #"""
+Serve hk's Pkl modules to pkl as an external module reader
+
+pkl starts this command to read `hk:` modules, so a config can `amends "hk:/Config.pkl"` and `import "hk:/Builtins.pkl"` and get the modules of the installed hk instead of a pinned package. It speaks Pkl's external reader protocol on stdin and stdout and is not meant to be run by hand. Register it in a PklProject:
+
+    evaluatorSettings {
+      externalModuleReaders {
+        ["hk"] { executable = "hk"; arguments { "read" } }
+      }
+    }
+
+or pass `--external-module-reader hk='hk read'` to `pkl eval`.
+"""#
+    flag "-h --help" help="Print help" action=help builtin=#true
+}
 cmd run help="Run a hook" arg_required_else_help=#true {
     alias r
     use hook-options

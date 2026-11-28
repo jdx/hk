@@ -16,6 +16,9 @@ PACKAGE_ROOT = re.compile(
     r"package://github\.com/jdx/hk/releases/download/v[^/]+/hk@[^#]+#/"
 )
 REWRITTEN_PACKAGE_ROOT = re.compile(r"package://example\.com/v[^/]+/hk@[^#]+#/")
+# `hk:/Config.pkl` names the modules hk serves through `hk read`, which are
+# these sources.
+HK_SCHEME_ROOT = re.compile(r'(?<=")hk:/')
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z0-9_]+)\1")
 REDIRECT = re.compile(r"(>>|>)\s*(['\"]?)([^\s'\"]*\.pkl)\2")
 TEST = re.compile(r'^\s*@test\s+["\']([^"\']+)["\']\s*\{')
@@ -52,6 +55,7 @@ EXPECTED_FAILURES = {
     ("pkl_config_errors.bats", "pkl file with syntax errors shows original error"),
     ("pkl_config_errors.bats", "syntax error in hk.pkl reports file, line and column once"),
     ("pkl_config_errors.bats", "syntax error in an imported file is blamed on that file"),
+    ("pkl_hk_scheme.bats", "an hk: module hk does not have is an error naming it"),
     ("hook_timeout.bats", "hook timeout rejects values without a unit"),
     ("top_level_exclude.bats", "top-level exclude - invalid regex fails validation"),
     ("validate.bats", "validate warns about a misspelled property"),
@@ -93,7 +97,8 @@ def render(source: str) -> str:
         source = re.sub(rf"(?<!\\){re.escape(expression)}", lambda _: value, source)
     source = source.replace(r"\$", "$")
     source = PACKAGE_ROOT.sub(f"{PKL_DIR.as_posix()}/", source)
-    return REWRITTEN_PACKAGE_ROOT.sub(f"{PKL_DIR.as_posix()}/", source)
+    source = REWRITTEN_PACKAGE_ROOT.sub(f"{PKL_DIR.as_posix()}/", source)
+    return HK_SCHEME_ROOT.sub(f"{PKL_DIR.as_posix()}/", source)
 
 
 def heredocs(path: Path) -> list[Heredoc]:

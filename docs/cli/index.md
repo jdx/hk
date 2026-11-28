@@ -71,6 +71,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 - [`hk mcp [--root <PATH>]`](/cli/mcp.md)
 - [`hk migrate <SUBCOMMAND>`](/cli/migrate.md)
 - [`hk migrate pre-commit [FLAGS]`](/cli/migrate/pre-commit.md)
+- [`hk read`](/cli/read.md)
 - [`hk run [FLAGS] [FILES]… <SUBCOMMAND>`](/cli/run.md)
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
 - [`hk run post-checkout [FLAGS] <ARGS>…`](/cli/run/post-checkout.md)

@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: 043e8752c6d6
+sourceHash: e9b0ae033938
 ---
 
 # Getting under way
@@ -67,8 +67,8 @@ This complete example needs no extra tools. The `trailing_whitespace` and `newli
 Replace the whole of the `hk.pkl` that `hk init` drew up with this example. If `hk init` spotted linters, its steps need those tools aboard on `PATH`; the example below does not.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
 
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace

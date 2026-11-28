@@ -1,7 +1,7 @@
 ---
 outline: [2, 3]
 description: Meet the standing crew who come with the ship. Browse reusable linter and formatter definitions, refit them to yer needs, and learn which tools ye must bring aboard yerself.
-sourceHash: b300454a35ff
+sourceHash: ba14e540aad6
 ---
 
 # The standing crew: built-in linters
@@ -13,8 +13,8 @@ Builtins be the standing crew who come with the ship: reusable Pkl step definiti
 ## Muster a builtin {#use-a-builtin}
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "hk:/Config.pkl"
+import "hk:/Builtins.pkl"
 
 hooks {
   ["check"] {
@@ -28,7 +28,7 @@ hooks {
 
 `Builtins.oxfmt` is the Pkl property name, the name the hand goes by on the roster. The step name, `"oxfmt"`, is yer own label for that hand, the one ye name in calls such as `hk check --step oxfmt`.
 
-Aye, and keep the schema and Builtins imports on the same version. The roster below describes the version of the source this website was built from; an older pinned package may differ.
+Aye, and `hk:/Builtins.pkl` gives ye the builtins of the hk aboard. The roster below describes the version of the source this website was built from, so an older hk or an older [pinned package](/configuration#hk-scheme) may differ.
 
 ## Refit a builtin {#customize-a-builtin}
 

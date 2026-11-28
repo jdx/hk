@@ -1,6 +1,6 @@
 ---
 description: Run hk's checks for the harbour-master (CI), pick only the cargo that changed, call up extra watches, and haul in diagnostics worth reading.
-sourceHash: 5d8ab9cc0a1c
+sourceHash: aaa2de51f147
 ---
 
 # Continuous integration: the harbour-master
@@ -37,7 +37,7 @@ mise exec -- hk check --all
 
 If yer linters are project dependencies, also run the package manager's install command and expose its executable directory to hk. The [mise integration guide](/mise_integration) shows a Node.js example.
 
-Pin tool versions in the project so local and CI runs sail by the same rules. Keep hk's Pkl package imports versioned as well.
+Pin tool versions in the project, hk included, so local and CI runs sail by the same rules. `hk:` imports follow the hk aboard.
 
 ## Inspect only a branch's changes {#check-a-branch-s-changes}
 

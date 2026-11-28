@@ -19,6 +19,7 @@ mod init;
 mod install;
 mod mcp;
 mod migrate;
+mod read;
 mod run;
 mod sponsors;
 mod test;
@@ -148,6 +149,7 @@ enum Commands {
     Install(Box<install::Install>),
     Mcp(Box<mcp::Mcp>),
     Migrate(Box<migrate::Migrate>),
+    Read(Box<read::Read>),
     #[usage(alias = "r")]
     Run(Box<run::Run>),
     Sponsors(Box<sponsors::Sponsors>),
@@ -235,6 +237,12 @@ async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
     }
     if let Some(cd) = &args.cd {
         return reexec_for_cd(cd).map(Some);
+    }
+    // pkl reads only protocol messages from `hk read`'s stdout, so it starts
+    // before logging or tracing can write anything there.
+    if let Commands::Read(cmd) = &args.command {
+        cmd.run().await?;
+        return Ok(None);
     }
 
     let output_format = args.command.output_format().unwrap_or(args.format);
@@ -343,6 +351,7 @@ async fn run_command(args: Cli) -> Result<Option<std::process::ExitStatus>> {
         Commands::Install(cmd) => cmd.run().await,
         Commands::Mcp(cmd) => cmd.run().await,
         Commands::Migrate(cmd) => cmd.run().await,
+        Commands::Read(_) => unreachable!("hk read is served before logging starts"),
         Commands::Run(cmd) => cmd.run().await,
         Commands::Sponsors(cmd) => cmd.run().await,
         Commands::Uninstall(cmd) => cmd.run().await,

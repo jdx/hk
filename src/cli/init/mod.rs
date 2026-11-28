@@ -32,7 +32,6 @@ pub struct Init {
 impl Init {
     pub async fn run(&self) -> Result<()> {
         let hk_file = PathBuf::from("hk.pkl");
-        let version = env!("CARGO_PKG_VERSION");
 
         // An existing hk.pkl makes a repeat init harmless: the picker never
         // opens, so that case wins over the terminal check below.
@@ -65,10 +64,10 @@ impl Init {
 
         let (hook_content, has_steps) = if self.interactive {
             // Interactive mode: let user pick from all builtins
-            self.run_interactive(&detections, version)?
+            self.run_interactive(&detections)?
         } else {
             // Auto mode (default): use detected builtins or fall back to template
-            (self.run_auto(&detections, version), !detections.is_empty())
+            (self.run_auto(&detections), !detections.is_empty())
         };
 
         // Write the file
@@ -96,11 +95,7 @@ impl Init {
         Ok(())
     }
 
-    fn run_interactive(
-        &self,
-        detections: &[detector::Detection],
-        version: &str,
-    ) -> Result<(String, bool)> {
+    fn run_interactive(&self, detections: &[detector::Detection]) -> Result<(String, bool)> {
         // Print detection info
         if !detections.is_empty() {
             info!("Scanning project...");
@@ -116,7 +111,10 @@ impl Init {
         let builtins = picker::pick_builtins(detections)?;
 
         if builtins.is_empty() {
-            return Ok((generator::generate_default_template(version), false));
+            return Ok((
+                generator::generate_default_template(&crate::pkl_modules::import_root()),
+                false,
+            ));
         }
 
         // Let user pick hooks
@@ -129,20 +127,23 @@ impl Init {
             hooks
         };
 
-        Ok((generator::generate_pkl(&builtins, &hooks, version), true))
+        Ok((
+            generator::generate_pkl(&builtins, &hooks, &crate::pkl_modules::import_root()),
+            true,
+        ))
     }
 
-    fn run_auto(&self, detections: &[detector::Detection], version: &str) -> String {
+    fn run_auto(&self, detections: &[detector::Detection]) -> String {
         if detections.is_empty() {
             // No detections - use default template
-            return generator::generate_default_template(version);
+            return generator::generate_default_template(&crate::pkl_modules::import_root());
         }
 
         // Use detected builtins with default hooks
         let builtins: Vec<_> = detections.iter().map(|d| d.builtin).collect();
         let hooks: Vec<String> = DEFAULT_HOOKS.iter().map(|s| s.to_string()).collect();
 
-        generator::generate_pkl(&builtins, &hooks, version)
+        generator::generate_pkl(&builtins, &hooks, &crate::pkl_modules::import_root())
     }
 
     fn write_mise_toml(&self) -> Result<()> {

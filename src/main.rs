@@ -33,6 +33,7 @@ mod merge;
 mod mise_env;
 mod par;
 mod passed_checks;
+mod pkl_modules;
 mod plan;
 mod settings;
 mod shutdown;
