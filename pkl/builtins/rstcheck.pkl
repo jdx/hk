@@ -1,0 +1,82 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+/// Checks reStructuredText files, including the code in their code blocks.
+///
+/// rstcheck reads its settings from `.rstcheck.cfg`, `setup.cfg` or `pyproject.toml`, searching
+/// from each file's directory upward. Without Sphinx installed next to it, Sphinx roles and
+/// directives such as `:ref:` and `.. toctree::` are unknown and fail the check; install
+/// `pipx:rstcheck[extras=sphinx]` for Sphinx projects, or list them in `ignore_roles` and
+/// `ignore_directives`.
+@Builtins.meta {
+  category = "reStructuredText"
+  description = "reStructuredText linter that also checks code blocks"
+  project_indicators {
+    new { file = ".rstcheck.cfg" }
+    new { file = "pyproject.toml"; contains = "[tool.rstcheck]" }
+    new { file = "setup.cfg"; contains = "[rstcheck]" }
+  }
+  mise_tools = List("pipx:rstcheck")
+}
+rstcheck = new Config.Step {
+  glob = "**/*.rst"
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("rstcheck", "{{files}}") }
+    effect = "read"
+  }
+  // Findings are `path:line: (LEVEL/n) message` (no column). Every reported finding fails the
+  // check, whatever its docutils level, so all are errors; hk ignores the closing
+  // `Error! Issues detected.`
+  diagnostic_format = "gcc"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "doc.rst" }
+    local const good =
+      """
+      Title
+      =====
+
+      Some text with a `link <https://hk.jdx.dev>`_.
+
+      .. code-block:: python
+
+         print("hello")
+
+      """
+    local const badCode =
+      """
+      Title
+      =====
+
+      .. code-block:: python
+
+         def greet(:
+             pass
+
+      """
+    ["check good file"] = testMaker.checkPass(good)
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+        Title
+        =====
+
+        .. not-a-directive:: value
+
+        """,
+        1,
+      )
+    ["check bad code block"] = testMaker.checkFail(badCode, 1)
+    ["check bad code block reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        badCode,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "doc.rst"
+          line = 6
+          severity = "error"
+          message = "(python) invalid syntax"
+        }),
+      )
+  }
+}
