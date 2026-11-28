@@ -29,6 +29,7 @@ pub(super) const MAX_SUMMARY_BYTES: usize = 768 * 1024;
 /// the work tree root, so strip the current directory from paths under it.
 fn repo_path(path: &str) -> Cow<'_, str> {
     let as_path = Path::new(path);
+    let mut path = Cow::Borrowed(path);
     if as_path.is_absolute()
         && let Ok(cwd) = std::env::current_dir()
     {
@@ -39,13 +40,20 @@ fn repo_path(path: &str) -> Cow<'_, str> {
                 .and_then(|canonical| as_path.strip_prefix(canonical).ok())
         });
         if let Some(relative) = relative {
-            let relative = crate::hook::with_forward_slashes(relative.to_path_buf());
-            return Cow::Owned(relative.to_string_lossy().into_owned());
+            path = Cow::Owned(relative.to_string_lossy().into_owned());
         }
     }
-    match path.strip_prefix("./") {
-        Some(stripped) => Cow::Borrowed(stripped),
-        None => Cow::Borrowed(path),
+    // Windows tools may report `src\a.js`; GitHub and GitLab expect `/`.
+    // On Unix a backslash is part of the file name, so leave it alone.
+    if cfg!(windows) && path.contains('\\') {
+        path = Cow::Owned(path.replace('\\', "/"));
+    }
+    match path {
+        Cow::Borrowed(path) => Cow::Borrowed(path.strip_prefix("./").unwrap_or(path)),
+        Cow::Owned(path) => match path.strip_prefix("./") {
+            Some(stripped) => Cow::Owned(stripped.to_string()),
+            None => Cow::Owned(path),
+        },
     }
 }
 
@@ -600,6 +608,9 @@ mod tests {
         assert_eq!(gitlab_code_quality(&run)[0]["location"]["path"], "src/a.js");
         assert_eq!(repo_path("/elsewhere/a.js"), "/elsewhere/a.js");
         assert_eq!(repo_path("./a.js"), "a.js");
+        if cfg!(windows) {
+            assert_eq!(repo_path(".\\src\\a.js"), "src/a.js");
+        }
         if cfg!(unix) {
             // A backslash is a legal filename character on Unix.
             let literal = cwd.join("a\\b.js");
