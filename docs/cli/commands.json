@@ -652,6 +652,33 @@
             }
           },
           {
+            "name": "github-annotations",
+            "usage": "--github-annotations",
+            "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+            "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+            "short": [],
+            "long": ["github-annotations"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "gitlab-code-quality",
+            "usage": "--gitlab-code-quality <PATH>",
+            "help": "Write normalized diagnostics as a GitLab Code Quality report",
+            "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+            "short": [],
+            "long": ["gitlab-code-quality"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
             "name": "junit-xml",
             "usage": "--junit-xml <PATH>",
             "help": "Write step results as a JUnit XML report",
@@ -1392,6 +1419,33 @@
             "arg": {
               "name": "FROM_REF",
               "usage": "<FROM_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "github-annotations",
+            "usage": "--github-annotations",
+            "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+            "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+            "short": [],
+            "long": ["github-annotations"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "gitlab-code-quality",
+            "usage": "--gitlab-code-quality <PATH>",
+            "help": "Write normalized diagnostics as a GitLab Code Quality report",
+            "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+            "short": [],
+            "long": ["gitlab-code-quality"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
               "required": true,
               "double_dash": "Optional",
               "hide": false
@@ -2301,6 +2355,33 @@
                 }
               },
               {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "junit-xml",
                 "usage": "--junit-xml <PATH>",
                 "help": "Write step results as a JUnit XML report",
@@ -2806,6 +2887,33 @@
                 }
               },
               {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "junit-xml",
                 "usage": "--junit-xml <PATH>",
                 "help": "Write step results as a JUnit XML report",
@@ -3278,6 +3386,33 @@
                 "arg": {
                   "name": "FROM_REF",
                   "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -3771,6 +3906,33 @@
                 }
               },
               {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "junit-xml",
                 "usage": "--junit-xml <PATH>",
                 "help": "Write step results as a JUnit XML report",
@@ -4258,6 +4420,33 @@
                 }
               },
               {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "junit-xml",
                 "usage": "--junit-xml <PATH>",
                 "help": "Write step results as a JUnit XML report",
@@ -4730,6 +4919,33 @@
                 "arg": {
                   "name": "FROM_REF",
                   "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -5232,6 +5448,33 @@
                 }
               },
               {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "junit-xml",
                 "usage": "--junit-xml <PATH>",
                 "help": "Write step results as a JUnit XML report",
@@ -5722,6 +5965,33 @@
                 "arg": {
                   "name": "FROM_REF",
                   "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -6233,6 +6503,33 @@
                 }
               },
               {
+                "name": "github-annotations",
+                "usage": "--github-annotations",
+                "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+                "short": [],
+                "long": ["github-annotations"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "gitlab-code-quality",
+                "usage": "--gitlab-code-quality <PATH>",
+                "help": "Write normalized diagnostics as a GitLab Code Quality report",
+                "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+                "short": [],
+                "long": ["gitlab-code-quality"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "junit-xml",
                 "usage": "--junit-xml <PATH>",
                 "help": "Write step results as a JUnit XML report",
@@ -6709,6 +7006,33 @@
             "arg": {
               "name": "FROM_REF",
               "usage": "<FROM_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "github-annotations",
+            "usage": "--github-annotations",
+            "help": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+            "help_first_line": "Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit",
+            "short": [],
+            "long": ["github-annotations"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "gitlab-code-quality",
+            "usage": "--gitlab-code-quality <PATH>",
+            "help": "Write normalized diagnostics as a GitLab Code Quality report",
+            "help_first_line": "Write normalized diagnostics as a GitLab Code Quality report",
+            "short": [],
+            "long": ["gitlab-code-quality"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
               "required": true,
               "double_dash": "Optional",
               "hide": false

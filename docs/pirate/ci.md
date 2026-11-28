@@ -1,6 +1,6 @@
 ---
 description: Run hk's checks for the harbour-master (CI), pick only the cargo that changed, call up extra watches, and haul in diagnostics worth reading.
-sourceHash: aaa2de51f147
+sourceHash: 71023e0110b6
 ---
 
 # Continuous integration: the harbour-master
@@ -87,3 +87,41 @@ HK_TIMING_JSON=hk-timing.json hk check --all
 Use `hk check --all --format jsonl` for structured execution events, `--sarif hk.sarif` for normalized diagnostics (only hands that set `diagnostic_format` produce them; see [diagnostics](/configuration#diagnostics)), or `--junit-xml hk.junit.xml` to report each step as a JUnit test case for CI test-result viewers. See [clockwork hands (coding agents)](/agents) for command effects and exact file lists.
 
 See [troubleshooting](/logging) for the ship's log levels and traces, and for inspecting the configuration.
+
+## Sing out findings in GitHub Actions {#report-findings-in-github-actions}
+
+`--github-annotations` turns what the lookouts sang out into inline annotations on the pull request's changed files, and writes a job summary:
+
+```yaml
+- run: hk check --all --github-annotations
+```
+
+hk prints one [workflow command](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) per finding (`::error`, `::warning` or `::notice`, with the file and, when the finding has them, its line and column; columns are left out for findings that span several lines), and one `::error` with the hand's output for each failed step that produced no findings. A hand whose failure is allowed gets no annotations. A run that founders before any step starts, such as with a broken `hk.pkl`, gets one `::error` with the reason.
+
+When `GITHUB_STEP_SUMMARY` holds a nonempty path, as it does in every Actions step, hk also appends a Markdown job summary. Otherwise hk prints only the annotations, and the log alone tells the tale. The summary has:
+
+- the status and duration of each hand that ran, and how many sat this one out
+- a table of findings, up to 500
+- the output of each failed hand that produced no findings, up to 16 KiB each
+
+The summary file stays under 768 KiB, below GitHub's 1 MiB limit for a step's summary. When it would grow past that, hk throws overboard whatever does not fit and says so. If earlier commands in the step have left too little room in the hold, hk writes no summary at all.
+
+Findings come from hands that set `diagnostic_format` (see [diagnostics](/configuration#diagnostics)). Unlike SARIF upload to code scanning, annotations need no GitHub Advanced Security, so they work on private ships too. GitHub shows at most 10 error and 10 warning annotations per step. The job summary lists more of the findings, within the limits above; for every last one, also pass `--sarif` or use `--format json`.
+
+With `--format json` or `jsonl`, the annotations go to stderr so stdout stays valid JSON. The runner reads workflow commands from both streams, aye.
+
+## Sing out findings in GitLab merge requests {#report-findings-in-gitlab-merge-requests}
+
+`--gitlab-code-quality PATH` writes a [Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, which GitLab shows in the merge request widget and diff:
+
+```yaml
+hk:
+  script:
+    - hk check --all --gitlab-code-quality gl-code-quality.json
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality.json
+```
+
+Errors map to `major`, warnings to `minor` and notes to `info`. GitLab needs a path relative to the ship, so hk converts absolute paths inside the checkout and leaves out findings without a path. Fingerprints leave out the line number, so moving code doesn't make a finding look new. Set `when: always` so GitLab collects the report from a failed job.

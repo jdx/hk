@@ -6,6 +6,8 @@ use crate::{
 };
 use serde::Serialize;
 use std::path::Path;
+mod ci;
+
 use std::{
     io::Write,
     sync::{
@@ -22,9 +24,17 @@ pub const MAX_STEP_OUTPUT_BYTES: usize = 64 * 1024;
 /// Whether a `run_result` (or `run_completed` event) was written by this process.
 static RESULT_EMITTED: AtomicBool = AtomicBool::new(false);
 
+/// Whether the file reports and CI annotations for a run were written.
+static REPORTS_WRITTEN: AtomicBool = AtomicBool::new(false);
+
 /// True once this process has written a final structured result.
 pub fn result_emitted() -> bool {
     RESULT_EMITTED.load(Ordering::SeqCst)
+}
+
+/// True once this process has written the reports requested for a run.
+pub fn reports_written() -> bool {
+    REPORTS_WRITTEN.load(Ordering::SeqCst)
 }
 
 /// Cut `output` to at most [`MAX_STEP_OUTPUT_BYTES`] on a UTF-8 character
@@ -195,11 +205,120 @@ pub fn emit_step_completed(format: OutputFormat, name: &str, status: &str) -> Re
 }
 
 /// File-based report formats to write alongside the primary structured
-/// output, keyed by CLI flag (`--sarif`, `--junit-xml`).
+/// output, keyed by CLI flag (`--sarif`, `--junit-xml`,
+/// `--gitlab-code-quality`), plus GitHub Actions annotations and job summary
+/// (`--github-annotations`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ReportPaths<'a> {
     pub sarif: Option<&'a Path>,
     pub junit: Option<&'a Path>,
+    pub gitlab_code_quality: Option<&'a Path>,
+    pub github_annotations: bool,
+}
+
+impl<'a> ReportPaths<'a> {
+    pub fn from_options(opts: &'a crate::hook_options::HookOptions) -> Self {
+        Self {
+            sarif: opts.sarif.as_deref(),
+            junit: opts.junit_xml.as_deref(),
+            gitlab_code_quality: opts.gitlab_code_quality.as_deref(),
+            github_annotations: opts.github_annotations,
+        }
+    }
+
+    /// Whether any report or annotation was requested.
+    pub fn any(&self) -> bool {
+        self.sarif.is_some()
+            || self.junit.is_some()
+            || self.gitlab_code_quality.is_some()
+            || self.github_annotations
+    }
+}
+
+/// Owned copy of the requested reports, kept by the CLI so a run that fails
+/// before its hook starts (a broken config, say) still writes them.
+#[derive(Debug, Clone, Default)]
+pub struct RequestedReports {
+    sarif: Option<std::path::PathBuf>,
+    junit: Option<std::path::PathBuf>,
+    gitlab_code_quality: Option<std::path::PathBuf>,
+    github_annotations: bool,
+}
+
+impl RequestedReports {
+    pub fn from_options(opts: &crate::hook_options::HookOptions) -> Self {
+        Self {
+            sarif: opts.sarif.clone(),
+            junit: opts.junit_xml.clone(),
+            gitlab_code_quality: opts.gitlab_code_quality.clone(),
+            github_annotations: opts.github_annotations,
+        }
+    }
+
+    pub fn paths(&self) -> ReportPaths<'_> {
+        ReportPaths {
+            sarif: self.sarif.as_deref(),
+            junit: self.junit.as_deref(),
+            gitlab_code_quality: self.gitlab_code_quality.as_deref(),
+            github_annotations: self.github_annotations,
+        }
+    }
+}
+
+/// Write every requested report for a finished run.
+fn write_reports(format: OutputFormat, result: &RunResult, reports: ReportPaths) -> Result<()> {
+    REPORTS_WRITTEN.store(true, Ordering::SeqCst);
+    if let Some(path) = reports.sarif {
+        let diagnostics = result
+            .steps
+            .iter()
+            .flat_map(|step| step.diagnostics.iter().cloned())
+            .collect::<Vec<_>>();
+        diagnostics::write_sarif(path, &diagnostics)?;
+    }
+    if let Some(path) = reports.junit {
+        write_junit(path, result)?;
+    }
+    if let Some(path) = reports.gitlab_code_quality {
+        let report = ci::gitlab_code_quality(result);
+        xx::file::write(path, &serde_json::to_vec_pretty(&report)?)?;
+    }
+    if reports.github_annotations {
+        let annotations = ci::github_annotations(result);
+        // The Actions runner reads workflow commands from both streams; keep
+        // stdout clean when it carries a JSON result.
+        if format == OutputFormat::Human {
+            std::io::stdout().lock().write_all(annotations.as_bytes())?;
+        } else {
+            std::io::stderr().lock().write_all(annotations.as_bytes())?;
+        }
+        match std::env::var_os("GITHUB_STEP_SUMMARY").filter(|path| !path.is_empty()) {
+            Some(path) => {
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&path)
+                    .map_err(|err| {
+                        eyre::eyre!(
+                            "failed to open GITHUB_STEP_SUMMARY {}: {err}",
+                            Path::new(&path).display()
+                        )
+                    })?;
+                // Every command in an Actions step shares one summary file,
+                // so leave room for what is already in it.
+                let used = file.metadata().map(|m| m.len() as usize).unwrap_or(0);
+                let budget = ci::MAX_SUMMARY_BYTES.saturating_sub(used);
+                match ci::github_summary(result, budget) {
+                    Some(summary) => file.write_all(summary.as_bytes())?,
+                    None => log::warn!(
+                        "GITHUB_STEP_SUMMARY is too full for hk's job summary; skipping it"
+                    ),
+                }
+            }
+            None => log::debug!("GITHUB_STEP_SUMMARY is not set; skipping the job summary"),
+        }
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -332,18 +451,7 @@ pub fn emit_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = reports.sarif {
-        let diagnostics = result
-            .steps
-            .iter()
-            .flat_map(|step| step.diagnostics.iter().cloned())
-            .collect::<Vec<_>>();
-        diagnostics::write_sarif(path, &diagnostics)?;
-    }
-    if let Some(path) = reports.junit {
-        write_junit(path, &result)?;
-    }
-    Ok(())
+    write_reports(format, &result, reports)
 }
 
 /// Emit a complete machine-readable result for a successful run that did not
@@ -385,13 +493,7 @@ pub fn emit_noop_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = reports.sarif {
-        diagnostics::write_sarif(path, &[])?;
-    }
-    if let Some(path) = reports.junit {
-        write_junit(path, &result)?;
-    }
-    Ok(())
+    write_reports(format, &result, reports)
 }
 
 pub fn emit_error_run(
@@ -416,13 +518,7 @@ pub fn emit_error_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = reports.sarif {
-        diagnostics::write_sarif(path, &[])?;
-    }
-    if let Some(path) = reports.junit {
-        write_junit(path, &result)?;
-    }
-    Ok(())
+    write_reports(format, &result, reports)
 }
 
 fn emit_result(format: OutputFormat, result: &RunResult) -> Result<()> {

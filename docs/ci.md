@@ -86,3 +86,41 @@ HK_TIMING_JSON=hk-timing.json hk check --all
 Use `hk check --all --format jsonl` for structured execution events, `--sarif hk.sarif` for normalized diagnostics (only steps that set `diagnostic_format` produce them; see [diagnostics](/configuration#diagnostics)), or `--junit-xml hk.junit.xml` to report each step as a JUnit test case for CI test-result viewers. See [coding agents](/agents) for command effects and exact file lists.
 
 See [troubleshooting](/logging) for log levels, traces, and configuration inspection.
+
+## Report findings in GitHub Actions
+
+`--github-annotations` turns findings into inline annotations on the pull request's changed files and writes a job summary:
+
+```yaml
+- run: hk check --all --github-annotations
+```
+
+hk prints one [workflow command](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) per finding (`::error`, `::warning` or `::notice`, with the file and, when the finding has them, its line and column; columns are left out for findings that span several lines), and one `::error` with the step's output for each failed step that produced no findings. A step whose failure is allowed gets no annotations. A run that fails before any step starts, such as with a broken `hk.pkl`, gets one `::error` with the reason.
+
+When `GITHUB_STEP_SUMMARY` holds a nonempty path, as it does in every Actions step, hk also appends a Markdown job summary. Otherwise hk prints only the annotations. The summary has:
+
+- the status and duration of each step that ran, and how many steps were skipped
+- a table of findings, up to 500
+- the output of each failed step that produced no findings, up to 16 KiB each
+
+The summary file stays under 768 KiB, below GitHub's 1 MiB limit for a step's summary. When it would grow past that, hk leaves out whatever does not fit and says so. If earlier commands in the step have left too little room, hk writes no summary.
+
+Findings come from steps that set `diagnostic_format` (see [diagnostics](/configuration#diagnostics)). Unlike SARIF upload to code scanning, annotations need no GitHub Advanced Security, so they work on private repositories. GitHub shows at most 10 error and 10 warning annotations per step. The job summary lists more of the findings, within the limits above; for all of them, also pass `--sarif` or use `--format json`.
+
+With `--format json` or `jsonl`, the annotations go to stderr so stdout stays valid JSON. The runner reads workflow commands from both streams.
+
+## Report findings in GitLab merge requests
+
+`--gitlab-code-quality PATH` writes a [Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, which GitLab shows in the merge request widget and diff:
+
+```yaml
+hk:
+  script:
+    - hk check --all --gitlab-code-quality gl-code-quality.json
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality.json
+```
+
+Errors map to `major`, warnings to `minor` and notes to `info`. GitLab requires a path relative to the repository, so hk converts absolute paths inside the checkout and leaves out findings without a path. Fingerprints leave out the line number, so moving code does not make a finding look new. Set `when: always` so GitLab collects the report from a failed job.

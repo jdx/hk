@@ -184,6 +184,17 @@ impl Commands {
 }
 
 impl Commands {
+    /// Reports and annotations a check, fix or run command asked for.
+    fn requested_reports(&self) -> crate::structured_output::RequestedReports {
+        use crate::structured_output::RequestedReports;
+        match self {
+            Self::Check(command) => RequestedReports::from_options(&command.hook),
+            Self::Fix(command) => RequestedReports::from_options(&command.hook),
+            Self::Run(command) => RequestedReports::from_options(command.hook_options()),
+            _ => RequestedReports::default(),
+        }
+    }
+
     /// The hook a check, fix or run command executes, for labelling the
     /// structured result of a run that fails before the hook starts.
     fn hook_name(&self) -> Option<String> {
@@ -200,23 +211,28 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     let args = Cli::parse();
     let format = args.command.output_format().unwrap_or(args.format);
     let hook = args.command.hook_name();
+    let reports = args.command.requested_reports();
     let started_at = chrono::Utc::now().to_rfc3339();
     let started = std::time::Instant::now();
     let result = run_command(args).await;
-    // Machine consumers wait for a final result. A failure before the hook
-    // starts (a broken config, say) would otherwise leave stdout empty.
+    // Machine consumers wait for a final result, and CI waits for the reports
+    // and annotations it asked for. A failure before the hook starts (a broken
+    // config, say) would otherwise leave both empty.
     if let (Err(err), Some(hook)) = (&result, hook)
-        && format != crate::structured_output::OutputFormat::Human
+        && (format != crate::structured_output::OutputFormat::Human || reports.paths().any())
         && !crate::structured_output::result_emitted()
-    {
-        crate::structured_output::emit_error_run(
+        && !crate::structured_output::reports_written()
+        && let Err(report_err) = crate::structured_output::emit_error_run(
             format,
             &hook,
             started_at,
             started.elapsed().as_millis(),
             format!("{err:#}"),
-            Default::default(),
-        )?;
+            reports.paths(),
+        )
+    {
+        // Report the run's own failure; the report error is secondary.
+        log::error!("failed to write reports: {report_err:#}");
     }
     result
 }

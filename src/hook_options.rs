@@ -58,6 +58,12 @@ pub(crate) struct HookOptions {
     /// Select files changed since this reference; optionally pair with --to-ref
     #[usage(long)]
     pub from_ref: Option<String>,
+    /// Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit
+    #[usage(long)]
+    pub github_annotations: bool,
+    /// Write normalized diagnostics as a GitLab Code Quality report
+    #[usage(long, value_name = "PATH", value_hint = ValueHint::FilePath)]
+    pub gitlab_code_quality: Option<PathBuf>,
     /// Write step results as a JUnit XML report
     #[usage(long, value_name = "PATH", value_hint = ValueHint::FilePath)]
     pub junit_xml: Option<PathBuf>,
@@ -295,10 +301,7 @@ impl HookOptions {
                 0,
                 vec![],
                 "no project configuration found for installed hook",
-                crate::structured_output::ReportPaths {
-                    sarif: self.sarif.as_deref(),
-                    junit: self.junit_xml.as_deref(),
-                },
+                crate::structured_output::ReportPaths::from_options(&self),
             )?;
             return Ok(());
         }
@@ -342,10 +345,7 @@ impl HookOptions {
                         0,
                         vec![],
                         "hook disabled by configuration",
-                        crate::structured_output::ReportPaths {
-                            sarif: self.sarif.as_deref(),
-                            junit: self.junit_xml.as_deref(),
-                        },
+                        crate::structured_output::ReportPaths::from_options(&self),
                     )?;
                     return Ok(());
                 }
@@ -371,10 +371,7 @@ impl HookOptions {
                         0,
                         vec![],
                         "hook not defined in project configuration",
-                        crate::structured_output::ReportPaths {
-                            sarif: self.sarif.as_deref(),
-                            junit: self.junit_xml.as_deref(),
-                        },
+                        crate::structured_output::ReportPaths::from_options(&self),
                     )?;
                     return Ok(());
                 }

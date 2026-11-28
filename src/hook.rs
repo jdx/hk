@@ -1344,9 +1344,12 @@ impl Hook {
         let machine_output = output_format != crate::structured_output::OutputFormat::Human;
         let sarif_path = opts.sarif.clone();
         let junit_path = opts.junit_xml.clone();
+        let gitlab_code_quality_path = opts.gitlab_code_quality.clone();
         let reports = crate::structured_output::ReportPaths {
             sarif: sarif_path.as_deref(),
             junit: junit_path.as_deref(),
+            gitlab_code_quality: gitlab_code_quality_path.as_deref(),
+            github_annotations: opts.github_annotations,
         };
         let run_started = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
