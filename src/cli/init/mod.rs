@@ -475,9 +475,12 @@ fn merge_mise_config(
 ///   `eslint`, and `selene` matches `aqua:Kampfkarren/selene/light`;
 /// - both install the same repository through backends that name packages
 ///   by `owner/repo`: `github:owenlamont/ryl` matches `aqua:owenlamont/ryl`;
-/// - they use different backends for packages with the same name:
-///   `asdf:prettier` matches `npm:prettier`. Under the same backend, the
-///   packages must be the same: `go:.../gopls` doesn't match `go:.../goimports`.
+/// - one uses a plugin backend, which names tools by their registry name, so
+///   `asdf:prettier` matches `prettier` and `npm:prettier`.
+///
+/// Packages from other backends are kept apart even when their names match:
+/// `npm:standard` (JavaScript Standard) and `gem:standard` (Ruby's standardrb)
+/// are different tools.
 fn has_mise_tool(tools: &dyn TableLike, tool: &str) -> bool {
     let tool = MiseToolSpec::parse(tool);
     tools
@@ -489,6 +492,10 @@ fn has_mise_tool(tools: &dyn TableLike, tool: &str) -> bool {
 /// subpath for one of the repository's packages (`aqua:owner/repo/variant`).
 const REPO_BACKENDS: &[&str] = &["aqua", "github", "gitlab", "forgejo", "ubi"];
 
+/// Backends whose tools are named like registry entries: `asdf:prettier` is
+/// the tool `prettier`.
+const PLUGIN_BACKENDS: &[&str] = &["asdf", "vfox"];
+
 /// A mise tool spec split for comparison with another one.
 struct MiseToolSpec<'a> {
     backend: Option<&'a str>,
@@ -499,8 +506,12 @@ impl<'a> MiseToolSpec<'a> {
     fn parse(spec: &'a str) -> Self {
         let spec = spec.split_once('[').map_or(spec, |(spec, _)| spec);
         match spec.split_once(':') {
-            Some((backend, package)) => Self {
+            Some((backend, package)) if !PLUGIN_BACKENDS.contains(&backend) => Self {
                 backend: Some(backend),
+                package,
+            },
+            Some((_, package)) => Self {
+                backend: None,
                 package,
             },
             None => Self {
@@ -537,10 +548,6 @@ impl<'a> MiseToolSpec<'a> {
             (None, Some(_)) => other.short_names().any(|name| name == self.package),
             (Some(backend), Some(other_backend)) => {
                 (backend == other_backend && self.package == other.package)
-                    || (backend != other_backend
-                        && self
-                            .short_names()
-                            .any(|name| other.short_names().any(|other| other == name)))
                     || self.repo().is_some_and(|(owner, repo)| {
                         other.repo().is_some_and(|(other_owner, other_repo)| {
                             owner.eq_ignore_ascii_case(other_owner)
@@ -626,6 +633,12 @@ mod tests {
     }
 
     #[test]
+    fn same_named_packages_from_different_backends_are_both_added() {
+        let merged = merge_mise_config("", false, &["npm:standard", "gem:standard"]).unwrap();
+        assert_eq!(merged.added_tools, ["npm:standard", "gem:standard"]);
+    }
+
+    #[test]
     fn configured_linter_tools_are_kept() {
         let input = "[tools]\nhk = \"1\"\n\"aqua:astral-sh/ruff\" = \"0.9\"\neslint = \"9\"\n\"github:detekt/detekt\" = { version = \"1\" }\n";
         let merged = merge_mise_config(
@@ -662,7 +675,9 @@ mod tests {
             "go:golang.org/x/tools/cmd/goimports"
         ));
         assert!(matches("asdf:prettier", "npm:prettier"));
-        assert!(matches("cargo:ryl", "aqua:owenlamont/ryl"));
+        assert!(matches("vfox:ruff", "aqua:astral-sh/ruff"));
+        assert!(!matches("gem:standard", "npm:standard"));
+        assert!(!matches("npm:eslint", "pipx:eslint"));
         assert!(!matches("npm:@acme/prettier", "npm:prettier"));
         assert!(!matches("aqua:owenlamont/other", "aqua:owenlamont/ryl"));
         assert!(!matches("asdf:eslint", "npm:prettier"));
