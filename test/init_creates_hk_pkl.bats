@@ -764,3 +764,51 @@ PKL
     assert_output --partial "no installable hooks are enabled"
     refute_output --partial "Add steps"
 }
+
+@test "hk init --mise adds the detected linters' tools" {
+    echo '[project]' > pyproject.toml
+    echo 'echo hi' > a.sh
+    run hk init --mise
+    assert_success
+    assert_output --partial "Added linter tools to mise.toml: ruff, shellcheck"
+    assert_file_contains mise.toml 'ruff = "latest"'
+    assert_file_contains mise.toml 'shfmt = "latest"'
+    # ruff and ruff_format share one tool
+    run grep -c '^ruff = ' mise.toml
+    assert_output 1
+}
+
+@test "hk init --mise keeps configured linter tools" {
+    echo '[project]' > pyproject.toml
+    cat > mise.toml <<'TOML'
+[tools]
+hk = "1"
+"aqua:astral-sh/ruff" = "0.9"
+
+[tasks.pre-commit]
+run = "hk run pre-commit"
+TOML
+    cp mise.toml mise.before
+    run hk init --mise
+    assert_success
+    cmp mise.before mise.toml
+}
+
+@test "hk init --mise leaves language runtimes out" {
+    echo '[package]' > Cargo.toml
+    echo 'name = "test"' >> Cargo.toml
+    run hk init --mise
+    assert_success
+    assert_output --partial "Left language runtimes out of mise.toml: rust"
+    run grep '^rust' mise.toml
+    assert_failure
+}
+
+@test "hk init --mise adds no linter tools to an existing hk.pkl" {
+    echo '[project]' > pyproject.toml
+    echo existing > hk.pkl
+    run hk init --mise
+    assert_success
+    run grep ruff mise.toml
+    assert_failure
+}

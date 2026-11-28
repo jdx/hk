@@ -1,7 +1,7 @@
 ---
 outline: [2, 3]
 description: Meet the standing crew who come with the ship. Browse reusable linter and formatter definitions, refit them to yer needs, and learn which tools ye must bring aboard yerself.
-sourceHash: ba14e540aad6
+sourceHash: 52c450195590
 ---
 
 # The standing crew: built-in linters
@@ -65,7 +65,13 @@ Hands such as `Builtins.trailing_whitespace`, `Builtins.newlines`, and `Builtins
 
 A builtin charts how hk calls a tool; it does not install that tool. The
 executable the builtin uses must be on `PATH`, or the step must use a `prefix`
-that resolves it.
+that resolves it. Each entry's **Install** line gives the `mise use` command for
+its tool, [`hk init --mise`](/mise_integration#generate-a-starter-setup) lists the
+spotted lookouts' tools in `mise.toml`, and when a hand's tool is missing, hk
+ends the run with the `mise use` command that brings it aboard. hk knows the
+builtin by the hand's name (`["ruff"] = Builtins.ruff`), or for a command given as
+an argument list, by the name of the missing program. So `["format-shell"] =
+Builtins.shfmt`, whose commands are shell strings, gets no hint.
 
 With the standing order [`HK_MISE=1`](/mise_integration#per-directory-environments-monorepos),
 hk resolves the quartermaster's mise environment for the step's own directory, so

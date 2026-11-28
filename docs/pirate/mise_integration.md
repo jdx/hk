@@ -1,6 +1,6 @@
 ---
 description: Let mise, the ship's quartermaster, provision hk and yer linter versions, environment variables, and the running of Git hooks.
-sourceHash: 2581270c0dab
+sourceHash: be43c27d41b6
 ---
 
 # mise integration: the quartermaster
@@ -58,7 +58,21 @@ Setting `HK_MISE=1` in yer standing orders makes `--mise` the default for later 
 
 ## Draw up a starter setup {#generate-a-starter-setup}
 
-`hk init --mise` draws up `hk.pkl` (the ship's charts) and, if there isn't one already, a `mise.toml` with hk configured and a `pre-commit` task.
+`hk init --mise` draws up `hk.pkl` (the ship's charts) and, if there isn't one already, a `mise.toml` with hk configured and a `pre-commit` task. It also lists the tools the spotted lookouts (linters) run, so `mise install` brings aboard everything the hooks need. For a Python ship carrying shell scripts, say:
+
+```toml
+[tools]
+hk = "latest"
+ruff = "latest"
+shellcheck = "latest"
+shellharden = "latest"
+shfmt = "latest"
+
+[tasks.pre-commit]
+run = "hk run pre-commit"
+```
+
+New tools are pinned at `latest`; pin versions with `mise use <tool>@<version>`. A tool already in `mise.toml`, even under another backend such as `aqua:astral-sh/ruff`, is kept as it is. Language runtimes such as `rust`, `go`, or `node` are left ashore, because a ship usually picks their versions elsewhere (`rust-toolchain.toml`, `go.mod`); hk sings them out so ye can add them with `mise use`. When `hk.pkl` already exists and `--force` isn't flown, hk adds only its own entries.
 
 Run `hk init --mise`, then, on Git 2.54+, install the recommended global launcher:
 
@@ -70,6 +84,13 @@ hk install --global --mise
 On an older Git, or to rig just this one repository, use `hk install --mise` instead.
 
 Look over the tools and tasks it drew up. A `mise.toml` that's already aboard is kept as it is.
+
+When a hand from the standing crew fails because its tool isn't on hand, hk ends the run with the `mise use` command that brings it aboard. hk knows the builtin by the hand's name, or for a command given as an argument list, by the missing program's name:
+
+```text
+hint: ruff could not run because a tool it needs is not installed. Install with mise:
+      mise use ruff
+```
 
 ## Call a mise task from a hand {#call-a-mise-task-from-a-step}
 

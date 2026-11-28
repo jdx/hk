@@ -285,6 +285,11 @@ cmd init help="Generate a new hk.pkl file for a project" effect=write {
         long_help #"""
 Generate a mise.toml file with hk configured
 
+Also adds the mise tools that the detected or selected linters run,
+such as `ruff` or `npm:eslint`, at `latest`. Tools already in
+mise.toml are kept, and language runtimes such as `rust` or `go` are
+left out.
+
 Set HK_MISE=1 to make this the default behavior.
 """#
     }

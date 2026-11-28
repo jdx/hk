@@ -144,6 +144,7 @@ def main():
                 category = ""
                 description = ""
                 project_indicators = []
+                mise_tools = []
 
                 for ann in prop.get("annotations", []):
                     if "category" in ann:
@@ -154,6 +155,8 @@ def main():
                         indicators = ann["project_indicators"]
                         if isinstance(indicators, list):
                             project_indicators = indicators
+                    if "mise_tools" in ann and isinstance(ann["mise_tools"], list):
+                        mise_tools = ann["mise_tools"]
 
                 entries.append(
                     {
@@ -161,6 +164,7 @@ def main():
                         "category": category,
                         "description": description,
                         "project_indicators": project_indicators,
+                        "mise_tools": mise_tools,
                     }
                 )
                 break  # Only first property (the builtin definition)

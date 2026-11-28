@@ -5,6 +5,7 @@ mod picker;
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+use crate::builtins::BuiltinMeta;
 use crate::{Result, env};
 use eyre::eyre;
 use toml_edit::{DocumentMut, Item, Table, TableLike, value};
@@ -23,6 +24,11 @@ pub struct Init {
     #[usage(short, long)]
     interactive: bool,
     /// Generate a mise.toml file with hk configured
+    ///
+    /// Also adds the mise tools that the detected or selected linters run,
+    /// such as `ruff` or `npm:eslint`, at `latest`. Tools already in
+    /// mise.toml are kept, and language runtimes such as `rust` or `go` are
+    /// left out.
     ///
     /// Set HK_MISE=1 to make this the default behavior.
     #[usage(long, verbatim_doc_comment)]
@@ -47,28 +53,41 @@ impl Init {
             ));
         }
 
-        // Handle mise.toml generation first (independent of hk.pkl)
-        if *env::HK_MISE || self.mise {
-            self.write_mise_toml()?;
-        }
+        let mise = *env::HK_MISE || self.mise;
 
-        // Check if file exists and handle --force flag
+        // An existing hk.pkl is left alone, so there are no newly chosen
+        // linters whose tools to add; mise.toml only gets hk.
         if skip_existing {
+            if mise {
+                self.write_mise_toml(&[])?;
+            }
             warn!("hk.pkl already exists, run with --force to overwrite");
             return Ok(());
+        }
+
+        // Fail on an unusable mise.toml before the picker asks anything.
+        if mise {
+            self.plan_mise_toml(&[])?;
         }
 
         // Detect project files
         let project_root = std::env::current_dir()?;
         let detections = detector::detect_builtins(&project_root);
 
-        let (hook_content, has_steps) = if self.interactive {
+        let (hook_content, builtins) = if self.interactive {
             // Interactive mode: let user pick from all builtins
             self.run_interactive(&detections)?
         } else {
             // Auto mode (default): use detected builtins or fall back to template
-            (self.run_auto(&detections), !detections.is_empty())
+            let builtins: Vec<_> = detections.iter().map(|d| d.builtin).collect();
+            (self.run_auto(&builtins), builtins)
         };
+        let has_steps = !builtins.is_empty();
+
+        // Write mise.toml before hk.pkl so a mise.toml error leaves both untouched.
+        if mise {
+            self.write_mise_toml(&builtins)?;
+        }
 
         // Write the file
         xx::file::write(&hk_file, &hook_content)?;
@@ -95,7 +114,10 @@ impl Init {
         Ok(())
     }
 
-    fn run_interactive(&self, detections: &[detector::Detection]) -> Result<(String, bool)> {
+    fn run_interactive(
+        &self,
+        detections: &[detector::Detection],
+    ) -> Result<(String, Vec<&'static BuiltinMeta>)> {
         // Print detection info
         if !detections.is_empty() {
             info!("Scanning project...");
@@ -113,7 +135,7 @@ impl Init {
         if builtins.is_empty() {
             return Ok((
                 generator::generate_default_template(&crate::pkl_modules::import_root()),
-                false,
+                builtins,
             ));
         }
 
@@ -127,26 +149,25 @@ impl Init {
             hooks
         };
 
-        Ok((
-            generator::generate_pkl(&builtins, &hooks, &crate::pkl_modules::import_root()),
-            true,
-        ))
+        let content =
+            generator::generate_pkl(&builtins, &hooks, &crate::pkl_modules::import_root());
+        Ok((content, builtins))
     }
 
-    fn run_auto(&self, detections: &[detector::Detection]) -> String {
-        if detections.is_empty() {
+    fn run_auto(&self, builtins: &[&'static BuiltinMeta]) -> String {
+        if builtins.is_empty() {
             // No detections - use default template
             return generator::generate_default_template(&crate::pkl_modules::import_root());
         }
 
         // Use detected builtins with default hooks
-        let builtins: Vec<_> = detections.iter().map(|d| d.builtin).collect();
         let hooks: Vec<String> = DEFAULT_HOOKS.iter().map(|s| s.to_string()).collect();
 
-        generator::generate_pkl(&builtins, &hooks, &crate::pkl_modules::import_root())
+        generator::generate_pkl(builtins, &hooks, &crate::pkl_modules::import_root())
     }
 
-    fn write_mise_toml(&self) -> Result<()> {
+    /// Read mise.toml and merge hk's entries and the tools `builtins` run.
+    fn plan_mise_toml(&self, builtins: &[&'static BuiltinMeta]) -> Result<MisePlan> {
         let mise_file = PathBuf::from("mise.toml");
         let original = mise_file
             .exists()
@@ -158,9 +179,19 @@ impl Init {
             Some(value) => value,
             None => existing_pre_commit_file_task(&root),
         };
-        let content = merge_mise_config(input, suppress_pre_commit)?;
-        if original.as_deref() != Some(content.as_str()) {
-            xx::file::write(&mise_file, content)?;
+        let merged = merge_mise_config(input, suppress_pre_commit, &builtin_tools(builtins))?;
+        Ok(MisePlan { original, merged })
+    }
+
+    fn write_mise_toml(&self, builtins: &[&'static BuiltinMeta]) -> Result<()> {
+        let MisePlan { original, merged } = self.plan_mise_toml(builtins)?;
+        if merged.external_pre_commit {
+            warn!(
+                "Preserving external mise task configuration for pre-commit; wire hk manually if needed"
+            );
+        }
+        if original.as_deref() != Some(merged.content.as_str()) {
+            xx::file::write("mise.toml", &merged.content)?;
             if original.is_none() {
                 info!("Generated mise.toml");
             } else {
@@ -169,8 +200,46 @@ impl Init {
         } else {
             info!("mise.toml already contains hk configuration");
         }
+        if !merged.added_tools.is_empty() {
+            info!(
+                "Added linter tools to mise.toml: {}; run `mise install` to install them",
+                merged.added_tools.join(", ")
+            );
+        }
+        if !merged.skipped_runtimes.is_empty() {
+            info!(
+                "Left language runtimes out of mise.toml: {}; add them with `mise use {}` if mise should manage them",
+                merged.skipped_runtimes.join(", "),
+                merged.skipped_runtimes.join(" ")
+            );
+        }
         Ok(())
     }
+}
+
+struct MisePlan {
+    original: Option<String>,
+    merged: MiseMerge,
+}
+
+/// Language runtimes that some builtins run. `hk init --mise` doesn't pin
+/// them at `latest`: a project usually picks their version itself (for
+/// example in `rust-toolchain.toml` or `go.mod`), and a mise pin would
+/// override it.
+const RUNTIME_TOOLS: &[&str] = &[
+    "bun", "deno", "dotnet", "elixir", "erlang", "go", "java", "node", "python", "ruby", "rust",
+    "swift", "zig",
+];
+
+/// The mise tools that `builtins` run, in order, without duplicates.
+fn builtin_tools(builtins: &[&'static BuiltinMeta]) -> Vec<&'static str> {
+    let mut tools: Vec<&'static str> = Vec::new();
+    for tool in builtins.iter().flat_map(|builtin| builtin.mise_tools) {
+        if !tools.contains(tool) {
+            tools.push(tool);
+        }
+    }
+    tools
 }
 
 /// Detect conventional mise file-task locations for pre-commit.
@@ -312,8 +381,25 @@ fn scan_included_task_dir(path: &std::path::Path) -> std::io::Result<bool> {
     Ok(false)
 }
 
-/// Merge hk's minimal mise entries without replacing user configuration.
-fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
+/// The result of merging hk's entries into a mise.toml.
+#[derive(Debug)]
+struct MiseMerge {
+    content: String,
+    /// Linter tools added to `[tools]`.
+    added_tools: Vec<String>,
+    /// Language runtimes the linters run that were not added.
+    skipped_runtimes: Vec<String>,
+    /// No pre-commit task was added because one is configured outside mise.toml.
+    external_pre_commit: bool,
+}
+
+/// Merge hk's minimal mise entries, and the linter `tools` that are not
+/// configured yet, without replacing user configuration.
+fn merge_mise_config(
+    input: &str,
+    external_pre_commit: bool,
+    tools_to_add: &[&str],
+) -> Result<MiseMerge> {
     let mut document = if input.is_empty() {
         DocumentMut::new()
     } else {
@@ -331,6 +417,19 @@ fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
     if !has_hk {
         tools.insert("hk", value("latest"));
     }
+    let mut added_tools = Vec::new();
+    let mut skipped_runtimes = Vec::new();
+    for &tool in tools_to_add {
+        if has_mise_tool(tools, tool) {
+            continue;
+        }
+        if RUNTIME_TOOLS.contains(&tool) {
+            skipped_runtimes.push(tool.to_string());
+            continue;
+        }
+        tools.insert(tool, value("latest"));
+        added_tools.push(tool.to_string());
+    }
     let has_pre_commit = match document.get("tasks") {
         Some(item) => item
             .as_table_like()
@@ -339,11 +438,10 @@ fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
             .is_some(),
         None => false,
     };
+    let mut reported_external_pre_commit = false;
     if !has_pre_commit {
         if external_pre_commit {
-            warn!(
-                "Preserving external mise task configuration for pre-commit; wire hk manually if needed"
-            );
+            reported_external_pre_commit = true;
         } else {
             if document.get("tasks").is_none() {
                 let mut tasks = Table::new();
@@ -359,7 +457,117 @@ fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
             );
         }
     }
-    Ok(document.to_string())
+    Ok(MiseMerge {
+        content: document.to_string(),
+        added_tools,
+        skipped_runtimes,
+        external_pre_commit: reported_external_pre_commit,
+    })
+}
+
+/// Whether `[tools]` already configures `tool`, a `mise use` argument such as
+/// `ruff`, `npm:eslint`, or `github:owner/repo[asset_pattern=*.zip]`.
+///
+/// A key and the tool match when they name the same package:
+/// - the same spec, ignoring `[...]` options;
+/// - one is a bare registry name and the other a backend spec for a package
+///   of that name: `ruff` matches `aqua:astral-sh/ruff`, `npm:eslint` matches
+///   `eslint`, and `selene` matches `aqua:Kampfkarren/selene/light`;
+/// - both install the same repository through backends that name packages
+///   by `owner/repo`: `github:owenlamont/ryl` matches `aqua:owenlamont/ryl`;
+/// - one uses a plugin backend, which names tools by their registry name, so
+///   `asdf:prettier` matches `prettier` and `npm:prettier`.
+///
+/// Packages from other backends are kept apart even when their names match:
+/// `npm:standard` (JavaScript Standard) and `gem:standard` (Ruby's standardrb)
+/// are different tools.
+fn has_mise_tool(tools: &dyn TableLike, tool: &str) -> bool {
+    let tool = MiseToolSpec::parse(tool);
+    tools
+        .iter()
+        .any(|(key, _)| tool.matches(&MiseToolSpec::parse(key)))
+}
+
+/// Backends whose packages are named `owner/repo`, optionally followed by a
+/// subpath for one of the repository's packages (`aqua:owner/repo/variant`).
+const REPO_BACKENDS: &[&str] = &["aqua", "github", "gitlab", "forgejo", "ubi"];
+
+/// Backends whose tools are named like registry entries: `asdf:prettier` is
+/// the tool `prettier`.
+const PLUGIN_BACKENDS: &[&str] = &["asdf", "vfox"];
+
+/// The tool a plugin backend installs: `asdf:ruff`, `asdf:owner/asdf-ruff`,
+/// and `vfox:https://github.com/owner/vfox-ruff.git` all install `ruff`.
+fn plugin_tool_name(plugin: &str) -> &str {
+    let name = plugin.rsplit('/').next().unwrap_or(plugin);
+    let name = name.strip_suffix(".git").unwrap_or(name);
+    ["asdf-", "vfox-", "mise-"]
+        .iter()
+        .find_map(|prefix| name.strip_prefix(prefix))
+        .unwrap_or(name)
+}
+
+/// A mise tool spec split for comparison with another one.
+struct MiseToolSpec<'a> {
+    backend: Option<&'a str>,
+    package: &'a str,
+}
+
+impl<'a> MiseToolSpec<'a> {
+    fn parse(spec: &'a str) -> Self {
+        let spec = spec.split_once('[').map_or(spec, |(spec, _)| spec);
+        match spec.split_once(':') {
+            Some((backend, package)) if !PLUGIN_BACKENDS.contains(&backend) => Self {
+                backend: Some(backend),
+                package,
+            },
+            Some((_, plugin)) => Self {
+                backend: None,
+                package: plugin_tool_name(plugin),
+            },
+            None => Self {
+                backend: None,
+                package: spec,
+            },
+        }
+    }
+
+    /// `owner/repo` for a repository backend.
+    fn repo(&self) -> Option<(&'a str, &'a str)> {
+        if !REPO_BACKENDS.contains(&self.backend?) {
+            return None;
+        }
+        let mut parts = self.package.split('/');
+        Some((parts.next()?, parts.next()?))
+    }
+
+    /// Names a bare registry key for this package could have: the last path
+    /// segment (`ruff`, `goimports`, `biome` for `npm:@biomejs/biome`), and
+    /// the repository name for a repository backend.
+    fn short_names(&self) -> impl Iterator<Item = &'a str> + '_ {
+        self.package
+            .rsplit('/')
+            .next()
+            .into_iter()
+            .chain(self.repo().map(|(_, repo)| repo))
+    }
+
+    fn matches(&self, other: &MiseToolSpec) -> bool {
+        match (self.backend, other.backend) {
+            (None, None) => self.package == other.package,
+            (Some(_), None) => self.short_names().any(|name| name == other.package),
+            (None, Some(_)) => other.short_names().any(|name| name == self.package),
+            (Some(backend), Some(other_backend)) => {
+                (backend == other_backend && self.package == other.package)
+                    || self.repo().is_some_and(|(owner, repo)| {
+                        other.repo().is_some_and(|(other_owner, other_repo)| {
+                            owner.eq_ignore_ascii_case(other_owner)
+                                && repo.eq_ignore_ascii_case(other_repo)
+                        })
+                    })
+            }
+        }
+    }
 }
 
 fn has_tool(tools: &dyn TableLike, suffixes: &[&str]) -> bool {
@@ -377,7 +585,7 @@ mod tests {
     #[test]
     fn empty_config_has_stable_output() {
         assert_eq!(
-            merge_mise_config("", false).unwrap(),
+            merge_mise_config("", false, &[]).unwrap().content,
             "[tools]\nhk = \"latest\"\n\n[tasks.pre-commit]\nrun = \"hk run pre-commit\"\n"
         );
     }
@@ -385,7 +593,9 @@ mod tests {
     #[test]
     fn dotted_tools_and_implicit_tasks_have_stable_output() {
         assert_eq!(
-            merge_mise_config("tools.node = \"20\"\n", false).unwrap(),
+            merge_mise_config("tools.node = \"20\"\n", false, &[])
+                .unwrap()
+                .content,
             "tools.node = \"20\"\ntools.hk = \"latest\"\n\n[tasks.pre-commit]\nrun = \"hk run pre-commit\"\n"
         );
     }
@@ -396,15 +606,17 @@ mod tests {
             merge_mise_config(
                 "tools = { node = \"20\" }\ntasks = { check = \"custom\" }\n",
                 false,
+                &[],
             )
-            .unwrap(),
+            .unwrap()
+            .content,
             "tools = { node = \"20\" , hk = \"latest\" }\ntasks = { check = \"custom\" , pre-commit = { run = \"hk run pre-commit\" } }\n"
         );
     }
 
     #[test]
     fn scalar_tasks_are_rejected() {
-        assert!(merge_mise_config("tasks = \"custom\"\n", false).is_err());
+        assert!(merge_mise_config("tasks = \"custom\"\n", false, &[]).is_err());
     }
 
     #[test]
@@ -412,10 +624,102 @@ mod tests {
         let output = merge_mise_config(
             "[tools]\n\"asdf:hk\" = \"1\"\n\"vfox:jdx/hk\" = \"2\"\n\"asdf:other\" = \"3\"\n",
             false,
+            &[],
         )
-        .unwrap();
+        .unwrap()
+        .content;
         assert!(output.contains("\"asdf:hk\" = \"1\""));
         assert!(output.contains("\"vfox:jdx/hk\" = \"2\""));
         assert!(!output.contains("\nhk = \"latest\""));
+    }
+
+    #[test]
+    fn linter_tools_are_added_after_hk() {
+        let merged = merge_mise_config("", false, &["ruff", "npm:prettier"]).unwrap();
+        assert_eq!(
+            merged.content,
+            "[tools]\nhk = \"latest\"\nruff = \"latest\"\n\"npm:prettier\" = \"latest\"\n\n[tasks.pre-commit]\nrun = \"hk run pre-commit\"\n"
+        );
+        assert_eq!(merged.added_tools, ["ruff", "npm:prettier"]);
+    }
+
+    #[test]
+    fn same_named_packages_from_different_backends_are_both_added() {
+        let merged = merge_mise_config("", false, &["npm:standard", "gem:standard"]).unwrap();
+        assert_eq!(merged.added_tools, ["npm:standard", "gem:standard"]);
+    }
+
+    #[test]
+    fn configured_linter_tools_are_kept() {
+        let input = "[tools]\nhk = \"1\"\n\"aqua:astral-sh/ruff\" = \"0.9\"\neslint = \"9\"\n\"github:detekt/detekt\" = { version = \"1\" }\n";
+        let merged = merge_mise_config(
+            input,
+            false,
+            &[
+                "ruff",
+                "npm:eslint",
+                "github:detekt/detekt[asset_pattern=detekt-cli-*.zip]",
+            ],
+        )
+        .unwrap();
+        assert!(merged.added_tools.is_empty());
+        assert!(merged.content.starts_with(input));
+    }
+
+    #[test]
+    fn tools_match_across_backends_and_variants() {
+        let matches = |key: &str, tool: &str| {
+            let input = format!("[tools]\n\"{key}\" = \"1\"\n");
+            let document = input.parse::<DocumentMut>().unwrap();
+            has_mise_tool(document["tools"].as_table_like().unwrap(), tool)
+        };
+        assert!(matches("github:owenlamont/ryl", "aqua:owenlamont/ryl"));
+        assert!(matches("selene", "aqua:Kampfkarren/selene/light"));
+        assert!(matches(
+            "github:Kampfkarren/selene",
+            "aqua:Kampfkarren/selene/light"
+        ));
+        assert!(matches("goimports", "go:golang.org/x/tools/cmd/goimports"));
+        assert!(matches("biome", "npm:@biomejs/biome"));
+        assert!(!matches(
+            "go:golang.org/x/tools/cmd/gopls",
+            "go:golang.org/x/tools/cmd/goimports"
+        ));
+        assert!(matches("asdf:prettier", "npm:prettier"));
+        assert!(matches("vfox:ruff", "aqua:astral-sh/ruff"));
+        assert!(matches("asdf:owner/asdf-ruff", "ruff"));
+        assert!(matches("vfox:owner/vfox-ruff", "aqua:astral-sh/ruff"));
+        assert!(matches(
+            "asdf:https://github.com/owner/asdf-ruff.git",
+            "ruff"
+        ));
+        assert!(!matches("gem:standard", "npm:standard"));
+        assert!(!matches("npm:eslint", "pipx:eslint"));
+        assert!(!matches("npm:@acme/prettier", "npm:prettier"));
+        assert!(!matches("aqua:owenlamont/other", "aqua:owenlamont/ryl"));
+        assert!(!matches("asdf:eslint", "npm:prettier"));
+    }
+
+    #[test]
+    fn language_runtimes_are_not_pinned() {
+        let merged = merge_mise_config("", false, &["rust", "taplo"]).unwrap();
+        assert!(!merged.content.contains("rust"));
+        assert_eq!(merged.added_tools, ["taplo"]);
+        assert_eq!(merged.skipped_runtimes, ["rust"]);
+    }
+
+    #[test]
+    fn configured_runtimes_are_not_reported() {
+        let merged = merge_mise_config("[tools]\nrust = \"1.90\"\n", false, &["rust"]).unwrap();
+        assert!(merged.skipped_runtimes.is_empty());
+    }
+
+    #[test]
+    fn builtins_list_their_tools() {
+        let ruff = crate::builtins::BUILTINS_META
+            .iter()
+            .find(|meta| meta.name == "ruff")
+            .unwrap();
+        assert_eq!(builtin_tools(&[ruff, ruff]), ["ruff"]);
     }
 }

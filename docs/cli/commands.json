@@ -1691,7 +1691,7 @@
             "name": "mise",
             "usage": "--mise",
             "help": "Generate a mise.toml file with hk configured",
-            "help_long": "Generate a mise.toml file with hk configured\n\nSet HK_MISE=1 to make this the default behavior.",
+            "help_long": "Generate a mise.toml file with hk configured\n\nAlso adds the mise tools that the detected or selected linters run,\nsuch as `ruff` or `npm:eslint`, at `latest`. Tools already in\nmise.toml are kept, and language runtimes such as `rust` or `go` are\nleft out.\n\nSet HK_MISE=1 to make this the default behavior.",
             "help_first_line": "Generate a mise.toml file with hk configured",
             "short": [],
             "long": ["mise"],

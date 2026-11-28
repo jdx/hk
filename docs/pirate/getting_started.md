@@ -1,6 +1,6 @@
 ---
 description: Bring hk aboard, chart yer first checks, and work the same steps in Git hooks and CI.
-sourceHash: e9b0ae033938
+sourceHash: 19ea197e2f8a
 ---
 
 # Getting under way
@@ -54,10 +54,10 @@ hk init
 
 hk spots yer tools from the project's files and writes `hk.pkl`, the ship's charts. Read over its steps before ye run them. To pick the tools and hooks yerself, use `hk init --interactive`. hk searches recursively, through every directory, for the source files that give a tool away, honouring ignore rules and never following symlinks; `.gitignore` applies inside Git repositories, and `.ignore` works outside Git too. .NET manifest globs and configuration indicators are only looked for at the root, so a nested workspace is not activated behind yer back.
 
-When `hk init --mise` is used, hk merges into an existing `mise.toml` only the entries it lacks: `hk` if it's missing, and `pre-commit` when there's none. The quartermaster's existing pins, comments, tools, and tasks are all kept as ye left them. `--force` governs `hk.pkl` and does not reset `mise.toml`. hk inspects only literal local task includes; an included flat `pre-commit` task stops it adding a duplicate. An include that is unknown, remote, dynamic, missing, unreadable, or malformed stops the insertion, and hk sings out a warning.
+When `hk init --mise` is used, hk merges into an existing `mise.toml` only the entries it lacks: `hk` if it's missing, the linter tools it lacks, and `pre-commit` when there's none. The quartermaster's existing pins, comments, tools, and tasks are all kept as ye left them. `--force` governs `hk.pkl` and does not reset `mise.toml`. hk inspects only literal local task includes; an included flat `pre-commit` task stops it adding a duplicate. An include that is unknown, remote, dynamic, missing, unreadable, or malformed stops the insertion, and hk sings out a warning.
 
 ::: tip Muster yer lookouts
-Builtins, the standing crew, configure commands; they do not install the tools those commands invoke. Bring the linters ye chose aboard with yer project's package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`.
+Builtins, the standing crew, configure commands; they do not install the tools those commands invoke. Bring the linters ye chose aboard with yer project's package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`. `hk init --mise` lists the spotted lookouts in `mise.toml`, so `mise install` brings them aboard.
 :::
 
 ## Yer first charts {#your-first-configuration}

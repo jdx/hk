@@ -64,7 +64,13 @@ Steps such as `Builtins.trailing_whitespace`, `Builtins.newlines`, and `Builtins
 
 Builtins configure how hk invokes a tool; they do not install that tool. The
 executable used by the builtin must be on `PATH`, or the step must use a `prefix`
-that resolves it.
+that resolves it. Each entry's **Install** line gives the `mise use` command for
+its tool, [`hk init --mise`](/mise_integration#generate-a-starter-setup) adds the
+detected linters' tools to `mise.toml`, and when a step's tool is missing, hk
+ends the run with the `mise use` command that installs it. hk finds the builtin
+by the step's name (`["ruff"] = Builtins.ruff`), or for a command given as an
+argument list, by the name of the missing program. So `["format-shell"] =
+Builtins.shfmt`, whose commands are shell strings, gets no hint.
 
 With [`HK_MISE=1`](/mise_integration#per-directory-environments-monorepos), hk
 resolves the mise environment for the step's directory, so tools declared in a
