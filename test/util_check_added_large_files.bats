@@ -52,3 +52,31 @@ HK
     run hk check
     assert_success
 }
+
+@test "check_added_large_files builtin - skips large files tracked by Git LFS" {
+    _write_config
+    # Git commits only a small pointer for an LFS file, so its size on disk
+    # doesn't matter. The filter driver needn't be installed for the attribute.
+    echo "*.bin filter=lfs diff=lfs merge=lfs -text" > .gitattributes
+    dd if=/dev/zero of=big.bin bs=1024 count=501 2>/dev/null
+    yes "some text line" | head -c 513000 > big.txt
+    git add -A
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "big.txt"
+    refute_output --partial "big.bin"
+}
+
+@test "util check-added-large-files - skips LFS files alongside a path outside the repo" {
+    echo "*.bin filter=lfs" > .gitattributes
+    dd if=/dev/zero of=big.bin bs=1024 count=501 2>/dev/null
+    outside="$(mktemp -d)"
+    dd if=/dev/zero of="$outside/big.dat" bs=1024 count=501 2>/dev/null
+
+    run hk util check-added-large-files big.bin "$outside/big.dat"
+    assert_failure
+    assert_output --partial "big.dat"
+    refute_output --partial "big.bin"
+    rm -rf "$outside"
+}
