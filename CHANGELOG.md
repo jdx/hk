@@ -1,5 +1,62 @@
 # Changelog
 
+## [2.15.0](https://github.com/jdx/hk/compare/v2.14.0..v2.15.0) - 2026-11-28
+
+### 🚀 Features
+
+- **(builtins)** add gh_actions_lock to keep GitHub's Actions lockfile complete by [@jdx](https://github.com/jdx) in [#1922](https://github.com/jdx/hk/pull/1922)
+- **(builtins)** add detekt Kotlin static analyzer by [@jdx](https://github.com/jdx) in [#1932](https://github.com/jdx/hk/pull/1932)
+- **(builtins)** add rstcheck for reStructuredText by [@jdx](https://github.com/jdx) in [#1929](https://github.com/jdx/hk/pull/1929)
+- **(check)** report findings as GitHub annotations and GitLab Code Quality by [@jdx](https://github.com/jdx) in [#1938](https://github.com/jdx/hk/pull/1938)
+- **(hook)** add per-hook jobs and hide_when_done settings by [@jdx](https://github.com/jdx) in [#1933](https://github.com/jdx/hk/pull/1933)
+- **(hook)** write each step's output summary to its own file by [@jdx](https://github.com/jdx) in [#1943](https://github.com/jdx/hk/pull/1943)
+- **(init)** add the detected linters' mise tools to mise.toml and hint mise use for missing tools by [@jdx](https://github.com/jdx) in [#1939](https://github.com/jdx/hk/pull/1939)
+- **(pkl)** load hk's modules through hk: URIs and an hk read external reader by [@jdx](https://github.com/jdx) in [#1912](https://github.com/jdx/hk/pull/1912)
+
+### 🐛 Bug Fixes
+
+- **(benchmark)** restore the uv dependency locks for black and mypy by [@jdx](https://github.com/jdx) in [#1927](https://github.com/jdx/hk/pull/1927)
+- **(builtins)** skip Git LFS files in check_added_large_files by [@jdx](https://github.com/jdx) in [#1934](https://github.com/jdx/hk/pull/1934)
+- **(ci)** run the cache benchmark on the mbx that CI uses by [@jdx](https://github.com/jdx) in [#1926](https://github.com/jdx/hk/pull/1926)
+- **(config)** reload config when an optional import* file without a wildcard is created by [@jdx](https://github.com/jdx) in [#1946](https://github.com/jdx/hk/pull/1946)
+- **(hook)** check every ref updated by a multi-ref pre-push by [@jdx](https://github.com/jdx) in [#1924](https://github.com/jdx/hk/pull/1924)
+- **(hook)** stop read-only runs from locking and rewriting the git index by [@jdx](https://github.com/jdx) in [#1928](https://github.com/jdx/hk/pull/1928)
+- **(hook)** write every step's summary to output.log on each run by [@jdx](https://github.com/jdx) in [#1940](https://github.com/jdx/hk/pull/1940)
+- **(run)** don't wait on stdin in pre-push when --from-ref and --to-ref are given by [@jdx](https://github.com/jdx) in [#1923](https://github.com/jdx/hk/pull/1923)
+- **(step)** batch pnpm exec and npx commands to the Windows cmd.exe limit by [@jdx](https://github.com/jdx) in [#1935](https://github.com/jdx/hk/pull/1935)
+
+### 🛡️ Security
+
+- **(builtins)** add bandit Python security linter by [@jdx](https://github.com/jdx) in [#1931](https://github.com/jdx/hk/pull/1931)
+- **(builtins)** add clj_kondo and cljstyle for Clojure by [@jdx](https://github.com/jdx) in [#1930](https://github.com/jdx/hk/pull/1930)
+- show how to run hk in GitHub Actions with jdx/hk-action by [@jdx](https://github.com/jdx) in [#1941](https://github.com/jdx/hk/pull/1941)
+
+### 🔍 Other Changes
+
+- **(release)** stop crediting @jdx in release notes and show commit coverage by [@jdx](https://github.com/jdx) in [#1942](https://github.com/jdx/hk/pull/1942)
+- use jdx/workflows link-discussions by [@claude](https://github.com/claude) in [3abd1f2](https://github.com/jdx/hk/commit/3abd1f2916f1a7a3c9c04bb3b201094f8350f752)
+- add caller concurrency to link-discussions by [@claude](https://github.com/claude) in [0bd7b7a](https://github.com/jdx/hk/commit/0bd7b7aac7b549c905694e9fe49cc58f0abef2be)
+- add GitHub Actions workflow lockfile by [@claude](https://github.com/claude) in [6a46a6f](https://github.com/jdx/hk/commit/6a46a6f76b7fd603a0a24c72cddeba764beb09f3)
+- set up Entire graph, brain and search for agents by [@jdx](https://github.com/jdx) in [#1936](https://github.com/jdx/hk/pull/1936)
+- record instruction counts for validate and check benchmarks by [@jdx](https://github.com/jdx) in [#1937](https://github.com/jdx/hk/pull/1937)
+- remove jouet by [@jdx](https://github.com/jdx) in [#1944](https://github.com/jdx/hk/pull/1944)
+
+### 📦️ Dependency Updates
+
+- update dependency jouet to v0.0.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1900](https://github.com/jdx/hk/pull/1900)
+- update embarkstudios/cargo-deny-action action to v2.1.2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1901](https://github.com/jdx/hk/pull/1901)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1902](https://github.com/jdx/hk/pull/1902)
+- update dependency communique to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1905](https://github.com/jdx/hk/pull/1905)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1906](https://github.com/jdx/hk/pull/1906)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1907](https://github.com/jdx/hk/pull/1907)
+- update jdx/renovate-config workflows to v1.2.1 by jdx in [2308889](https://github.com/jdx/hk/commit/23088896983ae18fd1a4dac5ee54ae50eee585e6)
+- update jdx crates by [@renovate[bot]](https://github.com/renovate[bot]) in [#1904](https://github.com/jdx/hk/pull/1904)
+
+### New Contributors
+
+- @claude made their first contribution
+- @ made their first contribution
+
 ## [2.14.0](https://github.com/jdx/hk/compare/v2.13.0..v2.14.0) - 2026-11-23
 
 ### 🚀 Features
@@ -9,6 +66,7 @@
 - **(builtins)** add bun_fmt formatter by [@jdx](https://github.com/jdx) in [#1870](https://github.com/jdx/hk/pull/1870)
 - **(builtins)** add scan = "staged" option to betterleaks by [@jdx](https://github.com/jdx) in [#1878](https://github.com/jdx/hk/pull/1878)
 - **(builtins)** scan every pushed commit for secrets with scan = "commits" by [@jdx](https://github.com/jdx) in [#1880](https://github.com/jdx/hk/pull/1880)
+- **(builtins)** add keep_sorted, cspell and cspell_commit_message builtins by [@jdx](https://github.com/jdx) in [#1898](https://github.com/jdx/hk/pull/1898)
 - **(step)** add recheck_after_fix to rerun checks a later fix changed by [@jdx](https://github.com/jdx) in [#1891](https://github.com/jdx/hk/pull/1891)
 
 ### 🐛 Bug Fixes
