@@ -155,6 +155,9 @@ Controls whether hk hides the progress output when the hook finishes successfull
 
 When enabled, successful runs will clear their output to reduce visual clutter.
 Failed runs will always show their output regardless of this setting.
+
+A hook can set it for itself with `hide_when_done` in `hk.pkl`, for example to quiet
+`post-checkout`; `HK_HIDE_WHEN_DONE` overrides that.
 """
 
 [hkrc]
@@ -209,6 +212,9 @@ docs = """
 The number of parallel processes that hk will use to execute steps concurrently. This affects performance by controlling how many linting/formatting tasks can run simultaneously.
 
 Set to `0` (default) to auto-detect based on CPU cores.
+
+A hook's own `jobs` in `hk.pkl` overrides the top-level value for that hook; `--jobs`,
+`HK_JOBS`, and `hk.jobs` git config still override both.
 
 Example usage:
 - `hk check --jobs 4` - Run with 4 parallel jobs

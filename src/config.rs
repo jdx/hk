@@ -959,6 +959,8 @@ impl Config {
                     || sub_hook.stash.is_some()
                     || sub_hook.stage.is_some()
                     || sub_hook.fail_on_fix
+                    || sub_hook.jobs.is_some()
+                    || sub_hook.hide_when_done.is_some()
                     || sub_hook.report.is_some()
                     || sub_hook.timeout.is_some())
             {

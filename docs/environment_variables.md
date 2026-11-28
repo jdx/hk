@@ -95,13 +95,13 @@ Suppress named warning categories, such as `missing-profiles` or `local-config-r
 
 **Type:** boolean · **Default:** false
 
-Hide progress output after a successful hook finishes. Failed runs keep their diagnostics.
+Hide progress output after a successful hook finishes. Failed runs keep their diagnostics. Takes precedence over a hook's `hide_when_done` setting in `hk.pkl`.
 
 ## `HK_JOBS` {#hk-jobs}
 
 **Type:** nonnegative integer · **Default:** 0 (detect CPU count)
 
-Limit concurrent hk jobs. Example: `HK_JOBS=4 hk check --all`. Linters can also start their own workers, so increasing this value does not always improve speed.
+Limit concurrent hk jobs. Example: `HK_JOBS=4 hk check --all`. Linters can also start their own workers, so increasing this value does not always improve speed. Takes precedence over the `jobs` setting in `hk.pkl`, including a hook's own `jobs`.
 
 ## `HK_JSON` {#hk-json}
 

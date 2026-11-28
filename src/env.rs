@@ -128,7 +128,6 @@ pub static HK_OUTPUT_FILE: LazyLock<PathBuf> = LazyLock::new(|| {
 pub static HK_TIMING_JSON: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("HK_TIMING_JSON"));
 
 pub static HK_LIBGIT2: LazyLock<bool> = LazyLock::new(|| !var_false("HK_LIBGIT2"));
-pub static HK_HIDE_WHEN_DONE: LazyLock<bool> = LazyLock::new(|| var_true("HK_HIDE_WHEN_DONE"));
 pub static HK_CHECK_FIRST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_CHECK_FIRST"));
 /// `HK_STASH` as set, or an error naming the bad value. The method names are
 /// `git`, `patch-file` and `none`; `true`/`1` mean `git` and `false`/`0` mean `none`.
