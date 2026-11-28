@@ -1,0 +1,102 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+// Targets the detekt 1.x CLI (1.23). detekt 2.0 is still in alpha and changes the CLI.
+@Builtins.meta {
+  category = "Other Languages"
+  description = "Kotlin static code analyzer"
+  project_indicators {
+    new { file = "detekt.yml" }
+    new { file = "config/detekt/detekt.yml" }
+    new { file = "build.gradle.kts"; contains = "detekt" }
+    new { file = "build.gradle"; contains = "detekt" }
+  }
+  // The release's default asset is a jar that mise cannot run; the zip has a `detekt-cli`
+  // launcher. Both need Java.
+  mise_tools = List("github:detekt/detekt[asset_pattern=detekt-cli-*.zip]")
+}
+detekt = new Config.Step {
+  glob = List("**/*.kt", "**/*.kts")
+  // detekt only reports, so there is no fix: its `--auto-correct` changes nothing unless the
+  // detekt-formatting plugin is loaded, and that plugin wraps ktlint, which has its own builtin.
+  //
+  // detekt runs its default rules unless `--config` is given. Given a config, detekt 1.x
+  // turns off every rule the file does not mention, so `--build-upon-default-config` keeps
+  // the defaults for those; a full config generated with `--generate-config` overrides them
+  // all either way. `detekt.yml` and the Gradle plugin's `config/detekt/detekt.yml` are used.
+  //
+  // `--input` takes one comma-separated list. The command is `detekt-cli` (the release zip)
+  // or `detekt` (Homebrew). The script needs a POSIX shell, so the step is skipped on Windows.
+  check = new Config.CommandSpec {
+    command = new Config.Script {
+      windows = ""
+      other =
+        #"""
+        set -- {{ files }}
+        input=
+        for f; do input="${input:+$input,}$f"; done
+        if [ -f detekt.yml ]; then
+        set -- --config detekt.yml --build-upon-default-config
+        elif [ -f config/detekt/detekt.yml ]; then
+        set -- --config config/detekt/detekt.yml --build-upon-default-config
+        else
+        set --
+        fi
+        if command -v detekt-cli >/dev/null 2>&1; then
+        exec detekt-cli --input "$input" "$@"
+        fi
+        exec detekt --input "$input" "$@"
+        """#
+    }
+    effect = "read"
+  }
+  // Findings are `path:line:column: message [RuleId]` with an absolute path; hk ignores the
+  // `Analysis failed with N weighted issues.` line after them.
+  diagnostic_format = "gcc"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "Test.kt" }
+    local const good =
+      """
+      fun greet(name: String): String = "Hello, $name"
+
+      """
+    local const emptyFunction =
+      """
+      fun main() {
+      }
+
+      """
+    // detekt exits 2 when it finds issues
+    ["check good file"] = testMaker.checkPass(good)
+    ["check bad file"] = testMaker.checkFail(emptyFunction, 2)
+    // detekt prints absolute paths, so this test does not assert one
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        emptyFunction,
+        2,
+        List(new Config.StepTestDiagnostic {
+          line = 1
+          column = 12
+          severity = "error"
+          rule = "EmptyFunctionBlock"
+          message = "This empty block of code can be removed."
+        }),
+      )
+    // A config that mentions one rule keeps the default rules on
+    ["check bad file with partial config"] =
+      (testMaker) {
+        extra_files { ["detekt.yml"] = "style:\n  MagicNumber:\n    active: false\n" }
+      }.checkFail(emptyFunction, 2)
+    ["check config disables rule"] =
+      (testMaker) {
+        extra_files {
+          ["config/detekt/detekt.yml"] = "empty-blocks:\n  EmptyFunctionBlock:\n    active: false\n"
+        }
+      }.checkPass(emptyFunction)
+    ["check kotlin script"] =
+      (testMaker) { filename = "build.gradle.kts" }.checkFail(emptyFunction, 2)
+    ["check file with a space in its path"] =
+      (testMaker) { filename = "my src/Bad File.kt" }.checkFail(emptyFunction, 2)
+  }
+}

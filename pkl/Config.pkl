@@ -303,7 +303,47 @@ class Hook {
   ///   }
   /// }
   /// ```
+  ///
+  /// These variables reach the steps' commands, not hk itself, so `HK_*` settings such as
+  /// `HK_JOBS` have no effect here. Use the hook's `jobs` and `hide_when_done` instead.
   env: Mapping<String, String> = new Mapping<String, String> {}
+
+  /// Default: the top-level [`jobs`](https://hk.jdx.dev/configuration#jobs) setting
+  ///
+  /// The most steps this hook runs at once. Use it to limit a hook whose steps are heavy,
+  /// such as JVM-based linters, without slowing down the other hooks.
+  ///
+  /// `--jobs`, `HK_JOBS`, and the `hk.jobs` git config still take precedence, so a developer
+  /// can override it on their own machine. `0` means the number of CPUs.
+  ///
+  /// ```pkl
+  /// hooks {
+  ///   ["pre-commit"] {
+  ///     jobs = 2
+  ///     steps = linters
+  ///   }
+  /// }
+  /// ```
+  jobs: UInt?
+
+  /// Default: `false`
+  ///
+  /// If true, hk clears each step's progress output once the step succeeds, as with
+  /// [`HK_HIDE_WHEN_DONE`](https://hk.jdx.dev/environment_variables#hk-hide-when-done).
+  /// Failed steps always stay visible. Useful for hooks that run often, such as
+  /// `post-checkout`, `post-merge`, and `post-rewrite`.
+  ///
+  /// `HK_HIDE_WHEN_DONE` still takes precedence when it is set.
+  ///
+  /// ```pkl
+  /// hooks {
+  ///   ["post-checkout"] {
+  ///     hide_when_done = true
+  ///     steps = linters
+  ///   }
+  /// }
+  /// ```
+  hide_when_done: Boolean?
 
   /// Default: `false`
   ///

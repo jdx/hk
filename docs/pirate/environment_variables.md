@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: b2a11bc42526
+sourceHash: 65637764be17
 ---
 
 # Standing orders (environment variables)
@@ -96,13 +96,13 @@ Hush named categories of warning, such as `missing-profiles` or `local-config-re
 
 **Type:** boolean · **Unless ye say otherwise:** false
 
-Clear the progress output off the deck once a hook finishes successfully. A failed run keeps its diagnostics on show.
+Clear the progress output off the deck once a hook finishes successfully. A failed run keeps its diagnostics on show. This order outranks a hook's own `hide_when_done` in `hk.pkl`.
 
 ## `HK_JOBS` {#hk-jobs}
 
 **Type:** nonnegative integer · **Unless ye say otherwise:** 0 (detect CPU count)
 
-All hands haul at once, and this limits how many hk jobs haul together. For example: `HK_JOBS=4 hk check --all`. Linters can also start their own workers, so raising this value does not always make the run faster.
+All hands haul at once, and this limits how many hk jobs haul together. For example: `HK_JOBS=4 hk check --all`. Linters can also start their own workers, so raising this value does not always make the run faster. This order outranks the `jobs` setting in `hk.pkl`, a hook's own `jobs` included.
 
 ## `HK_JSON` {#hk-json}
 

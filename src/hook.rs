@@ -116,6 +116,10 @@ pub struct Hook {
     pub fail_on_fix: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Most steps to run at once for this hook, below CLI, env, and git config.
+    pub jobs: Option<usize>,
+    /// Hide each step's output once it succeeds, below `HK_HIDE_WHEN_DONE`.
+    pub hide_when_done: Option<bool>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Command>,
     /// Longest the whole hook may run, as written in the config (for example `"10s"`).
@@ -203,6 +207,8 @@ impl Default for Hook {
             stage: None,
             fail_on_fix: false,
             env: IndexMap::new(),
+            jobs: None,
+            hide_when_done: None,
             report: None,
             timeout: None,
         }
@@ -1296,6 +1302,7 @@ impl Hook {
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         tracing::info!("running hook");
+        Settings::set_hook_settings(self);
         let settings = Settings::get();
         let output_format = Settings::cli_output_format();
         let machine_output = output_format != crate::structured_output::OutputFormat::Human;
@@ -1458,7 +1465,14 @@ impl Hook {
         .prop("message", "Fetching git status")
         .start();
         let scan_untracked = self.needs_untracked_scan(&opts, stash_method, should_stage);
-        let git_status = match repo.lock().await.status_with_untracked(scan_untracked) {
+        // Only refresh the index when this run will stash or stage, which
+        // write it anyway; read-only runs leave `index.lock` to other tools.
+        let refresh_index = stash_method != StashMethod::None || should_stage;
+        let git_status = match repo
+            .lock()
+            .await
+            .status_with_untracked(scan_untracked, refresh_index)
+        {
             Ok(status) => status,
             Err(err) => {
                 crate::structured_output::emit_error_run(

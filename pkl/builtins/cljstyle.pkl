@@ -1,0 +1,48 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Other Languages"
+  description = "Clojure and ClojureScript formatter"
+  project_indicators {
+    new { file = ".cljstyle" }
+  }
+  mise_tools = List("cljstyle")
+}
+cljstyle = new Config.Step {
+  // cljstyle's default `:files :extensions`. It silently skips other files it is given, such as
+  // `.edn`, unless a `.cljstyle` config adds their extension.
+  glob = List("**/*.clj", "**/*.cljs", "**/*.cljc", "**/*.cljx")
+  // `cljstyle check` prints a unified diff (`--- a/path`, `+++ b/path`) and exits 2 when a file
+  // needs formatting. It colors the diff even when piped, so `--no-color` keeps it applicable.
+  // Each file is formatted with the `.cljstyle` files in its directory and their parents.
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command { argv = List("cljstyle", "--no-color", "check", "{{files}}") }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("cljstyle", "--no-color", "fix", "{{files}}") }
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "example.clj" }
+    local const bad =
+      "(ns example\n  (:require [clojure.string :as str]))\n(defn f [x]\n(str/trim x))\n"
+    local const good =
+      "(ns example\n  (:require\n    [clojure.string :as str]))\n\n\n(defn f\n  [x]\n  (str/trim x))\n"
+    ["check bad file"] = testMaker.checkFail(bad, 2)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+    ["diff bad file in subdirectory"] =
+      testMaker.withFilename("src/app/core.clj").diffPass(bad, good)
+    ["check honors .cljstyle"] =
+      (testMaker) {
+        extra_files {
+          [".cljstyle"] = "{:rules {:blank-lines {:padding-lines 1}}}\n"
+        }
+      }.checkPass("(ns example)\n\n(defn f\n  [x]\n  x)\n")
+  }
+}
