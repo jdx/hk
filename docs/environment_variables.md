@@ -178,7 +178,7 @@ src/main.rs:3: unused variable
 
 Each file starts with the same header as its section in `HK_OUTPUT_FILE`, so `grep -l '(failed):$' .git/hk/output/*.log` lists the steps that failed. Characters in the step name other than ASCII letters, digits, `-`, `_` and `.` are percent-encoded in the file name, so a step named `lint/js` writes `lint%2Fjs.log`. A name longer than 200 characters is cut short and ends in `~` and a hash of the step name.
 
-Each hook run deletes the `.log` files directly inside the directory before writing its own, so it never holds an earlier run's output. Other files are left alone, and the directory is removed when nothing is left in it. When hook runs overlap, the directory holds the files of the run that wrote last, never a mix of both. An empty value uses the default location.
+Each hook run deletes the `.log` files directly inside the directory before writing its own, so it never holds an earlier run's output. Other files are left alone, and the directory is removed when nothing is left in it. When hook runs overlap, the directory holds the files of the run that wrote last, never a mix of both. If `HK_OUTPUT_FILE` is inside the directory and a step's file would have its name, that step gets no file of its own; its output is still in `HK_OUTPUT_FILE`. An empty value uses the default location.
 
 ## `HK_PKL_BACKEND` {#hk-pkl-backend}
 

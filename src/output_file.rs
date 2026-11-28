@@ -102,11 +102,25 @@ fn remove_step_files(dir: &Path, keep: &HashSet<String>) {
             return;
         }
     };
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                warn!("Error reading output directory {}: {e}", dir.display());
+                continue;
+            }
+        };
         let path = entry.path();
-        let is_log = path.extension().is_some_and(|ext| ext == "log");
-        if !is_log || !entry.file_type().is_ok_and(|t| t.is_file()) {
+        if path.extension().is_none_or(|ext| ext != "log") {
             continue;
+        }
+        match entry.file_type() {
+            Ok(file_type) if file_type.is_file() => {}
+            Ok(_) => continue,
+            Err(e) => {
+                warn!("Error reading output file type {}: {e}", path.display());
+                continue;
+            }
         }
         if entry
             .file_name()
@@ -186,8 +200,18 @@ pub fn write_summaries(summaries: &[StepSummary]) {
     let keep = step_files.iter().map(|(name, _)| name.clone()).collect();
     remove_step_files(dir, &keep);
     let mut wrote_step_file = false;
+    let output_path = std::path::absolute(&*env::HK_OUTPUT_FILE).ok();
     for (name, section) in &step_files {
         let step_path = dir.join(name);
+        // With `HK_OUTPUT_FILE` inside `HK_OUTPUT_DIR`, a step can share its
+        // name; the step's output stays in the output file.
+        if output_path.is_some() && std::path::absolute(&step_path).ok() == output_path {
+            warn!(
+                "Not writing a separate file for step output: {} is HK_OUTPUT_FILE",
+                step_path.display()
+            );
+            continue;
+        }
         match write_file(&step_path, section) {
             Ok(()) => wrote_step_file = true,
             Err(e) => warn!("Error writing output file {}: {e:?}", step_path.display()),

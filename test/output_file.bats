@@ -400,3 +400,27 @@ EOF
     assert_output --regexp "or .*/\.git/hk/output for one file per step"
     assert_file_contains ".git/hk/output/fail.log" "GIT_DIR_STEP_MARKER"
 }
+
+@test "a step file that would be the output file is not written" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] { check = "echo LINT_MARKER 1>&2" }
+      ["format"] { check = "echo FORMAT_MARKER 1>&2" }
+    }
+  }
+}
+EOF
+    output_dir="$BATS_TEST_TMPDIR/out"
+
+    HK_OUTPUT_DIR="$output_dir" HK_OUTPUT_FILE="$output_dir/lint.log" run hk check --all
+
+    assert_success
+    assert_output --partial "is HK_OUTPUT_FILE"
+    assert_file_contains "$output_dir/lint.log" "format stderr (passed):"
+    assert_file_contains "$output_dir/lint.log" "LINT_MARKER"
+    run cat "$output_dir/format.log"
+    assert_output "$(printf 'format stderr (passed):\nFORMAT_MARKER')"
+}
