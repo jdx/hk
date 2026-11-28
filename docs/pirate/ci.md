@@ -1,6 +1,6 @@
 ---
 description: Run hk's checks for the harbour-master (CI), pick only the cargo that changed, call up extra watches, and haul in diagnostics worth reading.
-sourceHash: 5c0cd0815c99
+sourceHash: 71023e0110b6
 ---
 
 # Continuous integration: the harbour-master
@@ -96,9 +96,9 @@ See [troubleshooting](/logging) for the ship's log levels and traces, and for in
 - run: hk check --all --github-annotations
 ```
 
-hk prints one [workflow command](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) per finding (`::error`, `::warning` or `::notice`, with the file, line and column), and one `::error` with the hand's output for each failed step that produced no findings. A hand whose failure is allowed gets no annotations. A run that founders before any step starts, such as with a broken `hk.pkl`, gets one `::error` with the reason.
+hk prints one [workflow command](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) per finding (`::error`, `::warning` or `::notice`, with the file and, when the finding has them, its line and column; columns are left out for findings that span several lines), and one `::error` with the hand's output for each failed step that produced no findings. A hand whose failure is allowed gets no annotations. A run that founders before any step starts, such as with a broken `hk.pkl`, gets one `::error` with the reason.
 
-When `GITHUB_STEP_SUMMARY` is set, as it is in every Actions step, hk also appends a Markdown job summary. Without it, hk prints only the annotations. The summary has:
+When `GITHUB_STEP_SUMMARY` holds a nonempty path, as it does in every Actions step, hk also appends a Markdown job summary. Otherwise hk prints only the annotations, and the log alone tells the tale. The summary has:
 
 - the status and duration of each hand that ran, and how many sat this one out
 - a table of findings, up to 500

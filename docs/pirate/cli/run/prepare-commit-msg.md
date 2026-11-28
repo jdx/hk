@@ -1,7 +1,7 @@
 ---
 title: "hk run prepare-commit-msg"
 description: "The cargo it takes and the flags ye can fly with hk run prepare-commit-msg."
-sourceHash: cf5a147911a4
+sourceHash: 52d8630a5373
 pirateUntranslated: 2
 ---
 
@@ -39,7 +39,7 @@ Run the prepare-commit-msg hook, the bosun's pipe that calls all hands while the
   **Choose from:** `human`, `json`, `jsonl`
 
 - **`--from-ref <FROM_REF>`** — Select files changed since this reference; optionally pair it with --to-ref
-- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path
+- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path and has room under GitHub's size limit
 - **`--gitlab-code-quality <PATH>`** — Write normalized diagnostics as a GitLab Code Quality report
 - **`--junit-xml <PATH>`** — Write each step's results as a JUnit XML report
 - **`--no-fail-fast`** — Continue on failures, sailing on through every squall (opposite of --fail-fast)

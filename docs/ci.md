@@ -95,9 +95,9 @@ See [troubleshooting](/logging) for log levels, traces, and configuration inspec
 - run: hk check --all --github-annotations
 ```
 
-hk prints one [workflow command](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) per finding (`::error`, `::warning` or `::notice`, with the file, line and column), and one `::error` with the step's output for each failed step that produced no findings. A step whose failure is allowed gets no annotations. A run that fails before any step starts, such as with a broken `hk.pkl`, gets one `::error` with the reason.
+hk prints one [workflow command](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) per finding (`::error`, `::warning` or `::notice`, with the file and, when the finding has them, its line and column; columns are left out for findings that span several lines), and one `::error` with the step's output for each failed step that produced no findings. A step whose failure is allowed gets no annotations. A run that fails before any step starts, such as with a broken `hk.pkl`, gets one `::error` with the reason.
 
-When `GITHUB_STEP_SUMMARY` is set, as it is in every Actions step, hk also appends a Markdown job summary. Without it, hk prints only the annotations. The summary has:
+When `GITHUB_STEP_SUMMARY` holds a nonempty path, as it does in every Actions step, hk also appends a Markdown job summary. Otherwise hk prints only the annotations. The summary has:
 
 - the status and duration of each step that ran, and how many steps were skipped
 - a table of findings, up to 500
