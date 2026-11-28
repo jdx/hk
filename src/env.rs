@@ -1,5 +1,8 @@
 pub use std::env::*;
-use std::{path::PathBuf, sync::LazyLock};
+use std::{
+    path::{Path, PathBuf},
+    sync::LazyLock,
+};
 
 use indexmap::IndexSet;
 
@@ -123,6 +126,42 @@ pub static HK_OUTPUT_FILE: LazyLock<PathBuf> = LazyLock::new(|| {
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| checkout_state_dir().join("output.log"))
 });
+pub static HK_OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    var_path("HK_OUTPUT_DIR")
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| checkout_state_dir().join("output"))
+});
+/// Held while hk clears or writes `HK_OUTPUT_FILE` and `HK_OUTPUT_DIR`. It sits
+/// next to the output directory, as `<dir>.lock`, so every run that writes to
+/// one directory takes the same lock, whatever its checkout or `HK_STATE_DIR`.
+pub static HK_OUTPUT_LOCK: LazyLock<PathBuf> = LazyLock::new(|| {
+    let dir = real_path(&HK_OUTPUT_DIR);
+    match (dir.parent(), dir.file_name()) {
+        (Some(parent), Some(name)) => {
+            let mut name = name.to_os_string();
+            name.push(".lock");
+            parent.join(name)
+        }
+        // The filesystem root has no name to put a lock beside.
+        _ => HK_STATE_DIR
+            .join("locks")
+            .join(format!("output-{}.lock", crate::hash::hash_to_str(&dir))),
+    }
+});
+
+/// `path` with symbolic links, `.` and `..` resolved, so every spelling of one
+/// directory gives the same result. Its deepest existing ancestor is resolved
+/// on disk, and the part that does not exist yet is resolved lexically.
+fn real_path(path: &Path) -> PathBuf {
+    let path = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+    for ancestor in path.ancestors() {
+        if let Ok(real) = std::fs::canonicalize(ancestor) {
+            let rest = path.strip_prefix(ancestor).unwrap_or(Path::new(""));
+            return crate::hook::normalize_lexically(&real.join(rest));
+        }
+    }
+    crate::hook::normalize_lexically(&path)
+}
 
 // When set, write a JSON timing report to this path after the hook finishes
 pub static HK_TIMING_JSON: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("HK_TIMING_JSON"));

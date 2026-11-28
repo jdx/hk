@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: 65637764be17
+sourceHash: d9dbc6ec894d
 ---
 
 # Standing orders (environment variables)
@@ -147,7 +147,7 @@ Unless ye say otherwise: `<git-dir>/hk/output.log` in a repository (one per chec
 
 The file where hk writes the output summary o' every step from the latest hook run. An empty value uses the default location.
 
-Each hook run replaces the file, whether it passes or fails, so it never holds an earlier voyage's output. It has one section per step that produced output, headed with the step name, the step's `output_summary` stream and its status (`passed`, `failed` or `cancelled`), with ANSI codes removed:
+Each hook run replaces the file, whether it passes or fails, so it never holds an earlier run's output. It has one section per step that produced output, headed with the step name, the step's `output_summary` stream and its status (`passed`, `failed` or `cancelled`), with ANSI codes removed:
 
 ```text
 lint stderr (failed):
@@ -158,6 +158,28 @@ format stderr (passed):
 ```
 
 Steps with `output_summary = "hide"` be left out, and the file is removed when no step produced output. Coding agents and CI jobs that can't see the console can read it after `hk check` or a git hook.
+
+The same sections be also written one file per step to [`HK_OUTPUT_DIR`](#hk-output-dir).
+
+## `HK_OUTPUT_DIR` {#hk-output-dir}
+
+Type: `path`
+Unless ye say otherwise: `<git-dir>/hk/output/` in a repository (one per checkout), else `$HK_STATE_DIR/output/`
+
+The directory where hk writes each step's section o' [`HK_OUTPUT_FILE`](#hk-output-file) as its own file, `<step>.log`. A clockwork hand that only needs one hand's output can read that file instead o' the whole run:
+
+```text
+$ ls .git/hk/output/
+format.log  lint.log
+
+$ cat .git/hk/output/lint.log
+lint stderr (failed):
+src/main.rs:3: unused variable
+```
+
+Each file starts with the same header as its section in `HK_OUTPUT_FILE`, so `grep -l '(failed):$' .git/hk/output/*.log` lists the steps that failed. Characters in the step name other than ASCII letters, digits, `-`, `_` and `.` be percent-encoded in the file name, so a step named `lint/js` writes `lint%2Fjs.log`. A name longer than 200 characters is cut short and ends in `~` and a hash o' the step name.
+
+Each hook run deletes the `.log` files directly inside the directory before writing its own, so it never holds an earlier run's output. Other files be left alone, aye, and the directory is removed when nothing is left in it. When two runs overlap, the directory holds the files o' the run that wrote last, never a mix o' both: they take turns through a lock file beside the directory, named after it with `.lock` added (`.git/hk/output.lock` by default). Symbolic links be followed first, so every course to one directory uses the same lock. If `HK_OUTPUT_FILE` is inside the directory and a step's file would have its name, that hand gets no file of its own; its output is still in `HK_OUTPUT_FILE`. An empty value uses the default location.
 
 ## `HK_PKL_BACKEND` {#hk-pkl-backend}
 
@@ -272,7 +294,7 @@ Stow untracked files in the hold too when stashing. Set this to `false` and hk a
 
 **Type:** path · **Unless ye say otherwise:** the repository's git directory; outside a repository, the platform state directory plus `hk`
 
-Where hk keeps the ship's logs, command output and the stash backup patches. Without it, hk keeps `output.log` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository, or in one with `core.sharedRepository` set (which accounts share), it falls back to `~/.local/state/hk` on Linux. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_LOG_FILE` still override individual files. `GIT_DIR` / `GIT_WORK_TREE` select the repository as they do for hk itself.
+Where hk keeps the ship's logs, command output and the stash backup patches. Without it, hk keeps `output.log`, `output/` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository, or in one with `core.sharedRepository` set (which accounts share), it falls back to `~/.local/state/hk` on Linux. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_OUTPUT_DIR` / `HK_LOG_FILE` still override individual paths. `GIT_DIR` / `GIT_WORK_TREE` select the repository as they do for hk itself.
 
 ## `HK_SUMMARY_TEXT` {#hk-summary-text}
 

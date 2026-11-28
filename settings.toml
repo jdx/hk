@@ -277,7 +277,20 @@ An empty value uses the default location.
 
 Each hook run replaces the file, whether it passes or fails, so it never holds an earlier run's output. It has one section per step that produced output, headed with the step name, the step's `output_summary` stream and its status (`passed`, `failed` or `cancelled`), with ANSI codes removed. Steps with `output_summary = "hide"` are left out. When no step produced output, the file is removed. If the failure came from a command outside any step, that command's output is appended.
 
-Useful for coding agents and CI jobs that do not see the console, and for reading the full output when hook summaries are abbreviated.
+Useful for coding agents and CI jobs that do not see the console, and for reading the full output when hook summaries are abbreviated. The same sections are also written one file per step to `output_dir`.
+"""
+
+[output_dir]
+type = "path"
+sources.env = ["HK_OUTPUT_DIR"]
+docs = """
+Directory where hk writes each step's section of `output_file` as its own file, `<step>.log`, so a reader that wants one step's output can read only that step.
+
+Default location: `<git-dir>/hk/output/` in a repository (one per checkout), else `$HK_STATE_DIR/output/`
+
+An empty value uses the default location.
+
+Each file holds the step's header (name, `output_summary` stream and status) and output, exactly as in `output_file`. Characters in the step name other than ASCII letters, digits, `-`, `_` and `.` are percent-encoded in the file name, so a step named `lint/js` writes `lint%2Fjs.log`, and a name longer than 200 characters is cut short and ends in `~` and a hash of the step name. Each hook run deletes the `.log` files directly inside the directory before writing its own, so the directory only holds the latest run; other files are left alone, and the directory is removed when nothing is left in it. When hook runs overlap, the directory holds the files of the run that wrote last, never a mix of both: runs take turns through a lock file next to the directory, named after it with `.lock` added (`.git/hk/output.lock` by default). Symbolic links are followed first, so every path to one directory uses the same lock. If `output_file` is inside the directory and a step's file would have its name, that step gets no file of its own; its output is still in `output_file`.
 """
 
 [log_level]
@@ -503,7 +516,7 @@ docs = """
 Directory where hk stores persistent state files.
 
 Default: inside a repository, hk keeps its state in the git directory instead
-(`<git-dir>/hk/output.log` and `hk.log` per checkout, `<common-git-dir>/hk/patches/`
+(`<git-dir>/hk/output.log`, `output/` and `hk.log` per checkout, `<common-git-dir>/hk/patches/`
 shared by a repository's linked worktrees). Outside a repository it uses
 `~/.local/state/hk`. Setting this variable puts everything under that directory.
 

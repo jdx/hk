@@ -282,3 +282,229 @@ EOF
     assert_file_not_exist "$output_file"
     refute_output --partial "See $output_file"
 }
+
+@test "output directory holds one file per step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail-a"] {
+        check = #"printf '\033[31mSTEP_A_MARKER\033[0m\n' 1>&2 && exit 1"#
+      }
+      ["lint/js"] {
+        check = "echo STEP_B_MARKER 1>&2 && exit 1"
+      }
+      ["passes"] {
+        check = "echo PASSING_STEP_MARKER 1>&2"
+      }
+      ["quiet"] {
+        check = "true"
+      }
+      ["hidden"] {
+        check = "echo HIDDEN_STEP_MARKER 1>&2 && exit 1"
+        output_summary = "hide"
+      }
+    }
+  }
+}
+EOF
+    output_dir="$BATS_TEST_TMPDIR/out"
+
+    HK_OUTPUT_DIR="$output_dir" run hk check --all --no-fail-fast
+
+    assert_failure
+    assert_output --partial "or $output_dir for one file per step"
+    run ls "$output_dir"
+    assert_output "$(printf 'fail-a.log\nlint%%2Fjs.log\npasses.log')"
+    run cat "$output_dir/fail-a.log"
+    assert_output "$(printf 'fail-a stderr (failed):\nSTEP_A_MARKER')"
+    assert_file_contains "$output_dir/lint%2Fjs.log" "lint/js stderr (failed):"
+    assert_file_contains "$output_dir/lint%2Fjs.log" "STEP_B_MARKER"
+    assert_file_contains "$output_dir/passes.log" "passes stderr (passed):"
+    run grep -l STEP_B_MARKER "$output_dir/fail-a.log" "$output_dir/passes.log"
+    assert_output ""
+}
+
+@test "output directory only describes the latest run" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["old-step"] { check = "echo OLD_STEP_MARKER 1>&2" }
+    }
+  }
+}
+EOF
+    output_dir="$BATS_TEST_TMPDIR/out"
+
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_file_exist "$output_dir/old-step.log"
+    echo keep > "$output_dir/notes.txt"
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["new-step"] { check = "echo NEW_STEP_MARKER 1>&2" }
+    }
+  }
+}
+EOF
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_file_not_exist "$output_dir/old-step.log"
+    assert_file_contains "$output_dir/new-step.log" "NEW_STEP_MARKER"
+    assert_file_exist "$output_dir/notes.txt"
+
+    # A run with no step output removes the step files, and the directory once
+    # nothing else is in it.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["quiet"] { check = "true" }
+    }
+  }
+}
+EOF
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_file_not_exist "$output_dir/new-step.log"
+    assert_file_exist "$output_dir/notes.txt"
+    rm "$output_dir/notes.txt"
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_dir_not_exist "$output_dir"
+}
+
+@test "output directory defaults to the checkout's git directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail"] { check = "echo GIT_DIR_STEP_MARKER 1>&2 && exit 1" }
+    }
+  }
+}
+EOF
+    unset HK_STATE_DIR HK_OUTPUT_FILE HK_OUTPUT_DIR HK_LOG_FILE
+
+    run hk check --all
+    assert_failure
+    assert_output --regexp "or .*/\.git/hk/output for one file per step"
+    assert_file_contains ".git/hk/output/fail.log" "GIT_DIR_STEP_MARKER"
+    assert_file_exists ".git/hk/output.lock"
+}
+
+@test "runs with different state directories share one output directory's lock" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail"] { check = "echo SHARED_MARKER 1>&2 && exit 1" }
+    }
+  }
+}
+EOF
+    export HK_OUTPUT_DIR="$TEST_TEMP_DIR/shared-output"
+
+    HK_STATE_DIR="$TEST_TEMP_DIR/state-a" run hk check --all
+    assert_failure
+    HK_STATE_DIR="$TEST_TEMP_DIR/state-b" run hk check --all
+    assert_failure
+
+    assert_file_contains "$HK_OUTPUT_DIR/fail.log" "SHARED_MARKER"
+    assert_file_exists "$TEST_TEMP_DIR/shared-output.lock"
+    run find "$TEST_TEMP_DIR/state-a" "$TEST_TEMP_DIR/state-b" -name 'output-*.lock'
+    assert_output ""
+}
+
+# Holds lock file $1 as another hook run would, runs `hk check --all` with
+# another HK_STATE_DIR, and asserts that the run writes step file $2 only
+# after the lock is released.
+_assert_run_waits_for_lock() {
+    local lock_file="$1" step_file="$2"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail"] { check = "echo WAITED_MARKER 1>&2 && exit 1" }
+    }
+  }
+}
+EOF
+    python3 - "$lock_file" "$TEST_TEMP_DIR" <<'PY' &
+import fcntl, os, sys, time
+lock = open(sys.argv[1], "a")
+fcntl.flock(lock, fcntl.LOCK_EX)
+open(os.path.join(sys.argv[2], "held"), "w").close()
+while not os.path.exists(os.path.join(sys.argv[2], "release")):
+    time.sleep(0.05)
+PY
+    local holder=$!
+    for _ in $(seq 100); do [ -e "$TEST_TEMP_DIR/held" ] && break; sleep 0.1; done
+    local held=no
+    [ -e "$TEST_TEMP_DIR/held" ] && held=yes
+
+    HK_STATE_DIR="$TEST_TEMP_DIR/state-b" hk check --all >/dev/null 2>&1 &
+    local waiter=$!
+    sleep 1
+    # Recorded before releasing, so a failed assertion never leaves the holder running.
+    local written_while_held=no
+    [ -e "$step_file" ] && written_while_held=yes
+
+    touch "$TEST_TEMP_DIR/release"
+    wait "$holder"
+    wait "$waiter" || true
+    assert_equal "$held" yes
+    assert_equal "$written_while_held" no
+    assert_file_contains "$step_file" "WAITED_MARKER"
+}
+
+@test "a run waits for the output lock held by a run with another state directory" {
+    mkdir -p "$TEST_TEMP_DIR/shared/child"
+    real_temp="$(cd "$TEST_TEMP_DIR" && pwd -P)"
+    # `..` is resolved before the lock is named, so this locks shared.lock.
+    export HK_OUTPUT_DIR="$TEST_TEMP_DIR/shared/child/.."
+    _assert_run_waits_for_lock "$real_temp/shared.lock" "$TEST_TEMP_DIR/shared/fail.log"
+}
+
+@test "an output directory reached through a symbolic link shares its lock" {
+    mkdir -p "$TEST_TEMP_DIR/real/output"
+    ln -s "$TEST_TEMP_DIR/real/output" "$TEST_TEMP_DIR/alias"
+    real_temp="$(cd "$TEST_TEMP_DIR" && pwd -P)"
+    export HK_OUTPUT_DIR="$TEST_TEMP_DIR/alias"
+    _assert_run_waits_for_lock "$real_temp/real/output.lock" "$TEST_TEMP_DIR/real/output/fail.log"
+}
+
+@test "a step file that would be the output file is not written" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] { check = "echo LINT_MARKER 1>&2" }
+      ["format"] { check = "echo FORMAT_MARKER 1>&2" }
+    }
+  }
+}
+EOF
+    output_dir="$BATS_TEST_TMPDIR/out"
+
+    HK_OUTPUT_DIR="$output_dir" HK_OUTPUT_FILE="$output_dir/lint.log" run hk check --all
+
+    assert_success
+    assert_output --partial "is HK_OUTPUT_FILE"
+    assert_file_contains "$output_dir/lint.log" "format stderr (passed):"
+    assert_file_contains "$output_dir/lint.log" "LINT_MARKER"
+    run cat "$output_dir/format.log"
+    assert_output "$(printf 'format stderr (passed):\nFORMAT_MARKER')"
+}
