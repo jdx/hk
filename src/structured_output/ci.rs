@@ -39,7 +39,8 @@ fn repo_path(path: &str) -> Cow<'_, str> {
                 .and_then(|canonical| as_path.strip_prefix(canonical).ok())
         });
         if let Some(relative) = relative {
-            return Cow::Owned(relative.to_string_lossy().replace('\\', "/"));
+            let relative = crate::hook::with_forward_slashes(relative.to_path_buf());
+            return Cow::Owned(relative.to_string_lossy().into_owned());
         }
     }
     match path.strip_prefix("./") {
@@ -578,6 +579,11 @@ mod tests {
         assert_eq!(gitlab_code_quality(&run)[0]["location"]["path"], "src/a.js");
         assert_eq!(repo_path("/elsewhere/a.js"), "/elsewhere/a.js");
         assert_eq!(repo_path("./a.js"), "a.js");
+        if cfg!(unix) {
+            // A backslash is a legal filename character on Unix.
+            let literal = cwd.join("a\\b.js");
+            assert_eq!(repo_path(literal.to_str().unwrap()), "a\\b.js");
+        }
     }
 
     #[test]
