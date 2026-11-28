@@ -33,8 +33,8 @@ steps {
 Import a release by its `package://` URL instead when the schema must not shift with the installed hk, when yer editor uses pkl-lsp, or when plain `pkl` reads the file without hk aboard. pkl-lsp (0.9.0 and earlier) can't find `hk:` imports, so completion and type checking in the editor need a `package://` URL:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.15.0/hk@2.15.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.15.0/hk@2.15.0#/Builtins.pkl"
 ```
 
 Keep both package URLs on the same version. Changing the hk executable does not rewrite pinned imports; they stay where ye pinned them.
@@ -579,8 +579,8 @@ package {
 ```
 
 ```pkl [hk.pkl]
-amends "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.14.0/hk@2.14.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.15.0/hk@2.15.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.15.0/hk@2.15.0#/Builtins.pkl"
 
 steps {
   ["trailing_whitespace"] = Builtins.trailing_whitespace
