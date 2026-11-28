@@ -132,7 +132,11 @@ fn object_content(object: &str) -> Result<Vec<u8>> {
 }
 
 fn git(args: &[String]) -> Result<Vec<u8>> {
-    let output = Command::new("git").args(args).output()?;
+    let output = Command::new("git")
+        .args(args)
+        // Read-only: don't let `git status` write the refreshed index back
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()?;
     if !output.status.success() {
         return Err(eyre::eyre!(
             "git {} failed: {}",

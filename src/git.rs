@@ -1494,36 +1494,53 @@ impl Git {
         }
     }
 
-    /// Status of the whole repository, after refreshing the index's stat
-    /// information so that files whose mtime changed but whose contents did
-    /// not are not reported as modified.
+    /// Status of the whole repository, read without writing the index.
     ///
     /// This runs `git status` even with libgit2. libgit2 compares HEAD with
     /// the index and then the index with the worktree in two single-threaded
     /// passes over every entry, while git stats the worktree with several
-    /// threads and skips unchanged directories through the cache tree. With
-    /// optional locks allowed, `git status` also writes the refreshed index
-    /// back when it can take the lock, as `git update-index --refresh` would.
+    /// threads and skips unchanged directories through the cache tree. Files
+    /// whose mtime changed but whose contents did not are not reported as
+    /// modified either way.
     pub fn status(&self) -> Result<GitStatus> {
-        self.status_with_untracked(*env::HK_STASH_UNTRACKED)
+        self.status_with_untracked(*env::HK_STASH_UNTRACKED, false)
     }
 
     /// Like [`Git::status`], but only looks for untracked files when
     /// `include_untracked` is set, which spares `git status` a walk of the
     /// whole worktree.
+    ///
+    /// With `refresh_index`, `git status` also writes the refreshed stat
+    /// information back to the index when it can take `index.lock`, as
+    /// `git update-index --refresh` would, which spares the stash and staging
+    /// commands that follow from re-checking stat-dirty files. Runs that
+    /// never write the index leave it alone, so they don't contend for
+    /// `index.lock` with git commands other tools run in the same worktree.
     #[tracing::instrument(level = "info", name = "git.status", skip_all)]
-    pub fn status_with_untracked(&self, include_untracked: bool) -> Result<GitStatus> {
+    pub fn status_with_untracked(
+        &self,
+        include_untracked: bool,
+        refresh_index: bool,
+    ) -> Result<GitStatus> {
         let mut args = vec![
-            "status",
-            "--porcelain=v2",
-            "-z",
-            untracked_files_arg(include_untracked),
+            OsString::from("status"),
+            "--porcelain=v2".into(),
+            "-z".into(),
+            untracked_files_arg(include_untracked).into(),
         ];
         if self.repo.is_some() {
             // libgit2 detects staged renames whatever `status.renames` says
-            args.push("--renames");
+            args.push("--renames".into());
         }
-        let output = git_read_bytes(args).wrap_err("failed to get git status")?;
+        let mut cmd = git_expr(args);
+        if !refresh_index {
+            cmd = cmd.env("GIT_OPTIONAL_LOCKS", "0");
+        }
+        let output = cmd
+            .stdout_capture()
+            .run()
+            .wrap_err("failed to get git status")?
+            .stdout;
         let mut skipped = SkippedPaths::default();
         let entries = parse_porcelain_status(&output, &mut skipped)?;
         let mut status = if self.repo.is_some() {
@@ -2747,13 +2764,21 @@ impl Git {
                 subject: e.subject,
             })
             .collect();
-        let status = git_read_bytes([
-            "status",
-            "--porcelain=v1",
-            "-z",
-            "--no-renames",
-            "--untracked-files=normal",
-        ])?;
+        let status = git_expr(
+            [
+                "status",
+                "--porcelain=v1",
+                "-z",
+                "--no-renames",
+                "--untracked-files=normal",
+            ]
+            .map(OsString::from)
+            .to_vec(),
+        )
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .stdout_capture()
+        .run()?
+        .stdout;
         let clean = !stash_journal::status_has_worktree_changes(&String::from_utf8_lossy(&status));
         match stash_journal::decide(journal, &stash, clean) {
             Action::Discard(why) => {

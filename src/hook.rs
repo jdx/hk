@@ -1458,7 +1458,14 @@ impl Hook {
         .prop("message", "Fetching git status")
         .start();
         let scan_untracked = self.needs_untracked_scan(&opts, stash_method, should_stage);
-        let git_status = match repo.lock().await.status_with_untracked(scan_untracked) {
+        // Only refresh the index when this run will stash or stage, which
+        // write it anyway; read-only runs leave `index.lock` to other tools.
+        let refresh_index = stash_method != StashMethod::None || should_stage;
+        let git_status = match repo
+            .lock()
+            .await
+            .status_with_untracked(scan_untracked, refresh_index)
+        {
             Ok(status) => status,
             Err(err) => {
                 crate::structured_output::emit_error_run(
