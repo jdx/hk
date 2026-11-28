@@ -145,7 +145,19 @@ Calls in the quartermaster: `hk install` uses `mise x` in the hook launchers, an
 Type: `path`
 Unless ye say otherwise: `<git-dir>/hk/output.log` in a repository (one per checkout), else `$HK_STATE_DIR/output.log`
 
-The file where hk writes the complete output of a failed command, every word o' the squall. An empty value uses the default location.
+The file where hk writes the output summary o' every step from the latest hook run. An empty value uses the default location.
+
+Each hook run replaces the file, whether it passes or fails, so it never holds an earlier voyage's output. It has one section per step that produced output, headed with the step name, the step's `output_summary` stream and its status (`passed`, `failed` or `cancelled`), with ANSI codes removed:
+
+```text
+lint stderr (failed):
+src/main.rs:3: unused variable
+
+format stderr (passed):
+1 file formatted
+```
+
+Steps with `output_summary = "hide"` be left out, and the file is removed when no step produced output. Coding agents and CI jobs that can't see the console can read it after `hk check` or a git hook.
 
 ## `HK_PKL_BACKEND` {#hk-pkl-backend}
 

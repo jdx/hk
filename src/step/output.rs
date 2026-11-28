@@ -52,6 +52,11 @@ impl Step {
         combined: &str,
         is_failure: bool,
     ) {
+        // A step's failure is covered by its summary (or deliberately hidden),
+        // so the output file must not add its raw output again.
+        if is_failure {
+            crate::output_file::note_step_failure(combined);
+        }
         // Only skip if this is a check_first check that FAILED (will be followed by a fix)
         // If the check passed, we want to show its output since no fix will run
         let is_check_first_check_that_failed =

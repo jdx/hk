@@ -1338,6 +1338,7 @@ impl Hook {
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         tracing::info!("running hook");
+        crate::output_file::clear();
         Settings::set_hook_settings(self);
         let settings = Settings::get();
         let output_format = Settings::cli_output_format();
@@ -1879,9 +1880,9 @@ impl Hook {
         let cancelled_steps = hook_ctx.cancelled_steps.lock().unwrap().clone();
         let only_failed = settings.quiet || (in_text_mode && !force_summary);
         let mut printed_summary = false;
-        if !machine_output
+        let print_summaries = !machine_output
             && !settings.silent
-            && (!only_failed || !failed_steps.is_empty() || !cancelled_steps.is_empty())
+            && (!only_failed || !failed_steps.is_empty() || !cancelled_steps.is_empty());
         {
             let mut outputs = hook_ctx.output_by_step.lock().unwrap().clone();
             let diagnostic_outputs = hook_ctx.diagnostic_output_by_step.lock().unwrap();
@@ -1966,13 +1967,10 @@ impl Hook {
                 }
             }
             drop(diagnostic_segments);
+            // The output file gets every step's summary, whatever the console
+            // shows, so a reader without the console sees the whole run.
+            let mut file_summaries = Vec::new();
             for (step_name, (mode, output)) in outputs.into_iter() {
-                if only_failed
-                    && !failed_steps.contains(&step_name)
-                    && !cancelled_steps.contains(&step_name)
-                {
-                    continue;
-                }
                 let trimmed = output.trim_end();
                 if trimmed.is_empty() {
                     continue;
@@ -1983,10 +1981,27 @@ impl Hook {
                     OutputSummary::Combined => "output",
                     OutputSummary::Hide => continue,
                 };
-                eprintln!("\n{}", style::ebold(format!("{} {}:", step_name, label)));
-                eprintln!("{}", trimmed);
-                printed_summary = true;
+                let failed = failed_steps.contains(&step_name);
+                let cancelled = cancelled_steps.contains(&step_name);
+                if print_summaries && (!only_failed || failed || cancelled) {
+                    eprintln!("\n{}", style::ebold(format!("{} {}:", step_name, label)));
+                    eprintln!("{}", trimmed);
+                    printed_summary = true;
+                }
+                file_summaries.push(crate::output_file::StepSummary {
+                    status: if cancelled {
+                        "cancelled"
+                    } else if failed {
+                        "failed"
+                    } else {
+                        "passed"
+                    },
+                    step: step_name,
+                    label,
+                    output: trimmed.to_string(),
+                });
             }
+            crate::output_file::write_summaries(&file_summaries);
         }
 
         if !machine_output && !settings.silent && hook_ctx.saw_git_index_lock_contention() {
