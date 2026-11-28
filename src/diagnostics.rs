@@ -486,6 +486,8 @@ fn parse_gcc(
         r"|Done processing\b|Total (?:errors?|issues?|warnings?)\b.*: \d+$",
         // sorbet: `Errors: 2`
         r"|Errors: \d+$",
+        // rstcheck: `Error! Issues detected.`
+        r"|Error! Issues detected\.$",
         // buildifier: `BUILD.bazel # reformat`
         r"|\S.* # reformat$",
         // timestamped log lines, such as ktlint's WARN line
@@ -885,6 +887,19 @@ mod tests {
         assert_eq!(
             parsed.diagnostics[2].message,
             "Revealed type is \"builtins.int\""
+        );
+    }
+
+    #[test]
+    fn gcc_reads_rstcheck_and_ignores_its_summary() {
+        let output = "doc.rst:2: (INFO/1) Possible title underline, too short for the title.\ndoc.rst:6: (ERROR/3) (python) invalid syntax\nError! Issues detected.\n";
+        let parsed = gcc(output);
+        assert!(parsed.warnings.is_empty());
+        assert_eq!(parsed.diagnostics.len(), 2);
+        assert_eq!(at(&parsed.diagnostics[1]), ("doc.rst", 6, 1));
+        assert_eq!(
+            parsed.diagnostics[1].message,
+            "(ERROR/3) (python) invalid syntax"
         );
     }
 
