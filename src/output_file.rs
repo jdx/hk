@@ -214,7 +214,15 @@ pub fn write_summaries(summaries: &[StepSummary]) {
         }
         match write_file(&step_path, section) {
             Ok(()) => wrote_step_file = true,
-            Err(e) => warn!("Error writing output file {}: {e:?}", step_path.display()),
+            Err(e) => {
+                warn!("Error writing output file {}: {e:?}", step_path.display());
+                // A file kept from an overlapping run would describe that run.
+                if let Err(e) = std::fs::remove_file(&step_path)
+                    && e.kind() != std::io::ErrorKind::NotFound
+                {
+                    warn!("Error removing output file {}: {e}", step_path.display());
+                }
+            }
         }
     }
     WROTE_STEP_FILES.store(wrote_step_file, Ordering::SeqCst);
@@ -342,7 +350,10 @@ mod tests {
         assert!(a.ends_with(".log"));
         // The cut never splits an escape.
         let stem = a.split('~').next().unwrap();
-        assert!(stem.len() % 3 == 0 && stem.starts_with("%C3%A9"), "{stem}");
+        assert!(
+            stem.len().is_multiple_of(3) && stem.starts_with("%C3%A9"),
+            "{stem}"
+        );
         // A name at the limit keeps its full form.
         let exact = "a".repeat(MAX_STEM_LEN);
         assert_eq!(step_file_name(&exact), format!("{exact}.log"));
