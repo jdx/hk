@@ -14,17 +14,24 @@ teardown() {
     _common_teardown
 }
 
-# Three steps that each note how many steps were running at once.
-write_config() {
-    local hook_settings="$1"
-    local top_settings="${2:-}"
+commit_config() {
+    git add hk.pkl
+    git commit -qm "initial commit"
+}
+
+# Each step notes in ../concurrency how many steps were running at once.
+max_concurrency() {
+    sort -n ../concurrency | tail -1 | tr -d ' '
+}
+
+@test "hook jobs limits how many steps run at once" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-$top_settings
+jobs = 3
 local probe = "mkdir -p ../running; touch ../running/\$\$; sleep 1; ls ../running | wc -l >> ../concurrency; rm ../running/\$\$"
 hooks {
     ["check"] {
-        $hook_settings
+        jobs = 1
         steps {
             ["a"] { check = probe }
             ["b"] { check = probe }
@@ -33,23 +40,30 @@ hooks {
     }
 }
 EOF
-    git add hk.pkl
-    git commit -qm "initial commit"
-}
+    commit_config
 
-max_concurrency() {
-    sort -n ../concurrency | tail -1 | tr -d ' '
-}
-
-@test "hook jobs limits how many steps run at once" {
-    write_config "jobs = 1" "jobs = 3"
     run hk check --all
     assert_success
     assert_equal "$(max_concurrency)" "1"
 }
 
 @test "HK_JOBS overrides hook jobs" {
-    write_config "jobs = 1"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+local probe = "mkdir -p ../running; touch ../running/\$\$; sleep 1; ls ../running | wc -l >> ../concurrency; rm ../running/\$\$"
+hooks {
+    ["check"] {
+        jobs = 1
+        steps {
+            ["a"] { check = probe }
+            ["b"] { check = probe }
+            ["c"] { check = probe }
+        }
+    }
+}
+EOF
+    commit_config
+
     HK_JOBS=3 run hk check --all
     assert_success
     [ "$(max_concurrency)" -gt 1 ]
@@ -65,8 +79,7 @@ hooks {
     }
 }
 EOF
-    git add hk.pkl
-    git commit -qm "initial commit"
+    commit_config
 
     run hk check --all
     assert_success
