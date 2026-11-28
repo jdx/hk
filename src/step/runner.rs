@@ -612,7 +612,9 @@ impl Step {
                     // for a missing tool, with a "not found" message): the files were not found to need fixing.
                     let tool_missing = e.3.status.code() == Some(COMMAND_NOT_FOUND_EXIT_CODE)
                         && e.3.combined_output.contains("not found");
-                    if !tool_missing {
+                    if tool_missing {
+                        ctx.hook_ctx.mark_missing_tool(&self.name, None);
+                    } else {
                         self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
                     }
                 }
@@ -643,6 +645,7 @@ impl Step {
                         );
                     }
                     let program = &argv[0];
+                    ctx.hook_ctx.mark_missing_tool(&self.name, Some(program));
                     return Err(eyre::eyre!(
                         "{program}: command not found; is it installed and on PATH?"
                     ))

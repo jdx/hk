@@ -26,6 +26,8 @@ struct BuiltinMeta {
     description: String,
     #[serde(default)]
     project_indicators: Vec<ProjectIndicator>,
+    #[serde(default)]
+    mise_tools: Vec<String>,
 }
 
 /// Escape a string for use in Rust string literals
@@ -99,15 +101,19 @@ fn generate_builtins_meta(meta: &[BuiltinMeta], all_names: &BTreeSet<String>) ->
 
     // Generate entries for all builtins, using metadata when available
     for name in all_names {
-        let (category, description, indicators) = if let Some(m) = meta_map.get(name.as_str()) {
-            (
-                m.category.as_str(),
-                m.description.as_str(),
-                &m.project_indicators,
-            )
-        } else {
-            ("", "", &Vec::new() as &Vec<ProjectIndicator>)
-        };
+        let empty_indicators = Vec::new();
+        let empty_tools = Vec::new();
+        let (category, description, indicators, mise_tools) =
+            if let Some(m) = meta_map.get(name.as_str()) {
+                (
+                    m.category.as_str(),
+                    m.description.as_str(),
+                    &m.project_indicators,
+                    &m.mise_tools,
+                )
+            } else {
+                ("", "", &empty_indicators, &empty_tools)
+            };
 
         // Generate project indicators array
         let indicators_code: Vec<String> = indicators
@@ -150,12 +156,22 @@ fn generate_builtins_meta(meta: &[BuiltinMeta], all_names: &BTreeSet<String>) ->
             format!("&[{}]", indicators_code.join(", "))
         };
 
+        let mise_tools_str = format!(
+            "&[{}]",
+            mise_tools
+                .iter()
+                .map(|tool| format!("\"{}\"", escape_string(tool)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
         items.push(format!(
-            "    BuiltinMeta {{ name: \"{}\", category: \"{}\", description: \"{}\", project_indicators: {} }}",
+            "    BuiltinMeta {{ name: \"{}\", category: \"{}\", description: \"{}\", project_indicators: {}, mise_tools: {} }}",
             name,
             escape_string(category),
             escape_string(description),
             indicators_str,
+            mise_tools_str,
         ));
     }
 
@@ -183,6 +199,8 @@ pub struct BuiltinMeta {{
     pub category: &'static str,
     pub description: &'static str,
     pub project_indicators: &'static [ProjectIndicator],
+    /// mise tools that install the executables the step runs, as `mise use` arguments
+    pub mise_tools: &'static [&'static str],
 }}
 
 /// List of all builtin configurations with metadata

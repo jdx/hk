@@ -67,7 +67,21 @@ Setting `HK_MISE=1` makes `--mise` the default for later `hk init` and `hk insta
 
 ## Generate a starter setup
 
-`hk init --mise` creates `hk.pkl` and, when absent, a `mise.toml` with hk configured and a `pre-commit` task.
+`hk init --mise` creates `hk.pkl` and, when absent, a `mise.toml` with hk configured and a `pre-commit` task. It also adds the tools that the detected linters run, so `mise install` installs everything the hooks need. In a Python project with shell scripts, for example:
+
+```toml
+[tools]
+hk = "latest"
+ruff = "latest"
+shellcheck = "latest"
+shellharden = "latest"
+shfmt = "latest"
+
+[tasks.pre-commit]
+run = "hk run pre-commit"
+```
+
+New tools are pinned at `latest`; pin versions with `mise use <tool>@<version>`. A tool that is already in `mise.toml`, including under another backend such as `aqua:astral-sh/ruff`, is kept as it is. Language runtimes such as `rust`, `go`, or `node` are left out, because a project usually chooses their versions elsewhere (`rust-toolchain.toml`, `go.mod`); hk prints them so you can add them with `mise use`. When `hk.pkl` already exists and `--force` isn't given, hk adds only its own entries.
 
 Run `hk init --mise`, then install the recommended global launcher on Git 2.54+:
 
@@ -80,6 +94,13 @@ On older Git, or for a repository-scoped installation, use `hk install --mise`
 instead.
 
 Review the generated tools and tasks. Existing `mise.toml` files are preserved.
+
+When a builtin step fails because its tool isn't installed, hk ends the run with the `mise use` command that installs it:
+
+```text
+hint: ruff could not run because a tool it needs is not installed. Install with mise:
+      mise use ruff
+```
 
 ## Call a mise task from a step
 

@@ -359,6 +359,9 @@ pub struct HookContext {
     /// Whether a failed step reported Git's index lock. This is tracked at the
     /// hook level so concurrent failures still produce only one actionable hint.
     git_index_lock_contention: AtomicBool,
+    /// Steps that failed because a command they run is not installed, with
+    /// the mise tools that install it.
+    missing_tools: StdMutex<IndexMap<String, &'static [&'static str]>>,
     pub should_stage: bool,
     /// Untracked files at the start of the hook run, used to avoid staging
     /// pre-existing untracked files that were not created by a fixer.
@@ -433,6 +436,7 @@ impl HookContext {
             cancelled_steps: StdMutex::new(HashSet::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
             git_index_lock_contention: AtomicBool::new(false),
+            missing_tools: StdMutex::new(IndexMap::new()),
             should_stage,
             initial_untracked,
             initial_unstaged: StdMutex::new(initial_unstaged),
@@ -612,6 +616,31 @@ impl HookContext {
 
     pub fn saw_git_index_lock_contention(&self) -> bool {
         self.git_index_lock_contention.load(Ordering::Relaxed)
+    }
+
+    /// Record that `step_name` failed because a command it runs is missing.
+    /// `program` is that command when hk knows it (argv steps).
+    pub fn mark_missing_tool(&self, step_name: &str, program: Option<&str>) {
+        let tools = crate::builtins::mise_tools_for_step(step_name, program);
+        if !tools.is_empty() {
+            self.missing_tools
+                .lock()
+                .unwrap()
+                .insert(step_name.to_string(), tools);
+        }
+    }
+
+    /// Steps that failed for a missing builtin tool, and the mise tools to install.
+    pub fn missing_tools(&self) -> (Vec<String>, Vec<&'static str>) {
+        let missing = self.missing_tools.lock().unwrap();
+        let steps = missing.keys().cloned().collect();
+        let mut tools: Vec<&'static str> = Vec::new();
+        for tool in missing.values().flat_map(|tools| tools.iter()) {
+            if !tools.contains(tool) {
+                tools.push(tool);
+            }
+        }
+        (steps, tools)
     }
 }
 
@@ -1961,6 +1990,23 @@ impl Hook {
                 "      serialize index-writing steps with `exclusive = true`, `depends`, or separate groups."
             );
             eprintln!("      https://hk.jdx.dev/hooks#hook-behavior");
+        }
+
+        let (missing_tool_steps, missing_tools) = hook_ctx.missing_tools();
+        if !machine_output && !settings.silent && !missing_tools.is_empty() {
+            eprintln!(
+                "\n{}",
+                style::eyellow(format!(
+                    "hint: {} could not run because {} not installed. Install with mise:",
+                    missing_tool_steps.join(", "),
+                    if missing_tool_steps.len() == 1 {
+                        "a tool it needs is"
+                    } else {
+                        "tools they need are"
+                    }
+                ))
+            );
+            eprintln!("      mise use {}", missing_tools.join(" "));
         }
 
         // Display summary of profile-skipped steps

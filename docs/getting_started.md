@@ -53,14 +53,14 @@ hk init
 
 hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`. Source-file indicators are discovered recursively with ignore rules and without following symlinks; `.gitignore` applies inside Git repositories and `.ignore` also works outside Git. .NET manifest globs and configuration indicators remain root-level, so nested workspaces are not implicitly activated.
 
-When `hk init --mise` is used, hk merges only missing `hk` and (when absent)
+When `hk init --mise` is used, hk merges only missing `hk`, linter tool, and (when absent)
 `pre-commit` entries into an existing `mise.toml`; existing pins, comments, tools, and tasks are preserved.
 `--force` controls `hk.pkl` and does not reset `mise.toml`.
 Only literal local task includes are inspected; included flat `pre-commit` tasks prevent duplicate insertion.
 Unknown, remote, dynamic, missing, unreadable, or malformed includes suppress insertion with a warning.
 
 ::: tip Make the linters available
-Builtins configure commands; they do not install the tools they invoke. Install the selected linters with your project’s package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`.
+Builtins configure commands; they do not install the tools they invoke. Install the selected linters with your project’s package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`. `hk init --mise` adds the detected linters to `mise.toml`, so `mise install` installs them.
 :::
 
 ## Your first configuration
