@@ -6,6 +6,8 @@ use crate::{
 };
 use serde::Serialize;
 use std::path::Path;
+mod ci;
+
 use std::{
     io::Write,
     sync::{
@@ -195,11 +197,72 @@ pub fn emit_step_completed(format: OutputFormat, name: &str, status: &str) -> Re
 }
 
 /// File-based report formats to write alongside the primary structured
-/// output, keyed by CLI flag (`--sarif`, `--junit-xml`).
+/// output, keyed by CLI flag (`--sarif`, `--junit-xml`,
+/// `--gitlab-code-quality`), plus GitHub Actions annotations and job summary
+/// (`--github-annotations`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ReportPaths<'a> {
     pub sarif: Option<&'a Path>,
     pub junit: Option<&'a Path>,
+    pub gitlab_code_quality: Option<&'a Path>,
+    pub github_annotations: bool,
+}
+
+impl<'a> ReportPaths<'a> {
+    pub fn from_options(opts: &'a crate::hook_options::HookOptions) -> Self {
+        Self {
+            sarif: opts.sarif.as_deref(),
+            junit: opts.junit_xml.as_deref(),
+            gitlab_code_quality: opts.gitlab_code_quality.as_deref(),
+            github_annotations: opts.github_annotations,
+        }
+    }
+}
+
+/// Write every requested report for a finished run.
+fn write_reports(format: OutputFormat, result: &RunResult, reports: ReportPaths) -> Result<()> {
+    if let Some(path) = reports.sarif {
+        let diagnostics = result
+            .steps
+            .iter()
+            .flat_map(|step| step.diagnostics.iter().cloned())
+            .collect::<Vec<_>>();
+        diagnostics::write_sarif(path, &diagnostics)?;
+    }
+    if let Some(path) = reports.junit {
+        write_junit(path, result)?;
+    }
+    if let Some(path) = reports.gitlab_code_quality {
+        let report = ci::gitlab_code_quality(result);
+        xx::file::write(path, &serde_json::to_vec_pretty(&report)?)?;
+    }
+    if reports.github_annotations {
+        let annotations = ci::github_annotations(result);
+        // The Actions runner reads workflow commands from both streams; keep
+        // stdout clean when it carries a JSON result.
+        if format == OutputFormat::Human {
+            std::io::stdout().lock().write_all(annotations.as_bytes())?;
+        } else {
+            std::io::stderr().lock().write_all(annotations.as_bytes())?;
+        }
+        match std::env::var_os("GITHUB_STEP_SUMMARY").filter(|path| !path.is_empty()) {
+            Some(path) => {
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&path)
+                    .map_err(|err| {
+                        eyre::eyre!(
+                            "failed to open GITHUB_STEP_SUMMARY {}: {err}",
+                            Path::new(&path).display()
+                        )
+                    })?;
+                file.write_all(ci::github_summary(result).as_bytes())?;
+            }
+            None => log::debug!("GITHUB_STEP_SUMMARY is not set; skipping the job summary"),
+        }
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -332,18 +395,7 @@ pub fn emit_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = reports.sarif {
-        let diagnostics = result
-            .steps
-            .iter()
-            .flat_map(|step| step.diagnostics.iter().cloned())
-            .collect::<Vec<_>>();
-        diagnostics::write_sarif(path, &diagnostics)?;
-    }
-    if let Some(path) = reports.junit {
-        write_junit(path, &result)?;
-    }
-    Ok(())
+    write_reports(format, &result, reports)
 }
 
 /// Emit a complete machine-readable result for a successful run that did not
@@ -385,13 +437,7 @@ pub fn emit_noop_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = reports.sarif {
-        diagnostics::write_sarif(path, &[])?;
-    }
-    if let Some(path) = reports.junit {
-        write_junit(path, &result)?;
-    }
-    Ok(())
+    write_reports(format, &result, reports)
 }
 
 pub fn emit_error_run(
@@ -416,13 +462,7 @@ pub fn emit_error_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = reports.sarif {
-        diagnostics::write_sarif(path, &[])?;
-    }
-    if let Some(path) = reports.junit {
-        write_junit(path, &result)?;
-    }
-    Ok(())
+    write_reports(format, &result, reports)
 }
 
 fn emit_result(format: OutputFormat, result: &RunResult) -> Result<()> {

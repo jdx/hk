@@ -487,3 +487,77 @@ EOF
     assert_success
     assert_output 'sub/pkg/main.c'
 }
+
+@test "GitHub annotations and job summary report findings" {
+    write_config
+
+    GITHUB_STEP_SUMMARY="$PWD/summary.md" run bash -c "hk check --all --github-annotations 2>/dev/null"
+    assert_failure
+    assert_output --partial "::warning file=src/main.c,line=2,col=4,title=cc (W1)::first line"
+    run cat summary.md
+    assert_output --partial "## ❌ hk check: failed"
+    assert_output --partial "| compiler | ❌ failed |"
+    assert_output --partial "| <code>src/main.c:2:4</code> | warning | cc (W1) | first line"
+}
+
+@test "GitHub annotations go to stderr when stdout carries JSON" {
+    write_config
+
+    run bash -c "hk --format json check --all --github-annotations 2>annotations.log"
+    assert_failure
+    run jq -e '.status == "failed"' <<<"$output"
+    assert_success
+    run grep -c '^::warning file=src/main.c' annotations.log
+    assert_output 1
+}
+
+@test "GitHub annotations report failed steps without diagnostics" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["fails"] { check = "echo 'something broke' >&2; exit 1" }
+        }
+    }
+}
+EOF
+    touch input.txt
+    git add hk.pkl input.txt
+    git commit -m init
+
+    run bash -c "hk check --all --github-annotations 2>/dev/null"
+    assert_failure
+    assert_output --partial "::error title=hk%3A fails::hk step \`fails\` failed%0A%0Asomething broke"
+}
+
+@test "GitLab Code Quality report lists findings" {
+    write_config
+
+    run hk check --all --gitlab-code-quality gl-code-quality.json
+    assert_failure
+    run jq -r '.[0] | [.check_name, .severity, .location.path, .location.lines.begin, (.fingerprint | length > 0)] | @tsv' gl-code-quality.json
+    assert_success
+    assert_output $'cc/W1\tminor\tsrc/main.c\t2\ttrue'
+}
+
+@test "GitLab Code Quality report is empty for a clean run" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["clean"] { check = "true"; diagnostic_format = "gcc" }
+        }
+    }
+}
+EOF
+    touch input.txt
+    git add hk.pkl input.txt
+    git commit -m init
+
+    run hk check --all --gitlab-code-quality gl-code-quality.json
+    assert_success
+    run jq -e '. == []' gl-code-quality.json
+    assert_success
+}

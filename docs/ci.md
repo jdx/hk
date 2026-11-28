@@ -86,3 +86,33 @@ HK_TIMING_JSON=hk-timing.json hk check --all
 Use `hk check --all --format jsonl` for structured execution events, `--sarif hk.sarif` for normalized diagnostics (only steps that set `diagnostic_format` produce them; see [diagnostics](/configuration#diagnostics)), or `--junit-xml hk.junit.xml` to report each step as a JUnit test case for CI test-result viewers. See [coding agents](/agents) for command effects and exact file lists.
 
 See [troubleshooting](/logging) for log levels, traces, and configuration inspection.
+
+## Report findings in GitHub Actions
+
+`--github-annotations` turns findings into inline annotations on the pull request's changed files and writes a job summary:
+
+```yaml
+- run: hk check --all --github-annotations
+```
+
+hk prints one [workflow command](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands) per finding (`::error`, `::warning` or `::notice`, with the file, line and column), and one `::error` with the step's output for each failed step that produced no findings. When `GITHUB_STEP_SUMMARY` is set, it appends a Markdown summary with every step's status and duration, a table of all findings, and the output of failed steps.
+
+Findings come from steps that set `diagnostic_format` (see [diagnostics](/configuration#diagnostics)). Unlike SARIF upload to code scanning, annotations need no GitHub Advanced Security, so they work on private repositories. GitHub shows at most 10 error and 10 warning annotations per step; the job summary lists the rest.
+
+With `--format json` or `jsonl`, the annotations go to stderr so stdout stays valid JSON. The runner reads workflow commands from both streams.
+
+## Report findings in GitLab merge requests
+
+`--gitlab-code-quality PATH` writes a [Code Quality](https://docs.gitlab.com/ci/testing/code_quality/) report, which GitLab shows in the merge request widget and diff:
+
+```yaml
+hk:
+  script:
+    - hk check --all --gitlab-code-quality gl-code-quality.json
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality.json
+```
+
+Errors map to `major`, warnings to `minor` and notes to `info`. GitLab requires a file path, so findings without one are left out. Fingerprints leave out the line number, so moving code does not make a finding look new. Set `when: always` so GitLab collects the report from a failed job.
