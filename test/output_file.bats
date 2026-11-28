@@ -426,7 +426,11 @@ EOF
     assert_output ""
 }
 
-@test "a run waits for the output lock held by a run with another state directory" {
+# Holds lock file $1 as another hook run would, runs `hk check --all` with
+# another HK_STATE_DIR, and asserts that the run writes step file $2 only
+# after the lock is released.
+_assert_run_waits_for_lock() {
+    local lock_file="$1" step_file="$2"
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -437,11 +441,7 @@ hooks {
   }
 }
 EOF
-    mkdir -p "$TEST_TEMP_DIR/shared/child"
-    # `..` is resolved before the lock is named, so this locks shared.lock.
-    export HK_OUTPUT_DIR="$TEST_TEMP_DIR/shared/child/.."
-    # Hold the lock as another run would, until "release" exists.
-    python3 - "$TEST_TEMP_DIR/shared.lock" "$TEST_TEMP_DIR" <<'PY' &
+    python3 - "$lock_file" "$TEST_TEMP_DIR" <<'PY' &
 import fcntl, os, sys, time
 lock = open(sys.argv[1], "a")
 fcntl.flock(lock, fcntl.LOCK_EX)
@@ -449,22 +449,40 @@ open(os.path.join(sys.argv[2], "held"), "w").close()
 while not os.path.exists(os.path.join(sys.argv[2], "release")):
     time.sleep(0.05)
 PY
-    holder=$!
+    local holder=$!
     for _ in $(seq 100); do [ -e "$TEST_TEMP_DIR/held" ] && break; sleep 0.1; done
-    held=no; [ -e "$TEST_TEMP_DIR/held" ] && held=yes
+    local held=no
+    [ -e "$TEST_TEMP_DIR/held" ] && held=yes
 
     HK_STATE_DIR="$TEST_TEMP_DIR/state-b" hk check --all >/dev/null 2>&1 &
-    waiter=$!
+    local waiter=$!
     sleep 1
     # Recorded before releasing, so a failed assertion never leaves the holder running.
-    written_while_held=no; [ -e "$TEST_TEMP_DIR/shared/fail.log" ] && written_while_held=yes
+    local written_while_held=no
+    [ -e "$step_file" ] && written_while_held=yes
 
     touch "$TEST_TEMP_DIR/release"
     wait "$holder"
     wait "$waiter" || true
     assert_equal "$held" yes
     assert_equal "$written_while_held" no
-    assert_file_contains "$TEST_TEMP_DIR/shared/fail.log" "WAITED_MARKER"
+    assert_file_contains "$step_file" "WAITED_MARKER"
+}
+
+@test "a run waits for the output lock held by a run with another state directory" {
+    mkdir -p "$TEST_TEMP_DIR/shared/child"
+    real_temp="$(cd "$TEST_TEMP_DIR" && pwd -P)"
+    # `..` is resolved before the lock is named, so this locks shared.lock.
+    export HK_OUTPUT_DIR="$TEST_TEMP_DIR/shared/child/.."
+    _assert_run_waits_for_lock "$real_temp/shared.lock" "$TEST_TEMP_DIR/shared/fail.log"
+}
+
+@test "an output directory reached through a symbolic link shares its lock" {
+    mkdir -p "$TEST_TEMP_DIR/real/output"
+    ln -s "$TEST_TEMP_DIR/real/output" "$TEST_TEMP_DIR/alias"
+    real_temp="$(cd "$TEST_TEMP_DIR" && pwd -P)"
+    export HK_OUTPUT_DIR="$TEST_TEMP_DIR/alias"
+    _assert_run_waits_for_lock "$real_temp/real/output.lock" "$TEST_TEMP_DIR/real/output/fail.log"
 }
 
 @test "a step file that would be the output file is not written" {

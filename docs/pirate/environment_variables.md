@@ -1,7 +1,7 @@
 ---
 outline: [2, 2]
 description: The standing orders ye give hk through environment variables, for its files, watches (profiles), how the crew runs, the ship's log, Pkl evaluation, and stowing the hold.
-sourceHash: fcdd9d0408a6
+sourceHash: d9dbc6ec894d
 ---
 
 # Standing orders (environment variables)
@@ -179,7 +179,7 @@ src/main.rs:3: unused variable
 
 Each file starts with the same header as its section in `HK_OUTPUT_FILE`, so `grep -l '(failed):$' .git/hk/output/*.log` lists the steps that failed. Characters in the step name other than ASCII letters, digits, `-`, `_` and `.` be percent-encoded in the file name, so a step named `lint/js` writes `lint%2Fjs.log`. A name longer than 200 characters is cut short and ends in `~` and a hash o' the step name.
 
-Each hook run deletes the `.log` files directly inside the directory before writing its own, so it never holds an earlier run's output. Other files be left alone, aye, and the directory is removed when nothing is left in it. When two runs overlap, the directory holds the files o' the run that wrote last, never a mix o' both: they take turns through a lock file beside the directory, named after it with `.lock` added (`.git/hk/output.lock` by default). If `HK_OUTPUT_FILE` is inside the directory and a step's file would have its name, that hand gets no file of its own; its output is still in `HK_OUTPUT_FILE`. An empty value uses the default location.
+Each hook run deletes the `.log` files directly inside the directory before writing its own, so it never holds an earlier run's output. Other files be left alone, aye, and the directory is removed when nothing is left in it. When two runs overlap, the directory holds the files o' the run that wrote last, never a mix o' both: they take turns through a lock file beside the directory, named after it with `.lock` added (`.git/hk/output.lock` by default). Symbolic links be followed first, so every course to one directory uses the same lock. If `HK_OUTPUT_FILE` is inside the directory and a step's file would have its name, that hand gets no file of its own; its output is still in `HK_OUTPUT_FILE`. An empty value uses the default location.
 
 ## `HK_PKL_BACKEND` {#hk-pkl-backend}
 
