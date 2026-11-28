@@ -1,0 +1,111 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Other Languages"
+  description = "Clojure, ClojureScript and EDN linter"
+  project_indicators {
+    new { file = ".clj-kondo" }
+    new { file = "deps.edn" }
+    new { file = "project.clj" }
+    new { file = "bb.edn" }
+    new { file = "shadow-cljs.edn" }
+  }
+  mise_tools = List("clj-kondo")
+}
+clj_kondo = new Config.Step {
+  // clj-kondo also lints EDN (such as duplicate map keys) and babashka scripts
+  glob = List("**/*.clj", "**/*.cljs", "**/*.cljc", "**/*.edn", "**/*.bb")
+  // clj-kondo exits 2 for warnings and 3 for errors. It merges the `--config` map over the
+  // project's `.clj-kondo/config.edn`, which it still reads, and writes its analysis cache only
+  // when the project already has a `.clj-kondo` directory. The `--config` map names each finding's
+  // linter and drops the `linting took ...` summary, which would otherwise be read as the last
+  // finding's message.
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List(
+          "clj-kondo",
+          "--parallel",
+          "--config",
+          "{:output {:linter-name true, :summary false}}",
+          "--lint",
+          "{{files}}",
+        )
+    }
+    effect = "read"
+  }
+  // Findings are `path:line:column: level: message [:linter]`. clj-kondo's `info` level is not a
+  // gcc severity word, so those findings become notes that keep the `info:` prefix.
+  diagnostic_format = "gcc"
+  diagnostic_severity = "note"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "example.clj" }
+    local const good = "(ns example)\n\n(defn add-one [x]\n  (inc x))\n"
+    local const warning = "(ns example)\n\n(defn f [x]\n  (let [y 1]\n    x))\n"
+    local const error = "(ns example)\n\n(defn g []\n  (undefined-fn 1))\n"
+    ["check good file"] = testMaker.checkPass(good)
+    ["check file with warning"] = testMaker.checkFail(warning, 2)
+    ["check file with error"] = testMaker.checkFail(error, 3)
+    ["check file with error reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        error,
+        3,
+        List(new Config.StepTestDiagnostic {
+          path = "example.clj"
+          line = 4
+          column = 4
+          severity = "error"
+          message = "Unresolved symbol: undefined-fn"
+          rule = ":unresolved-symbol"
+        }),
+      )
+    ["check file with warning reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        warning,
+        2,
+        List(new Config.StepTestDiagnostic {
+          path = "example.clj"
+          line = 4
+          column = 9
+          severity = "warning"
+          message = "unused binding y"
+          rule = ":unused-binding"
+        }),
+      )
+    ["check babashka script reports info findings as notes"] =
+      testMaker
+        .withFilename("script.bb")
+        .checkDiagnostics(
+          "#!/usr/bin/env bb\n(println (str \"hi\"))\n(let [x 1] x)\n(let [y 1] 2)\n",
+          2,
+          List(
+            new Config.StepTestDiagnostic {
+              path = "script.bb"
+              line = 2
+              column = 10
+              severity = "note"
+              message = "Single argument to str already is a string"
+              rule = ":redundant-str-call"
+            },
+            new Config.StepTestDiagnostic {
+              path = "script.bb"
+              line = 4
+              column = 7
+              severity = "warning"
+              rule = ":unused-binding"
+              message = "unused binding y"
+            },
+          ),
+        )
+    ["check EDN with duplicate key"] =
+      testMaker.withFilename("config.edn").checkFail("{:a 1 :a 2}\n", 3)
+    ["check honors .clj-kondo/config.edn"] =
+      (testMaker) {
+        extra_files {
+          [".clj-kondo/config.edn"] = "{:linters {:unused-binding {:level :off}}}\n"
+        }
+      }.checkPass(warning)
+  }
+}

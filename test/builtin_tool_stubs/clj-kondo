@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "2026.10.26"
+tool = "clj-kondo"
