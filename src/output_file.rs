@@ -25,7 +25,10 @@ pub fn note_step_failure(output: &str) {
     let output = console::strip_ansi_codes(output);
     let output = output.trim();
     if !output.is_empty() {
-        STEP_FAILURE_OUTPUTS.lock().unwrap().push(output.to_string());
+        STEP_FAILURE_OUTPUTS
+            .lock()
+            .unwrap()
+            .push(output.to_string());
     }
 }
 
