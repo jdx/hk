@@ -13,6 +13,8 @@ pub fn mise_tools_for_step(step_name: &str, program: Option<&str>) -> &'static [
             .iter()
             .find(|meta| meta.name == name && !meta.mise_tools.is_empty())
     };
+    // A subproject's steps are scoped by its directory: `frontend:ruff`.
+    let step_name = step_name.rsplit(':').next().unwrap_or(step_name);
     find(step_name)
         .or_else(|| program.and_then(find))
         .map_or(&[], |meta| meta.mise_tools)
@@ -30,6 +32,8 @@ mod tests {
             mise_tools_for_step("editorconfig-checker", None),
             ["editorconfig-checker"]
         );
+        assert_eq!(mise_tools_for_step("frontend:ruff", None), ["ruff"]);
+        assert_eq!(mise_tools_for_step("apps/web:shfmt", None), ["shfmt"]);
         assert!(mise_tools_for_step("custom", Some("custom-tool")).is_empty());
     }
 }

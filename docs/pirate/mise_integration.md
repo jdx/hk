@@ -1,6 +1,6 @@
 ---
 description: Let mise, the ship's quartermaster, provision hk and yer linter versions, environment variables, and the running of Git hooks.
-sourceHash: f8d56ebc32ac
+sourceHash: be43c27d41b6
 ---
 
 # mise integration: the quartermaster
@@ -85,7 +85,7 @@ On an older Git, or to rig just this one repository, use `hk install --mise` ins
 
 Look over the tools and tasks it drew up. A `mise.toml` that's already aboard is kept as it is.
 
-When a hand from the standing crew fails because its tool isn't on hand, hk ends the run with the `mise use` command that brings it aboard:
+When a hand from the standing crew fails because its tool isn't on hand, hk ends the run with the `mise use` command that brings it aboard. hk knows the builtin by the hand's name, or for a command given as an argument list, by the missing program's name:
 
 ```text
 hint: ruff could not run because a tool it needs is not installed. Install with mise:

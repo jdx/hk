@@ -631,11 +631,18 @@ impl HookContext {
     }
 
     /// Steps that failed for a missing builtin tool, and the mise tools to install.
+    /// A step that recovered, such as a check-first step whose fixer ran
+    /// after its check command was missing, isn't included.
     pub fn missing_tools(&self) -> (Vec<String>, Vec<&'static str>) {
+        let failed = self.failed_steps.lock().unwrap();
         let missing = self.missing_tools.lock().unwrap();
-        let steps = missing.keys().cloned().collect();
+        let missing: Vec<_> = missing
+            .iter()
+            .filter(|(step, _)| failed.contains(*step))
+            .collect();
+        let steps = missing.iter().map(|(step, _)| (*step).clone()).collect();
         let mut tools: Vec<&'static str> = Vec::new();
-        for tool in missing.values().flat_map(|tools| tools.iter()) {
+        for tool in missing.iter().flat_map(|(_, tools)| tools.iter()) {
             if !tools.contains(tool) {
                 tools.push(tool);
             }

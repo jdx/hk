@@ -95,7 +95,7 @@ instead.
 
 Review the generated tools and tasks. Existing `mise.toml` files are preserved.
 
-When a builtin step fails because its tool isn't installed, hk ends the run with the `mise use` command that installs it:
+When a builtin step fails because its tool isn't installed, hk ends the run with the `mise use` command that installs it. hk recognizes the builtin by the step's name, or for a command given as an argument list, by the missing program's name:
 
 ```text
 hint: ruff could not run because a tool it needs is not installed. Install with mise:

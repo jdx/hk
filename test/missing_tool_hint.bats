@@ -96,3 +96,25 @@ EOF
     assert_failure
     assert_output --partial "mise use shfmt"
 }
+
+@test "a step whose fixer recovers from a missing check tool gets no mise hint" {
+    echo 'echo hi' > a.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["shfmt"] {
+                glob = "*.sh"
+                check_diff = new Command { argv = List("hk-no-such-tool-xyz", "{{files}}") }
+                fix = "true"
+            }
+        }
+    }
+}
+EOF
+    run hk fix --all
+    assert_success
+    refute_output --partial "mise use"
+}

@@ -474,7 +474,10 @@ fn merge_mise_config(
 ///   of that name: `ruff` matches `aqua:astral-sh/ruff`, `npm:eslint` matches
 ///   `eslint`, and `selene` matches `aqua:Kampfkarren/selene/light`;
 /// - both install the same repository through backends that name packages
-///   by `owner/repo`: `github:owenlamont/ryl` matches `aqua:owenlamont/ryl`.
+///   by `owner/repo`: `github:owenlamont/ryl` matches `aqua:owenlamont/ryl`;
+/// - they use different backends for packages with the same name:
+///   `asdf:prettier` matches `npm:prettier`. Under the same backend, the
+///   packages must be the same: `go:.../gopls` doesn't match `go:.../goimports`.
 fn has_mise_tool(tools: &dyn TableLike, tool: &str) -> bool {
     let tool = MiseToolSpec::parse(tool);
     tools
@@ -534,6 +537,10 @@ impl<'a> MiseToolSpec<'a> {
             (None, Some(_)) => other.short_names().any(|name| name == self.package),
             (Some(backend), Some(other_backend)) => {
                 (backend == other_backend && self.package == other.package)
+                    || (backend != other_backend
+                        && self
+                            .short_names()
+                            .any(|name| other.short_names().any(|other| other == name)))
                     || self.repo().is_some_and(|(owner, repo)| {
                         other.repo().is_some_and(|(other_owner, other_repo)| {
                             owner.eq_ignore_ascii_case(other_owner)
@@ -654,8 +661,11 @@ mod tests {
             "go:golang.org/x/tools/cmd/gopls",
             "go:golang.org/x/tools/cmd/goimports"
         ));
-        assert!(!matches("npm:eslint", "pipx:eslint"));
+        assert!(matches("asdf:prettier", "npm:prettier"));
+        assert!(matches("cargo:ryl", "aqua:owenlamont/ryl"));
+        assert!(!matches("npm:@acme/prettier", "npm:prettier"));
         assert!(!matches("aqua:owenlamont/other", "aqua:owenlamont/ryl"));
+        assert!(!matches("asdf:eslint", "npm:prettier"));
     }
 
     #[test]
