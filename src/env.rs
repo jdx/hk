@@ -128,14 +128,22 @@ pub static HK_OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| checkout_state_dir().join("output"))
 });
-/// Held while hk clears or writes `HK_OUTPUT_FILE` and `HK_OUTPUT_DIR`. It is
-/// named after the output directory and kept in `HK_STATE_DIR`, so every
-/// checkout that writes to one directory takes the same lock.
+/// Held while hk clears or writes `HK_OUTPUT_FILE` and `HK_OUTPUT_DIR`. It sits
+/// next to the output directory, as `<dir>.lock`, so every run that writes to
+/// one directory takes the same lock, whatever its checkout or `HK_STATE_DIR`.
 pub static HK_OUTPUT_LOCK: LazyLock<PathBuf> = LazyLock::new(|| {
     let dir = std::path::absolute(&*HK_OUTPUT_DIR).unwrap_or_else(|_| HK_OUTPUT_DIR.clone());
-    HK_STATE_DIR
-        .join("locks")
-        .join(format!("output-{}.lock", crate::hash::hash_to_str(&dir)))
+    match (dir.parent(), dir.file_name()) {
+        (Some(parent), Some(name)) => {
+            let mut name = name.to_os_string();
+            name.push(".lock");
+            parent.join(name)
+        }
+        // A root or `..` directory has no name to put a lock beside.
+        _ => HK_STATE_DIR
+            .join("locks")
+            .join(format!("output-{}.lock", crate::hash::hash_to_str(&dir))),
+    }
 });
 
 // When set, write a JSON timing report to this path after the hook finishes

@@ -399,6 +399,31 @@ EOF
     assert_failure
     assert_output --regexp "or .*/\.git/hk/output for one file per step"
     assert_file_contains ".git/hk/output/fail.log" "GIT_DIR_STEP_MARKER"
+    assert_file_exists ".git/hk/output.lock"
+}
+
+@test "runs with different state directories share one output directory's lock" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail"] { check = "echo SHARED_MARKER 1>&2 && exit 1" }
+    }
+  }
+}
+EOF
+    export HK_OUTPUT_DIR="$TEST_TEMP_DIR/shared-output"
+
+    HK_STATE_DIR="$TEST_TEMP_DIR/state-a" run hk check --all
+    assert_failure
+    HK_STATE_DIR="$TEST_TEMP_DIR/state-b" run hk check --all
+    assert_failure
+
+    assert_file_contains "$HK_OUTPUT_DIR/fail.log" "SHARED_MARKER"
+    assert_file_exists "$TEST_TEMP_DIR/shared-output.lock"
+    run find "$TEST_TEMP_DIR/state-a" "$TEST_TEMP_DIR/state-b" -name 'output-*.lock'
+    assert_output ""
 }
 
 @test "a step file that would be the output file is not written" {
