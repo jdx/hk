@@ -496,6 +496,17 @@ const REPO_BACKENDS: &[&str] = &["aqua", "github", "gitlab", "forgejo", "ubi"];
 /// the tool `prettier`.
 const PLUGIN_BACKENDS: &[&str] = &["asdf", "vfox"];
 
+/// The tool a plugin backend installs: `asdf:ruff`, `asdf:owner/asdf-ruff`,
+/// and `vfox:https://github.com/owner/vfox-ruff.git` all install `ruff`.
+fn plugin_tool_name(plugin: &str) -> &str {
+    let name = plugin.rsplit('/').next().unwrap_or(plugin);
+    let name = name.strip_suffix(".git").unwrap_or(name);
+    ["asdf-", "vfox-", "mise-"]
+        .iter()
+        .find_map(|prefix| name.strip_prefix(prefix))
+        .unwrap_or(name)
+}
+
 /// A mise tool spec split for comparison with another one.
 struct MiseToolSpec<'a> {
     backend: Option<&'a str>,
@@ -510,9 +521,9 @@ impl<'a> MiseToolSpec<'a> {
                 backend: Some(backend),
                 package,
             },
-            Some((_, package)) => Self {
+            Some((_, plugin)) => Self {
                 backend: None,
-                package,
+                package: plugin_tool_name(plugin),
             },
             None => Self {
                 backend: None,
@@ -676,6 +687,12 @@ mod tests {
         ));
         assert!(matches("asdf:prettier", "npm:prettier"));
         assert!(matches("vfox:ruff", "aqua:astral-sh/ruff"));
+        assert!(matches("asdf:owner/asdf-ruff", "ruff"));
+        assert!(matches("vfox:owner/vfox-ruff", "aqua:astral-sh/ruff"));
+        assert!(matches(
+            "asdf:https://github.com/owner/asdf-ruff.git",
+            "ruff"
+        ));
         assert!(!matches("gem:standard", "npm:standard"));
         assert!(!matches("npm:eslint", "pipx:eslint"));
         assert!(!matches("npm:@acme/prettier", "npm:prettier"));
