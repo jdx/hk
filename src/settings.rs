@@ -44,6 +44,10 @@ pub struct CliSnapshot {
 
 static CLI_SNAPSHOT: Lazy<Mutex<Option<CliSnapshot>>> = Lazy::new(|| Mutex::new(None));
 static PROGRAMMATIC_MAP: Lazy<Mutex<SourceMap>> = Lazy::new(|| Mutex::new(SourceMap::new()));
+/// Settings from the hook being run (`hooks { ["pre-commit"] { jobs = 2 } }`).
+/// They override the top-level `hk.pkl` values and yield to git config, env,
+/// and CLI.
+static HOOK_MAP: Lazy<Mutex<SourceMap>> = Lazy::new(|| Mutex::new(SourceMap::new()));
 
 fn read_git_string_list(config: &git2::Config, key: &str) -> Result<IndexSet<String>, git2::Error> {
     let mut result = IndexSet::new();
@@ -124,6 +128,34 @@ impl Settings {
         Ok(GLOBAL_SETTINGS.load_full())
     }
 
+    /// Apply the settings of the hook about to run, then rebuild the global
+    /// settings so later [`Settings::get`] calls see them.
+    pub fn set_hook_settings(hook: &crate::hook::Hook) {
+        let mut map = SourceMap::new();
+        if let Some(jobs) = hook.jobs {
+            map.insert("jobs", SettingValue::Usize(jobs));
+        }
+        if let Some(hide) = hook.hide_when_done {
+            map.insert("hide_when_done", SettingValue::Bool(hide));
+        }
+        let mut current = HOOK_MAP.lock().unwrap();
+        if current.is_empty() && map.is_empty() {
+            return;
+        }
+        *current = map;
+        drop(current);
+        *INITIALIZED.lock().unwrap() = false;
+    }
+
+    /// The top-level `hk.pkl` settings with the running hook's settings on top.
+    fn collect_pkl_and_hook_map() -> Result<SourceMap, eyre::Error> {
+        let mut map = Self::collect_pkl_map()?;
+        for (k, v) in HOOK_MAP.lock().unwrap().iter() {
+            map.insert(k, v.clone());
+        }
+        Ok(map)
+    }
+
     // Expose commonly used fields with computed logic where needed
     pub fn jobs(&self) -> NonZero<usize> {
         NonZero::new(self.jobs).unwrap_or(thread::available_parallelism().unwrap())
@@ -152,7 +184,7 @@ impl Settings {
         let defaults = generated::settings::Settings::default();
         let env_map = Self::collect_env_map()?;
         let git_map = Self::collect_git_map()?;
-        let pkl_map = Self::collect_pkl_map()?;
+        let pkl_map = Self::collect_pkl_and_hook_map()?;
         let cli_map = Self::collect_cli_map();
         Ok(Self::merge_settings_generic(
             &defaults, &env_map, &git_map, &pkl_map, &cli_map,
@@ -585,7 +617,7 @@ impl Settings {
 
         let env_map = Self::collect_env_map()?;
         let git_map = Self::collect_git_map()?;
-        let pkl_map = Self::collect_pkl_map()?;
+        let pkl_map = Self::collect_pkl_and_hook_map()?;
         let cli_map = Self::collect_cli_map();
 
         // Use provenance-aware merge to get sources

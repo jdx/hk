@@ -2,7 +2,7 @@
 //!
 //! Creates and manages progress bars/spinners for steps during execution.
 
-use crate::env;
+use crate::settings::Settings;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use std::sync::Arc;
 
@@ -22,7 +22,7 @@ impl Step {
             .prop("name", &self.name)
             .prop("files", &0)
             .status(ProgressStatus::Hide)
-            .on_done(if *env::HK_HIDE_WHEN_DONE {
+            .on_done(if Settings::get().hide_when_done {
                 ProgressJobDoneBehavior::Hide
             } else {
                 ProgressJobDoneBehavior::Keep

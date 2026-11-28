@@ -116,6 +116,10 @@ pub struct Hook {
     pub fail_on_fix: bool,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    /// Most steps to run at once for this hook, below CLI, env, and git config.
+    pub jobs: Option<usize>,
+    /// Hide each step's output once it succeeds, below `HK_HIDE_WHEN_DONE`.
+    pub hide_when_done: Option<bool>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Command>,
     /// Longest the whole hook may run, as written in the config (for example `"10s"`).
@@ -203,6 +207,8 @@ impl Default for Hook {
             stage: None,
             fail_on_fix: false,
             env: IndexMap::new(),
+            jobs: None,
+            hide_when_done: None,
             report: None,
             timeout: None,
         }
@@ -1296,6 +1302,7 @@ impl Hook {
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         tracing::info!("running hook");
+        Settings::set_hook_settings(self);
         let settings = Settings::get();
         let output_format = Settings::cli_output_format();
         let machine_output = output_format != crate::structured_output::OutputFormat::Human;

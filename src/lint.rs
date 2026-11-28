@@ -46,6 +46,8 @@ const HOOK_KEYS: &[&str] = &[
     "stage",
     "fail_on_fix",
     "env",
+    "jobs",
+    "hide_when_done",
     "report",
     "timeout",
 ];
@@ -217,6 +219,11 @@ pub fn lint_hooks(hooks: &IndexMap<String, Hook>, implicit: &IndexSet<String>) -
 }
 
 fn lint_hook(hook_name: &str, hook: &Hook, out: &mut IndexSet<String>) {
+    for key in hook.env.keys() {
+        if let Some(warning) = hk_setting_in_env(hook_name, key) {
+            out.insert(warning);
+        }
+    }
     let group_names: IndexSet<&str> = hook
         .steps
         .iter()
@@ -287,6 +294,22 @@ fn lint_hook(hook_name: &str, hook: &Hook, out: &mut IndexSet<String>) {
             }
         }
     }
+}
+
+/// A hook's `env` reaches its steps' commands, not hk, so an hk setting such
+/// as `HK_JOBS` there does nothing. Point at the hook field when there is one.
+fn hk_setting_in_env(hook_name: &str, key: &str) -> Option<String> {
+    let (setting, _) = crate::settings::generated::SETTINGS_META
+        .iter()
+        .find(|(_, meta)| meta.sources.env.contains(&key))?;
+    let instead = match *setting {
+        "jobs" | "hide_when_done" => format!("set `{setting}` on the hook instead"),
+        _ => "set it in the shell environment or git config instead".to_string(),
+    };
+    Some(format!(
+        "Hook '{hook_name}' sets {key} in `env`, which only reaches its steps' commands, \
+        so hk does not read it; {instead}."
+    ))
 }
 
 fn glob_problem(glob: &str) -> Option<&'static str> {
@@ -492,6 +515,19 @@ mod tests {
             out[0].starts_with("Step 'lint' in hook 'the default hooks'"),
             "{out:?}"
         );
+    }
+
+    #[test]
+    fn warns_about_hk_settings_in_hook_env() {
+        let mut hook = Hook::default();
+        hook.env.insert("HK_JOBS".into(), "2".into());
+        hook.env.insert("HK_LOG_LEVEL".into(), "debug".into());
+        hook.env.insert("NODE_ENV".into(), "test".into());
+        let hooks = IndexMap::from([("pre-commit".to_string(), hook)]);
+        let out = lint_hooks(&hooks, &IndexSet::new());
+        assert_eq!(out.len(), 2, "{out:?}");
+        assert!(out[0].contains("HK_JOBS") && out[0].contains("set `jobs` on the hook"));
+        assert!(out[1].contains("HK_LOG_LEVEL") && out[1].contains("shell environment"));
     }
 
     #[test]
