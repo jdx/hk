@@ -74,3 +74,25 @@ EOF
     assert_failure
     refute_output --partial "mise use"
 }
+
+@test "a missing tool in a builtin's check-first command suggests mise use" {
+    echo 'echo hi' > a.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["shfmt"] {
+                glob = "*.sh"
+                check_list_files = "hk-no-such-tool-xyz {{files}}"
+                check_failed_files = true
+                check = "true"
+            }
+        }
+    }
+}
+EOF
+    run hk check --all
+    assert_failure
+    assert_output --partial "mise use shfmt"
+}

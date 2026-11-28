@@ -468,25 +468,81 @@ fn merge_mise_config(
 /// Whether `[tools]` already configures `tool`, a `mise use` argument such as
 /// `ruff`, `npm:eslint`, or `github:owner/repo[asset_pattern=*.zip]`.
 ///
-/// A key and the tool match when they are the same spec, or when one is a
-/// bare registry name and the other a backend spec for a package of that
-/// name: `ruff` matches `aqua:astral-sh/ruff`, and `npm:eslint` matches
-/// `eslint`.
+/// A key and the tool match when they name the same package:
+/// - the same spec, ignoring `[...]` options;
+/// - one is a bare registry name and the other a backend spec for a package
+///   of that name: `ruff` matches `aqua:astral-sh/ruff`, `npm:eslint` matches
+///   `eslint`, and `selene` matches `aqua:Kampfkarren/selene/light`;
+/// - both install the same repository through backends that name packages
+///   by `owner/repo`: `github:owenlamont/ryl` matches `aqua:owenlamont/ryl`.
 fn has_mise_tool(tools: &dyn TableLike, tool: &str) -> bool {
-    fn strip_options(spec: &str) -> &str {
-        spec.split_once('[').map_or(spec, |(spec, _)| spec)
+    let tool = MiseToolSpec::parse(tool);
+    tools
+        .iter()
+        .any(|(key, _)| tool.matches(&MiseToolSpec::parse(key)))
+}
+
+/// Backends whose packages are named `owner/repo`, optionally followed by a
+/// subpath for one of the repository's packages (`aqua:owner/repo/variant`).
+const REPO_BACKENDS: &[&str] = &["aqua", "github", "gitlab", "forgejo", "ubi"];
+
+/// A mise tool spec split for comparison with another one.
+struct MiseToolSpec<'a> {
+    backend: Option<&'a str>,
+    package: &'a str,
+}
+
+impl<'a> MiseToolSpec<'a> {
+    fn parse(spec: &'a str) -> Self {
+        let spec = spec.split_once('[').map_or(spec, |(spec, _)| spec);
+        match spec.split_once(':') {
+            Some((backend, package)) => Self {
+                backend: Some(backend),
+                package,
+            },
+            None => Self {
+                backend: None,
+                package: spec,
+            },
+        }
     }
-    fn package_name(spec: &str) -> Option<&str> {
-        let (_, package) = spec.split_once(':')?;
-        package.rsplit('/').next()
+
+    /// `owner/repo` for a repository backend.
+    fn repo(&self) -> Option<(&'a str, &'a str)> {
+        if !REPO_BACKENDS.contains(&self.backend?) {
+            return None;
+        }
+        let mut parts = self.package.split('/');
+        Some((parts.next()?, parts.next()?))
     }
-    let tool = strip_options(tool);
-    tools.iter().any(|(key, _)| {
-        let key = strip_options(key);
-        key == tool
-            || (!tool.contains(':') && package_name(key) == Some(tool))
-            || (!key.contains(':') && package_name(tool) == Some(key))
-    })
+
+    /// Names a bare registry key for this package could have: the last path
+    /// segment (`ruff`, `goimports`, `biome` for `npm:@biomejs/biome`), and
+    /// the repository name for a repository backend.
+    fn short_names(&self) -> impl Iterator<Item = &'a str> + '_ {
+        self.package
+            .rsplit('/')
+            .next()
+            .into_iter()
+            .chain(self.repo().map(|(_, repo)| repo))
+    }
+
+    fn matches(&self, other: &MiseToolSpec) -> bool {
+        match (self.backend, other.backend) {
+            (None, None) => self.package == other.package,
+            (Some(_), None) => self.short_names().any(|name| name == other.package),
+            (None, Some(_)) => other.short_names().any(|name| name == self.package),
+            (Some(backend), Some(other_backend)) => {
+                (backend == other_backend && self.package == other.package)
+                    || self.repo().is_some_and(|(owner, repo)| {
+                        other.repo().is_some_and(|(other_owner, other_repo)| {
+                            owner.eq_ignore_ascii_case(other_owner)
+                                && repo.eq_ignore_ascii_case(other_repo)
+                        })
+                    })
+            }
+        }
+    }
 }
 
 fn has_tool(tools: &dyn TableLike, suffixes: &[&str]) -> bool {
@@ -577,6 +633,29 @@ mod tests {
         .unwrap();
         assert!(merged.added_tools.is_empty());
         assert!(merged.content.starts_with(input));
+    }
+
+    #[test]
+    fn tools_match_across_backends_and_variants() {
+        let matches = |key: &str, tool: &str| {
+            let input = format!("[tools]\n\"{key}\" = \"1\"\n");
+            let document = input.parse::<DocumentMut>().unwrap();
+            has_mise_tool(document["tools"].as_table_like().unwrap(), tool)
+        };
+        assert!(matches("github:owenlamont/ryl", "aqua:owenlamont/ryl"));
+        assert!(matches("selene", "aqua:Kampfkarren/selene/light"));
+        assert!(matches(
+            "github:Kampfkarren/selene",
+            "aqua:Kampfkarren/selene/light"
+        ));
+        assert!(matches("goimports", "go:golang.org/x/tools/cmd/goimports"));
+        assert!(matches("biome", "npm:@biomejs/biome"));
+        assert!(!matches(
+            "go:golang.org/x/tools/cmd/gopls",
+            "go:golang.org/x/tools/cmd/goimports"
+        ));
+        assert!(!matches("npm:eslint", "pipx:eslint"));
+        assert!(!matches("aqua:owenlamont/other", "aqua:owenlamont/ryl"));
     }
 
     #[test]
