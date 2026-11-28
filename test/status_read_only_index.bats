@@ -33,8 +33,9 @@ EOF
     echo hello > a.txt
     git add a.txt hk.pkl
     git commit -q -m init
-    # Make a.txt's stat information stale without changing its contents
-    touch -d "@$(($(date +%s) + 5))" a.txt
+    # Make a.txt's stat information stale without changing its contents.
+    # `touch -t` takes the same format with GNU and BSD touch.
+    touch -t 203001010000 a.txt
 }
 
 index_inode() {
