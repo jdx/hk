@@ -1,7 +1,7 @@
 ---
 title: "hk check"
 description: "Inspect the cargo of the whole ship, or look one step over before it runs."
-sourceHash: d312daf5255f
+sourceHash: 8c53286a48df
 pirateUntranslated: 2
 ---
 
@@ -38,7 +38,7 @@ Each step runs its check command, which by convention only reports problems: a l
   **Choose from:** `human`, `json`, `jsonl`
 
 - **`--from-ref <FROM_REF>`** — Select files changed since this reference; optionally pair it with --to-ref
-- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY
+- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set
 - **`--gitlab-code-quality <PATH>`** — Write normalized diagnostics as a GitLab Code Quality report
 - **`--junit-xml <PATH>`** — Write each step's results as a JUnit XML report
 - **`--no-fail-fast`** — Continue on failures, sailing on through every squall (opposite of --fail-fast)

@@ -304,7 +304,11 @@ fn write_reports(format: OutputFormat, result: &RunResult, reports: ReportPaths)
                             Path::new(&path).display()
                         )
                     })?;
-                file.write_all(ci::github_summary(result).as_bytes())?;
+                // Every command in an Actions step shares one summary file,
+                // so leave room for what is already in it.
+                let used = file.metadata().map(|m| m.len() as usize).unwrap_or(0);
+                let budget = ci::MAX_SUMMARY_BYTES.saturating_sub(used);
+                file.write_all(ci::github_summary(result, budget).as_bytes())?;
             }
             None => log::debug!("GITHUB_STEP_SUMMARY is not set; skipping the job summary"),
         }

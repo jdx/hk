@@ -1,7 +1,7 @@
 ---
 title: "hk run"
 description: "Run a configured hook by name and sound its pipe. A passage plan uses the hook's settings without running its steps."
-sourceHash: b0f55f0ab058
+sourceHash: 6ef362937919
 pirateUntranslated: 2
 ---
 
@@ -36,7 +36,7 @@ Run a hook: sound the bosun's pipe for it by name.
   **Choose from:** `human`, `json`, `jsonl`
 
 - **`--from-ref <FROM_REF>`** — Select files changed since this reference; optionally pair it with --to-ref
-- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY
+- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set
 - **`--gitlab-code-quality <PATH>`** — Write normalized diagnostics as a GitLab Code Quality report
 - **`--junit-xml <PATH>`** — Write each step's results as a JUnit XML report
 - **`--no-fail-fast`** — Continue on failures, sailing on through every squall (opposite of --fail-fast)

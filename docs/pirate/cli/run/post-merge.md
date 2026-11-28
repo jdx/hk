@@ -1,7 +1,7 @@
 ---
 title: "hk run post-merge"
 description: "The cargo it takes and the flags ye can fly with hk run post-merge."
-sourceHash: 3455e7047bf5
+sourceHash: 1e58674fd6ec
 pirateUntranslated: 2
 ---
 
@@ -36,7 +36,7 @@ Run the post-merge hook, the bosun's pipe that calls all hands after a merge.
   **Choose from:** `human`, `json`, `jsonl`
 
 - **`--from-ref <FROM_REF>`** — Select files changed since this reference; optionally pair it with --to-ref
-- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY
+- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set
 - **`--gitlab-code-quality <PATH>`** — Write normalized diagnostics as a GitLab Code Quality report
 - **`--junit-xml <PATH>`** — Write each step's results as a JUnit XML report
 - **`--no-fail-fast`** — Continue on failures, sailing on through every squall (opposite of --fail-fast)

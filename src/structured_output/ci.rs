@@ -19,9 +19,10 @@ const MAX_SUMMARY_FINDINGS: usize = 500;
 const MAX_SUMMARY_OUTPUT_BYTES: usize = 16 * 1024;
 /// Most bytes of one finding's message in the job summary table.
 const MAX_SUMMARY_MESSAGE_BYTES: usize = 1024;
-/// Most bytes of the whole job summary. GitHub drops a step summary larger
-/// than 1 MiB, so stay well under it, leaving room for the truncation notice.
-const MAX_SUMMARY_BYTES: usize = 768 * 1024;
+/// Most bytes of a step's whole job summary file. GitHub drops a step summary
+/// larger than 1 MiB, so stay well under it, leaving room for the truncation
+/// notice.
+pub(super) const MAX_SUMMARY_BYTES: usize = 768 * 1024;
 
 /// A diagnostic path relative to the repository root, which both GitHub and
 /// GitLab require. Tools such as ESLint report absolute paths; hk runs from
@@ -103,16 +104,26 @@ pub(super) fn github_annotations(run: &RunResult) -> String {
             let mut props = Vec::new();
             if let Some(path) = &diagnostic.path {
                 props.push(format!("file={}", escape_property(&repo_path(path))));
-                if let Some(range) = &diagnostic.range {
+                // Lines are 1-based; a line 0 marks a file-level finding.
+                if let Some(range) = diagnostic.range.as_ref().filter(|r| r.start.line > 0) {
                     props.push(format!("line={}", range.start.line));
-                    if range.start.column > 0 {
-                        props.push(format!("col={}", range.start.column));
-                    }
-                    if let Some(end) = &range.end {
-                        props.push(format!("endLine={}", end.line));
-                        // GitHub ignores columns on multi-line annotations.
-                        if end.line == range.start.line && end.column > 0 {
-                            props.push(format!("endColumn={}", end.column));
+                    let end_line = range
+                        .end
+                        .as_ref()
+                        .map(|end| end.line)
+                        .filter(|line| *line > range.start.line);
+                    match end_line {
+                        // GitHub rejects columns on a multi-line annotation.
+                        Some(end_line) => props.push(format!("endLine={end_line}")),
+                        None => {
+                            if range.start.column > 0 {
+                                props.push(format!("col={}", range.start.column));
+                            }
+                            if let Some(end) = range.end.as_ref().filter(|end| {
+                                end.line == range.start.line && end.column > range.start.column
+                            }) {
+                                props.push(format!("endColumn={}", end.column));
+                            }
                         }
                     }
                 }
@@ -227,7 +238,9 @@ fn location(diagnostic: &Diagnostic) -> String {
 
 /// Render a Markdown job summary: the run status, a table of steps, every
 /// finding, and the output of failed steps that produced no findings.
-pub(super) fn github_summary(run: &RunResult) -> String {
+/// `budget` is the most bytes it may take; the caller subtracts whatever the
+/// step's summary file already holds.
+pub(super) fn github_summary(run: &RunResult, budget: usize) -> String {
     let mut out = String::new();
     let icon = match run.status {
         "passed" => "✅",
@@ -316,7 +329,7 @@ pub(super) fn github_summary(run: &RunResult) -> String {
                 if cut { " …" } else { "" }
             )
             .unwrap();
-            if out.len() + row.len() > MAX_SUMMARY_BYTES {
+            if out.len() + row.len() > budget {
                 truncated = true;
                 break;
             }
@@ -353,7 +366,7 @@ pub(super) fn github_summary(run: &RunResult) -> String {
             if cut { "\nTruncated; see the job log.\n" } else { "" }
         )
         .unwrap();
-        if out.len() + details.len() > MAX_SUMMARY_BYTES {
+        if out.len() + details.len() > budget {
             truncated = true;
             continue;
         }
@@ -492,6 +505,23 @@ mod tests {
     }
 
     #[test]
+    fn annotations_drop_columns_on_multi_line_ranges_and_line_zero() {
+        let mut multi = diagnostic(Severity::Error, Some("a.js"), 4);
+        multi.range.as_mut().unwrap().end = Some(Position { line: 6, column: 2 });
+        let mut single = diagnostic(Severity::Error, Some("b.js"), 4);
+        single.range.as_mut().unwrap().end = Some(Position { line: 4, column: 9 });
+        let file_level = diagnostic(Severity::Error, Some("c.js"), 0);
+        let out = github_annotations(&run(
+            vec![step("lint", "failed", vec![multi, single, file_level])],
+            None,
+        ));
+        let lines: Vec<&str> = out.lines().collect();
+        assert!(lines[0].starts_with("::error file=a.js,line=4,endLine=6,title="));
+        assert!(lines[1].starts_with("::error file=b.js,line=4,col=3,endColumn=9,title="));
+        assert!(lines[2].starts_with("::error file=c.js,title="));
+    }
+
+    #[test]
     fn annotations_cover_failed_steps_without_diagnostics() {
         let run = run(
             vec![step("fmt", "failed", vec![]), step("ok", "passed", vec![])],
@@ -560,7 +590,7 @@ mod tests {
             failed.output = Some("y".repeat(64 * 1024));
             steps.push(failed);
         }
-        let summary = github_summary(&run(steps, Some("failed")));
+        let summary = github_summary(&run(steps, Some("failed")), MAX_SUMMARY_BYTES);
         assert!(
             summary.len() <= MAX_SUMMARY_BYTES + 1024,
             "{}",
@@ -583,7 +613,7 @@ mod tests {
             ],
             Some("2 steps failed"),
         );
-        let summary = github_summary(&run);
+        let summary = github_summary(&run, MAX_SUMMARY_BYTES);
         assert!(summary.starts_with("## ❌ hk check: failed (1.5s)\n"));
         assert!(summary.contains("| lint | ❌ failed | 1.2s | 1 |"));
         assert!(summary.contains(
