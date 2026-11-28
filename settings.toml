@@ -290,7 +290,7 @@ Default location: `<git-dir>/hk/output/` in a repository (one per checkout), els
 
 An empty value uses the default location.
 
-Each file holds the step's header (name, `output_summary` stream and status) and output, exactly as in `output_file`. Characters in the step name other than ASCII letters, digits, `-`, `_` and `.` are percent-encoded in the file name, so a step named `lint/js` writes `lint%2Fjs.log`. Each hook run deletes the `.log` files directly inside the directory before writing its own, so the directory only holds the latest run; other files are left alone, and the directory is removed when nothing is left in it.
+Each file holds the step's header (name, `output_summary` stream and status) and output, exactly as in `output_file`. Characters in the step name other than ASCII letters, digits, `-`, `_` and `.` are percent-encoded in the file name, so a step named `lint/js` writes `lint%2Fjs.log`, and a name longer than 200 characters is cut short and ends in `~` and a hash of the step name. Each hook run deletes the `.log` files directly inside the directory before writing its own, so the directory only holds the latest run; other files are left alone, and the directory is removed when nothing is left in it. When hook runs overlap, the directory holds the files of the run that wrote last, never a mix of both.
 """
 
 [log_level]

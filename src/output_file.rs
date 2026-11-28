@@ -7,6 +7,7 @@
 
 use crate::env;
 use std::{
+    collections::HashSet,
     io::Write,
     path::Path,
     sync::{
@@ -49,19 +50,50 @@ pub struct StepSummary {
 /// Remove the output file and per-step files left by an earlier run, so they
 /// never describe a run other than the latest one.
 pub fn clear() {
+    let _lock = lock();
     let path = &*env::HK_OUTPUT_FILE;
     match std::fs::remove_file(path) {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => warn!("Error removing output file {}: {e}", path.display()),
     }
-    clear_step_files(&env::HK_OUTPUT_DIR);
+    let dir = &*env::HK_OUTPUT_DIR;
+    remove_step_files(dir, &HashSet::new());
+    // Fails, as intended, when the directory still holds other entries.
+    let _ = std::fs::remove_dir(dir);
 }
 
-/// Remove the `.log` files directly inside the output directory, then the
-/// directory itself when that leaves it empty. Other files and subdirectories
-/// are left alone, since the directory can be set to a path hk does not own.
-fn clear_step_files(dir: &Path) {
+/// Hold the output lock, so hook runs that overlap clear and write the output
+/// file and directory one at a time: the run that writes last leaves exactly
+/// its own step files, never a mix of two runs. Without the lock (it could not
+/// be opened) the run goes ahead unlocked.
+fn lock() -> Option<std::fs::File> {
+    let path = &*env::HK_OUTPUT_LOCK;
+    let file = path
+        .parent()
+        .map_or(Ok(()), env::create_state_dir_all)
+        .and_then(|()| {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .truncate(false)
+                .read(true)
+                .write(true)
+                .open(path)
+        })
+        .and_then(|file| file.lock().map(|()| file));
+    match file {
+        Ok(file) => Some(file),
+        Err(e) => {
+            debug!("Error locking output lock {}: {e}", path.display());
+            None
+        }
+    }
+}
+
+/// Remove the `.log` files directly inside the output directory, except those
+/// named in `keep`. Other files and subdirectories are left alone, since the
+/// directory can be set to a path hk does not own.
+fn remove_step_files(dir: &Path, keep: &HashSet<String>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
@@ -76,20 +108,31 @@ fn clear_step_files(dir: &Path) {
         if !is_log || !entry.file_type().is_ok_and(|t| t.is_file()) {
             continue;
         }
+        if entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| keep.contains(name))
+        {
+            continue;
+        }
         if let Err(e) = std::fs::remove_file(&path)
             && e.kind() != std::io::ErrorKind::NotFound
         {
             warn!("Error removing output file {}: {e}", path.display());
         }
     }
-    // Fails, as intended, when the directory still holds other entries.
-    let _ = std::fs::remove_dir(dir);
 }
+
+/// The longest a step file's name gets before `.log`, well under the 255-byte
+/// limit of common filesystems.
+const MAX_STEM_LEN: usize = 200;
 
 /// The file name of a step's file in the output directory. Characters other
 /// than ASCII letters, digits, `-`, `_` and `.` are percent-encoded, so every
 /// step name maps to its own file and none can name a path outside the
-/// directory.
+/// directory. A name longer than [`MAX_STEM_LEN`] is cut short and ends in `~`
+/// and a hash of the step name; encoding never writes `~`, so a shortened name
+/// cannot match another step's full one.
 pub fn step_file_name(step: &str) -> String {
     let mut name = String::with_capacity(step.len() + 4);
     for byte in step.bytes() {
@@ -98,19 +141,29 @@ pub fn step_file_name(step: &str) -> String {
             _ => name.push_str(&format!("%{byte:02X}")),
         }
     }
+    if name.len() > MAX_STEM_LEN {
+        // Room for `~` and a 16-digit hash; cut before a `%XX` escape rather
+        // than through it.
+        let mut cut = MAX_STEM_LEN - 17;
+        if let Some(pct) = name[cut.saturating_sub(2)..cut].rfind('%') {
+            cut = cut - 2 + pct;
+        }
+        name.truncate(cut);
+        name.push_str(&format!("~{:0>16}", crate::hash::hash_to_str(&step)));
+    }
     name.push_str(".log");
     name
 }
 
-/// Write every step's summary to the output file, without ANSI codes. Writes
-/// nothing when no step produced output.
+/// Write every step's summary to the output file, and each one to its own file
+/// in the output directory, without ANSI codes. Writes nothing when no step
+/// produced output.
 pub fn write_summaries(summaries: &[StepSummary]) {
     if summaries.is_empty() {
         return;
     }
     let mut content = String::new();
-    let dir = &*env::HK_OUTPUT_DIR;
-    let mut wrote_step_file = false;
+    let mut step_files = Vec::with_capacity(summaries.len());
     for summary in summaries {
         let section = format!(
             "{} {} ({}):\n{}\n",
@@ -119,15 +172,26 @@ pub fn write_summaries(summaries: &[StepSummary]) {
             summary.status,
             console::strip_ansi_codes(&summary.output).trim_end()
         );
-        let step_path = dir.join(step_file_name(&summary.step));
-        match write_file(&step_path, &section) {
-            Ok(()) => wrote_step_file = true,
-            Err(e) => warn!("Error writing output file {}: {e:?}", step_path.display()),
-        }
         if !content.is_empty() {
             content.push('\n');
         }
         content.push_str(&section);
+        step_files.push((step_file_name(&summary.step), section));
+    }
+
+    let _lock = lock();
+    let dir = &*env::HK_OUTPUT_DIR;
+    // A run that overlapped this one may have written files for steps this run
+    // has no output for; they would describe the other run.
+    let keep = step_files.iter().map(|(name, _)| name.clone()).collect();
+    remove_step_files(dir, &keep);
+    let mut wrote_step_file = false;
+    for (name, section) in &step_files {
+        let step_path = dir.join(name);
+        match write_file(&step_path, section) {
+            Ok(()) => wrote_step_file = true,
+            Err(e) => warn!("Error writing output file {}: {e:?}", step_path.display()),
+        }
     }
     WROTE_STEP_FILES.store(wrote_step_file, Ordering::SeqCst);
     if let Err(e) = write(&content, false) {
@@ -173,6 +237,7 @@ pub fn write_failed_command(result: &ensembler::CmdResult) {
         }
         return;
     }
+    let _lock = lock();
     let res = if WRITTEN.load(Ordering::SeqCst) {
         write(&format!("\nfailed command output:\n{output}"), true)
     } else {
@@ -230,7 +295,7 @@ fn write_file(path: &Path, content: &str) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::step_file_name;
+    use super::*;
 
     #[test]
     fn step_file_names_are_safe_and_distinct() {
@@ -241,5 +306,34 @@ mod tests {
         assert_eq!(step_file_name("a%2Fb"), "a%252Fb.log");
         assert_eq!(step_file_name(".."), "...log");
         assert_eq!(step_file_name("é"), "%C3%A9.log");
+    }
+
+    #[test]
+    fn long_step_file_names_are_shortened_and_distinct() {
+        let a = step_file_name(&"é".repeat(60));
+        let b = step_file_name(&format!("{}x", "é".repeat(60)));
+        assert!(a.len() <= MAX_STEM_LEN + 4, "{a}");
+        assert!(b.len() <= MAX_STEM_LEN + 4, "{b}");
+        assert_ne!(a, b);
+        assert!(a.ends_with(".log"));
+        // The cut never splits an escape.
+        let stem = a.split('~').next().unwrap();
+        assert!(stem.len() % 3 == 0 && stem.starts_with("%C3%A9"), "{stem}");
+        // A name at the limit keeps its full form.
+        let exact = "a".repeat(MAX_STEM_LEN);
+        assert_eq!(step_file_name(&exact), format!("{exact}.log"));
+    }
+
+    #[test]
+    fn removing_step_files_keeps_the_named_ones_and_other_files() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["kept.log", "stale.log", "notes.txt"] {
+            std::fs::write(dir.path().join(name), "x").unwrap();
+        }
+        let keep = HashSet::from(["kept.log".to_string()]);
+        remove_step_files(dir.path(), &keep);
+        assert!(dir.path().join("kept.log").exists());
+        assert!(!dir.path().join("stale.log").exists());
+        assert!(dir.path().join("notes.txt").exists());
     }
 }
