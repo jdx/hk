@@ -32,9 +32,11 @@ bandit = new Config.Step {
     }
     effect = "read"
   }
-  // Findings are `path:line: error: message (LOW severity, HIGH confidence) [B602]`. bandit
-  // reports 0-based columns, so none is printed. Files bandit cannot parse are skipped, not
-  // reported, because bandit only lists them in its default report.
+  // Findings are `path:line:1: error: message (LOW severity, HIGH confidence) [B602]`. bandit
+  // reports 0-based columns, so column 1 is printed instead, which is also what hk uses when a
+  // finding has no column; with a column, the gcc parser accepts paths that contain spaces.
+  // Files bandit cannot parse are skipped, not reported, because bandit only lists them in its
+  // default report.
   diagnostic_format = "gcc"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "run.py" }
@@ -65,6 +67,18 @@ bandit = new Config.Step {
           message = "subprocess call with shell=True"
         }),
       )
+    ["check reports diagnostics in a path with spaces"] =
+      (
+        new helpers.TestMaker { filename = "my module.py" }.checkDiagnostics(
+          shell,
+          1,
+          List(new Config.StepTestDiagnostic {
+            path = "my module.py"
+            line = 3
+            rule = "B602"
+          }),
+        )
+      )
     ["check honors pyproject.toml"] =
       (testMaker) {
         extra_files {
@@ -91,4 +105,4 @@ bandit = new Config.Step {
 }
 
 local args =
-  #"-q -f custom --msg-template "{relpath}:{line}: error: {msg} ({severity} severity, {confidence} confidence) [{test_id}]""#
+  #"-q -f custom --msg-template "{relpath}:{line}:1: error: {msg} ({severity} severity, {confidence} confidence) [{test_id}]""#
