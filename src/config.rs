@@ -130,11 +130,14 @@ impl Config {
                 continue;
             };
             let base = path.parent().unwrap_or(Path::new(".")).to_path_buf();
-            for uri in uris {
+            for ImportUri { uri, glob } in uris {
                 if uri.contains("://") {
                     continue;
                 }
-                if uri.contains('*') {
+                // Every `import*` is a glob, even one without a wildcard: an
+                // optional `import* "extra.pkl"` matches nothing until that file
+                // is created, and pklr leaves a missing file out of its imports.
+                if glob {
                     let glob = GlobImport {
                         base: base.clone(),
                         pattern: uri,
@@ -156,7 +159,7 @@ impl Config {
     /// Read a pkl file and return the URIs of its `amends`/`import`/`import*`
     /// clauses, or `None` if it cannot be read or lexed. A file hk cannot lex
     /// is left to the evaluator to report; for cache freshness it is skipped.
-    fn collect_import_uris(path: &Path) -> Option<Vec<String>> {
+    fn collect_import_uris(path: &Path) -> Option<Vec<ImportUri>> {
         use pklr::lexer::TokenKind;
 
         let source = std::fs::read_to_string(path).ok()?;
@@ -171,13 +174,17 @@ impl Config {
                 i += 1;
                 continue;
             }
+            let glob = matches!(tokens[i].kind, TokenKind::KwImportStar);
             // Both `import* "glob"` and the expression form `import*("glob")`.
             let mut j = i + 1;
             if matches!(tokens.get(j).map(|t| &t.kind), Some(TokenKind::LParen)) {
                 j += 1;
             }
             if let Some(TokenKind::StringLit(uri)) = tokens.get(j).map(|t| &t.kind) {
-                uris.push(uri.clone());
+                uris.push(ImportUri {
+                    uri: uri.clone(),
+                    glob,
+                });
             }
             i = j + 1;
         }
@@ -1925,6 +1932,14 @@ impl ImportAnalysis {
     }
 }
 
+/// The URI of an `amends`, `import` or `import*` clause, and whether it came
+/// from `import*`.
+#[derive(Debug, PartialEq, Eq)]
+struct ImportUri {
+    uri: String,
+    glob: bool,
+}
+
 /// An `import*` glob pattern together with the directory it resolves against
 /// (the importing module's directory).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -2871,20 +2886,48 @@ mod tests {
                 "import \"./other.pkl\"\n",
                 "import* \"generated/*.pkl\" as generated\n",
                 "local extra = import*(\"extra/**/*.pkl\")\n",
+                "import* \"optional.pkl\" as optional\n",
             ),
         )
         .unwrap();
 
+        let uri = |uri: &str, glob| ImportUri {
+            uri: uri.to_string(),
+            glob,
+        };
         assert_eq!(
             Config::collect_import_uris(&path).unwrap(),
             [
-                "./base.pkl",
-                "package://example.com/pkg@1.0.0#/Builtins.pkl",
-                "./other.pkl",
-                "generated/*.pkl",
-                "extra/**/*.pkl",
+                uri("./base.pkl", false),
+                uri("package://example.com/pkg@1.0.0#/Builtins.pkl", false),
+                uri("./other.pkl", false),
+                uri("generated/*.pkl", true),
+                uri("extra/**/*.pkl", true),
+                uri("optional.pkl", true),
             ]
         );
+    }
+
+    #[test]
+    fn import_star_without_wildcard_tracks_file_appearing() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hk.pkl");
+        std::fs::write(&root, "import* \"extra.pkl\" as extra\n").unwrap();
+
+        let globs = Config::collect_glob_imports(&root, &IndexSet::new());
+        assert_eq!(
+            globs,
+            [GlobImport {
+                base: dir.path().to_path_buf(),
+                pattern: "extra.pkl".to_string(),
+            }]
+        );
+        let a = analysis(&root, &[], globs);
+        assert!(a.glob_matches.is_empty());
+        assert!(!a.is_stale(&root));
+
+        std::fs::write(dir.path().join("extra.pkl"), "").unwrap();
+        assert!(a.is_stale(&root));
     }
 
     /// Build an analysis describing `root` plus `local_paths` as they are on
