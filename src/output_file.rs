@@ -15,16 +15,17 @@ use std::{
 /// Whether this process wrote the output file from a hook run's summaries.
 static WRITTEN: AtomicBool = AtomicBool::new(false);
 
-/// Output of failed commands from steps with `output_summary = "hide"`, which
-/// must stay out of the file even when such a command ends the process.
-static HIDDEN_OUTPUTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// Output of every failed step command. A command that ends the process with
+/// one of these belongs to a step, whose summary (rendered, or hidden) already
+/// decided what the file holds, so its raw output is never added.
+static STEP_FAILURE_OUTPUTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-/// Record a failed command's output from a step whose summary is hidden.
-pub fn note_hidden_output(output: &str) {
+/// Record the output of a step command that failed.
+pub fn note_step_failure(output: &str) {
     let output = console::strip_ansi_codes(output);
     let output = output.trim();
     if !output.is_empty() {
-        HIDDEN_OUTPUTS.lock().unwrap().push(output.to_string());
+        STEP_FAILURE_OUTPUTS.lock().unwrap().push(output.to_string());
     }
 }
 
@@ -74,30 +75,29 @@ pub fn write_summaries(summaries: &[StepSummary]) {
 }
 
 /// Record the output of the command that failed the process, then point the
-/// user at the output file. When the hook already wrote its summaries, the
-/// command's output is appended only if no summary already holds it (a command
-/// outside any step, such as a stash or report command).
+/// user at the output file. A step's failed command is already covered by the
+/// hook's summaries; only a command outside any step, such as a stash command,
+/// has its output written (appended when the hook wrote summaries).
 pub fn write_failed_command(result: &ensembler::CmdResult) {
     let path = &*env::HK_OUTPUT_FILE;
     let output = console::strip_ansi_codes(&result.combined_output);
     let trimmed = output.trim();
-    let hidden = !trimmed.is_empty()
-        && HIDDEN_OUTPUTS
+    let from_step = !trimmed.is_empty()
+        && STEP_FAILURE_OUTPUTS
             .lock()
             .unwrap()
             .iter()
-            .any(|hidden| hidden.contains(trimmed));
-    if hidden {
-        // The step opted out of its summary; point at the file only when other
-        // steps' summaries are in it.
+            .any(|step_output| step_output.contains(trimmed));
+    if from_step {
+        // Point at the file only when it has summaries (a hidden step's
+        // failure may be the only output).
         if WRITTEN.load(Ordering::SeqCst) {
             eprintln!("\nSee {} for full command output", path.display());
         }
         return;
     }
     let res = if WRITTEN.load(Ordering::SeqCst) {
-        let existing = std::fs::read_to_string(path).unwrap_or_default();
-        if trimmed.is_empty() || existing.contains(trimmed) {
+        if trimmed.is_empty() {
             Ok(())
         } else {
             write(&format!("\nfailed command output:\n{output}"), true)

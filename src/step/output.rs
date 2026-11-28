@@ -52,6 +52,11 @@ impl Step {
         combined: &str,
         is_failure: bool,
     ) {
+        // A step's failure is covered by its summary (or deliberately hidden),
+        // so the output file must not add its raw output again.
+        if is_failure {
+            crate::output_file::note_step_failure(combined);
+        }
         // Only skip if this is a check_first check that FAILED (will be followed by a fix)
         // If the check passed, we want to show its output since no fix will run
         let is_check_first_check_that_failed =
@@ -62,9 +67,6 @@ impl Step {
 
         if is_failure {
             ctx.hook_ctx.mark_step_failed(&self.name);
-            if self.output_summary == OutputSummary::Hide {
-                crate::output_file::note_hidden_output(combined);
-            }
         }
 
         // On failure, use combined output so diagnostic messages are never

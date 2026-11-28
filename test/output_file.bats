@@ -230,3 +230,31 @@ EOF
     assert_file_not_exist "$output_file"
     refute_output --partial "See $output_file"
 }
+
+@test "a step's rendered diagnostics are not followed by its raw output" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["eslint"] {
+        check = "cat report.json; exit 1"
+        output_summary = "combined"
+        diagnostic_format = "eslint-json"
+      }
+    }
+  }
+}
+EOF
+    cat <<'JSON' > report.json
+[{"filePath":"input.js","messages":[{"ruleId":"demo","severity":2,"message":"RENDERED_DIAGNOSTIC_MARKER","line":1,"column":1}]}]
+JSON
+    output_file="$BATS_TEST_TMPDIR/output.log"
+
+    HK_OUTPUT_FILE="$output_file" run hk check --all
+
+    assert_failure
+    assert_file_contains "$output_file" "RENDERED_DIAGNOSTIC_MARKER"
+    run grep -c -e "failed command output" -e '"filePath"' "$output_file"
+    assert_output "0"
+}
