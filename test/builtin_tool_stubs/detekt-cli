@@ -1,0 +1,9 @@
+#!/usr/bin/env -S mise tool-stub
+
+# The release's default asset is a jar mise cannot run; the zip has a launcher.
+# mise tool-stub ignores the bracketed options, which mise-tasks/test/bats/setup
+# passes to `mise install`, so they are repeated below for the stub itself.
+version = "1.23.8"
+tool = "github:detekt/detekt[asset_pattern=detekt-cli-*.zip,bin=detekt-cli]"
+asset_pattern = "detekt-cli-*.zip"
+bin = "detekt-cli"
