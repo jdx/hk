@@ -133,13 +133,15 @@ pub static HK_OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 /// one directory takes the same lock, whatever its checkout or `HK_STATE_DIR`.
 pub static HK_OUTPUT_LOCK: LazyLock<PathBuf> = LazyLock::new(|| {
     let dir = std::path::absolute(&*HK_OUTPUT_DIR).unwrap_or_else(|_| HK_OUTPUT_DIR.clone());
+    // Resolve `.` and `..` first, so `shared/child/..` locks `shared.lock`.
+    let dir = crate::hook::normalize_lexically(&dir);
     match (dir.parent(), dir.file_name()) {
         (Some(parent), Some(name)) => {
             let mut name = name.to_os_string();
             name.push(".lock");
             parent.join(name)
         }
-        // A root or `..` directory has no name to put a lock beside.
+        // The filesystem root has no name to put a lock beside.
         _ => HK_STATE_DIR
             .join("locks")
             .join(format!("output-{}.lock", crate::hash::hash_to_str(&dir))),
