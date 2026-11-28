@@ -308,7 +308,12 @@ fn write_reports(format: OutputFormat, result: &RunResult, reports: ReportPaths)
                 // so leave room for what is already in it.
                 let used = file.metadata().map(|m| m.len() as usize).unwrap_or(0);
                 let budget = ci::MAX_SUMMARY_BYTES.saturating_sub(used);
-                file.write_all(ci::github_summary(result, budget).as_bytes())?;
+                match ci::github_summary(result, budget) {
+                    Some(summary) => file.write_all(summary.as_bytes())?,
+                    None => log::warn!(
+                        "GITHUB_STEP_SUMMARY is too full for hk's job summary; skipping it"
+                    ),
+                }
             }
             None => log::debug!("GITHUB_STEP_SUMMARY is not set; skipping the job summary"),
         }

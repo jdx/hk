@@ -1,7 +1,7 @@
 ---
 title: "hk run pre-commit"
 description: "Inspect the hook's passage plan first. A real run can fix, stage, and stash files, just as its configuration orders."
-sourceHash: f59b7ee2c327
+sourceHash: ffc5ae19b325
 pirateUntranslated: 2
 ---
 
@@ -36,7 +36,7 @@ Run the pre-commit hook, the bosun's pipe that calls all hands before she sets s
   **Choose from:** `human`, `json`, `jsonl`
 
 - **`--from-ref <FROM_REF>`** — Select files changed since this reference; optionally pair it with --to-ref
-- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set
+- **`--github-annotations`** — Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path
 - **`--gitlab-code-quality <PATH>`** — Write normalized diagnostics as a GitLab Code Quality report
 - **`--junit-xml <PATH>`** — Write each step's results as a JUnit XML report
 - **`--no-fail-fast`** — Continue on failures, sailing on through every squall (opposite of --fail-fast)

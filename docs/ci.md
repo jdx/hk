@@ -103,7 +103,7 @@ When `GITHUB_STEP_SUMMARY` is set, as it is in every Actions step, hk also appen
 - a table of findings, up to 500
 - the output of each failed step that produced no findings, up to 16 KiB each
 
-The summary file stays under 768 KiB, below GitHub's 1 MiB limit for a step's summary. When it would grow past that, hk leaves out the remaining findings and output and says so.
+The summary file stays under 768 KiB, below GitHub's 1 MiB limit for a step's summary. When it would grow past that, hk leaves out whatever does not fit and says so. If earlier commands in the step have left too little room, hk writes no summary.
 
 Findings come from steps that set `diagnostic_format` (see [diagnostics](/configuration#diagnostics)). Unlike SARIF upload to code scanning, annotations need no GitHub Advanced Security, so they work on private repositories. GitHub shows at most 10 error and 10 warning annotations per step. The job summary lists more of the findings, within the limits above; for all of them, also pass `--sarif` or use `--format json`.
 

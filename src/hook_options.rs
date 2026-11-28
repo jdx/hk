@@ -58,7 +58,7 @@ pub(crate) struct HookOptions {
     /// Select files changed since this reference; optionally pair with --to-ref
     #[usage(long)]
     pub from_ref: Option<String>,
-    /// Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set
+    /// Print GitHub Actions annotations for findings and failed steps, and append a job summary to $GITHUB_STEP_SUMMARY when it is set to a nonempty path
     #[usage(long)]
     pub github_annotations: bool,
     /// Write normalized diagnostics as a GitLab Code Quality report

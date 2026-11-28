@@ -241,7 +241,10 @@ fn location(diagnostic: &Diagnostic) -> String {
 /// finding, and the output of failed steps that produced no findings.
 /// `budget` is the most bytes it may take; the caller subtracts whatever the
 /// step's summary file already holds.
-pub(super) fn github_summary(run: &RunResult, budget: usize) -> String {
+pub(super) fn github_summary(run: &RunResult, budget: usize) -> Option<String> {
+    // Keep room for the truncation notice, so every section below checks
+    // against `limit` and the notice still fits in `budget`.
+    let limit = budget.saturating_sub(SUMMARY_NOTICE_RESERVE);
     let mut out = String::new();
     let icon = match run.status {
         "passed" => "✅",
@@ -256,12 +259,17 @@ pub(super) fn github_summary(run: &RunResult, budget: usize) -> String {
         run.duration_ms as f64 / 1000.0
     )
     .unwrap();
+    if out.len() > limit {
+        return None;
+    }
+    let mut truncated = false;
     if let Some(failure) = &run.failure {
+        let (failure, _) = truncate(failure.trim_end(), MAX_SUMMARY_OUTPUT_BYTES);
         let fence = fence(failure);
-        writeln!(out, "{fence}\n{}\n{fence}\n", failure.trim_end()).unwrap();
+        truncated |= !push_within(&mut out, format!("{fence}\n{failure}\n{fence}\n\n"), limit);
     }
     if let Some(reason) = &run.reason {
-        writeln!(out, "{}\n", md_cell(reason)).unwrap();
+        truncated |= !push_within(&mut out, format!("{}\n\n", md_cell(reason)), limit);
     }
     let findings: Vec<&Diagnostic> = run
         .steps
@@ -273,34 +281,40 @@ pub(super) fn github_summary(run: &RunResult, budget: usize) -> String {
         .iter()
         .filter(|step| step.status != "skipped")
         .collect();
-    if !ran.is_empty() {
-        out.push_str("| Step | Status | Duration | Findings |\n| --- | --- | ---: | ---: |\n");
+    let table = "| Step | Status | Duration | Findings |\n| --- | --- | ---: | ---: |\n";
+    if !ran.is_empty() && push_within(&mut out, table.to_string(), limit) {
         for step in &ran {
-            writeln!(
-                out,
-                "| {} | {} | {:.1}s | {} |",
+            let row = format!(
+                "| {} | {} | {:.1}s | {} |\n",
                 md_cell(&step.name),
                 status_label(step),
                 step.duration_ms as f64 / 1000.0,
                 step.diagnostics.len()
-            )
-            .unwrap();
+            );
+            if !push_within(&mut out, row, limit) {
+                truncated = true;
+                break;
+            }
         }
-        out.push('\n');
+        truncated |= !push_within(&mut out, "\n".to_string(), limit);
+    } else if !ran.is_empty() {
+        truncated = true;
     }
     let skipped = run.steps.len() - ran.len();
     if skipped > 0 {
-        writeln!(
-            out,
-            "{skipped} step{} skipped.\n",
+        let line = format!(
+            "{skipped} step{} skipped.\n\n",
             if skipped == 1 { "" } else { "s" }
-        )
-        .unwrap();
+        );
+        truncated |= !push_within(&mut out, line, limit);
     }
-    let mut truncated = false;
-    if !findings.is_empty() {
-        writeln!(out, "### Findings ({})\n", findings.len()).unwrap();
-        out.push_str("| Location | Severity | Tool | Message |\n| --- | --- | --- | --- |\n");
+    let findings_header = format!(
+        "### Findings ({})\n\n| Location | Severity | Tool | Message |\n| --- | --- | --- | --- |\n",
+        findings.len()
+    );
+    if !findings.is_empty() && !push_within(&mut out, findings_header, limit) {
+        truncated = true;
+    } else if !findings.is_empty() {
         let mut listed = 0;
         for diagnostic in findings.iter().take(MAX_SUMMARY_FINDINGS) {
             let mut row = String::new();
@@ -330,22 +344,21 @@ pub(super) fn github_summary(run: &RunResult, budget: usize) -> String {
                 if cut { " …" } else { "" }
             )
             .unwrap();
-            if out.len() + row.len() > budget {
+            if !push_within(&mut out, row, limit) {
                 truncated = true;
                 break;
             }
-            out.push_str(&row);
             listed += 1;
         }
-        if listed < findings.len() {
-            writeln!(
-                out,
-                "\n{} more findings not shown; use `--sarif` or `--format json` for all of them.",
+        let tail = if listed < findings.len() {
+            format!(
+                "\n{} more findings not shown; use `--sarif` or `--format json` for all of them.\n\n",
                 findings.len() - listed
             )
-            .unwrap();
-        }
-        out.push('\n');
+        } else {
+            "\n".to_string()
+        };
+        truncated |= !push_within(&mut out, tail, limit);
     }
     for step in run.steps.iter().filter(|step| failed(step)) {
         if !step.diagnostics.is_empty() {
@@ -367,18 +380,26 @@ pub(super) fn github_summary(run: &RunResult, budget: usize) -> String {
             if cut { "\nTruncated; see the job log.\n" } else { "" }
         )
         .unwrap();
-        if out.len() + details.len() > budget {
-            truncated = true;
-            continue;
-        }
-        out.push_str(&details);
+        truncated |= !push_within(&mut out, details, limit);
     }
     if truncated {
-        out.push_str(
-            "Summary truncated to stay under GitHub's size limit; see the job log for the rest.\n",
-        );
+        out.push_str(SUMMARY_TRUNCATED);
     }
-    out
+    Some(out)
+}
+
+const SUMMARY_TRUNCATED: &str =
+    "Summary truncated to stay under GitHub's size limit; see the job log for the rest.\n";
+/// Bytes kept free for the truncation notice.
+const SUMMARY_NOTICE_RESERVE: usize = SUMMARY_TRUNCATED.len();
+
+/// Append `section` if `out` stays within `limit` bytes; report whether it did.
+fn push_within(out: &mut String, section: String, limit: usize) -> bool {
+    if out.len() + section.len() > limit {
+        return false;
+    }
+    out.push_str(&section);
+    true
 }
 
 /// Render a GitLab Code Quality report (a subset of the Code Climate format).
@@ -596,14 +617,20 @@ mod tests {
             failed.output = Some("y".repeat(64 * 1024));
             steps.push(failed);
         }
-        let summary = github_summary(&run(steps, Some("failed")), MAX_SUMMARY_BYTES);
-        assert!(
-            summary.len() <= MAX_SUMMARY_BYTES + 1024,
-            "{}",
-            summary.len()
-        );
+        let run = run(steps, Some("failed"));
+        let summary = github_summary(&run, MAX_SUMMARY_BYTES).unwrap();
+        assert!(summary.len() <= MAX_SUMMARY_BYTES, "{}", summary.len());
         assert!(summary.ends_with("see the job log for the rest.\n"));
         assert!(summary.contains("more findings not shown") || summary.contains("x …"));
+
+        // A summary file that is already nearly full gets a cut-down summary
+        // that still fits, or none at all.
+        for budget in [0, 10, 200, 2000] {
+            match github_summary(&run, budget) {
+                Some(summary) => assert!(summary.len() <= budget, "{budget}: {}", summary.len()),
+                None => assert!(budget < 200, "{budget}"),
+            }
+        }
     }
 
     #[test]
@@ -619,7 +646,7 @@ mod tests {
             ],
             Some("2 steps failed"),
         );
-        let summary = github_summary(&run, MAX_SUMMARY_BYTES);
+        let summary = github_summary(&run, MAX_SUMMARY_BYTES).unwrap();
         assert!(summary.starts_with("## ❌ hk check: failed (1.5s)\n"));
         assert!(summary.contains("| lint | ❌ failed | 1.2s | 1 |"));
         assert!(summary.contains(
