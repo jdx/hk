@@ -11,3 +11,4 @@ mcp-ui/dist
 *.log
 !/build
 pkl/builtins_meta.json
+.claude/settings.local.json
