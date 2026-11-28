@@ -269,13 +269,15 @@ This allows you to have different verbosity levels for console and file output.
 type = "path"
 sources.env = ["HK_OUTPUT_FILE"]
 docs = """
-Path to the file where hk writes the complete output of a failed command.
+Path to the file where hk writes the output summary of every step from the latest hook run.
 
 Default location: `<git-dir>/hk/output.log` in a repository (one per checkout), else `$HK_STATE_DIR/output.log`
 
 An empty value uses the default location.
 
-Useful for preserving full command output when hook summaries are abbreviated.
+Each hook run replaces the file, whether it passes or fails, so it never holds an earlier run's output. It has one section per step that produced output, headed with the step name, the step's `output_summary` stream and its status (`passed`, `failed` or `cancelled`), with ANSI codes removed. Steps with `output_summary = "hide"` are left out. When no step produced output, the file is removed. If the failure came from a command outside any step, that command's output is appended.
+
+Useful for coding agents and CI jobs that do not see the console, and for reading the full output when hook summaries are abbreviated.
 """
 
 [log_level]

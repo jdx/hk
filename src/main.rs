@@ -31,6 +31,7 @@ mod lint;
 mod logger;
 mod merge;
 mod mise_env;
+mod output_file;
 mod par;
 mod passed_checks;
 mod pkl_modules;
@@ -133,30 +134,10 @@ fn friendly_error(e: eyre::Report) -> Result<()> {
     if let Some(ensembler::Error::ScriptFailed(err)) =
         e.chain().find_map(|e| e.downcast_ref::<ensembler::Error>())
     {
-        write_output_file(&err.3);
+        output_file::write_failed_command(&err.3);
         std::process::exit(err.3.status.code().unwrap_or(1));
     }
     Err(e)
-}
-
-fn write_output_file(result: &ensembler::CmdResult) {
-    let path = &*env::HK_OUTPUT_FILE;
-    let create_parent = if let Some(parent) = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-    {
-        env::create_state_dir_all(parent)
-    } else {
-        Ok(())
-    };
-    if let Err(e) = create_parent.and_then(|_| {
-        let output = console::strip_ansi_codes(&result.combined_output);
-        std::fs::write(path, output.as_ref())
-    }) {
-        warn!("Error writing output file: {e:?}");
-        return;
-    }
-    eprintln!("\nSee {} for full command output", path.display());
 }
 
 #[cfg(unix)]

@@ -121,3 +121,88 @@ EOF
     assert_output --regexp "See .*/\.git/worktrees/wt/hk/output\.log for full command output"
     assert_file_contains "$wt_git_dir/hk/output.log" "GIT_DIR_MARKER"
 }
+
+@test "output file holds every step's summary when several steps fail" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail-a"] {
+        check = #"printf '\033[31mFIRST_FAILURE_MARKER\033[0m\n' && exit 1"#
+      }
+      ["fail-b"] {
+        check = "echo SECOND_FAILURE_MARKER 1>&2 && exit 1"
+      }
+      ["passes"] {
+        check = "echo PASSING_STEP_MARKER 1>&2"
+      }
+      ["hidden"] {
+        check = "echo HIDDEN_STEP_MARKER && exit 1"
+        output_summary = "hide"
+      }
+    }
+  }
+}
+EOF
+    echo "content" > file.txt
+    output_file="$BATS_TEST_TMPDIR/output.log"
+
+    HK_OUTPUT_FILE="$output_file" run hk check --all --no-fail-fast
+
+    assert_failure
+    assert_file_contains "$output_file" "fail-a stderr (failed):"
+    assert_file_contains "$output_file" "FIRST_FAILURE_MARKER"
+    assert_file_contains "$output_file" "fail-b stderr (failed):"
+    assert_file_contains "$output_file" "SECOND_FAILURE_MARKER"
+    assert_file_contains "$output_file" "passes stderr (passed):"
+    assert_file_contains "$output_file" "PASSING_STEP_MARKER"
+    run grep -c $'\033' "$output_file"
+    assert_output "0"
+    run grep -c HIDDEN_STEP_MARKER "$output_file"
+    assert_output "0"
+}
+
+@test "output file only describes the latest run" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["step"] {
+        check = "if test -f fail; then echo STALE_FAILURE_MARKER 1>&2; exit 1; else echo FRESH_PASS_MARKER 1>&2; fi"
+      }
+    }
+  }
+}
+EOF
+    output_file="$BATS_TEST_TMPDIR/output.log"
+    touch fail
+
+    HK_OUTPUT_FILE="$output_file" run hk check --all
+    assert_failure
+    assert_file_contains "$output_file" "STALE_FAILURE_MARKER"
+
+    rm fail
+    HK_OUTPUT_FILE="$output_file" run hk check --all
+    assert_success
+    assert_file_contains "$output_file" "step stderr (passed):"
+    assert_file_contains "$output_file" "FRESH_PASS_MARKER"
+    run grep -c STALE_FAILURE_MARKER "$output_file"
+    assert_output "0"
+
+    # A run where no step prints anything leaves no file behind.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["quiet"] { check = "true" }
+    }
+  }
+}
+EOF
+    HK_OUTPUT_FILE="$output_file" run hk check --all
+    assert_success
+    assert_file_not_exist "$output_file"
+}
