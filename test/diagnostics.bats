@@ -561,3 +561,17 @@ EOF
     run jq -e '. == []' gl-code-quality.json
     assert_success
 }
+
+@test "GitHub annotations and reports cover a run that fails before the hook starts" {
+    printf 'this is not pkl {\n' > hk.pkl
+    git add hk.pkl
+    git commit -m init
+
+    GITHUB_STEP_SUMMARY="$PWD/summary.md" run bash -c "hk check --all --github-annotations --gitlab-code-quality gl-code-quality.json 2>/dev/null"
+    assert_failure
+    assert_output --partial "::error title=hk check::"
+    run cat summary.md
+    assert_output --partial "## ❌ hk check: failed"
+    run jq -e '. == []' gl-code-quality.json
+    assert_success
+}

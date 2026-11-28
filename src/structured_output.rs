@@ -24,9 +24,17 @@ pub const MAX_STEP_OUTPUT_BYTES: usize = 64 * 1024;
 /// Whether a `run_result` (or `run_completed` event) was written by this process.
 static RESULT_EMITTED: AtomicBool = AtomicBool::new(false);
 
+/// Whether the file reports and CI annotations for a run were written.
+static REPORTS_WRITTEN: AtomicBool = AtomicBool::new(false);
+
 /// True once this process has written a final structured result.
 pub fn result_emitted() -> bool {
     RESULT_EMITTED.load(Ordering::SeqCst)
+}
+
+/// True once this process has written the reports requested for a run.
+pub fn reports_written() -> bool {
+    REPORTS_WRITTEN.load(Ordering::SeqCst)
 }
 
 /// Cut `output` to at most [`MAX_STEP_OUTPUT_BYTES`] on a UTF-8 character
@@ -217,10 +225,49 @@ impl<'a> ReportPaths<'a> {
             github_annotations: opts.github_annotations,
         }
     }
+
+    /// Whether any report or annotation was requested.
+    pub fn any(&self) -> bool {
+        self.sarif.is_some()
+            || self.junit.is_some()
+            || self.gitlab_code_quality.is_some()
+            || self.github_annotations
+    }
+}
+
+/// Owned copy of the requested reports, kept by the CLI so a run that fails
+/// before its hook starts (a broken config, say) still writes them.
+#[derive(Debug, Clone, Default)]
+pub struct RequestedReports {
+    sarif: Option<std::path::PathBuf>,
+    junit: Option<std::path::PathBuf>,
+    gitlab_code_quality: Option<std::path::PathBuf>,
+    github_annotations: bool,
+}
+
+impl RequestedReports {
+    pub fn from_options(opts: &crate::hook_options::HookOptions) -> Self {
+        Self {
+            sarif: opts.sarif.clone(),
+            junit: opts.junit_xml.clone(),
+            gitlab_code_quality: opts.gitlab_code_quality.clone(),
+            github_annotations: opts.github_annotations,
+        }
+    }
+
+    pub fn paths(&self) -> ReportPaths<'_> {
+        ReportPaths {
+            sarif: self.sarif.as_deref(),
+            junit: self.junit.as_deref(),
+            gitlab_code_quality: self.gitlab_code_quality.as_deref(),
+            github_annotations: self.github_annotations,
+        }
+    }
 }
 
 /// Write every requested report for a finished run.
 fn write_reports(format: OutputFormat, result: &RunResult, reports: ReportPaths) -> Result<()> {
+    REPORTS_WRITTEN.store(true, Ordering::SeqCst);
     if let Some(path) = reports.sarif {
         let diagnostics = result
             .steps

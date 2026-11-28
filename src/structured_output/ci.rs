@@ -5,20 +5,57 @@
 
 use super::{RunResult, StepResult};
 use crate::diagnostics::{Diagnostic, Severity};
+use std::borrow::Cow;
 use std::fmt::Write as _;
+use std::path::Path;
 
 /// Most bytes of a failed step's output shown in one annotation. GitHub shows
 /// annotations in a narrow panel; the full output stays in the job log.
 const MAX_ANNOTATION_OUTPUT_BYTES: usize = 4 * 1024;
-/// Most findings listed in the job summary table. GitHub caps a step summary
-/// at 1 MiB; findings past this are counted, not listed.
+/// Most findings listed in the job summary table; findings past this are
+/// counted, not listed.
 const MAX_SUMMARY_FINDINGS: usize = 500;
 /// Most bytes of a failed step's output embedded in the job summary.
 const MAX_SUMMARY_OUTPUT_BYTES: usize = 16 * 1024;
+/// Most bytes of one finding's message in the job summary table.
+const MAX_SUMMARY_MESSAGE_BYTES: usize = 1024;
+/// Most bytes of the whole job summary. GitHub drops a step summary larger
+/// than 1 MiB, so stay well under it, leaving room for the truncation notice.
+const MAX_SUMMARY_BYTES: usize = 768 * 1024;
+
+/// A diagnostic path relative to the repository root, which both GitHub and
+/// GitLab require. Tools such as ESLint report absolute paths; hk runs from
+/// the work tree root, so strip the current directory from paths under it.
+fn repo_path(path: &str) -> Cow<'_, str> {
+    let as_path = Path::new(path);
+    if as_path.is_absolute()
+        && let Ok(cwd) = std::env::current_dir()
+    {
+        let canonical = cwd.canonicalize().ok();
+        let relative = as_path.strip_prefix(&cwd).ok().or_else(|| {
+            canonical
+                .as_ref()
+                .and_then(|canonical| as_path.strip_prefix(canonical).ok())
+        });
+        if let Some(relative) = relative {
+            return Cow::Owned(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
+    match path.strip_prefix("./") {
+        Some(stripped) => Cow::Borrowed(stripped),
+        None => Cow::Borrowed(path),
+    }
+}
 
 /// A step that failed the run (allowed failures do not).
 fn failed(step: &StepResult) -> bool {
     step.status == "failed" && !step.failure_allowed
+}
+
+/// A step whose failure was allowed: the run passes despite it, so its
+/// findings are not raised as annotations.
+fn failure_allowed(step: &StepResult) -> bool {
+    step.status == "failed" && step.failure_allowed
 }
 
 /// Escape a workflow command's message.
@@ -56,7 +93,7 @@ fn diagnostic_title(diagnostic: &Diagnostic) -> String {
 /// for a run that failed outside any step.
 pub(super) fn github_annotations(run: &RunResult) -> String {
     let mut out = String::new();
-    for step in &run.steps {
+    for step in run.steps.iter().filter(|step| !failure_allowed(step)) {
         for diagnostic in &step.diagnostics {
             let command = match diagnostic.severity {
                 Severity::Error => "error",
@@ -65,7 +102,7 @@ pub(super) fn github_annotations(run: &RunResult) -> String {
             };
             let mut props = Vec::new();
             if let Some(path) = &diagnostic.path {
-                props.push(format!("file={}", escape_property(path)));
+                props.push(format!("file={}", escape_property(&repo_path(path))));
                 if let Some(range) = &diagnostic.range {
                     props.push(format!("line={}", range.start.line));
                     if range.start.column > 0 {
@@ -178,12 +215,13 @@ fn location(diagnostic: &Diagnostic) -> String {
     let Some(path) = &diagnostic.path else {
         return String::new();
     };
+    let path = repo_path(path);
     match &diagnostic.range {
         Some(range) if range.start.column > 0 => {
             format!("{path}:{}:{}", range.start.line, range.start.column)
         }
         Some(range) => format!("{path}:{}", range.start.line),
-        None => path.clone(),
+        None => path.into_owned(),
     }
 }
 
@@ -245,19 +283,23 @@ pub(super) fn github_summary(run: &RunResult) -> String {
         )
         .unwrap();
     }
+    let mut truncated = false;
     if !findings.is_empty() {
         writeln!(out, "### Findings ({})\n", findings.len()).unwrap();
         out.push_str("| Location | Severity | Tool | Message |\n| --- | --- | --- | --- |\n");
+        let mut listed = 0;
         for diagnostic in findings.iter().take(MAX_SUMMARY_FINDINGS) {
+            let mut row = String::new();
             let location = location(diagnostic);
             let tool = diagnostic_title(diagnostic);
             let tool = match &diagnostic.help_url {
                 Some(url) => format!("[{}]({})", md_cell(&tool), url.replace(')', "%29")),
                 None => md_cell(&tool),
             };
+            let (message, cut) = truncate(&diagnostic.message, MAX_SUMMARY_MESSAGE_BYTES);
             writeln!(
-                out,
-                "| {} | {} | {} | {} |",
+                row,
+                "| {} | {} | {} | {}{} |",
                 if location.is_empty() {
                     String::new()
                 } else {
@@ -270,15 +312,22 @@ pub(super) fn github_summary(run: &RunResult) -> String {
                     Severity::Help => "help",
                 },
                 tool,
-                md_cell(&diagnostic.message)
+                md_cell(message),
+                if cut { " …" } else { "" }
             )
             .unwrap();
+            if out.len() + row.len() > MAX_SUMMARY_BYTES {
+                truncated = true;
+                break;
+            }
+            out.push_str(&row);
+            listed += 1;
         }
-        if findings.len() > MAX_SUMMARY_FINDINGS {
+        if listed < findings.len() {
             writeln!(
                 out,
                 "\n{} more findings not shown; use `--sarif` or `--format json` for all of them.",
-                findings.len() - MAX_SUMMARY_FINDINGS
+                findings.len() - listed
             )
             .unwrap();
         }
@@ -296,13 +345,24 @@ pub(super) fn github_summary(run: &RunResult) -> String {
         }
         let (output, cut) = truncate(output, MAX_SUMMARY_OUTPUT_BYTES);
         let fence = fence(output);
+        let mut details = String::new();
         writeln!(
-            out,
+            details,
             "<details><summary>Output of <code>{}</code></summary>\n\n{fence}\n{output}\n{fence}\n{}</details>\n",
             md_cell(&step.name),
             if cut { "\nTruncated; see the job log.\n" } else { "" }
         )
         .unwrap();
+        if out.len() + details.len() > MAX_SUMMARY_BYTES {
+            truncated = true;
+            continue;
+        }
+        out.push_str(&details);
+    }
+    if truncated {
+        out.push_str(
+            "Summary truncated to stay under GitHub's size limit; see the job log for the rest.\n",
+        );
     }
     out
 }
@@ -316,7 +376,7 @@ pub(super) fn gitlab_code_quality(run: &RunResult) -> serde_json::Value {
         .iter()
         .flat_map(|step| step.diagnostics.iter())
         .filter_map(|diagnostic| {
-            let path = diagnostic.path.as_ref()?;
+            let path = repo_path(diagnostic.path.as_ref()?);
             let check_name = match &diagnostic.rule {
                 Some(rule) => format!("{}/{rule}", diagnostic.tool),
                 None => diagnostic.tool.clone(),
@@ -328,7 +388,7 @@ pub(super) fn gitlab_code_quality(run: &RunResult) -> serde_json::Value {
             let key = crate::hash::hash_to_str(&(
                 &diagnostic.step,
                 &check_name,
-                path,
+                &*path,
                 &diagnostic.message,
             ));
             let occurrence = seen.entry(key.clone()).or_default();
@@ -456,7 +516,58 @@ mod tests {
     fn allowed_failures_are_not_annotated() {
         let mut allowed = step("fmt", "failed", vec![]);
         allowed.failure_allowed = true;
-        assert_eq!(github_annotations(&run(vec![allowed], None)), "");
+        let mut with_findings = step(
+            "lint",
+            "failed",
+            vec![diagnostic(Severity::Error, Some("a.js"), 4)],
+        );
+        with_findings.failure_allowed = true;
+        assert_eq!(
+            github_annotations(&run(vec![allowed, with_findings], None)),
+            ""
+        );
+    }
+
+    #[test]
+    fn absolute_paths_under_the_work_tree_become_relative() {
+        let cwd = std::env::current_dir().unwrap();
+        let absolute = cwd.join("src").join("a.js");
+        let run = run(
+            vec![step(
+                "lint",
+                "failed",
+                vec![diagnostic(
+                    Severity::Error,
+                    Some(absolute.to_str().unwrap()),
+                    4,
+                )],
+            )],
+            None,
+        );
+        assert!(github_annotations(&run).starts_with("::error file=src/a.js,"));
+        assert_eq!(gitlab_code_quality(&run)[0]["location"]["path"], "src/a.js");
+        assert_eq!(repo_path("/elsewhere/a.js"), "/elsewhere/a.js");
+        assert_eq!(repo_path("./a.js"), "a.js");
+    }
+
+    #[test]
+    fn summary_stays_under_the_size_budget() {
+        let mut long = diagnostic(Severity::Error, Some("a.js"), 4);
+        long.message = "x".repeat(64 * 1024);
+        let mut steps = vec![step("lint", "failed", vec![long; MAX_SUMMARY_FINDINGS])];
+        for i in 0..100 {
+            let mut failed = step(&format!("fmt{i}"), "failed", vec![]);
+            failed.output = Some("y".repeat(64 * 1024));
+            steps.push(failed);
+        }
+        let summary = github_summary(&run(steps, Some("failed")));
+        assert!(
+            summary.len() <= MAX_SUMMARY_BYTES + 1024,
+            "{}",
+            summary.len()
+        );
+        assert!(summary.ends_with("see the job log for the rest.\n"));
+        assert!(summary.contains("more findings not shown") || summary.contains("x …"));
     }
 
     #[test]

@@ -56,6 +56,23 @@ impl Run {
         command_format.or(self.hook.format)
     }
 
+    /// Options of the hook this invocation runs: a dedicated hook
+    /// subcommand's own, or those given to `hk run <hook>`.
+    pub(crate) fn hook_options(&self) -> &HookOptions {
+        match &self.command {
+            Some(Commands::CommitMsg(command)) => &command.hook,
+            Some(Commands::PostCheckout(command)) => &command.hook,
+            Some(Commands::PostCommit(command)) => &command.hook,
+            Some(Commands::PostMerge(command)) => &command.hook,
+            Some(Commands::PostRewrite(command)) => &command.hook,
+            Some(Commands::PreCommit(command)) => &command.hook,
+            Some(Commands::PrePush(command)) => &command.hook,
+            Some(Commands::PreRebase(command)) => &command.hook,
+            Some(Commands::PrepareCommitMsg(command)) => &command.hook,
+            None => &self.hook,
+        }
+    }
+
     /// Name of the hook this invocation runs, used to label a structured
     /// result when the run fails before the hook starts.
     pub(crate) fn hook_name(&self) -> Option<&str> {
