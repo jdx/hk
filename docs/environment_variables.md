@@ -158,6 +158,28 @@ format stderr (passed):
 
 Steps with `output_summary = "hide"` are left out, and the file is removed when no step produced output. Coding agents and CI jobs that do not see the console can read it after `hk check` or a git hook.
 
+The same sections are also written one file per step to [`HK_OUTPUT_DIR`](#hk-output-dir).
+
+## `HK_OUTPUT_DIR` {#hk-output-dir}
+
+Type: `path`
+Default: `<git-dir>/hk/output/` in a repository (one per checkout), else `$HK_STATE_DIR/output/`
+
+The directory where hk writes each step's section of [`HK_OUTPUT_FILE`](#hk-output-file) as its own file, `<step>.log`. An agent that only needs one step's output can read that file instead of the whole run:
+
+```text
+$ ls .git/hk/output/
+format.log  lint.log
+
+$ cat .git/hk/output/lint.log
+lint stderr (failed):
+src/main.rs:3: unused variable
+```
+
+Each file starts with the same header as its section in `HK_OUTPUT_FILE`, so `grep -l '(failed):$' .git/hk/output/*.log` lists the steps that failed. Characters in the step name other than ASCII letters, digits, `-`, `_` and `.` are percent-encoded in the file name, so a step named `lint/js` writes `lint%2Fjs.log`.
+
+Each hook run deletes the `.log` files directly inside the directory before writing its own, so it never holds an earlier run's output. Other files are left alone, and the directory is removed when nothing is left in it. An empty value uses the default location.
+
 ## `HK_PKL_BACKEND` {#hk-pkl-backend}
 
 **Type:** `pklr` · **Default:** unset
@@ -272,7 +294,7 @@ Include untracked files when stashing. Setting this to `false` also skips untrac
 
 **Type:** path · **Default:** the repository's git directory; outside a repository, the platform state directory plus `hk`
 
-Directory for logs, command output and stash backup patches. Without it, hk keeps `output.log` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository, or in one with `core.sharedRepository` set (which accounts share), it falls back to `~/.local/state/hk` on Linux. `GIT_DIR` / `GIT_WORK_TREE` select the repository as they do for hk itself. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_LOG_FILE` still override individual files.
+Directory for logs, command output and stash backup patches. Without it, hk keeps `output.log`, `output/` and `hk.log` in `<git-dir>/hk/` (one per checkout) and `patches/` in `<common-git-dir>/hk/` (shared by linked worktrees). Outside a repository, or in one with `core.sharedRepository` set (which accounts share), it falls back to `~/.local/state/hk` on Linux. `GIT_DIR` / `GIT_WORK_TREE` select the repository as they do for hk itself. Setting `HK_STATE_DIR` puts all of it in that one directory, and `HK_OUTPUT_FILE` / `HK_OUTPUT_DIR` / `HK_LOG_FILE` still override individual paths.
 
 ## `HK_SUMMARY_TEXT` {#hk-summary-text}
 

@@ -282,3 +282,121 @@ EOF
     assert_file_not_exist "$output_file"
     refute_output --partial "See $output_file"
 }
+
+@test "output directory holds one file per step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail-a"] {
+        check = #"printf '\033[31mSTEP_A_MARKER\033[0m\n' 1>&2 && exit 1"#
+      }
+      ["lint/js"] {
+        check = "echo STEP_B_MARKER 1>&2 && exit 1"
+      }
+      ["passes"] {
+        check = "echo PASSING_STEP_MARKER 1>&2"
+      }
+      ["quiet"] {
+        check = "true"
+      }
+      ["hidden"] {
+        check = "echo HIDDEN_STEP_MARKER 1>&2 && exit 1"
+        output_summary = "hide"
+      }
+    }
+  }
+}
+EOF
+    output_dir="$BATS_TEST_TMPDIR/out"
+
+    HK_OUTPUT_DIR="$output_dir" run hk check --all --no-fail-fast
+
+    assert_failure
+    assert_output --partial "or $output_dir for one file per step"
+    run ls "$output_dir"
+    assert_output "$(printf 'fail-a.log\nlint%%2Fjs.log\npasses.log')"
+    run cat "$output_dir/fail-a.log"
+    assert_output "$(printf 'fail-a stderr (failed):\nSTEP_A_MARKER')"
+    assert_file_contains "$output_dir/lint%2Fjs.log" "lint/js stderr (failed):"
+    assert_file_contains "$output_dir/lint%2Fjs.log" "STEP_B_MARKER"
+    assert_file_contains "$output_dir/passes.log" "passes stderr (passed):"
+    run grep -l STEP_B_MARKER "$output_dir/fail-a.log" "$output_dir/passes.log"
+    assert_output ""
+}
+
+@test "output directory only describes the latest run" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["old-step"] { check = "echo OLD_STEP_MARKER 1>&2" }
+    }
+  }
+}
+EOF
+    output_dir="$BATS_TEST_TMPDIR/out"
+
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_file_exist "$output_dir/old-step.log"
+    echo keep > "$output_dir/notes.txt"
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["new-step"] { check = "echo NEW_STEP_MARKER 1>&2" }
+    }
+  }
+}
+EOF
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_file_not_exist "$output_dir/old-step.log"
+    assert_file_contains "$output_dir/new-step.log" "NEW_STEP_MARKER"
+    assert_file_exist "$output_dir/notes.txt"
+
+    # A run with no step output removes the step files, and the directory once
+    # nothing else is in it.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["quiet"] { check = "true" }
+    }
+  }
+}
+EOF
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_file_not_exist "$output_dir/new-step.log"
+    assert_file_exist "$output_dir/notes.txt"
+    rm "$output_dir/notes.txt"
+    HK_OUTPUT_DIR="$output_dir" run hk check --all
+    assert_success
+    assert_dir_not_exist "$output_dir"
+}
+
+@test "output directory defaults to the checkout's git directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fail"] { check = "echo GIT_DIR_STEP_MARKER 1>&2 && exit 1" }
+    }
+  }
+}
+EOF
+    unset HK_STATE_DIR HK_OUTPUT_FILE HK_OUTPUT_DIR HK_LOG_FILE
+
+    run hk check --all
+    assert_failure
+    assert_output --regexp "or .*/\.git/hk/output for one file per step"
+    assert_file_contains ".git/hk/output/fail.log" "GIT_DIR_STEP_MARKER"
+}

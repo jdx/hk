@@ -123,6 +123,11 @@ pub static HK_OUTPUT_FILE: LazyLock<PathBuf> = LazyLock::new(|| {
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or_else(|| checkout_state_dir().join("output.log"))
 });
+pub static HK_OUTPUT_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    var_path("HK_OUTPUT_DIR")
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| checkout_state_dir().join("output"))
+});
 
 // When set, write a JSON timing report to this path after the hook finishes
 pub static HK_TIMING_JSON: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("HK_TIMING_JSON"));
