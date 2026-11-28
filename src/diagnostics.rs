@@ -448,6 +448,12 @@ fn parse_gcc(
         r"^(\S+?):(\d+):\s+(?:(error|warning|note|help):\s*)?([^\s:].*?){rule_pattern}"
     ))
     .expect("valid column-less diagnostic regex");
+    // docutils (rstcheck) prints `path:line: (LEVEL/n) message` without quoting the path. The
+    // level marker is distinctive enough to accept paths with spaces, which `without_column`
+    // rejects.
+    let docutils =
+        regex::Regex::new(r"^(\S.*?):(\d+): (\((?:DEBUG|INFO|WARNING|ERROR|SEVERE)/\d\) .*)$")
+            .expect("valid docutils diagnostic regex");
     // `diagnostic_severity` applies only to findings shaped `rule-name: message`; any other
     // line without a severity word (for example `syntax error`) stays an error.
     let rule_prefixed = regex::Regex::new(r"^[A-Za-z_][\w.-]*:\s").expect("valid rule regex");
@@ -511,8 +517,7 @@ fn parse_gcc(
                 c[5].to_string(),
                 c.get(6),
             )
-        } else {
-            let c = without_column.captures(line)?;
+        } else if let Some(c) = without_column.captures(line) {
             let path = &c[1];
             if path.contains("://") || path.starts_with("//") || path.starts_with("/*") {
                 return None;
@@ -524,6 +529,16 @@ fn parse_gcc(
                 c.get(3),
                 c[4].to_string(),
                 c.get(5),
+            )
+        } else {
+            let c = docutils.captures(line)?;
+            (
+                c[1].to_string(),
+                c[2].to_string(),
+                1,
+                None,
+                c[3].to_string(),
+                None,
             )
         };
         // `[*]` marks an auto-fixable finding (rumdl); it is not a rule name.
@@ -899,6 +914,20 @@ mod tests {
         assert_eq!(at(&parsed.diagnostics[1]), ("doc.rst", 6, 1));
         assert_eq!(
             parsed.diagnostics[1].message,
+            "(ERROR/3) (python) invalid syntax"
+        );
+    }
+
+    #[test]
+    fn gcc_reads_rstcheck_paths_with_spaces() {
+        let output =
+            "docs/my notes.rst:6: (ERROR/3) (python) invalid syntax\nError! Issues detected.\n";
+        let parsed = gcc(output);
+        assert!(parsed.warnings.is_empty());
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert_eq!(at(&parsed.diagnostics[0]), ("docs/my notes.rst", 6, 1));
+        assert_eq!(
+            parsed.diagnostics[0].message,
             "(ERROR/3) (python) invalid syntax"
         );
     }
