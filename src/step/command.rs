@@ -336,9 +336,8 @@ mod tests {
             .map(String::from)
             .to_vec();
 
-        let len =
-            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), false)
-                .unwrap();
+        let len = batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), false)
+            .unwrap();
 
         let shim = dir.path().join("node_modules\\.bin").join("pnpm.cmd");
         let line = batch_command_line(&shim, &argv[1..]);
