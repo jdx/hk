@@ -889,6 +889,23 @@ mod tests {
     }
 
     #[test]
+    fn gcc_reads_detekt_and_ignores_its_summary() {
+        let output = "/src/Test.kt:1:12: This empty block of code can be removed. [EmptyFunctionBlock]\n/src/Test.kt:4:9: This empty block of code can be removed. [EmptyFunctionBlock]\n\nAnalysis failed with 2 weighted issues.\n";
+        let parsed = gcc(output);
+        assert!(parsed.warnings.is_empty(), "{:?}", parsed.warnings);
+        assert_eq!(parsed.diagnostics.len(), 2);
+        assert_eq!(at(&parsed.diagnostics[1]), ("/src/Test.kt", 4, 9));
+        assert_eq!(
+            parsed.diagnostics[1].message,
+            "This empty block of code can be removed."
+        );
+        assert_eq!(
+            parsed.diagnostics[1].rule.as_deref(),
+            Some("EmptyFunctionBlock")
+        );
+    }
+
+    #[test]
     fn gcc_stops_at_a_blank_line_before_a_summary() {
         // mado
         let output = "t2.md:1:1: MD022 Headers should be surrounded by blank lines\ntest.md:1:1: MD047 File should end with a single newline character\n\nFound 5 errors.\n";
