@@ -106,6 +106,21 @@ fn has_exe_extension(program: &str) -> bool {
     program.ends_with(".exe") || program.ends_with(".com")
 }
 
+/// Whether `program` names a JavaScript package manager whose exec runs a
+/// `node_modules\.bin` shim, whatever form it is installed in (`pnpm`,
+/// `pnpm.exe`, `C:\...\pnpm.cmd`).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn is_package_launcher(program: &str) -> bool {
+    const LAUNCHERS: &[&str] = &["npm", "npx", "pnpm", "pnpx", "yarn"];
+    let name = program.rsplit(['/', '\\']).next().unwrap_or(program);
+    let name = name.to_ascii_lowercase();
+    let stem = [".exe", ".com", ".cmd", ".bat"]
+        .iter()
+        .find_map(|extension| name.strip_suffix(extension))
+        .unwrap_or(&name);
+    LAUNCHERS.contains(&stem)
+}
+
 #[cfg_attr(not(windows), allow(dead_code))]
 fn is_batch_file(path: &Path) -> bool {
     path.extension()
@@ -148,6 +163,20 @@ pub(crate) fn batch_command_line_len(
     pathext: Option<&str>,
     assume_unresolved_shim: bool,
 ) -> Option<usize> {
+    // A package manager's exec (`pnpm exec`, `npx`, `yarn exec`) runs as a
+    // native executable but hands the rest of the line to the tool's
+    // `node_modules\.bin` shim through `cmd.exe`, so the files end up on a
+    // cmd.exe line all the same. Size that line as an npm shim's.
+    if argv.len() > 1 && is_package_launcher(&argv[0]) {
+        let shim = cwd.join("node_modules\\.bin").join(format!(
+            "{}.cmd",
+            Path::new(&argv[0])
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+        ));
+        return Some(batch_command_line(&shim, &argv[1..]).encode_utf16().count());
+    }
     let program = match resolve_program(argv.first()?, cwd, path, pathext) {
         Some(program) if is_batch_file(&program) => program,
         Some(_) => return None,
@@ -293,6 +322,52 @@ mod tests {
             batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), true).unwrap()
                 > "a.txt".len()
         );
+    }
+
+    #[test]
+    fn sizes_a_package_launcher_as_the_shim_it_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        // mise installs pnpm on Windows as a native executable.
+        std::fs::write(bin.join("pnpm.exe"), "").unwrap();
+        let path = bin.to_str().unwrap();
+        let argv: Vec<String> = ["pnpm", "exec", "--", "mytool", "--", "a.md", "b c.md"]
+            .map(String::from)
+            .to_vec();
+
+        let len =
+            batch_command_line_len(&argv, dir.path(), Some(path), Some(".exe;.cmd"), false)
+                .unwrap();
+
+        let shim = dir.path().join("node_modules\\.bin").join("pnpm.cmd");
+        let line = batch_command_line(&shim, &argv[1..]);
+        assert_eq!(len, line.encode_utf16().count());
+        // Sized with the double escaping npm shims get.
+        assert!(line.contains("^^^\"a.md^^^\""), "{line}");
+
+        // The launcher alone passes no files to a shim.
+        assert_eq!(
+            batch_command_line_len(&argv[..1], dir.path(), Some(path), Some(".exe"), false),
+            None
+        );
+    }
+
+    #[test]
+    fn recognizes_package_launchers() {
+        for program in [
+            "pnpm",
+            "PNPM.EXE",
+            "npx.cmd",
+            "C:\\tools\\yarn.exe",
+            "/usr/bin/npm",
+            "pnpx",
+        ] {
+            assert!(is_package_launcher(program), "{program}");
+        }
+        for program in ["node", "pnpm-lint", "mypnpm.exe", "bin/tool.cmd"] {
+            assert!(!is_package_launcher(program), "{program}");
+        }
     }
 
     #[test]

@@ -156,7 +156,8 @@ impl Step {
     }
 
     /// On Windows, the length of the `cmd.exe` command line a rendered argv
-    /// becomes when it runs a `.cmd` or `.bat` file. A program that is found nowhere
+    /// becomes when it runs a `.cmd` or `.bat` file, directly or through a
+    /// package manager's exec (`pnpm exec`, `npx`). A program that is found nowhere
     /// is sized as an npm shim when mise may supply it at run time.
     fn batch_command_line_len(
         &self,
