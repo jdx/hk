@@ -111,19 +111,33 @@ pub fn write_failed_command(result: &ensembler::CmdResult) {
     eprintln!("\nSee {} for full command output", path.display());
 }
 
+/// Replace the output file with `content` (or the current file followed by
+/// `content` when appending). The text goes to a temporary file beside it that
+/// is then renamed into place, so a reader never sees a partial file.
 fn write(content: &str, append: bool) -> std::io::Result<()> {
     let path: &Path = &env::HK_OUTPUT_FILE;
-    if let Some(parent) = path
+    let dir = match path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
     {
-        env::create_state_dir_all(parent)?;
-    }
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(append)
-        .truncate(!append)
-        .open(path)?;
-    file.write_all(content.as_bytes())
+        Some(parent) => {
+            env::create_state_dir_all(parent)?;
+            parent
+        }
+        None => Path::new("."),
+    };
+    let mut full = if append {
+        match std::fs::read_to_string(path) {
+            Ok(existing) => existing,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => return Err(e),
+        }
+    } else {
+        String::new()
+    };
+    full.push_str(content);
+    let mut temp = tempfile::NamedTempFile::new_in(dir)?;
+    temp.write_all(full.as_bytes())?;
+    temp.persist(path).map_err(|err| err.error)?;
+    Ok(())
 }
