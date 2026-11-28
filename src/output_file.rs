@@ -85,26 +85,22 @@ pub fn write_failed_command(result: &ensembler::CmdResult) {
     let path = &*env::HK_OUTPUT_FILE;
     let output = console::strip_ansi_codes(&result.combined_output);
     let trimmed = output.trim();
-    let from_step = !trimmed.is_empty()
-        && STEP_FAILURE_OUTPUTS
+    // Output already covered by a step's summary, or no output at all, adds
+    // nothing; point at the file only when it has summaries.
+    let nothing_to_add = trimmed.is_empty()
+        || STEP_FAILURE_OUTPUTS
             .lock()
             .unwrap()
             .iter()
             .any(|step_output| step_output.contains(trimmed));
-    if from_step {
-        // Point at the file only when it has summaries (a hidden step's
-        // failure may be the only output).
+    if nothing_to_add {
         if WRITTEN.load(Ordering::SeqCst) {
             eprintln!("\nSee {} for full command output", path.display());
         }
         return;
     }
     let res = if WRITTEN.load(Ordering::SeqCst) {
-        if trimmed.is_empty() {
-            Ok(())
-        } else {
-            write(&format!("\nfailed command output:\n{output}"), true)
-        }
+        write(&format!("\nfailed command output:\n{output}"), true)
     } else {
         write(&output, false)
     };

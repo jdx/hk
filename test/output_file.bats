@@ -258,3 +258,27 @@ JSON
     run grep -c -e "failed command output" -e '"filePath"' "$output_file"
     assert_output "0"
 }
+
+@test "a step that fails silently leaves no output file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["silent"] {
+        check = "exit 1"
+        output_summary = "hide"
+      }
+    }
+  }
+}
+EOF
+    echo "content" > file.txt
+    output_file="$BATS_TEST_TMPDIR/output.log"
+
+    HK_OUTPUT_FILE="$output_file" run hk check --all
+
+    assert_failure
+    assert_file_not_exist "$output_file"
+    refute_output --partial "See $output_file"
+}
