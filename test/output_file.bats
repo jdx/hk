@@ -206,3 +206,27 @@ EOF
     assert_success
     assert_file_not_exist "$output_file"
 }
+
+@test "a hidden step's failure stays out of the output file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["hidden"] {
+        check = "echo ONLY_HIDDEN_FAILURE_MARKER 1>&2 && exit 1"
+        output_summary = "hide"
+      }
+    }
+  }
+}
+EOF
+    echo "content" > file.txt
+    output_file="$BATS_TEST_TMPDIR/output.log"
+
+    HK_OUTPUT_FILE="$output_file" run hk check --all
+
+    assert_failure
+    assert_file_not_exist "$output_file"
+    refute_output --partial "See $output_file"
+}

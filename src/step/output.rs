@@ -62,6 +62,9 @@ impl Step {
 
         if is_failure {
             ctx.hook_ctx.mark_step_failed(&self.name);
+            if self.output_summary == OutputSummary::Hide {
+                crate::output_file::note_hidden_output(combined);
+            }
         }
 
         // On failure, use combined output so diagnostic messages are never

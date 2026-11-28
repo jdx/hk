@@ -6,11 +6,27 @@ use crate::env;
 use std::{
     io::Write,
     path::Path,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 /// Whether this process wrote the output file from a hook run's summaries.
 static WRITTEN: AtomicBool = AtomicBool::new(false);
+
+/// Output of failed commands from steps with `output_summary = "hide"`, which
+/// must stay out of the file even when such a command ends the process.
+static HIDDEN_OUTPUTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Record a failed command's output from a step whose summary is hidden.
+pub fn note_hidden_output(output: &str) {
+    let output = console::strip_ansi_codes(output);
+    let output = output.trim();
+    if !output.is_empty() {
+        HIDDEN_OUTPUTS.lock().unwrap().push(output.to_string());
+    }
+}
 
 /// One step's section of the output file.
 pub struct StepSummary {
@@ -64,9 +80,23 @@ pub fn write_summaries(summaries: &[StepSummary]) {
 pub fn write_failed_command(result: &ensembler::CmdResult) {
     let path = &*env::HK_OUTPUT_FILE;
     let output = console::strip_ansi_codes(&result.combined_output);
+    let trimmed = output.trim();
+    let hidden = !trimmed.is_empty()
+        && HIDDEN_OUTPUTS
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|hidden| hidden.contains(trimmed));
+    if hidden {
+        // The step opted out of its summary; point at the file only when other
+        // steps' summaries are in it.
+        if WRITTEN.load(Ordering::SeqCst) {
+            eprintln!("\nSee {} for full command output", path.display());
+        }
+        return;
+    }
     let res = if WRITTEN.load(Ordering::SeqCst) {
         let existing = std::fs::read_to_string(path).unwrap_or_default();
-        let trimmed = output.trim();
         if trimmed.is_empty() || existing.contains(trimmed) {
             Ok(())
         } else {
