@@ -87,6 +87,23 @@ Use `hk check --all --format jsonl` for structured execution events, `--sarif hk
 
 See [troubleshooting](/logging) for log levels, traces, and configuration inspection.
 
+## Use the hk GitHub Action
+
+[jdx/hk-action](https://github.com/jdx/hk-action) installs a pinned hk release and runs `hk check --all`. It checks the download against the release's SHA-256 digest and build attestation before running it.
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+  - uses: jdx/hk-action@v0
+    with:
+      version: 2.14.0
+      mise: true
+```
+
+`version` is required, so a new hk release reaches CI only in a commit that changes it. Use the version your project pins locally. With `mise: true`, the action first runs [mise-action](https://github.com/jdx/mise-action), which installs the tools in `mise.toml` so the linters your steps call are on the `PATH`. If mise already installs hk, pass `install: false` instead of a `version`.
+
+The action passes `--github-annotations` when the installed hk has it (see [below](#report-findings-in-github-actions)); with an older hk, it warns and runs without annotations. Other inputs check only a pull request's changed files (`files: changed`), pass extra arguments (`args: --slow`), or write `--sarif` and `--junit-xml` reports; its README lists them all. hk-action is not yet at 1.0, and its inputs may change between releases, including under the floating `v0` tag. Pin an exact tag such as `v0.1.0` or a commit SHA if that would break your workflow.
+
 ## Report findings in GitHub Actions
 
 `--github-annotations` turns findings into inline annotations on the pull request's changed files and writes a job summary:

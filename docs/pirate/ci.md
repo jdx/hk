@@ -1,6 +1,6 @@
 ---
 description: Run hk's checks for the harbour-master (CI), pick only the cargo that changed, call up extra watches, and haul in diagnostics worth reading.
-sourceHash: 71023e0110b6
+sourceHash: 58136ad4f637
 ---
 
 # Continuous integration: the harbour-master
@@ -87,6 +87,23 @@ HK_TIMING_JSON=hk-timing.json hk check --all
 Use `hk check --all --format jsonl` for structured execution events, `--sarif hk.sarif` for normalized diagnostics (only hands that set `diagnostic_format` produce them; see [diagnostics](/configuration#diagnostics)), or `--junit-xml hk.junit.xml` to report each step as a JUnit test case for CI test-result viewers. See [clockwork hands (coding agents)](/agents) for command effects and exact file lists.
 
 See [troubleshooting](/logging) for the ship's log levels and traces, and for inspecting the configuration.
+
+## Hire the hk GitHub Action {#use-the-hk-github-action}
+
+[jdx/hk-action](https://github.com/jdx/hk-action) brings aboard a pinned hk release and runs `hk check --all`. It checks the cargo against the release's SHA-256 digest and build attestation before letting it sail.
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+  - uses: jdx/hk-action@v0
+    with:
+      version: 2.14.0
+      mise: true
+```
+
+`version` is required, so a new hk release reaches the harbour-master only in a commit that changes it. Use the version yer ship pins locally. With `mise: true`, the action first runs [mise-action](https://github.com/jdx/mise-action), which brings aboard the tools in `mise.toml` so the linters yer hands call are on the `PATH`. If mise already brings aboard hk, pass `install: false` instead of a `version`.
+
+The action passes `--github-annotations` when the hk aboard has it (see [below](#report-findings-in-github-actions)); with an older hk, it warns and runs without annotations. Other inputs inspect only a pull request's changed cargo (`files: changed`), pass extra arguments (`args: --slow`), or write `--sarif` and `--junit-xml` reports; its README lists them all. hk-action has not yet reached 1.0, and its inputs may change between releases, even under the floating `v0` tag. Pin an exact tag such as `v0.1.0` or a commit SHA if that would sink yer workflow.
 
 ## Sing out findings in GitHub Actions {#report-findings-in-github-actions}
 
