@@ -69,8 +69,8 @@ its tool, [`hk init --mise`](/mise_integration#generate-a-starter-setup) adds th
 detected linters' tools to `mise.toml`, and when a step's tool is missing, hk
 ends the run with the `mise use` command that installs it. hk finds the builtin
 by the step's name (`["ruff"] = Builtins.ruff`), or for a command given as an
-argument list, by the name of the missing program. A builtin step under another
-name, such as `["format-shell"] = Builtins.shfmt`, gets no hint.
+argument list, by the name of the missing program. So `["format-shell"] =
+Builtins.shfmt`, whose commands are shell strings, gets no hint.
 
 With [`HK_MISE=1`](/mise_integration#per-directory-environments-monorepos), hk
 resolves the mise environment for the step's directory, so tools declared in a
