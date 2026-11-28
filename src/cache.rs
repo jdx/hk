@@ -254,7 +254,7 @@ fn rename_is_retryable(err: &std::io::Error) -> bool {
 
 /// Renames `from` over `to`, trying again where Windows briefly refuses, as
 /// `stash_journal::replace` does.
-fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(crate) fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
     let mut attempt = 0;
     loop {
         match std::fs::rename(from, to) {

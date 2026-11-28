@@ -138,6 +138,12 @@ fn write(content: &str, append: bool) -> std::io::Result<()> {
     full.push_str(content);
     let mut temp = tempfile::NamedTempFile::new_in(dir)?;
     temp.write_all(full.as_bytes())?;
-    temp.persist(path).map_err(|err| err.error)?;
+    // On Windows a scanner or reader can hold the old file open for a moment;
+    // retry the replace like the cache does. A failed rename drops the
+    // temporary file.
+    let temp = temp.into_temp_path();
+    crate::cache::rename_over(&temp, path)?;
+    // The temporary path is gone now; nothing is left to clean up.
+    let _ = temp.keep();
     Ok(())
 }
