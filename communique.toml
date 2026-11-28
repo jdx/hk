@@ -1,7 +1,7 @@
 context = "hk is a git hook manager and project linting tool written in Rust with emphasis on performance and concurrent execution."
 
 system_extra = """
-Credit only people other than @jdx. @jdx maintains hk and writes most changes, so a bullet for a change he wrote ends with its PR link and no username: never add "(@jdx)", "by @jdx", or thanks to @jdx. When someone else wrote a change, or is named in its description as a co-author or as the person who reported the problem, credit them by username.
+Credit only people other than @jdx. @jdx maintains hk and writes most changes, so never credit @jdx: no "(@jdx)", "by @jdx", or thanks to @jdx, and a bullet for a change he wrote alone ends with its PR link and no username. When someone else wrote a change, or is named in its description as a co-author or as the person who reported the problem, credit them by username, also on a bullet for a change @jdx wrote.
 """
 
 [defaults]
