@@ -1,0 +1,94 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Python"
+  description = "Security linter for Python"
+  project_indicators {
+    new { file = ".bandit" }
+    new { file = "pyproject.toml"; contains = "[tool.bandit" }
+  }
+  mise_tools = List("pipx:bandit")
+}
+bandit = new Config.Step {
+  glob = "**/*.py"
+  // bandit only reads `[tool.bandit]` from pyproject.toml with `-c`, and only reads a `.bandit`
+  // ini file with `--ini` when given files instead of `-r`, so both are passed when present.
+  // `-c pyproject.toml` is harmless without a `[tool.bandit]` table.
+  check = new Config.CommandSpec {
+    command = new Config.Script {
+      windows =
+        """
+        if exist .bandit (if exist pyproject.toml (bandit \(args) -c pyproject.toml --ini .bandit {{files}}) else (bandit \(args) --ini .bandit {{files}})) else (if exist pyproject.toml (bandit \(args) -c pyproject.toml {{files}}) else (bandit \(args) {{files}}))
+        """
+      other =
+        """
+        set -- \(args)
+        if [ -f pyproject.toml ]; then set -- "$@" -c pyproject.toml; fi
+        if [ -f .bandit ]; then set -- "$@" --ini .bandit; fi
+        bandit "$@" {{files}}
+        """
+    }
+    effect = "read"
+  }
+  // Findings are `path:line: error: message (LOW severity, HIGH confidence) [B602]`. bandit
+  // reports 0-based columns, so none is printed. Files bandit cannot parse are skipped, not
+  // reported, because bandit only lists them in its default report.
+  diagnostic_format = "gcc"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "run.py" }
+    local const shell =
+      """
+      import subprocess
+
+      subprocess.call("ls -l", shell=True)
+
+      """
+    local const safe =
+      """
+      def add(a: int, b: int) -> int:
+          return a + b
+
+      """
+    ["check good file"] = testMaker.checkPass(safe)
+    ["check bad file"] = testMaker.checkFail(shell, 1)
+    ["check bad file reports diagnostics"] =
+      testMaker.checkDiagnostics(
+        shell,
+        1,
+        List(new Config.StepTestDiagnostic {
+          path = "run.py"
+          line = 3
+          severity = "error"
+          rule = "B602"
+          message = "subprocess call with shell=True"
+        }),
+      )
+    ["check honors pyproject.toml"] =
+      (testMaker) {
+        extra_files {
+          ["pyproject.toml"] =
+            """
+            [tool.bandit]
+            skips = ["B404", "B602", "B607"]
+
+            """
+        }
+      }.checkPass(shell)
+    ["check honors .bandit"] =
+      (testMaker) {
+        extra_files {
+          [".bandit"] =
+            """
+            [bandit]
+            skips = B404,B602,B607
+
+            """
+        }
+      }.checkPass(shell)
+  }
+}
+
+local args =
+  #"-q -f custom --msg-template "{relpath}:{line}: error: {msg} ({severity} severity, {confidence} confidence) [{test_id}]""#
